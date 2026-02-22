@@ -25,6 +25,9 @@
 "widget.reset" = "Reset %@";
 "widget.soon" = "Soon";
 "widget.updated" = "Upd. %@";
+"widget.refresh.interval" = "15 min";
+"widget.description.usage" = "Monitor your Claude usage in real time";
+"widget.description.pacing" = "Your Claude usage pace";
 
 /* Settings */
 "settings.subtitle" = "Monitor your Claude usage";
@@ -98,3 +101,9 @@
 "notif.orange.body" = "You're past 60% — consider slowing down";
 "notif.red.body" = "Critical usage — limit almost reached";
 "notif.green.body" = "Usage reset — you're back in the green";
+
+/* Relative Time */
+"relative.now" = "now";
+
+/* Durations */
+"duration.days.hours" = "%dd %dh";

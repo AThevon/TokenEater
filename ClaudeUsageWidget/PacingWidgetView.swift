@@ -112,7 +112,7 @@ struct PacingWidgetView: View {
         let days = Int(interval) / 86400
         let hours = (Int(interval) % 86400) / 3600
         if days > 0 {
-            return "\(days)j \(hours)h"
+            return String(format: String(localized: "duration.days.hours"), days, hours)
         }
         let minutes = (Int(interval) % 3600) / 60
         return "\(hours)h\(String(format: "%02d", minutes))"

@@ -14,6 +14,7 @@ settings:
     CODE_SIGN_STYLE: Automatic
     MARKETING_VERSION: "2.0.0"
     CURRENT_PROJECT_VERSION: "1"
+    ARCHS: "arm64 x86_64"
 
 targets:
   ClaudeUsageApp:

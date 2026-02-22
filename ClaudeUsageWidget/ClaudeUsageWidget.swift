@@ -9,7 +9,7 @@ struct ClaudeUsageWidget: Widget {
             UsageWidgetView(entry: entry)
         }
         .configurationDisplayName("TokenEater")
-        .description("Affiche votre consommation Claude en temps réel")
+        .description(String(localized: "widget.description.usage"))
         .supportedFamilies([.systemMedium, .systemLarge])
     }
 }
@@ -22,7 +22,7 @@ struct PacingWidget: Widget {
             PacingWidgetView(entry: entry)
         }
         .configurationDisplayName("TokenEater Pacing")
-        .description("Votre rythme de consommation Claude")
+        .description(String(localized: "widget.description.pacing"))
         .supportedFamilies([.systemSmall])
     }
 }

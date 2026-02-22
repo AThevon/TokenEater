@@ -179,7 +179,7 @@ final class MenuBarViewModel: ObservableObject {
                 let m = (Int(diff) % 3600) / 60
                 fiveHourReset = h > 0 ? "\(h)h \(m)min" : "\(m)min"
             } else {
-                fiveHourReset = "maintenant"
+                fiveHourReset = String(localized: "relative.now")
             }
         } else {
             fiveHourReset = ""

@@ -21,19 +21,8 @@ extension Color {
 
 extension Date {
     var relativeFormatted: String {
-        let interval = Date().timeIntervalSince(self)
-        guard interval > 0 else { return "a l'instant" }
-        if interval < 60 {
-            return "il y a moins d'une minute"
-        } else if interval < 3600 {
-            let minutes = Int(interval / 60)
-            return "il y a \(minutes) min"
-        } else if interval < 86400 {
-            let hours = Int(interval / 3600)
-            return "il y a \(hours) h"
-        } else {
-            let days = Int(interval / 86400)
-            return "il y a \(days) j"
-        }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: self, relativeTo: Date())
     }
 }
