@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/macOS-13%2B-111?logo=apple&logoColor=white" alt="macOS 13+">
+  <img src="https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white" alt="macOS 14+">
   <img src="https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white" alt="Swift 5.9">
   <img src="https://img.shields.io/badge/WidgetKit-native-007AFF?logo=apple&logoColor=white" alt="WidgetKit">
   <img src="https://img.shields.io/badge/Claude-Pro%20%2F%20Team-D97706" alt="Claude Pro / Team">
@@ -52,10 +52,7 @@ Automatic alerts when usage crosses thresholds:
 
 ### Authentication
 
-Two authentication methods, auto-detected in order of priority:
-
-1. **Claude Code OAuth** (recommended) — Reads the OAuth token from Claude Code's Keychain entry. Zero configuration needed if you have Claude Code installed.
-2. **Browser cookies** — Auto-import from Chrome, Arc, Brave, or Edge. Or paste manually.
+**Claude Code OAuth** — Reads the OAuth token from Claude Code's Keychain entry. Zero configuration needed if you have Claude Code installed. Tokens refresh automatically.
 
 ### SOCKS5 Proxy
 
@@ -95,33 +92,18 @@ To update later: `brew upgrade tokeneater`
 
 ### Configure
 
-**Claude Code (automatic):**
+**Prerequisites:** Install [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and authenticate (`claude` then `/login`).
 
-If you have [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated, TokenEater detects it automatically. Just click **Connect** and you're done.
+1. Open TokenEater, click **Connect** — the OAuth token is detected automatically
+2. Right-click on desktop > **Edit Widgets** > search "TokenEater"
 
-**Auto-import from browser:**
-
-1. Open TokenEater, click **Connect**
-2. If no OAuth token is found, it falls back to browser cookie detection
-3. Select your Chromium browser if prompted, authorize Keychain access — done!
-
-**Manual setup:**
-
-1. Open **claude.ai** in your browser and log in
-2. Open DevTools (`Cmd + Option + I`) > **Application** > **Cookies** > **claude.ai**
-3. Copy the **sessionKey** cookie (`sk-ant-sid01-...`)
-4. Copy the **lastActiveOrg** cookie (this is your Organization ID)
-5. Paste both values in the TokenEater settings window
-
-Then: **right-click on desktop > Edit Widgets > search "TokenEater"**
-
-> Cookies expire roughly every month. If the widget shows an error, re-import or update them. OAuth tokens from Claude Code are refreshed automatically.
+> Tokens refresh automatically via Claude Code. No maintenance needed.
 
 ## Build from source
 
 ### Requirements
 
-- macOS 13 (Ventura) or later
+- macOS 14 (Sonoma) or later
 - Xcode 15+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen): `brew install xcodegen`
 
@@ -151,24 +133,10 @@ killall NotificationCenter 2>/dev/null
 open "/Applications/TokenEater.app"
 ```
 
-## Supported Browsers
-
-Auto-import works with any Chromium-based browser:
-
-| Browser | Status |
-|---------|--------|
-| Google Chrome | ✓ |
-| Arc | ✓ |
-| Brave | ✓ |
-| Microsoft Edge | ✓ |
-| Chromium | ✓ |
-
-Supports both legacy and modern (v130+) Chrome cookie encryption formats.
-
 ## Architecture
 
 ```
-ClaudeUsageApp/          App host (settings UI, OAuth/cookie auth, menu bar)
+ClaudeUsageApp/          App host (settings UI, OAuth auth, menu bar)
 ClaudeUsageWidget/       Widget Extension (WidgetKit, 15-min refresh)
 Shared/                  Shared code (API client, models, pacing, notifications)
   ├── en.lproj/          English strings
@@ -176,26 +144,19 @@ Shared/                  Shared code (API client, models, pacing, notifications)
 project.yml              XcodeGen configuration
 ```
 
-The host app writes configuration to the widget extension's sandbox container. The widget reads from its own container. No App Groups required. The menu bar refreshes every 5 minutes independently.
+The host app and widget extension are both sandboxed. Each reads the OAuth token directly from the macOS Keychain ("Claude Code-credentials"). No shared storage or App Groups needed. The menu bar refreshes every 5 minutes independently.
 
 ## How it works
 
-TokenEater supports two API endpoints:
+TokenEater reads the OAuth token from Claude Code's Keychain entry and calls:
 
-**OAuth (Claude Code):**
 ```
 GET https://api.anthropic.com/api/oauth/usage
 Authorization: Bearer <token>
 anthropic-beta: oauth-2025-04-20
 ```
 
-**Cookies (browser):**
-```
-GET https://claude.ai/api/organizations/{org_id}/usage
-Cookie: sessionKey=sk-ant-sid01-...
-```
-
-The response includes `utilization` (0–100) and `resets_at` for each limit bucket. The widget refreshes every 15 minutes (WidgetKit minimum) and caches the last successful response for offline display. If cookies expire, the client automatically falls back to OAuth if available.
+The response includes `utilization` (0–100) and `resets_at` for each limit bucket. The widget refreshes every 15 minutes (WidgetKit minimum) and caches the last successful response for offline display.
 
 ## License
 
