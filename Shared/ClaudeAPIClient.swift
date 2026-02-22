@@ -1,79 +1,41 @@
 import Foundation
 
-enum AuthMethod {
-    case oauth(token: String)
-    case cookies(sessionKey: String, orgId: String)
-}
-
 final class ClaudeAPIClient {
     static let shared = ClaudeAPIClient()
 
-    private let baseURL = "https://claude.ai"
+    private let oauthURL = URL(string: "https://api.anthropic.com/api/oauth/usage")!
 
-    /// Whether this client runs from the host app (not sandboxed) or the widget (sandboxed)
-    var isHostApp = false
-
-    var config: SharedConfig? {
-        SharedStorage.readConfig(fromHost: isHostApp)
-    }
+    /// Set by host app (from UserDefaults) or widget (from AppIntent)
+    var proxyConfig: ProxyConfig?
 
     private var session: URLSession {
-        guard let config = config, config.proxyEnabled else { return .shared }
+        guard let proxy = proxyConfig, proxy.enabled else { return .shared }
         let c = URLSessionConfiguration.default
         c.connectionProxyDictionary = [
             kCFNetworkProxiesSOCKSEnable as String: true,
-            kCFNetworkProxiesSOCKSProxy as String: config.proxyHost,
-            kCFNetworkProxiesSOCKSPort as String: config.proxyPort,
+            kCFNetworkProxiesSOCKSProxy as String: proxy.host,
+            kCFNetworkProxiesSOCKSPort as String: proxy.port,
         ]
         return URLSession(configuration: c)
     }
 
-    // MARK: - Auth Resolution
+    // MARK: - Auth
 
-    func resolveAuthMethod() -> AuthMethod? {
-        // Priority 1: OAuth from Keychain
-        if let oauth = KeychainOAuthReader.readClaudeCodeToken() {
-            return .oauth(token: oauth.accessToken)
-        }
-        // Priority 2: Stored cookies
-        if let config = config, !config.sessionKey.isEmpty, !config.organizationID.isEmpty {
-            return .cookies(sessionKey: config.sessionKey, orgId: config.organizationID)
-        }
-        return nil
+    var isConfigured: Bool {
+        KeychainOAuthReader.readClaudeCodeToken() != nil
     }
 
     // MARK: - Fetch Usage
 
     func fetchUsage() async throws -> UsageResponse {
-        guard let method = resolveAuthMethod() else {
-            throw ClaudeAPIError.noSessionKey
+        guard let oauth = KeychainOAuthReader.readClaudeCodeToken() else {
+            throw ClaudeAPIError.noToken
         }
-        return try await fetchUsage(with: method)
-    }
 
-    private func fetchUsage(with method: AuthMethod) async throws -> UsageResponse {
-        let request: URLRequest
-        switch method {
-        case .oauth(let token):
-            guard let url = URL(string: "https://api.anthropic.com/api/oauth/usage") else {
-                throw ClaudeAPIError.invalidURL
-            }
-            var req = URLRequest(url: url)
-            req.httpMethod = "GET"
-            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            req.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
-            request = req
-
-        case .cookies(let sessionKey, let orgId):
-            guard let url = URL(string: "\(baseURL)/api/organizations/\(orgId)/usage") else {
-                throw ClaudeAPIError.invalidURL
-            }
-            var req = URLRequest(url: url)
-            req.httpMethod = "GET"
-            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            req.setValue("sessionKey=\(sessionKey)", forHTTPHeaderField: "Cookie")
-            request = req
-        }
+        var request = URLRequest(url: oauthURL)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(oauth.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
 
         let (data, response) = try await session.data(for: request)
 
@@ -84,15 +46,10 @@ final class ClaudeAPIClient {
         switch httpResponse.statusCode {
         case 200:
             let usage = try JSONDecoder().decode(UsageResponse.self, from: data)
-            let cached = CachedUsage(usage: usage, fetchDate: Date())
-            SharedStorage.writeCache(cached, fromHost: isHostApp)
+            LocalCache.write(CachedUsage(usage: usage, fetchDate: Date()))
             return usage
         case 401, 403:
-            // If cookies failed, try OAuth as fallback
-            if case .cookies = method, let oauth = KeychainOAuthReader.readClaudeCodeToken() {
-                return try await fetchUsage(with: .oauth(token: oauth.accessToken))
-            }
-            throw ClaudeAPIError.sessionExpired
+            throw ClaudeAPIError.tokenExpired
         default:
             throw ClaudeAPIError.httpError(httpResponse.statusCode)
         }
@@ -100,29 +57,15 @@ final class ClaudeAPIClient {
 
     // MARK: - Test Connection
 
-    func testConnection(method: AuthMethod) async -> ConnectionTestResult {
-        let request: URLRequest
-        switch method {
-        case .oauth(let token):
-            guard let url = URL(string: "https://api.anthropic.com/api/oauth/usage") else {
-                return ConnectionTestResult(success: false, message: String(localized: "error.invalidurl"))
-            }
-            var req = URLRequest(url: url)
-            req.httpMethod = "GET"
-            req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            req.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
-            request = req
-
-        case .cookies(let sessionKey, let orgId):
-            guard let url = URL(string: "\(baseURL)/api/organizations/\(orgId)/usage") else {
-                return ConnectionTestResult(success: false, message: String(localized: "error.invalidurl"))
-            }
-            var req = URLRequest(url: url)
-            req.httpMethod = "GET"
-            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            req.setValue("sessionKey=\(sessionKey)", forHTTPHeaderField: "Cookie")
-            request = req
+    func testConnection() async -> ConnectionTestResult {
+        guard let oauth = KeychainOAuthReader.readClaudeCodeToken() else {
+            return ConnectionTestResult(success: false, message: String(localized: "error.notoken"))
         }
+
+        var request = URLRequest(url: oauthURL)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(oauth.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
 
         do {
             let (data, response) = try await session.data(for: request)
@@ -149,33 +92,27 @@ final class ClaudeAPIClient {
     // MARK: - Cache
 
     func loadCachedUsage() -> CachedUsage? {
-        SharedStorage.readCache(fromHost: isHostApp)
+        LocalCache.read()
     }
 }
 
 // MARK: - Error
 
 enum ClaudeAPIError: LocalizedError {
-    case noSessionKey
-    case noOrganizationID
-    case invalidURL
+    case noToken
     case invalidResponse
-    case sessionExpired
+    case tokenExpired
     case unsupportedPlan
     case httpError(Int)
 
     var errorDescription: String? {
         switch self {
-        case .noSessionKey:
-            return String(localized: "error.nosessionkey")
-        case .noOrganizationID:
-            return String(localized: "error.noorgid")
-        case .invalidURL:
-            return String(localized: "error.invalidurl")
+        case .noToken:
+            return String(localized: "error.notoken")
         case .invalidResponse:
             return String(localized: "error.invalidresponse")
-        case .sessionExpired:
-            return String(localized: "error.sessionexpired")
+        case .tokenExpired:
+            return String(localized: "error.tokenexpired")
         case .unsupportedPlan:
             return String(localized: "error.unsupportedplan")
         case .httpError(let code):
