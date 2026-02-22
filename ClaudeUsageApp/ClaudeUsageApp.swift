@@ -6,13 +6,14 @@ struct ClaudeUsageApp: App {
     @AppStorage("showMenuBar") private var showMenuBar = true
 
     init() {
-        ClaudeAPIClient.shared.isHostApp = true
+        syncProxyConfig()
     }
 
     var body: some Scene {
         WindowGroup(id: "settings") {
             SettingsView(onConfigSaved: { [weak menuBarVM] in
                 menuBarVM?.reloadConfig()
+                syncProxyConfig()
             })
         }
         .windowResizability(.contentSize)
@@ -23,5 +24,16 @@ struct ClaudeUsageApp: App {
             Image(nsImage: menuBarVM.menuBarImage)
         }
         .menuBarExtraStyle(.window)
+    }
+
+    private func syncProxyConfig() {
+        ClaudeAPIClient.shared.proxyConfig = ProxyConfig(
+            enabled: UserDefaults.standard.bool(forKey: "proxyEnabled"),
+            host: UserDefaults.standard.string(forKey: "proxyHost") ?? "127.0.0.1",
+            port: {
+                let port = UserDefaults.standard.integer(forKey: "proxyPort")
+                return port > 0 ? port : 1080
+            }()
+        )
     }
 }
