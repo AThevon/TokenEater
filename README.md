@@ -56,7 +56,10 @@ Automatic alerts when usage crosses thresholds:
 
 ### SOCKS5 Proxy
 
-For users behind a corporate firewall, TokenEater supports routing API calls through a SOCKS5 proxy (e.g. `ssh -D 1080 user@bastion`). Configure in Settings > Proxy.
+For users behind a corporate firewall, TokenEater supports routing API calls through a SOCKS5 proxy (e.g. `ssh -D 1080 user@bastion`).
+
+- **Menu bar app** — Configure in Settings > Proxy
+- **Desktop widgets** — Long-press a widget > Edit Widget to set proxy host/port
 
 ### Localization
 
