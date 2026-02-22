@@ -28,21 +28,16 @@
 
 /* Settings */
 "settings.subtitle" = "Monitor your Claude usage";
-"settings.sessionkey" = "Session Key";
-"settings.orgid" = "Organization ID";
-"settings.orgid.hint" = "lastActiveOrg cookie";
 "settings.test" = "Test";
 "settings.refresh" = "Refresh";
 "settings.guide" = "Guide";
 "settings.testing" = "Testing...";
-"settings.footer" = "Cookies expire monthly. Update them if the widget shows an error.";
 "settings.menubar.toggle" = "Show in menu bar";
 "settings.menubar.title" = "Menu bar";
 "settings.tab.connection" = "Connection";
 "settings.tab.display" = "Display";
 "settings.metrics.pinned" = "Pinned metrics";
 "settings.metrics.pinned.footer" = "Choose which metrics appear in the menu bar.";
-"settings.manual" = "Manual credentials";
 "settings.pacing.display" = "Pacing display";
 "settings.pacing.dot" = "Dot only";
 "settings.pacing.dotdelta" = "Dot + delta (%)";
@@ -56,20 +51,10 @@
 
 /* Connect */
 "connect.button" = "Connect";
-"connect.subtitle" = "Auto-detect Claude Code or browser cookies";
+"connect.subtitle" = "Auto-detect Claude Code OAuth token";
 "connect.oauth.success" = "Connected via Claude Code";
 "connect.method.oauth" = "Claude Code (auto)";
-"connect.method.cookies" = "Browser cookies";
-
-/* Import */
-"import.button" = "Import from browser";
-"import.subtitle" = "Auto-detect your Claude cookies";
-"import.success" = "Imported from %@";
-"import.loading" = "Importing...";
-"import.nobroser" = "No Chromium browser detected";
-"import.picker.title" = "Choose a browser";
-"import.profiles" = "%d profile(s)";
-"import.expires" = "Cookies expire %@";
+"connect.noclaudecode" = "Claude Code not detected. Install it and sign in first.";
 
 /* Guide */
 "guide.title" = "Setup Guide";
@@ -78,41 +63,18 @@
 "guide.oauth.step1" = "Install **Claude Code** (Anthropic's CLI)";
 "guide.oauth.step2" = "Open TokenEater and click **Connect**";
 "guide.oauth.step3" = "Done — token refreshes automatically";
-"guide.browser.title" = "Browser Auto-Import";
-"guide.browser.step1" = "Log in to **claude.ai** in your browser";
-"guide.browser.step2" = "Click **Connect** — cookies are detected automatically";
-"guide.browser.step3" = "Works with Chrome, Arc, Brave, and Edge";
-"guide.manual.title" = "Manual Cookies";
-"guide.manual.step1" = "Open **claude.ai** > DevTools (**Cmd + Option + I**)";
-"guide.manual.step2" = "Go to **Application** > **Cookies** > **claude.ai**";
-"guide.manual.step3" = "Copy **sessionKey** (`sk-ant-sid01-...`) and **lastActiveOrg**";
-"guide.manual.step4" = "Paste both values in the fields above and click **Test**";
-"guide.cookie.warning" = "Browser cookies expire roughly every month. If the widget shows an error, re-import them. Claude Code tokens refresh automatically — no maintenance needed.";
 "guide.widget" = "Add the widget";
 "guide.widget.detail" = "Right-click desktop > **Edit Widgets** > **TokenEater**";
 
 /* Errors - API */
-"error.nosessionkey" = "No session key configured. Open the app to set it up.";
-"error.noorgid" = "Organization ID not configured. Enter it in the app.";
+"error.notoken" = "No OAuth token found. Install Claude Code and click Connect.";
+"error.tokenexpired" = "OAuth token expired — relaunch Claude Code to refresh it";
 "error.invalidurl" = "Invalid URL";
 "error.invalidresponse" = "Invalid server response";
-"error.sessionexpired" = "Session expired — log in to claude.ai and update the cookie";
 "error.http" = "HTTP error %d";
 "error.network" = "Network error: %@";
 "error.invalidresponse.short" = "Invalid response";
 "error.unsupportedplan" = "Usage data not available — Claude Pro or Team plan required";
-
-/* Errors - Import */
-"error.keychain.denied" = "Keychain access denied for %@. Relaunch and authorize.";
-"error.keychain.notfound" = "Key %@ not found in Keychain";
-"error.db.copy" = "Cannot copy cookie database: %@";
-"error.db.open" = "Cannot open SQLite database: %@";
-"error.nocookies" = "No Claude cookies found in database";
-"error.decryption" = "Decryption failed (%d cookie(s) found but not decryptable)";
-"error.missing.both" = "sessionKey and lastActiveOrg";
-"error.missing.session" = "sessionKey";
-"error.missing.org" = "lastActiveOrg";
-"error.missing.cookie" = "Missing cookie: %@";
 
 /* Connection Test */
 "test.success" = "Connected — Session: %d%%";

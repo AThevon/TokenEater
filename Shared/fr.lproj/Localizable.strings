@@ -28,21 +28,16 @@
 
 /* Settings */
 "settings.subtitle" = "Surveillez votre consommation Claude";
-"settings.sessionkey" = "Session Key";
-"settings.orgid" = "Organization ID";
-"settings.orgid.hint" = "cookie lastActiveOrg";
 "settings.test" = "Tester";
 "settings.refresh" = "Rafraîchir";
 "settings.guide" = "Guide";
 "settings.testing" = "Test en cours...";
-"settings.footer" = "Les cookies expirent chaque mois. Mettez-les à jour si le widget affiche une erreur.";
 "settings.menubar.toggle" = "Afficher dans la barre de menu";
 "settings.menubar.title" = "Barre de menu";
 "settings.tab.connection" = "Connexion";
 "settings.tab.display" = "Affichage";
 "settings.metrics.pinned" = "Métriques épinglées";
 "settings.metrics.pinned.footer" = "Choisissez les métriques affichées dans la barre de menu.";
-"settings.manual" = "Identifiants manuels";
 "settings.pacing.display" = "Affichage rythme";
 "settings.pacing.dot" = "Point seul";
 "settings.pacing.dotdelta" = "Point + delta (%)";
@@ -56,20 +51,10 @@
 
 /* Connect */
 "connect.button" = "Connexion";
-"connect.subtitle" = "Détection auto Claude Code ou cookies navigateur";
+"connect.subtitle" = "Détection auto du token OAuth Claude Code";
 "connect.oauth.success" = "Connecté via Claude Code";
 "connect.method.oauth" = "Claude Code (auto)";
-"connect.method.cookies" = "Cookies navigateur";
-
-/* Import */
-"import.button" = "Importer depuis le navigateur";
-"import.subtitle" = "Détecte automatiquement vos cookies Claude";
-"import.success" = "Importé depuis %@";
-"import.loading" = "Import en cours...";
-"import.nobroser" = "Aucun navigateur Chromium détecté";
-"import.picker.title" = "Choisir un navigateur";
-"import.profiles" = "%d profil(s)";
-"import.expires" = "Cookies expirent %@";
+"connect.noclaudecode" = "Claude Code non détecté. Installez-le et connectez-vous d'abord.";
 
 /* Guide */
 "guide.title" = "Configuration";
@@ -78,41 +63,18 @@
 "guide.oauth.step1" = "Installez **Claude Code** (le CLI d'Anthropic)";
 "guide.oauth.step2" = "Ouvrez TokenEater et cliquez sur **Connecter**";
 "guide.oauth.step3" = "Terminé — le token se rafraîchit automatiquement";
-"guide.browser.title" = "Import navigateur";
-"guide.browser.step1" = "Connectez-vous sur **claude.ai** dans votre navigateur";
-"guide.browser.step2" = "Cliquez sur **Connecter** — les cookies sont détectés automatiquement";
-"guide.browser.step3" = "Compatible Chrome, Arc, Brave et Edge";
-"guide.manual.title" = "Cookies manuels";
-"guide.manual.step1" = "Ouvrez **claude.ai** > DevTools (**Cmd + Option + I**)";
-"guide.manual.step2" = "Allez dans **Application** > **Cookies** > **claude.ai**";
-"guide.manual.step3" = "Copiez **sessionKey** (`sk-ant-sid01-...`) et **lastActiveOrg**";
-"guide.manual.step4" = "Collez les deux valeurs dans les champs et cliquez sur **Tester**";
-"guide.cookie.warning" = "Les cookies navigateur expirent environ chaque mois. Si le widget affiche une erreur, ré-importez-les. Les tokens Claude Code se rafraîchissent automatiquement — aucune maintenance.";
 "guide.widget" = "Ajouter le widget";
 "guide.widget.detail" = "Clic droit sur le bureau > **Modifier les widgets** > **TokenEater**";
 
 /* Errors - API */
-"error.nosessionkey" = "Pas de clé de session configurée. Ouvrez l'app pour la configurer.";
-"error.noorgid" = "Organization ID non configuré. Entrez-le dans l'app.";
+"error.notoken" = "Aucun token OAuth trouvé. Installez Claude Code et cliquez sur Connexion.";
+"error.tokenexpired" = "Token OAuth expiré — relancez Claude Code pour le rafraîchir";
 "error.invalidurl" = "URL invalide";
 "error.invalidresponse" = "Réponse invalide du serveur";
-"error.sessionexpired" = "Session expirée — reconnectez-vous sur claude.ai et mettez à jour le cookie";
 "error.http" = "Erreur HTTP %d";
 "error.network" = "Erreur réseau : %@";
 "error.invalidresponse.short" = "Réponse invalide";
 "error.unsupportedplan" = "Données d'utilisation indisponibles — un plan Claude Pro ou Team est requis";
-
-/* Errors - Import */
-"error.keychain.denied" = "Accès Keychain refusé pour %@. Relancez et autorisez l'accès.";
-"error.keychain.notfound" = "Clé %@ introuvable dans le Keychain";
-"error.db.copy" = "Impossible de copier la base cookies : %@";
-"error.db.open" = "Impossible d'ouvrir la base SQLite : %@";
-"error.nocookies" = "Aucun cookie Claude trouvé dans la base";
-"error.decryption" = "Déchiffrement échoué (%d cookie(s) trouvés mais non déchiffrables)";
-"error.missing.both" = "sessionKey et lastActiveOrg";
-"error.missing.session" = "sessionKey";
-"error.missing.org" = "lastActiveOrg";
-"error.missing.cookie" = "Cookie manquant : %@";
 
 /* Connection Test */
 "test.success" = "Connexion OK — Session : %d%%";
