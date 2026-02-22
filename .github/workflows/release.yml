@@ -64,6 +64,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Verify release asset is downloadable
+        run: |
+          ASSET_URL="https://github.com/AThevon/TokenEater/releases/download/${GITHUB_REF_NAME}/TokenEater.dmg"
+          echo "Verifying asset at: ${ASSET_URL}"
+          HTTP_STATUS=$(curl -sL -o /dev/null -w '%{http_code}' "$ASSET_URL")
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "::error::Release asset not downloadable (HTTP ${HTTP_STATUS}). Aborting Homebrew update."
+            exit 1
+          fi
+          echo "Asset verified (HTTP ${HTTP_STATUS})"
+
       - name: Update Homebrew Cask
         env:
           TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
