@@ -1,35 +1,38 @@
 import WidgetKit
 import Foundation
 
-struct Provider: TimelineProvider {
+struct Provider: AppIntentTimelineProvider {
     private let apiClient = ClaudeAPIClient.shared
 
     func placeholder(in context: Context) -> UsageEntry {
         .placeholder
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (UsageEntry) -> Void) {
+    func snapshot(for configuration: ProxyIntent, in context: Context) async -> UsageEntry {
         if context.isPreview {
-            completion(.placeholder)
-            return
+            return .placeholder
         }
-        Task {
-            let entry = await fetchEntry()
-            completion(entry)
-        }
+        applyProxy(configuration)
+        return await fetchEntry()
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<UsageEntry>) -> Void) {
-        Task {
-            let entry = await fetchEntry()
-            let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: Date()) ?? Date().addingTimeInterval(900)
-            let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
-            completion(timeline)
-        }
+    func timeline(for configuration: ProxyIntent, in context: Context) async -> Timeline<UsageEntry> {
+        applyProxy(configuration)
+        let entry = await fetchEntry()
+        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: Date()) ?? Date().addingTimeInterval(900)
+        return Timeline(entries: [entry], policy: .after(nextUpdate))
+    }
+
+    private func applyProxy(_ configuration: ProxyIntent) {
+        apiClient.proxyConfig = ProxyConfig(
+            enabled: configuration.proxyEnabled,
+            host: configuration.proxyHost,
+            port: configuration.proxyPort
+        )
     }
 
     private func fetchEntry() async -> UsageEntry {
-        guard apiClient.resolveAuthMethod() != nil else {
+        guard apiClient.isConfigured else {
             return .unconfigured
         }
 
@@ -37,7 +40,6 @@ struct Provider: TimelineProvider {
             let usage = try await apiClient.fetchUsage()
             return UsageEntry(date: Date(), usage: usage)
         } catch {
-            // Fallback to cached data
             if let cached = apiClient.loadCachedUsage() {
                 return UsageEntry(
                     date: Date(),
