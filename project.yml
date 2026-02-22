@@ -2,7 +2,7 @@ name: ClaudeUsageWidget
 options:
   bundleIdPrefix: com.claudeusagewidget
   deploymentTarget:
-    macOS: "13.0"
+    macOS: "14.0"
   xcodeVersion: "15.0"
   groupSortPosition: top
   defaultLocalization: en
@@ -10,7 +10,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.9"
-    MACOSX_DEPLOYMENT_TARGET: "13.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
     CODE_SIGN_STYLE: Automatic
 
 targets:
