@@ -63,7 +63,7 @@ final class MenuBarViewModel: ObservableObject {
         } else {
             pinnedMetrics = [.fiveHour, .sevenDay]
         }
-        hasConfig = ClaudeAPIClient.shared.resolveAuthMethod() != nil
+        hasConfig = ClaudeAPIClient.shared.isConfigured
         loadCached()
         startRefreshTimer()
         UsageNotificationManager.requestPermission()
@@ -131,7 +131,7 @@ final class MenuBarViewModel: ObservableObject {
     }
 
     func refresh() async {
-        guard ClaudeAPIClient.shared.resolveAuthMethod() != nil else {
+        guard ClaudeAPIClient.shared.isConfigured else {
             hasConfig = false
             return
         }
@@ -154,7 +154,7 @@ final class MenuBarViewModel: ObservableObject {
     }
 
     func reloadConfig() {
-        hasConfig = ClaudeAPIClient.shared.resolveAuthMethod() != nil
+        hasConfig = ClaudeAPIClient.shared.isConfigured
         Task { await refresh() }
     }
 
