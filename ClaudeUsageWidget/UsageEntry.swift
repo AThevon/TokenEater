@@ -32,6 +32,6 @@ struct UsageEntry: TimelineEntry {
     }
 
     static var unconfigured: UsageEntry {
-        UsageEntry(date: Date(), usage: nil, error: String(localized: "error.nosessionkey"))
+        UsageEntry(date: Date(), usage: nil, error: String(localized: "error.notoken"))
     }
 }
