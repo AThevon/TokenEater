@@ -8,22 +8,15 @@ extension Notification.Name {
 struct SettingsView: View {
     var onConfigSaved: (() -> Void)?
 
-    @State private var sessionKey = ""
-    @State private var organizationID = ""
     @State private var testResult: ConnectionTestResult?
     @State private var isTesting = false
-    @State private var showSessionKey = false
     @State private var showGuide = false
     @State private var isImporting = false
     @State private var importMessage: String?
     @State private var importSuccess = false
-    @State private var detectedBrowsers: [DetectedBrowser] = []
-    @State private var showBrowserPicker = false
     @State private var authMethodLabel = ""
-    @State private var isOAuth = false
 
     @AppStorage("showMenuBar") private var showMenuBar = true
-
     @AppStorage("pacingDisplayMode") private var pacingDisplayMode = "dotDelta"
 
     @State private var pinnedFiveHour = true
@@ -31,15 +24,14 @@ struct SettingsView: View {
     @State private var pinnedSonnet = false
     @State private var pinnedPacing = false
 
-    @State private var proxyEnabled = false
-    @State private var proxyHost = "127.0.0.1"
-    @State private var proxyPort = "1080"
+    @AppStorage("proxyEnabled") private var proxyEnabled = false
+    @AppStorage("proxyHost") private var proxyHost = "127.0.0.1"
+    @AppStorage("proxyPort") private var proxyPort = 1080
 
-    // Colors kept for guide/browser picker sheets
+    // Colors for guide sheet
     private let sheetBg = Color(hex: "#141416")
     private let sheetCard = Color.white.opacity(0.04)
     private let accent = Color(hex: "#FF9F0A")
-    private let accentRed = Color(hex: "#FF453A")
 
     var body: some View {
         VStack(spacing: 0) {
@@ -57,7 +49,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Text("v1.3.0")
+                Text("v2.0.0")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
@@ -80,10 +72,9 @@ struct SettingsView: View {
                     }
             }
         }
-        .frame(width: 500, height: isOAuth ? 400 : 480)
+        .frame(width: 500, height: 400)
         .onAppear { loadConfig() }
         .sheet(isPresented: $showGuide) { guideSheet }
-        .sheet(isPresented: $showBrowserPicker) { browserPickerSheet }
     }
 
     // MARK: - Connection Tab
@@ -128,41 +119,6 @@ struct SettingsView: View {
                 }
             }
 
-            if !isOAuth {
-                Section {
-                    LabeledContent("settings.sessionkey") {
-                        HStack(spacing: 6) {
-                            Group {
-                                if showSessionKey {
-                                    TextField("sk-ant-sid01-...", text: $sessionKey)
-                                } else {
-                                    SecureField("sk-ant-sid01-...", text: $sessionKey)
-                                }
-                            }
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(.body, design: .monospaced))
-
-                            Button {
-                                showSessionKey.toggle()
-                            } label: {
-                                Image(systemName: showSessionKey ? "eye.slash" : "eye")
-                            }
-                            .buttonStyle(.borderless)
-                        }
-                    }
-
-                    LabeledContent("settings.orgid") {
-                        TextField("941eb286-b278-...", text: $organizationID)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(.body, design: .monospaced))
-                    }
-                } header: {
-                    Text("settings.manual")
-                } footer: {
-                    Text("settings.orgid.hint")
-                }
-            }
-
             Section {
                 HStack(spacing: 12) {
                     Button {
@@ -176,14 +132,13 @@ struct SettingsView: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled((!isOAuth && (sessionKey.isEmpty || organizationID.isEmpty)) || isTesting)
+                    .disabled(isTesting)
 
                     Button {
                         WidgetCenter.shared.reloadAllTimelines()
                     } label: {
                         Label("settings.refresh", systemImage: "arrow.clockwise")
                     }
-                    .disabled(!isOAuth && sessionKey.isEmpty)
 
                     Spacer()
 
@@ -204,8 +159,6 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .onChange(of: sessionKey) { _ in saveConfig() }
-        .onChange(of: organizationID) { _ in saveConfig() }
     }
 
     // MARK: - Display Tab
@@ -263,7 +216,7 @@ struct SettingsView: View {
                         .font(.system(.body, design: .monospaced))
                 }
                 LabeledContent("settings.proxy.port") {
-                    TextField("1080", text: $proxyPort)
+                    TextField("1080", value: $proxyPort, format: .number)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
                         .frame(width: 80)
@@ -278,9 +231,9 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .onChange(of: proxyEnabled) { _ in saveConfig() }
-        .onChange(of: proxyHost) { _ in saveConfig() }
-        .onChange(of: proxyPort) { _ in saveConfig() }
+        .onChange(of: proxyEnabled) { _ in onConfigSaved?() }
+        .onChange(of: proxyHost) { _ in onConfigSaved?() }
+        .onChange(of: proxyPort) { _ in onConfigSaved?() }
     }
 
     // MARK: - Guide Sheet
@@ -307,7 +260,7 @@ struct SettingsView: View {
                     }
                     .padding(.bottom, 20)
 
-                    // Method 1: Claude Code
+                    // Method 1: Claude Code (only method now)
                     guideSection(
                         icon: "terminal.fill",
                         color: Color(hex: "#22C55E"),
@@ -319,52 +272,6 @@ struct SettingsView: View {
                             String(localized: "guide.oauth.step3"),
                         ]
                     )
-
-                    // Method 2: Browser auto-import
-                    guideSection(
-                        icon: "globe",
-                        color: Color(hex: "#0A84FF"),
-                        title: String(localized: "guide.browser.title"),
-                        steps: [
-                            String(localized: "guide.browser.step1"),
-                            String(localized: "guide.browser.step2"),
-                            String(localized: "guide.browser.step3"),
-                        ]
-                    )
-
-                    // Method 3: Manual cookies
-                    guideSection(
-                        icon: "key.fill",
-                        color: accent,
-                        title: String(localized: "guide.manual.title"),
-                        steps: [
-                            String(localized: "guide.manual.step1"),
-                            String(localized: "guide.manual.step2"),
-                            String(localized: "guide.manual.step3"),
-                            String(localized: "guide.manual.step4"),
-                        ]
-                    )
-
-                    // Cookie expiration warning
-                    HStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 11))
-                            .foregroundStyle(accent)
-                        Text("guide.cookie.warning")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.white.opacity(0.5))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(accent.opacity(0.06))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(accent.opacity(0.1), lineWidth: 1)
-                            )
-                    )
-                    .padding(.bottom, 16)
 
                     // Add widget
                     HStack(spacing: 12) {
@@ -398,7 +305,7 @@ struct SettingsView: View {
                 .padding(24)
             }
         }
-        .frame(width: 460, height: 560)
+        .frame(width: 460, height: 360)
     }
 
     private func guideSection(icon: String, color: Color, title: String, badge: String? = nil, steps: [String]) -> some View {
@@ -451,138 +358,13 @@ struct SettingsView: View {
         .padding(.bottom, 16)
     }
 
-    // MARK: - Browser Picker Sheet
-
-    private var browserPickerSheet: some View {
-        ZStack {
-            sheetBg.ignoresSafeArea()
-
-            VStack(spacing: 16) {
-                HStack {
-                    Text("import.picker.title")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
-                    Spacer()
-                    Button {
-                        showBrowserPicker = false
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 20))
-                            .foregroundStyle(.white.opacity(0.3))
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                ForEach(detectedBrowsers) { browser in
-                    Button {
-                        importFromBrowser(browser)
-                    } label: {
-                        HStack(spacing: 12) {
-                            Image(systemName: browserIcon(browser.id))
-                                .font(.system(size: 18))
-                                .foregroundStyle(accent)
-                                .frame(width: 36, height: 36)
-                                .background(accent.opacity(0.1))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(browser.name)
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(.white.opacity(0.9))
-                                Text(String(format: String(localized: "import.profiles"), browser.cookiePaths.count))
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.white.opacity(0.35))
-                            }
-
-                            Spacer()
-
-                            Image(systemName: "arrow.right.circle")
-                                .font(.system(size: 16))
-                                .foregroundStyle(.white.opacity(0.25))
-                        }
-                        .padding(14)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(sheetCard)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                                )
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                if isImporting {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.small)
-                            .tint(accent)
-                        Text("import.loading")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.5))
-                    }
-                }
-
-                if let message = importMessage, !importSuccess {
-                    HStack(spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(accentRed)
-                        Text(message)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.white.opacity(0.6))
-                        Spacer()
-                    }
-                }
-
-                Spacer()
-            }
-            .padding(24)
-        }
-        .frame(width: 360, height: 320)
-    }
-
-    private func browserIcon(_ id: String) -> String {
-        switch id {
-        case "chrome": return "globe"
-        case "arc": return "circle.hexagongrid"
-        case "brave": return "shield"
-        case "edge": return "globe.americas"
-        default: return "globe"
-        }
-    }
-
-    // MARK: - Config Persistence
+    // MARK: - Config
 
     private func loadConfig() {
-        if let config = SharedStorage.readConfig(fromHost: true) {
-            sessionKey = config.sessionKey
-            organizationID = config.organizationID
-            proxyEnabled = config.proxyEnabled
-            proxyHost = config.proxyHost
-            proxyPort = String(config.proxyPort)
-        }
         loadPinnedMetrics()
         if KeychainOAuthReader.readClaudeCodeToken() != nil {
             authMethodLabel = String(localized: "connect.method.oauth")
-            isOAuth = true
-        } else if !sessionKey.isEmpty && !organizationID.isEmpty {
-            authMethodLabel = String(localized: "connect.method.cookies")
-            isOAuth = false
         }
-    }
-
-    private func saveConfig() {
-        let config = SharedConfig(
-            sessionKey: sessionKey,
-            organizationID: organizationID,
-            proxyEnabled: proxyEnabled,
-            proxyHost: proxyHost,
-            proxyPort: Int(proxyPort) ?? 1080
-        )
-        SharedStorage.writeConfig(config, fromHost: true)
-        onConfigSaved?()
     }
 
     private func loadPinnedMetrics() {
@@ -611,21 +393,12 @@ struct SettingsView: View {
     private func testConnection() {
         isTesting = true
         testResult = nil
-        if !isOAuth { saveConfig() }
 
         Task {
-            let method: AuthMethod
-            if isOAuth, let oauth = KeychainOAuthReader.readClaudeCodeToken() {
-                method = .oauth(token: oauth.accessToken)
-            } else {
-                method = .cookies(sessionKey: sessionKey, orgId: organizationID)
-            }
-            let result = await ClaudeAPIClient.shared.testConnection(method: method)
-
+            let result = await ClaudeAPIClient.shared.testConnection()
             await MainActor.run {
                 testResult = result
                 isTesting = false
-
                 if result.success {
                     WidgetCenter.shared.reloadAllTimelines()
                 }
@@ -637,82 +410,24 @@ struct SettingsView: View {
         isImporting = true
         importMessage = nil
 
-        if let oauth = KeychainOAuthReader.readClaudeCodeToken() {
-            Task {
-                let result = await ClaudeAPIClient.shared.testConnection(method: .oauth(token: oauth.accessToken))
-                await MainActor.run {
-                    isImporting = false
-                    if result.success {
-                        isOAuth = true
-                        authMethodLabel = String(localized: "connect.method.oauth")
-                        importMessage = String(localized: "connect.oauth.success")
-                        importSuccess = true
-                        onConfigSaved?()
-                    } else {
-                        detectAndImportFromBrowser()
-                    }
-                }
-            }
+        guard KeychainOAuthReader.readClaudeCodeToken() != nil else {
+            isImporting = false
+            importMessage = String(localized: "connect.noclaudecode")
+            importSuccess = false
             return
         }
 
-        detectAndImportFromBrowser()
-    }
-
-    private func detectAndImportFromBrowser() {
-        isImporting = true
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            let browsers = BrowserCookieReader.detectBrowsers()
-
-            if browsers.isEmpty {
-                DispatchQueue.main.async {
-                    isImporting = false
-                    importMessage = String(localized: "import.nobroser")
-                    importSuccess = false
-                }
-                return
-            }
-
-            if browsers.count > 1 {
-                DispatchQueue.main.async {
-                    detectedBrowsers = browsers
-                    showBrowserPicker = true
-                    isImporting = false
-                }
-                return
-            }
-
-            importFromBrowser(browsers[0])
-        }
-    }
-
-    private func importFromBrowser(_ browser: DetectedBrowser) {
-        isImporting = true
-        importMessage = nil
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            let result = BrowserCookieReader.importCookies(from: browser)
-
-            DispatchQueue.main.async {
+        Task {
+            let result = await ClaudeAPIClient.shared.testConnection()
+            await MainActor.run {
                 isImporting = false
-                switch result {
-                case .success(let cookies):
-                    sessionKey = cookies.sessionKey
-                    organizationID = cookies.organizationID
-                    saveConfig()
-                    authMethodLabel = String(localized: "connect.method.cookies")
-                    isOAuth = false
-                    var msg = String(format: String(localized: "import.success"), cookies.browser)
-                    if let expires = cookies.sessionKeyExpires {
-                        let formatted = expires.formatted(.relative(presentation: .named))
-                        msg += " · " + String(format: String(localized: "import.expires"), formatted)
-                    }
-                    importMessage = msg
+                if result.success {
+                    authMethodLabel = String(localized: "connect.method.oauth")
+                    importMessage = String(localized: "connect.oauth.success")
                     importSuccess = true
-                    showBrowserPicker = false
-                case .failure(let error):
-                    importMessage = "\(browser.name) : \(error.localizedDescription)"
+                    onConfigSaved?()
+                } else {
+                    importMessage = result.message
                     importSuccess = false
                 }
             }
