@@ -63,42 +63,6 @@ struct UsageBucket: Codable {
     }
 }
 
-// MARK: - App Constants
-
-enum AppConstants {
-    static let widgetBundleID = "com.claudeusagewidget.app.widget"
-    static let configFileName = "claude-usage-config.json"
-    static let cacheFileName = "claude-usage-cache.json"
-}
-
-// MARK: - Shared Config (written by app, read by widget)
-
-struct SharedConfig: Codable {
-    var sessionKey: String
-    var organizationID: String
-    var proxyEnabled: Bool
-    var proxyHost: String
-    var proxyPort: Int
-
-    init(sessionKey: String = "", organizationID: String = "",
-         proxyEnabled: Bool = false, proxyHost: String = "127.0.0.1", proxyPort: Int = 1080) {
-        self.sessionKey = sessionKey
-        self.organizationID = organizationID
-        self.proxyEnabled = proxyEnabled
-        self.proxyHost = proxyHost
-        self.proxyPort = proxyPort
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        sessionKey = try container.decode(String.self, forKey: .sessionKey)
-        organizationID = try container.decode(String.self, forKey: .organizationID)
-        proxyEnabled = try container.decodeIfPresent(Bool.self, forKey: .proxyEnabled) ?? false
-        proxyHost = try container.decodeIfPresent(String.self, forKey: .proxyHost) ?? "127.0.0.1"
-        proxyPort = try container.decodeIfPresent(Int.self, forKey: .proxyPort) ?? 1080
-    }
-}
-
 // MARK: - Cached Usage (for offline support)
 
 struct CachedUsage: Codable {
@@ -106,60 +70,37 @@ struct CachedUsage: Codable {
     let fetchDate: Date
 }
 
-// MARK: - Shared File Manager
+// MARK: - Proxy Config (injectable — app uses UserDefaults, widget uses AppIntent)
 
-enum SharedStorage {
-    /// Path the widget uses (inside its own sandbox container)
-    static var widgetContainerConfigURL: URL {
-        // Widget reads from its own Application Support
+struct ProxyConfig {
+    var enabled: Bool
+    var host: String
+    var port: Int
+
+    init(enabled: Bool = false, host: String = "127.0.0.1", port: Int = 1080) {
+        self.enabled = enabled
+        self.host = host
+        self.port = port
+    }
+}
+
+// MARK: - Local Cache (each target writes to its own sandbox Application Support)
+
+enum LocalCache {
+    private static let cacheFileName = "claude-usage-cache.json"
+
+    private static var cacheURL: URL {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        return appSupport.appendingPathComponent(AppConstants.configFileName)
+        try? FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
+        return appSupport.appendingPathComponent(cacheFileName)
     }
 
-    static var widgetContainerCacheURL: URL {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        return appSupport.appendingPathComponent(AppConstants.cacheFileName)
+    static func write(_ cache: CachedUsage) {
+        try? JSONEncoder().encode(cache).write(to: cacheURL)
     }
 
-    /// Path the host app uses to write INTO the widget's container (app is not sandboxed)
-    static var hostAppConfigURL: URL {
-        let widgetContainer = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Containers/\(AppConstants.widgetBundleID)/Data/Library/Application Support")
-        // Create directory if needed
-        try? FileManager.default.createDirectory(at: widgetContainer, withIntermediateDirectories: true)
-        return widgetContainer.appendingPathComponent(AppConstants.configFileName)
-    }
-
-    static var hostAppCacheURL: URL {
-        let widgetContainer = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Containers/\(AppConstants.widgetBundleID)/Data/Library/Application Support")
-        try? FileManager.default.createDirectory(at: widgetContainer, withIntermediateDirectories: true)
-        return widgetContainer.appendingPathComponent(AppConstants.cacheFileName)
-    }
-
-    // MARK: - Read/Write Config
-
-    static func writeConfig(_ config: SharedConfig, fromHost: Bool) {
-        let url = fromHost ? hostAppConfigURL : widgetContainerConfigURL
-        try? JSONEncoder().encode(config).write(to: url)
-    }
-
-    static func readConfig(fromHost: Bool) -> SharedConfig? {
-        let url = fromHost ? hostAppConfigURL : widgetContainerConfigURL
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        return try? JSONDecoder().decode(SharedConfig.self, from: data)
-    }
-
-    // MARK: - Read/Write Cache
-
-    static func writeCache(_ cache: CachedUsage, fromHost: Bool) {
-        let url = fromHost ? hostAppCacheURL : widgetContainerCacheURL
-        try? JSONEncoder().encode(cache).write(to: url)
-    }
-
-    static func readCache(fromHost: Bool) -> CachedUsage? {
-        let url = fromHost ? hostAppCacheURL : widgetContainerCacheURL
-        guard let data = try? Data(contentsOf: url) else { return nil }
+    static func read() -> CachedUsage? {
+        guard let data = try? Data(contentsOf: cacheURL) else { return nil }
         return try? JSONDecoder().decode(CachedUsage.self, from: data)
     }
 }
