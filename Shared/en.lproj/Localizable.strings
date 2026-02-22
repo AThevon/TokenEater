@@ -26,6 +26,7 @@
 "widget.soon" = "Soon";
 "widget.updated" = "Upd. %@";
 "widget.refresh.interval" = "15 min";
+"widget.refresh.button" = "Refresh";
 "widget.description.usage" = "Monitor your Claude usage in real time";
 "widget.description.pacing" = "Your Claude usage pace";
 

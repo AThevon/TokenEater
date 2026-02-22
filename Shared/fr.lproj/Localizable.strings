@@ -26,6 +26,7 @@
 "widget.soon" = "Bientôt";
 "widget.updated" = "Maj %@";
 "widget.refresh.interval" = "15 min";
+"widget.refresh.button" = "Rafraîchir";
 "widget.description.usage" = "Affiche votre consommation Claude en temps réel";
 "widget.description.pacing" = "Votre rythme de consommation Claude";
 
