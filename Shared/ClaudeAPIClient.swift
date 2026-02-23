@@ -46,8 +46,10 @@ final class ClaudeAPIClient {
         switch httpResponse.statusCode {
         case 200:
             let usage = try JSONDecoder().decode(UsageResponse.self, from: data)
-            SharedContainer.cachedUsage = CachedUsage(usage: usage, fetchDate: Date())
-            SharedContainer.lastSyncDate = Date()
+            SharedContainer.updateAfterSync(
+                usage: CachedUsage(usage: usage, fetchDate: Date()),
+                syncDate: Date()
+            )
             return usage
         case 401, 403:
             throw ClaudeAPIError.tokenExpired

@@ -71,6 +71,15 @@ enum SharedContainer {
         }
     }
 
+    // MARK: - Atomic Updates
+
+    static func updateAfterSync(usage: CachedUsage, syncDate: Date) {
+        var data = load()
+        data.cachedUsage = usage
+        data.lastSyncDate = syncDate
+        save(data)
+    }
+
     // MARK: - Convenience
 
     static var isConfigured: Bool {
