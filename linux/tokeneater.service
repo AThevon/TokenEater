@@ -1,0 +1,14 @@
+[Unit]
+Description=TokenEater — Claude usage monitor daemon
+After=network-online.target graphical-session.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/tokeneater-daemon
+Restart=on-failure
+RestartSec=30
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%U/bus
+
+[Install]
+WantedBy=default.target
