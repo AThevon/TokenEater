@@ -106,6 +106,38 @@
 /* Relative Time */
 "relative.now" = "maintenant";
 
+/* Theming */
+"settings.tab.theming" = "Apparence";
+"settings.theme.colors" = "Thème de couleurs";
+"settings.theme.preset" = "Préréglage";
+"settings.theme.custom" = "Personnalisé";
+"settings.theme.custom.colors" = "Couleurs personnalisées";
+"settings.theme.gauge.normal" = "Jauge normal";
+"settings.theme.gauge.warning" = "Jauge attention";
+"settings.theme.gauge.critical" = "Jauge critique";
+"settings.theme.pacing.chill" = "Pacing détendu";
+"settings.theme.pacing.ontrack" = "Pacing en rythme";
+"settings.theme.pacing.hot" = "Pacing surchauffe";
+"settings.theme.widget.bg" = "Fond du widget";
+"settings.theme.widget.text" = "Texte du widget";
+"settings.theme.thresholds" = "Seuils d'utilisation";
+"settings.theme.warning" = "Attention";
+"settings.theme.critical" = "Critique";
+"settings.theme.menubar" = "Barre de menus";
+"settings.theme.monochrome" = "Barre de menus monochrome";
+"settings.theme.preview" = "Aperçu";
+"settings.theme.preview.normal" = "Normal";
+"settings.theme.preview.warning" = "Attention";
+"settings.theme.preview.critical" = "Critique";
+"settings.theme.reset" = "Réinitialiser";
+"settings.theme.reset.confirm" = "Réinitialiser tous les réglages d'apparence ?";
+"settings.theme.reset.cancel" = "Annuler";
+"settings.theme.reset.action" = "Réinitialiser";
+"theme.default" = "Par défaut";
+"theme.monochrome" = "Monochrome";
+"theme.neon" = "Néon";
+"theme.pastel" = "Pastel";
+
 /* Durations */
 "duration.days.hours" = "%dj %dh";
 
