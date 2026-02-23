@@ -1,0 +1,91 @@
+import SwiftUI
+
+struct WelcomeStep: View {
+    @ObservedObject var viewModel: OnboardingViewModel
+
+    // Demo data for preview gauges
+    private let demoValues: [(String, Int, Color)] = [
+        ("5h", 35, Color(hex: "#22C55E")),
+        ("7d", 52, Color(hex: "#FF9F0A")),
+        ("Sonnet", 12, Color(hex: "#3B82F6")),
+    ]
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Spacer()
+
+            // App icon
+            Image(nsImage: NSImage(named: "AppIcon") ?? NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 80, height: 80)
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+                .shadow(color: .black.opacity(0.3), radius: 10, y: 4)
+
+            // Title
+            Text("TokenEater")
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+
+            Text("onboarding.welcome.subtitle")
+                .font(.system(size: 15))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+
+            // Demo preview
+            demoPreview
+                .padding(.vertical, 8)
+
+            Text("onboarding.welcome.description")
+                .font(.system(size: 13))
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 340)
+
+            Spacer()
+
+            // CTA
+            Button {
+                viewModel.goNext()
+            } label: {
+                Text("onboarding.continue")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .keyboardShortcut(.defaultAction)
+        }
+        .padding(32)
+    }
+
+    private var demoPreview: some View {
+        HStack(spacing: 24) {
+            ForEach(demoValues, id: \.0) { label, value, color in
+                VStack(spacing: 8) {
+                    ZStack {
+                        Circle()
+                            .stroke(color.opacity(0.15), lineWidth: 6)
+                            .frame(width: 56, height: 56)
+                        Circle()
+                            .trim(from: 0, to: CGFloat(value) / 100)
+                            .stroke(color, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                            .frame(width: 56, height: 56)
+                            .rotationEffect(.degrees(-90))
+                        Text("\(value)%")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    }
+                    Text(label)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                )
+        )
+    }
+}
