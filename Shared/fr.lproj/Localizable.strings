@@ -102,6 +102,15 @@
 "notif.orange.body" = "Tu dépasses %d%% — lève le pied";
 "notif.red.body" = "Usage critique — limite presque atteinte";
 "notif.green.body" = "Usage réinitialisé — t'es de retour dans le vert";
+"notif.test.body" = "Les notifications fonctionnent — c'est bon !";
+"settings.notifications.title" = "Notifications";
+"settings.notifications.status" = "Statut";
+"settings.notifications.on" = "Activées";
+"settings.notifications.off" = "Désactivées";
+"settings.notifications.unknown" = "Non défini";
+"settings.notifications.enable" = "Activer";
+"settings.notifications.open" = "Ouvrir les réglages";
+"settings.notifications.test" = "Tester";
 
 /* Relative Time */
 "relative.now" = "maintenant";

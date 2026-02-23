@@ -43,12 +43,22 @@ Live usage percentages directly in your menu bar — choose which metrics to pin
 
 Color-coded: green when you're comfortable, orange when usage climbs, red when approaching the limit.
 
+### Theming
+
+Customize colors across the entire app:
+- **4 preset themes** — Default, Monochrome, Neon, Pastel
+- **Custom theme** — Pick individual colors for gauges, pacing zones, widget background & text
+- **Monochrome menu bar** — Render menu bar values in system colors without affecting the popover or widgets
+- **Configurable thresholds** — Set your own warning and critical percentages (defaults: 60% / 85%)
+- Theme and thresholds propagate to widgets in real-time
+
 ### Notifications
 
-Automatic alerts when usage crosses thresholds:
-- **60%** — Warning to slow down
-- **85%** — Critical usage alert
+Automatic alerts when usage crosses your configured thresholds:
+- **Warning** — Usage climbing, consider slowing down
+- **Critical** — Limit almost reached
 - **Reset** — Back in the green notification
+- Test notifications from Settings > Display
 
 ### Authentication
 

@@ -102,6 +102,15 @@
 "notif.orange.body" = "You're past %d%% — consider slowing down";
 "notif.red.body" = "Critical usage — limit almost reached";
 "notif.green.body" = "Usage reset — you're back in the green";
+"notif.test.body" = "Notifications are working — you're all set!";
+"settings.notifications.title" = "Notifications";
+"settings.notifications.status" = "Status";
+"settings.notifications.on" = "Enabled";
+"settings.notifications.off" = "Disabled";
+"settings.notifications.unknown" = "Not set";
+"settings.notifications.enable" = "Enable";
+"settings.notifications.open" = "Open Settings";
+"settings.notifications.test" = "Test";
 
 /* Relative Time */
 "relative.now" = "now";

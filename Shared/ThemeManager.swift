@@ -57,12 +57,12 @@ final class ThemeManager: ObservableObject {
     // MARK: - Menu Bar (respects monochrome toggle)
 
     func menuBarNSColor(for pct: Int) -> NSColor {
-        if menuBarMonochrome { return .white }
+        if menuBarMonochrome { return .labelColor }
         return current.gaugeNSColor(for: Double(pct), thresholds: thresholds)
     }
 
     func menuBarPacingNSColor(for zone: PacingZone) -> NSColor {
-        if menuBarMonochrome { return .white }
+        if menuBarMonochrome { return .labelColor }
         return current.pacingNSColor(for: zone)
     }
 

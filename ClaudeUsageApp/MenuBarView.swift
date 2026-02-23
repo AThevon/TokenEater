@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import WidgetKit
+import Combine
 
 // MARK: - Metric ID
 
@@ -55,6 +56,7 @@ final class MenuBarViewModel: ObservableObject {
 
     private var timer: Timer?
     private var displaySettingsObserver: Any?
+    private var themeCancellable: AnyCancellable?
 
     init() {
         // Load pinned metrics from UserDefaults (default: 5h + 7d)
@@ -75,6 +77,13 @@ final class MenuBarViewModel: ObservableObject {
             WidgetKit.WidgetCenter.shared.reloadAllTimelines()
             Task { await refresh() }
         }
+
+        // Observe theme changes to refresh menu bar colors in real time
+        themeCancellable = ThemeManager.shared.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
 
         // Observe display settings changes from SettingsView
         displaySettingsObserver = NotificationCenter.default.addObserver(
