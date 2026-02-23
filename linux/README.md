@@ -6,21 +6,29 @@ Monitor your Claude AI usage limits from the GNOME Shell status bar.
 
 - Ubuntu 22.04+ / Fedora 38+ (GNOME 42+)
 - Claude Code installed and authenticated (`claude /login`)
-- Go 1.22+ (to build from source)
-- `notify-send` — `sudo apt install libnotify-bin` (Debian/Ubuntu)
+- `curl` and `tar` (pre-installed on all distros)
+- `notify-send` — `sudo apt install libnotify-bin` (Debian/Ubuntu) — optional, for desktop notifications
 
 ## Install
 
+No repo clone required. Run this one-liner:
+
 ```bash
-bash linux/install.sh
+bash <(curl -fsSL https://raw.githubusercontent.com/AThevon/TokenEater/main/linux/install.sh)
 ```
 
-The script builds the daemon (requires Go), installs the GNOME extension, the
-systemd user service, and the D-Bus activation file. Run with `--uninstall` to
-remove everything.
+The script downloads the pre-built daemon binary for your architecture (x86\_64 or aarch64), installs the GNOME extension, the systemd user service, and the D-Bus activation file.
+
+**Uninstall:**
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/AThevon/TokenEater/main/linux/install.sh) --uninstall
+```
 
 <details>
-<summary>Manual steps (if you prefer)</summary>
+<summary>Build from source (advanced)</summary>
+
+If you prefer to build the daemon yourself, clone the repo and run:
 
 ```bash
 # 1. Build daemon
@@ -49,6 +57,8 @@ systemctl --user enable --now tokeneater
 #    On X11:     gnome-extensions enable tokeneater-gnome@io.tokeneater
 #    On Wayland: log out / log back in, then enable via GNOME Extensions app
 ```
+
+Requires Go 1.22+.
 
 </details>
 
@@ -107,3 +117,4 @@ Threshold transitions trigger a desktop notification via `notify-send`:
 - XFCE panel plugin — same daemon
 - Packaged releases (`.deb`, AUR)
 - SOCKS5 proxy support in the daemon
+

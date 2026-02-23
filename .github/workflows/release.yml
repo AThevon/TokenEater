@@ -92,3 +92,41 @@ jobs:
           git add Casks/tokeneater.rb
           git commit -m "bump: tokeneater ${NEW_VERSION}"
           git push
+
+  build-linux:
+    runs-on: ubuntu-latest
+    needs: build-and-release
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: linux/daemon/go.mod
+
+      - name: Build daemon (amd64 + arm64)
+        run: |
+          cd linux/daemon
+          GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o ../../tokeneater-daemon-linux-amd64 ./...
+          GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o ../../tokeneater-daemon-linux-arm64 ./...
+
+      - name: Package Linux extras
+        run: |
+          tar -czf tokeneater-linux-extras.tar.gz \
+            -C linux \
+            gnome-extension \
+            tokeneater.service
+
+      - name: Upload Linux assets to release
+        run: |
+          gh release upload "$GITHUB_REF_NAME" \
+            tokeneater-daemon-linux-amd64 \
+            tokeneater-daemon-linux-arm64 \
+            tokeneater-linux-extras.tar.gz \
+            --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
