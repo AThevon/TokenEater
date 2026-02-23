@@ -33,7 +33,10 @@ func readToken(path string) (string, error) {
 }
 
 // defaultCredentialsPath returns ~/.claude/.credentials.json
-func defaultCredentialsPath() string {
-	home, _ := os.UserHomeDir()
-	return home + "/.claude/.credentials.json"
+func defaultCredentialsPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolving home directory: %w", err)
+	}
+	return home + "/.claude/.credentials.json", nil
 }
