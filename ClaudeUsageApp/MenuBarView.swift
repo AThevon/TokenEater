@@ -63,16 +63,18 @@ final class MenuBarViewModel: ObservableObject {
         } else {
             pinnedMetrics = [.fiveHour, .sevenDay]
         }
-        if let oauth = KeychainOAuthReader.readClaudeCodeToken() {
-            SharedContainer.oauthToken = oauth.accessToken
+        let onboardingDone = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+        if onboardingDone {
+            if let oauth = KeychainOAuthReader.readClaudeCodeToken() {
+                SharedContainer.oauthToken = oauth.accessToken
+            }
+            hasConfig = SharedContainer.isConfigured
+            loadCached()
+            startRefreshTimer()
+            UsageNotificationManager.requestPermission()
+            WidgetKit.WidgetCenter.shared.reloadAllTimelines()
+            Task { await refresh() }
         }
-        hasConfig = SharedContainer.isConfigured
-        loadCached()
-        startRefreshTimer()
-        UsageNotificationManager.requestPermission()
-        // Force WidgetKit to discover all widgets including PacingWidget
-        WidgetKit.WidgetCenter.shared.reloadAllTimelines()
-        Task { await refresh() }
 
         // Observe display settings changes from SettingsView
         displaySettingsObserver = NotificationCenter.default.addObserver(
@@ -167,6 +169,10 @@ final class MenuBarViewModel: ObservableObject {
             SharedContainer.oauthToken = oauth.accessToken
         }
         hasConfig = SharedContainer.isConfigured
+        loadCached()
+        startRefreshTimer()
+        UsageNotificationManager.requestPermission()
+        WidgetKit.WidgetCenter.shared.reloadAllTimelines()
         Task { await refresh() }
     }
 

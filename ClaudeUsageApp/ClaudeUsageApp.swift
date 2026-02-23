@@ -21,6 +21,12 @@ struct ClaudeUsageApp: App {
                 OnboardingView()
             }
         }
+        .onChange(of: hasCompletedOnboarding) { completed in
+            if completed {
+                menuBarVM.reloadConfig()
+                syncProxyConfig()
+            }
+        }
         .windowResizability(.contentSize)
 
         MenuBarExtra(isInserted: $showMenuBar) {
