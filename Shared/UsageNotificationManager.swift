@@ -10,9 +10,9 @@ enum UsageLevel: Int, Comparable {
         lhs.rawValue < rhs.rawValue
     }
 
-    static func from(pct: Int) -> UsageLevel {
-        if pct >= 85 { return .red }
-        if pct >= 60 { return .orange }
+    static func from(pct: Int, thresholds: UsageThresholds = .default) -> UsageLevel {
+        if pct >= thresholds.criticalPercent { return .red }
+        if pct >= thresholds.warningPercent { return .orange }
         return .green
     }
 }
@@ -24,17 +24,17 @@ enum UsageNotificationManager {
         center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
-    static func checkThresholds(fiveHour: Int, sevenDay: Int, sonnet: Int) {
-        check(metric: "fiveHour", label: String(localized: "metric.session"), pct: fiveHour)
-        check(metric: "sevenDay", label: String(localized: "metric.weekly"), pct: sevenDay)
-        check(metric: "sonnet", label: String(localized: "metric.sonnet"), pct: sonnet)
+    static func checkThresholds(fiveHour: Int, sevenDay: Int, sonnet: Int, thresholds: UsageThresholds = .default) {
+        check(metric: "fiveHour", label: String(localized: "metric.session"), pct: fiveHour, thresholds: thresholds)
+        check(metric: "sevenDay", label: String(localized: "metric.weekly"), pct: sevenDay, thresholds: thresholds)
+        check(metric: "sonnet", label: String(localized: "metric.sonnet"), pct: sonnet, thresholds: thresholds)
     }
 
-    private static func check(metric: String, label: String, pct: Int) {
+    private static func check(metric: String, label: String, pct: Int, thresholds: UsageThresholds) {
         let key = "lastLevel_\(metric)"
         let previousRaw = UserDefaults.standard.integer(forKey: key)
         let previous = UsageLevel(rawValue: previousRaw) ?? .green
-        let current = UsageLevel.from(pct: pct)
+        let current = UsageLevel.from(pct: pct, thresholds: thresholds)
 
         // Only notify on transitions
         guard current != previous else { return }
