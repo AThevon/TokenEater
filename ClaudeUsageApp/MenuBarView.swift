@@ -63,7 +63,10 @@ final class MenuBarViewModel: ObservableObject {
         } else {
             pinnedMetrics = [.fiveHour, .sevenDay]
         }
-        hasConfig = ClaudeAPIClient.shared.isConfigured
+        if let oauth = KeychainOAuthReader.readClaudeCodeToken() {
+            SharedContainer.oauthToken = oauth.accessToken
+        }
+        hasConfig = SharedContainer.isConfigured
         loadCached()
         startRefreshTimer()
         UsageNotificationManager.requestPermission()
@@ -131,6 +134,11 @@ final class MenuBarViewModel: ObservableObject {
     }
 
     func refresh() async {
+        // Sync Keychain token to SharedContainer
+        if let oauth = KeychainOAuthReader.readClaudeCodeToken() {
+            SharedContainer.oauthToken = oauth.accessToken
+        }
+
         guard ClaudeAPIClient.shared.isConfigured else {
             hasConfig = false
             return
@@ -143,6 +151,7 @@ final class MenuBarViewModel: ObservableObject {
             update(from: usage)
             hasError = false
             lastUpdate = Date()
+            WidgetCenter.shared.reloadAllTimelines()
             UsageNotificationManager.checkThresholds(
                 fiveHour: fiveHourPct,
                 sevenDay: sevenDayPct,
@@ -154,7 +163,10 @@ final class MenuBarViewModel: ObservableObject {
     }
 
     func reloadConfig() {
-        hasConfig = ClaudeAPIClient.shared.isConfigured
+        if let oauth = KeychainOAuthReader.readClaudeCodeToken() {
+            SharedContainer.oauthToken = oauth.accessToken
+        }
+        hasConfig = SharedContainer.isConfigured
         Task { await refresh() }
     }
 

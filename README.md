@@ -59,7 +59,6 @@ Automatic alerts when usage crosses thresholds:
 For users behind a corporate firewall, TokenEater supports routing API calls through a SOCKS5 proxy (e.g. `ssh -D 1080 user@bastion`).
 
 - **Menu bar app** — Configure in Settings > Proxy
-- **Desktop widgets** — Long-press a widget > Edit Widget to set proxy host/port
 
 ### Localization
 
@@ -147,7 +146,7 @@ Shared/                  Shared code (API client, models, pacing, notifications)
 project.yml              XcodeGen configuration
 ```
 
-The host app and widget extension are both sandboxed. Each reads the OAuth token directly from the macOS Keychain ("Claude Code-credentials"). No shared storage or App Groups needed. The menu bar refreshes every 5 minutes independently.
+The host app and widget extension are both sandboxed and communicate through a shared JSON file in `~/Library/Application Support/`. The menu bar app reads the OAuth token from the macOS Keychain, calls the API, and writes the data to the shared file. The widget reads from this file only — it never touches the Keychain or the network. The menu bar refreshes every 5 minutes independently.
 
 ## How it works
 
@@ -160,6 +159,33 @@ anthropic-beta: oauth-2025-04-20
 ```
 
 The response includes `utilization` (0–100) and `resets_at` for each limit bucket. The widget refreshes every 15 minutes (WidgetKit minimum) and caches the last successful response for offline display.
+
+## Security & Data Flow
+
+TokenEater uses a **shared JSON file** to safely pass data between the menu bar app and the desktop widget.
+
+### How it works
+
+1. **Menu bar app** reads the Claude Code OAuth token from the macOS Keychain
+2. The token and API responses are written to a shared file (`~/Library/Application Support/com.claudeusagewidget.shared/shared.json`)
+3. **Widget** reads cached data from this file — it never touches the Keychain or makes API calls
+
+### Why this architecture?
+
+The Claude Code CLI creates its OAuth token in the macOS Keychain. When a different process (like a widget extension) tries to read it, macOS shows a password prompt. Since Claude Code recreates the token on refresh (resetting Keychain ACLs), this prompt would appear repeatedly.
+
+By routing all Keychain access and API calls through the main app, only one process needs authorization — and the widget gets its data through the shared file instead.
+
+### Why not App Groups?
+
+App Groups (`UserDefaults(suiteName:)`) is Apple's recommended mechanism for sharing data between an app and its extensions. However, starting with macOS Sequoia (and continuing in Tahoe), the preferences daemon (`cfprefsd`) enforces provisioning profile validation — meaning App Groups only work reliably with a **paid Apple Developer account** ($99/year) or through the Mac App Store. Since TokenEater is distributed outside the App Store, we use sandbox temporary-exception entitlements instead: the app writes to a known path, the widget reads from it. Same isolation guarantees, no Apple Developer Program dependency.
+
+### Token storage
+
+The shared data is stored as a JSON file in `~/Library/Application Support/com.claudeusagewidget.shared/`. Both the app and widget access this directory via sandbox temporary-exception entitlements (app: read-write, widget: read-only). This directory is:
+- **Sandboxed** — the app has read-write access, the widget has read-only access
+- **User-scoped** — stored in the user's Library, not system-wide
+- **Not synced** — not backed up to iCloud or shared across devices
 
 ## License
 

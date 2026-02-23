@@ -6,5 +6,9 @@
     <true/>
     <key>com.apple.security.network.client</key>
     <true/>
+    <key>com.apple.security.temporary-exception.files.home-relative-path.read-write</key>
+    <array>
+        <string>/Library/Application Support/com.claudeusagewidget.shared/</string>
+    </array>
 </dict>
 </plist>

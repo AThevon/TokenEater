@@ -49,7 +49,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Text("v2.1.1")
+                Text("v3.0.0")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
@@ -362,7 +362,8 @@ struct SettingsView: View {
 
     private func loadConfig() {
         loadPinnedMetrics()
-        if KeychainOAuthReader.readClaudeCodeToken() != nil {
+        if let oauth = KeychainOAuthReader.readClaudeCodeToken() {
+            SharedContainer.oauthToken = oauth.accessToken
             authMethodLabel = String(localized: "connect.method.oauth")
         }
     }
@@ -410,12 +411,15 @@ struct SettingsView: View {
         isImporting = true
         importMessage = nil
 
-        guard KeychainOAuthReader.readClaudeCodeToken() != nil else {
+        guard let oauth = KeychainOAuthReader.readClaudeCodeToken() else {
             isImporting = false
             importMessage = String(localized: "connect.noclaudecode")
             importSuccess = false
             return
         }
+
+        // Sync token to SharedContainer
+        SharedContainer.oauthToken = oauth.accessToken
 
         Task {
             let result = await ClaudeAPIClient.shared.testConnection()

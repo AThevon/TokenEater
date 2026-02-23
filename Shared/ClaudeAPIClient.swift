@@ -5,7 +5,7 @@ final class ClaudeAPIClient {
 
     private let oauthURL = URL(string: "https://api.anthropic.com/api/oauth/usage")!
 
-    /// Set by host app (from UserDefaults) or widget (from AppIntent)
+    /// Set by host app (from UserDefaults)
     var proxyConfig: ProxyConfig?
 
     private var session: URLSession {
@@ -22,19 +22,19 @@ final class ClaudeAPIClient {
     // MARK: - Auth
 
     var isConfigured: Bool {
-        KeychainOAuthReader.readClaudeCodeToken() != nil
+        SharedContainer.isConfigured
     }
 
     // MARK: - Fetch Usage
 
     func fetchUsage() async throws -> UsageResponse {
-        guard let oauth = KeychainOAuthReader.readClaudeCodeToken() else {
+        guard let token = SharedContainer.oauthToken else {
             throw ClaudeAPIError.noToken
         }
 
         var request = URLRequest(url: oauthURL)
         request.httpMethod = "GET"
-        request.setValue("Bearer \(oauth.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
 
         let (data, response) = try await session.data(for: request)
@@ -46,7 +46,10 @@ final class ClaudeAPIClient {
         switch httpResponse.statusCode {
         case 200:
             let usage = try JSONDecoder().decode(UsageResponse.self, from: data)
-            LocalCache.write(CachedUsage(usage: usage, fetchDate: Date()))
+            SharedContainer.updateAfterSync(
+                usage: CachedUsage(usage: usage, fetchDate: Date()),
+                syncDate: Date()
+            )
             return usage
         case 401, 403:
             throw ClaudeAPIError.tokenExpired
@@ -58,13 +61,13 @@ final class ClaudeAPIClient {
     // MARK: - Test Connection
 
     func testConnection() async -> ConnectionTestResult {
-        guard let oauth = KeychainOAuthReader.readClaudeCodeToken() else {
+        guard let token = SharedContainer.oauthToken else {
             return ConnectionTestResult(success: false, message: String(localized: "error.notoken"))
         }
 
         var request = URLRequest(url: oauthURL)
         request.httpMethod = "GET"
-        request.setValue("Bearer \(oauth.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
 
         do {
@@ -92,7 +95,7 @@ final class ClaudeAPIClient {
     // MARK: - Cache
 
     func loadCachedUsage() -> CachedUsage? {
-        LocalCache.read()
+        SharedContainer.cachedUsage
     }
 }
 
