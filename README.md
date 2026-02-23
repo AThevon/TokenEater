@@ -94,9 +94,9 @@ To update later: `brew upgrade tokeneater`
 
 ### Configure
 
-**Prerequisites:** Install [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and authenticate (`claude` then `/login`).
+**Prerequisites:** Install [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and authenticate (`claude` then `/login`). Requires a **Pro or Team plan**.
 
-1. Open TokenEater, click **Connect** — the OAuth token is detected automatically
+1. Open TokenEater — a guided setup walks you through connecting your Claude Code account
 2. Right-click on desktop > **Edit Widgets** > search "TokenEater"
 
 > Tokens refresh automatically via Claude Code. No maintenance needed.
