@@ -28,6 +28,8 @@ struct SettingsView: View {
     @AppStorage("proxyHost") private var proxyHost = "127.0.0.1"
     @AppStorage("proxyPort") private var proxyPort = 1080
 
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = true
+
     // Colors for guide sheet
     private let sheetBg = Color(hex: "#141416")
     private let sheetCard = Color.white.opacity(0.04)
@@ -156,6 +158,13 @@ struct SettingsView: View {
                     )
                     .foregroundStyle(result.success ? .green : .red)
                 }
+            }
+
+            Section {
+                Button("settings.onboarding.reset") {
+                    hasCompletedOnboarding = false
+                }
+                .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
