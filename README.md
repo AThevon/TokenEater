@@ -161,6 +161,29 @@ anthropic-beta: oauth-2025-04-20
 
 The response includes `utilization` (0–100) and `resets_at` for each limit bucket. The widget refreshes every 15 minutes (WidgetKit minimum) and caches the last successful response for offline display.
 
+## Security & Data Flow
+
+TokenEater uses an **App Group shared container** to safely pass data between the menu bar app and the desktop widget.
+
+### How it works
+
+1. **Menu bar app** reads the Claude Code OAuth token from the macOS Keychain
+2. The token and API responses are stored in a sandboxed App Group container (`group.com.claudeusagewidget.shared`)
+3. **Widget** reads cached data from the shared container — it never touches the Keychain or makes API calls
+
+### Why this architecture?
+
+The Claude Code CLI creates its OAuth token in the macOS Keychain. When a different process (like a widget extension) tries to read it, macOS shows a password prompt. Since Claude Code recreates the token on refresh (resetting Keychain ACLs), this prompt would appear repeatedly.
+
+By routing all Keychain access and API calls through the main app, only one process needs authorization — and the widget gets its data through the sandboxed shared container instead.
+
+### Token storage
+
+The OAuth token is stored in the App Group's `UserDefaults`, located in `~/Library/Group Containers/group.com.claudeusagewidget.shared/`. This directory is:
+- **Sandboxed** — only the two app group members (menu bar app + widget) can access it
+- **User-scoped** — stored in the user's Library, not system-wide
+- **Not synced** — not backed up to iCloud or shared across devices
+
 ## License
 
 MIT — do whatever you want with it.
