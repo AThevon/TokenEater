@@ -3,6 +3,7 @@ import WidgetKit
 
 struct PacingWidgetView: View {
     let entry: UsageEntry
+    private var theme: ThemeColors { SharedContainer.theme }
 
     var body: some View {
         Group {
@@ -88,22 +89,11 @@ struct PacingWidgetView: View {
     }
 
     private func colorForZone(_ zone: PacingZone) -> Color {
-        switch zone {
-        case .chill: return Color(hex: "#32D74B")
-        case .onTrack: return Color(hex: "#0A84FF")
-        case .hot: return Color(hex: "#FF453A")
-        }
+        theme.pacingColor(for: zone)
     }
 
     private func gradientForZone(_ zone: PacingZone) -> LinearGradient {
-        switch zone {
-        case .chill:
-            return LinearGradient(colors: [Color(hex: "#22C55E"), Color(hex: "#4ADE80")], startPoint: .topLeading, endPoint: .bottomTrailing)
-        case .onTrack:
-            return LinearGradient(colors: [Color(hex: "#0A84FF"), Color(hex: "#409CFF")], startPoint: .topLeading, endPoint: .bottomTrailing)
-        case .hot:
-            return LinearGradient(colors: [Color(hex: "#EF4444"), Color(hex: "#DC2626")], startPoint: .topLeading, endPoint: .bottomTrailing)
-        }
+        theme.pacingGradient(for: zone)
     }
 
     private func formatResetDate(_ date: Date) -> String {
