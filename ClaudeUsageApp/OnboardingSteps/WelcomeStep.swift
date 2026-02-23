@@ -38,7 +38,8 @@ struct WelcomeStep: View {
                 .font(.system(size: 13))
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 340)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 400)
 
             Spacer()
 
