@@ -12,6 +12,8 @@ struct OnboardingView: View {
                     WelcomeStep(viewModel: viewModel)
                 case .prerequisites:
                     PrerequisiteStep(viewModel: viewModel)
+                case .notifications:
+                    NotificationStep(viewModel: viewModel)
                 case .connection:
                     ConnectionStep(viewModel: viewModel)
                 }
