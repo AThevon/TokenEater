@@ -176,6 +176,10 @@ The Claude Code CLI creates its OAuth token in the macOS Keychain. When a differ
 
 By routing all Keychain access and API calls through the main app, only one process needs authorization — and the widget gets its data through the shared file instead.
 
+### Why not App Groups?
+
+App Groups (`UserDefaults(suiteName:)`) is Apple's recommended mechanism for sharing data between an app and its extensions. However, starting with macOS Sequoia (and continuing in Tahoe), the preferences daemon (`cfprefsd`) enforces provisioning profile validation — meaning App Groups only work reliably with a **paid Apple Developer account** ($99/year) or through the Mac App Store. Since TokenEater is distributed outside the App Store, we use sandbox temporary-exception entitlements instead: the app writes to a known path, the widget reads from it. Same isolation guarantees, no Apple Developer Program dependency.
+
 ### Token storage
 
 The shared data is stored as a JSON file in `~/Library/Application Support/com.claudeusagewidget.shared/`. Both the app and widget access this directory via sandbox temporary-exception entitlements (app: read-write, widget: read-only). This directory is:
