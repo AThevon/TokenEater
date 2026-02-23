@@ -57,12 +57,12 @@ struct UsageWidgetView: View {
                 Text("TokenEater")
                     .font(.system(size: 10, weight: .heavy))
                     .tracking(0.3)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.5))
                 Spacer()
                 if entry.isStale {
                     Image(systemName: "wifi.slash")
                         .font(.system(size: 8))
-                        .foregroundStyle(.white.opacity(0.4))
+                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
                 }
             }
             .padding(.bottom, 16)
@@ -94,12 +94,12 @@ struct UsageWidgetView: View {
             HStack {
                 Text(String(format: String(localized: "widget.updated"), entry.date.relativeFormatted))
                     .font(.system(size: 8, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.3))
+                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
                 Spacer()
                 if entry.isStale {
                     Image(systemName: "wifi.slash")
                         .font(.system(size: 8))
-                        .foregroundStyle(.white.opacity(0.4))
+                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
                 }
             }
         }
@@ -118,7 +118,7 @@ struct UsageWidgetView: View {
                     .frame(width: 16, height: 16)
                 Text("TokenEater")
                     .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.95))
+                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.95))
                 Spacer()
                 if entry.isStale {
                     HStack(spacing: 3) {
@@ -127,7 +127,7 @@ struct UsageWidgetView: View {
                         Text("widget.offline")
                             .font(.system(size: 9, design: .rounded))
                     }
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
                 }
             }
             .padding(.bottom, 8)
@@ -194,7 +194,7 @@ struct UsageWidgetView: View {
             HStack {
                 Text(String(format: String(localized: "widget.updated"), entry.date.relativeFormatted))
                     .font(.system(size: 9, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.3))
+                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
                 Spacer()
                 if entry.isStale {
                     HStack(spacing: 3) {
@@ -203,7 +203,7 @@ struct UsageWidgetView: View {
                         Text("widget.offline")
                             .font(.system(size: 9, design: .rounded))
                     }
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
                 } else {
                     HStack(spacing: 3) {
                         Circle()
@@ -211,7 +211,7 @@ struct UsageWidgetView: View {
                             .frame(width: 4, height: 4)
                         Text(String(localized: "widget.refresh.interval"))
                             .font(.system(size: 9, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.25))
+                            .foregroundStyle(Color(hex: theme.widgetText).opacity(0.25))
                     }
                 }
             }
@@ -234,7 +234,7 @@ struct UsageWidgetView: View {
                 )
             Text(message)
                 .font(.system(size: 12, design: .rounded))
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(Color(hex: theme.widgetText).opacity(0.6))
                 .multilineTextAlignment(.center)
         }
         .padding()
@@ -248,7 +248,7 @@ struct UsageWidgetView: View {
                 .tint(.orange)
             Text("widget.loading")
                 .font(.system(size: 12, design: .rounded))
-                .foregroundStyle(.white.opacity(0.4))
+                .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
         }
     }
 
@@ -304,7 +304,7 @@ struct CircularUsageView: View {
                 Text("\(Int(utilization))%")
                     .font(.system(size: 12, weight: .black, design: .rounded))
                     .monospacedDigit()
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color(hex: theme.widgetText))
             }
             .frame(width: 50, height: 50)
 
@@ -312,10 +312,10 @@ struct CircularUsageView: View {
                 Text(label)
                     .font(.system(size: 10, weight: .bold))
                     .tracking(0.2)
-                    .foregroundStyle(.white.opacity(0.85))
+                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.85))
                 Text(resetInfo)
                     .font(.system(size: 8, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
             }
         }
         .frame(maxWidth: .infinity)
@@ -366,7 +366,7 @@ struct CircularPacingView: View {
                 Text("pacing.label")
                     .font(.system(size: 10, weight: .bold))
                     .tracking(0.2)
-                    .foregroundStyle(.white.opacity(0.85))
+                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.85))
                 Text(pacing.message)
                     .font(.system(size: 7, weight: .medium))
                     .foregroundStyle(ringColor.opacity(0.7))
@@ -414,10 +414,10 @@ struct LargeUsageBarView: View {
                     Text(label)
                         .font(.system(size: 13, weight: .bold))
                         .tracking(0.2)
-                        .foregroundStyle(.white.opacity(0.9))
+                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.9))
                     Text(subtitle)
                         .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.35))
+                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.35))
                 }
 
                 Spacer()
@@ -429,7 +429,7 @@ struct LargeUsageBarView: View {
                         .foregroundStyle(accentColor)
                     Text(String(format: String(localized: "widget.reset"), resetInfo))
                         .font(.system(size: 8, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.3))
+                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
                 }
             }
 

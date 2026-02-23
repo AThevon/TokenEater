@@ -26,7 +26,7 @@ struct PacingWidgetView: View {
                 Text("pacing.label")
                     .font(.system(size: 9, weight: .heavy))
                     .tracking(0.3)
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.5))
                 Spacer()
             }
 
@@ -70,7 +70,7 @@ struct PacingWidgetView: View {
             if let reset = pacing.resetDate, reset.timeIntervalSinceNow > 0 {
                 Text(String(format: String(localized: "pacing.reset"), formatResetDate(reset)))
                     .font(.system(size: 8, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.3))
+                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
             }
         }
         .padding(.horizontal, 2)
@@ -80,10 +80,10 @@ struct PacingWidgetView: View {
         VStack(spacing: 6) {
             Image(systemName: "gauge.with.needle")
                 .font(.system(size: 24))
-                .foregroundStyle(.white.opacity(0.3))
+                .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
             Text("widget.loading")
                 .font(.system(size: 11))
-                .foregroundStyle(.white.opacity(0.4))
+                .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

@@ -235,14 +235,14 @@ struct SettingsView: View {
             // Custom colors (visible only when preset == "custom")
             if themeManager.selectedPreset == "custom" {
                 Section("settings.theme.colors") {
-                    themeColorPicker("settings.theme.gaugeNormal", hex: $themeManager.customTheme.gaugeNormal)
-                    themeColorPicker("settings.theme.gaugeWarning", hex: $themeManager.customTheme.gaugeWarning)
-                    themeColorPicker("settings.theme.gaugeCritical", hex: $themeManager.customTheme.gaugeCritical)
-                    themeColorPicker("settings.theme.pacingChill", hex: $themeManager.customTheme.pacingChill)
-                    themeColorPicker("settings.theme.pacingOnTrack", hex: $themeManager.customTheme.pacingOnTrack)
-                    themeColorPicker("settings.theme.pacingHot", hex: $themeManager.customTheme.pacingHot)
-                    themeColorPicker("settings.theme.widgetBackground", hex: $themeManager.customTheme.widgetBackground)
-                    themeColorPicker("settings.theme.widgetText", hex: $themeManager.customTheme.widgetText)
+                    themeColorPicker("settings.theme.gauge.normal", hex: $themeManager.customTheme.gaugeNormal)
+                    themeColorPicker("settings.theme.gauge.warning", hex: $themeManager.customTheme.gaugeWarning)
+                    themeColorPicker("settings.theme.gauge.critical", hex: $themeManager.customTheme.gaugeCritical)
+                    themeColorPicker("settings.theme.pacing.chill", hex: $themeManager.customTheme.pacingChill)
+                    themeColorPicker("settings.theme.pacing.ontrack", hex: $themeManager.customTheme.pacingOnTrack)
+                    themeColorPicker("settings.theme.pacing.hot", hex: $themeManager.customTheme.pacingHot)
+                    themeColorPicker("settings.theme.widget.bg", hex: $themeManager.customTheme.widgetBackground)
+                    themeColorPicker("settings.theme.widget.text", hex: $themeManager.customTheme.widgetText)
                 }
             }
 
@@ -293,15 +293,15 @@ struct SettingsView: View {
                     Spacer()
                     themePreviewGauge(
                         pct: Double(max(themeManager.warningThreshold - 15, 5)),
-                        label: "settings.theme.normal"
+                        label: "settings.theme.preview.normal"
                     )
                     themePreviewGauge(
                         pct: Double(themeManager.warningThreshold + themeManager.criticalThreshold) / 2.0,
-                        label: "settings.theme.warning"
+                        label: "settings.theme.preview.warning"
                     )
                     themePreviewGauge(
                         pct: Double(min(themeManager.criticalThreshold + 5, 100)),
-                        label: "settings.theme.critical"
+                        label: "settings.theme.preview.critical"
                     )
                     Spacer()
                 }
@@ -314,9 +314,9 @@ struct SettingsView: View {
                 } label: {
                     Text("settings.theme.reset")
                 }
-                .alert("settings.theme.resetConfirm", isPresented: $showResetAlert) {
-                    Button("settings.theme.resetCancel", role: .cancel) { }
-                    Button("settings.theme.resetAction", role: .destructive) {
+                .alert("settings.theme.reset.confirm", isPresented: $showResetAlert) {
+                    Button("settings.theme.reset.cancel", role: .cancel) { }
+                    Button("settings.theme.reset.action", role: .destructive) {
                         themeManager.resetToDefaults()
                     }
                 }

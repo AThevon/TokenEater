@@ -39,6 +39,7 @@ final class ThemeManager: ObservableObject {
     @Published var menuBarMonochrome: Bool {
         didSet {
             UserDefaults.standard.set(menuBarMonochrome, forKey: "menuBarMonochrome")
+            // No sync needed — monochrome only affects the menu bar (app-side), not the widget
         }
     }
 
@@ -115,8 +116,7 @@ final class ThemeManager: ObservableObject {
     }
 
     func syncToSharedContainer() {
-        SharedContainer.theme = current
-        SharedContainer.thresholds = thresholds
+        SharedContainer.updateTheme(current, thresholds: thresholds)
         WidgetCenter.shared.reloadAllTimelines()
     }
 }

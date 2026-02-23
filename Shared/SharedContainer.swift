@@ -104,6 +104,13 @@ enum SharedContainer {
         save(data)
     }
 
+    static func updateTheme(_ theme: ThemeColors, thresholds: UsageThresholds) {
+        var data = load()
+        data.theme = theme
+        data.thresholds = thresholds
+        save(data)
+    }
+
     // MARK: - Convenience
 
     static var isConfigured: Bool {
