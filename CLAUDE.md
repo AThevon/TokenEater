@@ -1,5 +1,10 @@
 # TokenEater - Instructions projet
 
+## Langue
+
+- **GitHub (issues, PRs, commits, branches) : toujours en anglais**
+- Conversations avec l'utilisateur : en français (cf. instructions globales)
+
 ## Build & Test local
 
 ### Prérequis
