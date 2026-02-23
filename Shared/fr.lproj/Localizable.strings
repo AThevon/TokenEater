@@ -99,7 +99,7 @@
 "pacing.reset" = "reset %@";
 
 /* Notifications */
-"notif.orange.body" = "Tu dépasses 60% — lève le pied";
+"notif.orange.body" = "Tu dépasses %d%% — lève le pied";
 "notif.red.body" = "Usage critique — limite presque atteinte";
 "notif.green.body" = "Usage réinitialisé — t'es de retour dans le vert";
 

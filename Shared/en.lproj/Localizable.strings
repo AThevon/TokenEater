@@ -99,7 +99,7 @@
 "pacing.reset" = "reset %@";
 
 /* Notifications */
-"notif.orange.body" = "You're past 60% — consider slowing down";
+"notif.orange.body" = "You're past %d%% — consider slowing down";
 "notif.red.body" = "Critical usage — limit almost reached";
 "notif.green.body" = "Usage reset — you're back in the green";
 

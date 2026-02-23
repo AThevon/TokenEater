@@ -42,21 +42,21 @@ enum UsageNotificationManager {
 
         if current > previous {
             // Escalation: green→orange, green→red, orange→red
-            notifyEscalation(metric: metric, label: label, pct: pct, level: current)
+            notifyEscalation(metric: metric, label: label, pct: pct, level: current, thresholds: thresholds)
         } else if current == .green && previous > .green {
             // Recovery: back to green
             notifyRecovery(metric: metric, label: label, pct: pct)
         }
     }
 
-    private static func notifyEscalation(metric: String, label: String, pct: Int, level: UsageLevel) {
+    private static func notifyEscalation(metric: String, label: String, pct: Int, level: UsageLevel, thresholds: UsageThresholds) {
         let content = UNMutableNotificationContent()
         content.sound = .default
 
         switch level {
         case .orange:
             content.title = "⚠️ \(label) — \(pct)%"
-            content.body = String(localized: "notif.orange.body")
+            content.body = String(format: String(localized: "notif.orange.body"), thresholds.warningPercent)
         case .red:
             content.title = "🔴 \(label) — \(pct)%"
             content.body = String(localized: "notif.red.body")
