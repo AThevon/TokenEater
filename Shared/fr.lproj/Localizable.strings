@@ -108,3 +108,43 @@
 
 /* Durations */
 "duration.days.hours" = "%dj %dh";
+
+/* Onboarding */
+"onboarding.continue" = "Continuer";
+"onboarding.back" = "Retour";
+"onboarding.mode.simple" = "Simple";
+"onboarding.mode.detailed" = "Détaillé";
+
+/* Onboarding - Welcome */
+"onboarding.welcome.subtitle" = "Gardez un œil sur votre conso Claude";
+"onboarding.welcome.description" = "Un widget dans la barre de menu pour voir votre consommation Claude Code d'un coup d'œil.";
+
+/* Onboarding - Prerequisites */
+"onboarding.prereq.checking" = "Recherche de Claude Code…";
+"onboarding.prereq.detected.title" = "Claude Code trouvé !";
+"onboarding.prereq.detected.simple" = "TokenEater a trouvé Claude Code sur votre Mac. Il va utiliser votre session pour récupérer vos données d'usage.";
+"onboarding.prereq.detected.detailed" = "TokenEater a trouvé un token OAuth Claude Code dans le Keychain macOS (service : Claude Code-credentials). Il lit ce token pour appeler l'API usage d'Anthropic.";
+"onboarding.prereq.notfound.title" = "Claude Code introuvable";
+"onboarding.prereq.step1" = "Installez Claude Code (le CLI d'Anthropic)";
+"onboarding.prereq.step2" = "Lancez-le et connectez-vous avec votre compte Claude";
+"onboarding.prereq.step3" = "Revenez ici et cliquez sur réessayer";
+"onboarding.prereq.install.link" = "Installer Claude Code";
+"onboarding.prereq.retry" = "Réessayer";
+"onboarding.prereq.plan.required" = "Nécessite un plan Claude Pro ou Team — le plan gratuit ne fournit pas les données d'usage.";
+
+/* Onboarding - Connection */
+"onboarding.connection.title" = "Dernière étape";
+"onboarding.connection.simple" = "macOS va demander votre mot de passe — c'est normal. Ça permet à TokenEater de lire votre session Claude en toute sécurité.";
+"onboarding.connection.detailed" = "macOS protège le Keychain avec votre mot de passe. TokenEater fait une lecture unique via SecItemCopyMatching. Seul l'access token est copié — rien d'autre ne sort du Keychain.";
+"onboarding.connection.authorize" = "Autoriser";
+"onboarding.connection.connecting" = "Connexion…";
+"onboarding.connection.success.title" = "C'est bon, tout roule !";
+"onboarding.connection.widget.hint" = "Ajoutez le widget : clic droit sur le bureau → Modifier les widgets → TokenEater";
+"onboarding.connection.start" = "C'est parti";
+"onboarding.connection.retry" = "Réessayer";
+"onboarding.connection.failed.title" = "Quelque chose a planté";
+"onboarding.connection.failed.notoken" = "Impossible de lire le token. Vérifiez que Claude Code est installé et que vous êtes connecté.";
+"onboarding.connection.failed.tip" = "Essayez /login dans Claude Code même si vous êtes déjà connecté — ça peut débloquer une session expirée.";
+
+/* Settings - Onboarding reset */
+"settings.onboarding.reset" = "Relancer la configuration";
