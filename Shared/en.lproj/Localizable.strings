@@ -173,6 +173,19 @@
 "onboarding.prereq.retry" = "Retry";
 "onboarding.prereq.plan.required" = "Requires a Claude Pro or Team plan — the free plan doesn't expose usage data.";
 
+/* Onboarding - Notifications */
+"onboarding.notif.title" = "Stay in the loop";
+"onboarding.notif.simple" = "Get notified when your usage hits warning or critical levels.";
+"onboarding.notif.detailed" = "TokenEater sends local notifications when your usage crosses configurable thresholds (default: 60%% warning, 85%% critical). Only transitions trigger alerts — no spam.";
+"onboarding.notif.enable" = "Enable Notifications";
+"onboarding.notif.enabled" = "Notifications enabled!";
+"onboarding.notif.test" = "Send a test";
+"onboarding.notif.denied.hint" = "No worries — you can enable them later in System Settings.";
+"onboarding.notif.open.settings" = "Open Settings";
+"onboarding.notif.skip.hint" = "You'll miss threshold alerts";
+"onboarding.notif.mockup.title" = "⚠️ Session 5h — 72%%";
+"onboarding.notif.mockup.body" = "You're past 60%% — consider slowing down";
+
 /* Onboarding - Connection */
 "onboarding.connection.title" = "One last thing";
 "onboarding.connection.simple" = "macOS will ask for your password — that's normal. It lets TokenEater securely read your Claude session.";
