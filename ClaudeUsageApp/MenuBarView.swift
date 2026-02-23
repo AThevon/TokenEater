@@ -157,7 +157,8 @@ final class MenuBarViewModel: ObservableObject {
             UsageNotificationManager.checkThresholds(
                 fiveHour: fiveHourPct,
                 sevenDay: sevenDayPct,
-                sonnet: sonnetPct
+                sonnet: sonnetPct,
+                thresholds: ThemeManager.shared.thresholds
             )
         } catch {
             hasError = true
@@ -294,17 +295,11 @@ final class MenuBarViewModel: ObservableObject {
     }
 
     private func nsColorForPct(_ pct: Int) -> NSColor {
-        if pct < 60 { return NSColor(red: 0.13, green: 0.77, blue: 0.29, alpha: 1) } // green
-        if pct < 85 { return NSColor(red: 0.98, green: 0.60, blue: 0.09, alpha: 1) } // orange
-        return NSColor(red: 0.94, green: 0.27, blue: 0.27, alpha: 1) // red
+        ThemeManager.shared.menuBarNSColor(for: pct)
     }
 
     private func nsColorForZone(_ zone: PacingZone) -> NSColor {
-        switch zone {
-        case .chill: return NSColor(red: 0.13, green: 0.77, blue: 0.29, alpha: 1)
-        case .onTrack: return NSColor(red: 0.04, green: 0.52, blue: 1.0, alpha: 1)
-        case .hot: return NSColor(red: 0.94, green: 0.27, blue: 0.27, alpha: 1)
-        }
+        ThemeManager.shared.menuBarPacingNSColor(for: zone)
     }
 }
 
@@ -313,6 +308,7 @@ final class MenuBarViewModel: ObservableObject {
 struct MenuBarPopoverView: View {
     @ObservedObject var viewModel: MenuBarViewModel
     @Environment(\.openWindow) private var openWindow
+    @ObservedObject private var theme = ThemeManager.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -503,39 +499,18 @@ struct MenuBarPopoverView: View {
     }
 
     private func colorForZone(_ zone: PacingZone) -> Color {
-        switch zone {
-        case .chill: return Color(red: 0.13, green: 0.77, blue: 0.29)
-        case .onTrack: return Color(red: 0.04, green: 0.52, blue: 1.0)
-        case .hot: return Color(red: 0.94, green: 0.27, blue: 0.27)
-        }
+        theme.current.pacingColor(for: zone)
     }
 
     private func gradientForZone(_ zone: PacingZone) -> LinearGradient {
-        switch zone {
-        case .chill:
-            return LinearGradient(colors: [Color(red: 0.13, green: 0.77, blue: 0.29), Color(red: 0.29, green: 0.87, blue: 0.50)], startPoint: .leading, endPoint: .trailing)
-        case .onTrack:
-            return LinearGradient(colors: [Color(red: 0.04, green: 0.52, blue: 1.0), Color(red: 0.25, green: 0.61, blue: 1.0)], startPoint: .leading, endPoint: .trailing)
-        case .hot:
-            return LinearGradient(colors: [Color(red: 0.94, green: 0.27, blue: 0.27), Color(red: 0.86, green: 0.15, blue: 0.15)], startPoint: .leading, endPoint: .trailing)
-        }
+        theme.current.pacingGradient(for: zone, startPoint: .leading, endPoint: .trailing)
     }
 
     private func colorForPct(_ pct: Int) -> Color {
-        if pct < 60 { return Color(red: 0.13, green: 0.77, blue: 0.29) }
-        if pct < 85 { return Color(red: 0.98, green: 0.60, blue: 0.09) }
-        return Color(red: 0.94, green: 0.27, blue: 0.27)
+        theme.current.gaugeColor(for: Double(pct), thresholds: theme.thresholds)
     }
 
     private func gradientForPct(_ pct: Int) -> LinearGradient {
-        let colors: [Color]
-        if pct < 60 {
-            colors = [Color(red: 0.13, green: 0.77, blue: 0.29), Color(red: 0.29, green: 0.87, blue: 0.50)]
-        } else if pct < 85 {
-            colors = [Color(red: 0.98, green: 0.45, blue: 0.09), Color(red: 0.98, green: 0.57, blue: 0.24)]
-        } else {
-            colors = [Color(red: 0.94, green: 0.27, blue: 0.27), Color(red: 0.86, green: 0.15, blue: 0.15)]
-        }
-        return LinearGradient(colors: colors, startPoint: .leading, endPoint: .trailing)
+        theme.current.gaugeGradient(for: Double(pct), thresholds: theme.thresholds, startPoint: .leading, endPoint: .trailing)
     }
 }
