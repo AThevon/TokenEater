@@ -4,7 +4,9 @@
 <dict>
     <key>com.apple.security.app-sandbox</key>
     <true/>
-    <key>com.apple.security.network.client</key>
-    <true/>
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.com.claudeusagewidget.shared</string>
+    </array>
 </dict>
 </plist>
