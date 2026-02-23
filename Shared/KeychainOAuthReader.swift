@@ -29,4 +29,18 @@ enum KeychainOAuthReader {
 
         return OAuthCredentials(accessToken: token)
     }
+
+    /// Check if the Claude Code Keychain item exists WITHOUT triggering the password dialog.
+    /// Uses kSecReturnAttributes (metadata only) instead of kSecReturnData.
+    static func tokenExists() -> Bool {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "Claude Code-credentials",
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        return status == errSecSuccess
+    }
 }
