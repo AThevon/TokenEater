@@ -1,54 +1,44 @@
 import WidgetKit
 import Foundation
 
-struct Provider: AppIntentTimelineProvider {
-    private let apiClient = ClaudeAPIClient.shared
-
+struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> UsageEntry {
         .placeholder
     }
 
-    func snapshot(for configuration: ProxyIntent, in context: Context) async -> UsageEntry {
+    func getSnapshot(in context: Context, completion: @escaping (UsageEntry) -> Void) {
         if context.isPreview {
-            return .placeholder
+            completion(.placeholder)
+            return
         }
-        applyProxy(configuration)
-        return await fetchEntry()
+        completion(fetchEntry())
     }
 
-    func timeline(for configuration: ProxyIntent, in context: Context) async -> Timeline<UsageEntry> {
-        applyProxy(configuration)
-        let entry = await fetchEntry()
+    func getTimeline(in context: Context, completion: @escaping (Timeline<UsageEntry>) -> Void) {
+        let entry = fetchEntry()
         let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: Date()) ?? Date().addingTimeInterval(900)
-        return Timeline(entries: [entry], policy: .after(nextUpdate))
+        completion(Timeline(entries: [entry], policy: .after(nextUpdate)))
     }
 
-    private func applyProxy(_ configuration: ProxyIntent) {
-        apiClient.proxyConfig = ProxyConfig(
-            enabled: configuration.proxyEnabled,
-            host: configuration.proxyHost,
-            port: configuration.proxyPort
-        )
-    }
-
-    private func fetchEntry() async -> UsageEntry {
-        guard apiClient.isConfigured else {
+    private func fetchEntry() -> UsageEntry {
+        guard SharedContainer.isConfigured else {
             return .unconfigured
         }
 
-        do {
-            let usage = try await apiClient.fetchUsage()
-            return UsageEntry(date: Date(), usage: usage)
-        } catch {
-            if let cached = apiClient.loadCachedUsage() {
-                return UsageEntry(
-                    date: Date(),
-                    usage: cached.usage,
-                    error: nil,
-                    isStale: true
-                )
+        if let cached = SharedContainer.cachedUsage {
+            let isStale: Bool
+            if let lastSync = SharedContainer.lastSyncDate {
+                isStale = Date().timeIntervalSince(lastSync) > 600
+            } else {
+                isStale = true
             }
-            return UsageEntry(date: Date(), usage: nil, error: error.localizedDescription)
+            return UsageEntry(
+                date: Date(),
+                usage: cached.usage,
+                isStale: isStale
+            )
         }
+
+        return UsageEntry(date: Date(), usage: nil, error: String(localized: "error.nodata"))
     }
 }

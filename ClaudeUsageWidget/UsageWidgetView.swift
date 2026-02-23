@@ -1,4 +1,3 @@
-import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -93,13 +92,11 @@ struct UsageWidgetView: View {
                     .font(.system(size: 8, design: .rounded))
                     .foregroundStyle(.white.opacity(0.3))
                 Spacer()
-                Button(intent: RefreshIntent()) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.white.opacity(0.35))
+                if entry.isStale {
+                    Image(systemName: "wifi.slash")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.white.opacity(0.4))
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(String(localized: "widget.refresh.button"))
             }
         }
         .padding(.horizontal, 2)
@@ -200,21 +197,24 @@ struct UsageWidgetView: View {
                 Text(String(format: String(localized: "widget.updated"), entry.date.relativeFormatted))
                     .font(.system(size: 9, design: .rounded))
                     .foregroundStyle(.white.opacity(0.3))
-                Button(intent: RefreshIntent()) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.white.opacity(0.35))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(String(localized: "widget.refresh.button"))
                 Spacer()
-                HStack(spacing: 3) {
-                    Circle()
-                        .fill(.green.opacity(0.6))
-                        .frame(width: 4, height: 4)
-                    Text(String(localized: "widget.refresh.interval"))
-                        .font(.system(size: 9, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.25))
+                if entry.isStale {
+                    HStack(spacing: 3) {
+                        Image(systemName: "wifi.slash")
+                            .font(.system(size: 9))
+                        Text("widget.offline")
+                            .font(.system(size: 9, design: .rounded))
+                    }
+                    .foregroundStyle(.white.opacity(0.4))
+                } else {
+                    HStack(spacing: 3) {
+                        Circle()
+                            .fill(.green.opacity(0.6))
+                            .frame(width: 4, height: 4)
+                        Text(String(localized: "widget.refresh.interval"))
+                            .font(.system(size: 9, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.25))
+                    }
                 }
             }
         }
@@ -238,13 +238,6 @@ struct UsageWidgetView: View {
                 .font(.system(size: 12, design: .rounded))
                 .foregroundStyle(.white.opacity(0.6))
                 .multilineTextAlignment(.center)
-            Button(intent: RefreshIntent()) {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.4))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(String(localized: "widget.refresh.button"))
         }
         .padding()
     }
@@ -258,13 +251,6 @@ struct UsageWidgetView: View {
             Text("widget.loading")
                 .font(.system(size: 12, design: .rounded))
                 .foregroundStyle(.white.opacity(0.4))
-            Button(intent: RefreshIntent()) {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.white.opacity(0.35))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(String(localized: "widget.refresh.button"))
         }
     }
 

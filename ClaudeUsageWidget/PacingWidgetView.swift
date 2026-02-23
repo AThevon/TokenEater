@@ -1,4 +1,3 @@
-import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -28,13 +27,6 @@ struct PacingWidgetView: View {
                     .tracking(0.3)
                     .foregroundStyle(.white.opacity(0.5))
                 Spacer()
-                Button(intent: RefreshIntent()) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 8))
-                        .foregroundStyle(.white.opacity(0.3))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(String(localized: "widget.refresh.button"))
             }
 
             Spacer(minLength: 0)
@@ -91,13 +83,6 @@ struct PacingWidgetView: View {
             Text("widget.loading")
                 .font(.system(size: 11))
                 .foregroundStyle(.white.opacity(0.4))
-            Button(intent: RefreshIntent()) {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.white.opacity(0.3))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(String(localized: "widget.refresh.button"))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
