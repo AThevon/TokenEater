@@ -1,0 +1,46 @@
+.tokeneater-label {
+    font-size: 12px;
+    font-weight: bold;
+    padding: 0 4px;
+}
+
+.tokeneater-green  { color: #57c758; }
+.tokeneater-orange { color: #f5a623; }
+.tokeneater-red    { color: #e74c3c; }
+.tokeneater-grey   { color: #888888; }
+
+.tokeneater-popup {
+    min-width: 280px;
+    padding: 8px 0;
+}
+
+.tokeneater-metric-row {
+    padding: 4px 16px;
+}
+
+.tokeneater-metric-label {
+    font-size: 11px;
+    color: #cccccc;
+}
+
+.tokeneater-progress-bg {
+    height: 6px;
+    background-color: #444444;
+    border-radius: 3px;
+    margin: 4px 0;
+}
+
+.tokeneater-progress-fill {
+    height: 6px;
+    border-radius: 3px;
+    background-color: #57c758;
+}
+
+.tokeneater-progress-orange { background-color: #f5a623; }
+.tokeneater-progress-red    { background-color: #e74c3c; }
+
+.tokeneater-footer {
+    font-size: 10px;
+    color: #888888;
+    padding: 4px 16px;
+}

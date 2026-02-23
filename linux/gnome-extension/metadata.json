@@ -1,0 +1,8 @@
+{
+  "name": "TokenEater",
+  "description": "Monitor your Claude AI usage limits directly from the GNOME status bar.",
+  "uuid": "tokeneater-gnome@io.tokeneater",
+  "version": 1,
+  "shell-version": ["42", "43", "44", "45", "46", "47", "48"],
+  "url": "https://github.com/AThevon/TokenEater"
+}
