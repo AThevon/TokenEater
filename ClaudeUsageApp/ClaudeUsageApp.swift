@@ -8,6 +8,7 @@ struct ClaudeUsageApp: App {
 
     init() {
         syncProxyConfig()
+        ThemeManager.shared.syncToSharedContainer()
     }
 
     var body: some Scene {
