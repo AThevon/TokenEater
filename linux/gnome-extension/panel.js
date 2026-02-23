@@ -1,7 +1,7 @@
 // GNOME 42-compatible panel indicator for TokenEater.
 // Uses imports.gi.* and imports.ui.* (compatible with GNOME 42-48).
 
-const { St, GLib, Clutter } = imports.gi;
+const { GObject, St, GLib, Clutter } = imports.gi;
 const PanelMenu = imports.ui.panelMenu;
 const PopupMenu = imports.ui.popupMenu;
 const Me = imports.misc.extensionUtils.getCurrentExtension();
@@ -65,7 +65,8 @@ function makeMetricRow(label, pct, subtitle) {
 
 // ─── Indicator ────────────────────────────────────────────────────────────────
 
-var TokenEaterIndicator = class TokenEaterIndicator extends PanelMenu.Button {
+var TokenEaterIndicator = GObject.registerClass(
+class TokenEaterIndicator extends PanelMenu.Button {
     _init(extension) {
         super._init(0.0, 'TokenEater');
         this._extension = extension;
@@ -197,4 +198,4 @@ var TokenEaterIndicator = class TokenEaterIndicator extends PanelMenu.Button {
         }
         super.destroy();
     }
-};
+}); // GObject.registerClass

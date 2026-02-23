@@ -14,7 +14,6 @@ function init() {
 
 function enable() {
     _indicator = new TokenEaterIndicator(Me);
-    _indicator._init(Me);
     Main.panel.addToStatusArea(Me.uuid, _indicator);
 }
 
