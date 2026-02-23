@@ -7,9 +7,7 @@ enum SharedContainer {
     private static let cachedUsageKey = "cachedUsage"
     private static let lastSyncDateKey = "lastSyncDate"
 
-    private static var defaults: UserDefaults? {
-        UserDefaults(suiteName: suiteName)
-    }
+    private static let defaults = UserDefaults(suiteName: suiteName)
 
     // MARK: - OAuth Token
 

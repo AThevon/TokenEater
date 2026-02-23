@@ -59,7 +59,6 @@ Automatic alerts when usage crosses thresholds:
 For users behind a corporate firewall, TokenEater supports routing API calls through a SOCKS5 proxy (e.g. `ssh -D 1080 user@bastion`).
 
 - **Menu bar app** — Configure in Settings > Proxy
-- **Desktop widgets** — Long-press a widget > Edit Widget to set proxy host/port
 
 ### Localization
 
@@ -147,7 +146,7 @@ Shared/                  Shared code (API client, models, pacing, notifications)
 project.yml              XcodeGen configuration
 ```
 
-The host app and widget extension are both sandboxed. Each reads the OAuth token directly from the macOS Keychain ("Claude Code-credentials"). No shared storage or App Groups needed. The menu bar refreshes every 5 minutes independently.
+The host app and widget extension are both sandboxed and communicate through an App Group shared container. The menu bar app reads the OAuth token from the macOS Keychain, calls the API, and pushes data to the shared container. The widget reads from the shared container only — it never touches the Keychain or the network. The menu bar refreshes every 5 minutes independently.
 
 ## How it works
 

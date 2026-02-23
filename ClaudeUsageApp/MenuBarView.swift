@@ -151,6 +151,7 @@ final class MenuBarViewModel: ObservableObject {
             update(from: usage)
             hasError = false
             lastUpdate = Date()
+            WidgetCenter.shared.reloadAllTimelines()
             UsageNotificationManager.checkThresholds(
                 fiveHour: fiveHourPct,
                 sevenDay: sevenDayPct,

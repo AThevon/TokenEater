@@ -5,7 +5,7 @@ final class ClaudeAPIClient {
 
     private let oauthURL = URL(string: "https://api.anthropic.com/api/oauth/usage")!
 
-    /// Set by host app (from UserDefaults) or widget (from AppIntent)
+    /// Set by host app (from UserDefaults)
     var proxyConfig: ProxyConfig?
 
     private var session: URLSession {
