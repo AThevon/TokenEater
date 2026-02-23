@@ -70,6 +70,7 @@ var TokenEaterDBusClient = class TokenEaterDBusClient {
         this._proxy.GetStateRemote((result, error) => {
             if (error) {
                 this._onError('Error fetching state: ' + error.message);
+                this._scheduleRetry();
                 return;
             }
             const [jsonState] = result;

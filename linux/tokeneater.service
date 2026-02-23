@@ -1,7 +1,8 @@
 [Unit]
 Description=TokenEater — Claude usage monitor daemon
-After=network-online.target graphical-session.target
+After=network-online.target graphical-session.target dbus.service
 Wants=network-online.target
+PartOf=dbus.service
 
 [Service]
 Type=simple

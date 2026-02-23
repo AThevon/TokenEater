@@ -1,0 +1,10 @@
+# D-Bus session service activation file.
+# The install.sh script generates the real file in ~/.local/share/dbus-1/services/
+# with the correct absolute path for Exec=.
+#
+# This file is kept in the repo for reference only.
+
+[D-BUS Service]
+Name=io.tokeneater.Daemon
+Exec=@BINARY_PATH@
+SystemdService=tokeneater.service

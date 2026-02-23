@@ -11,6 +11,10 @@ xcuserdata/
 # Claude Code
 .claude/
 
+# Go build artifacts
+linux/daemon/tokeneater
+linux/daemon/tokeneater-daemon
+
 # Dependencies
 Pods/
 .swiftpm/

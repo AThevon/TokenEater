@@ -9,28 +9,48 @@ Monitor your Claude AI usage limits from the GNOME Shell status bar.
 - Go 1.22+ (to build from source)
 - `notify-send` — `sudo apt install libnotify-bin` (Debian/Ubuntu)
 
-## Build & Install (from source)
+## Install
+
+```bash
+bash linux/install.sh
+```
+
+The script builds the daemon (requires Go), installs the GNOME extension, the
+systemd user service, and the D-Bus activation file. Run with `--uninstall` to
+remove everything.
+
+<details>
+<summary>Manual steps (if you prefer)</summary>
 
 ```bash
 # 1. Build daemon
-cd linux/daemon
-go build -o ~/.local/bin/tokeneater-daemon ./...
+cd linux/daemon && go build -o ~/.local/bin/tokeneater-daemon ./...
 
 # 2. Install GNOME extension
 EXT=~/.local/share/gnome-shell/extensions/tokeneater-gnome@io.tokeneater
-mkdir -p "$EXT"
-cp -r linux/gnome-extension/. "$EXT/"
+mkdir -p "$EXT" && cp -r linux/gnome-extension/. "$EXT/"
 
-# 3. Install systemd user service
+# 3. Install D-Bus activation file
+mkdir -p ~/.local/share/dbus-1/services
+cat > ~/.local/share/dbus-1/services/io.tokeneater.Daemon.service <<EOF
+[D-BUS Service]
+Name=io.tokeneater.Daemon
+Exec=$HOME/.local/bin/tokeneater-daemon
+SystemdService=tokeneater.service
+EOF
+
+# 4. Install systemd user service
 mkdir -p ~/.config/systemd/user
 cp linux/tokeneater.service ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now tokeneater
 
-# 4. Enable extension
-#    On X11:  gnome-extensions enable tokeneater-gnome@io.tokeneater
-#    On Wayland: log out and log back in, then enable via GNOME Extensions app
+# 5. Enable extension
+#    On X11:     gnome-extensions enable tokeneater-gnome@io.tokeneater
+#    On Wayland: log out / log back in, then enable via GNOME Extensions app
 ```
+
+</details>
 
 ## Verify
 
@@ -85,5 +105,5 @@ Threshold transitions trigger a desktop notification via `notify-send`:
 
 - KDE Plasma widget — same daemon, QML UI
 - XFCE panel plugin — same daemon
-- `install.sh` + packaged releases (`.deb`, AUR)
+- Packaged releases (`.deb`, AUR)
 - SOCKS5 proxy support in the daemon
