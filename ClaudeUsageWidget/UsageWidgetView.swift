@@ -4,13 +4,15 @@ import WidgetKit
 // MARK: - Widget Background (macOS 13 compat)
 
 struct WidgetBackgroundModifier: ViewModifier {
+    var backgroundColor: Color = Color(hex: SharedContainer.theme.widgetBackground).opacity(0.85)
+
     func body(content: Content) -> some View {
         if #available(macOS 14.0, *) {
             content.containerBackground(for: .widget) {
-                Color.black.opacity(0.85)
+                backgroundColor
             }
         } else {
-            content.padding().background(Color.black.opacity(0.85))
+            content.padding().background(backgroundColor)
         }
     }
 }
@@ -21,6 +23,8 @@ struct UsageWidgetView: View {
     let entry: UsageEntry
 
     @Environment(\.widgetFamily) var family
+    private var theme: ThemeColors { SharedContainer.theme }
+    private var thresholds: UsageThresholds { SharedContainer.thresholds }
 
     var body: some View {
         Group {
@@ -174,13 +178,7 @@ struct UsageWidgetView: View {
                         return d > 0 ? String(format: String(localized: "duration.days.hours"), d, h) : "\(h)h"
                     }(),
                     utilization: pacing.actualUsage,
-                    colorOverride: {
-                        switch pacing.zone {
-                        case .chill: return Color(hex: "#22C55E")
-                        case .onTrack: return Color(hex: "#0A84FF")
-                        case .hot: return Color(hex: "#EF4444")
-                        }
-                    }(),
+                    colorOverride: theme.pacingColor(for: pacing.zone),
                     displayText: "\(pacing.delta >= 0 ? "+" : "")\(Int(pacing.delta))%"
                 )
             }
@@ -285,24 +283,11 @@ struct CircularUsageView: View {
     let label: String
     let resetInfo: String
     let utilization: Double
+    var theme: ThemeColors = SharedContainer.theme
+    var thresholds: UsageThresholds = SharedContainer.thresholds
 
     private var ringGradient: LinearGradient {
-        if utilization >= 85 {
-            return LinearGradient(
-                colors: [Color(hex: "#EF4444"), Color(hex: "#DC2626")],
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            )
-        } else if utilization >= 60 {
-            return LinearGradient(
-                colors: [Color(hex: "#F97316"), Color(hex: "#FB923C")],
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            )
-        } else {
-            return LinearGradient(
-                colors: [Color(hex: "#22C55E"), Color(hex: "#4ADE80")],
-                startPoint: .topLeading, endPoint: .bottomTrailing
-            )
-        }
+        theme.gaugeGradient(for: utilization, thresholds: thresholds)
     }
 
     var body: some View {
@@ -341,24 +326,14 @@ struct CircularUsageView: View {
 
 struct CircularPacingView: View {
     let pacing: PacingResult
+    var theme: ThemeColors = SharedContainer.theme
 
     private var ringColor: Color {
-        switch pacing.zone {
-        case .chill: return Color(hex: "#22C55E")
-        case .onTrack: return Color(hex: "#0A84FF")
-        case .hot: return Color(hex: "#EF4444")
-        }
+        theme.pacingColor(for: pacing.zone)
     }
 
     private var ringGradient: LinearGradient {
-        switch pacing.zone {
-        case .chill:
-            return LinearGradient(colors: [Color(hex: "#22C55E"), Color(hex: "#4ADE80")], startPoint: .topLeading, endPoint: .bottomTrailing)
-        case .onTrack:
-            return LinearGradient(colors: [Color(hex: "#0A84FF"), Color(hex: "#409CFF")], startPoint: .topLeading, endPoint: .bottomTrailing)
-        case .hot:
-            return LinearGradient(colors: [Color(hex: "#EF4444"), Color(hex: "#DC2626")], startPoint: .topLeading, endPoint: .bottomTrailing)
-        }
+        theme.pacingGradient(for: pacing.zone)
     }
 
     var body: some View {
@@ -412,38 +387,19 @@ struct LargeUsageBarView: View {
     let utilization: Double
     var colorOverride: Color? = nil
     var displayText: String? = nil
+    var theme: ThemeColors = SharedContainer.theme
+    var thresholds: UsageThresholds = SharedContainer.thresholds
 
     private var barGradient: LinearGradient {
         if let color = colorOverride {
             return LinearGradient(colors: [color, color.opacity(0.8)], startPoint: .leading, endPoint: .trailing)
         }
-        if utilization >= 85 {
-            return LinearGradient(
-                colors: [Color(hex: "#EF4444"), Color(hex: "#DC2626")],
-                startPoint: .leading, endPoint: .trailing
-            )
-        } else if utilization >= 60 {
-            return LinearGradient(
-                colors: [Color(hex: "#F97316"), Color(hex: "#FB923C")],
-                startPoint: .leading, endPoint: .trailing
-            )
-        } else {
-            return LinearGradient(
-                colors: [Color(hex: "#22C55E"), Color(hex: "#4ADE80")],
-                startPoint: .leading, endPoint: .trailing
-            )
-        }
+        return theme.gaugeGradient(for: utilization, thresholds: thresholds, startPoint: .leading, endPoint: .trailing)
     }
 
     private var accentColor: Color {
         if let color = colorOverride { return color }
-        if utilization >= 85 {
-            return Color(hex: "#EF4444")
-        } else if utilization >= 60 {
-            return Color(hex: "#F97316")
-        } else {
-            return Color(hex: "#22C55E")
-        }
+        return theme.gaugeColor(for: utilization, thresholds: thresholds)
     }
 
     var body: some View {
