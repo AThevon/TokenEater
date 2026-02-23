@@ -146,7 +146,7 @@ Shared/                  Shared code (API client, models, pacing, notifications)
 project.yml              XcodeGen configuration
 ```
 
-The host app and widget extension are both sandboxed and communicate through an App Group shared container. The menu bar app reads the OAuth token from the macOS Keychain, calls the API, and pushes data to the shared container. The widget reads from the shared container only — it never touches the Keychain or the network. The menu bar refreshes every 5 minutes independently.
+The host app and widget extension are both sandboxed and communicate through a shared JSON file in `~/Library/Application Support/`. The menu bar app reads the OAuth token from the macOS Keychain, calls the API, and writes the data to the shared file. The widget reads from this file only — it never touches the Keychain or the network. The menu bar refreshes every 5 minutes independently.
 
 ## How it works
 
@@ -162,24 +162,24 @@ The response includes `utilization` (0–100) and `resets_at` for each limit buc
 
 ## Security & Data Flow
 
-TokenEater uses an **App Group shared container** to safely pass data between the menu bar app and the desktop widget.
+TokenEater uses a **shared JSON file** to safely pass data between the menu bar app and the desktop widget.
 
 ### How it works
 
 1. **Menu bar app** reads the Claude Code OAuth token from the macOS Keychain
-2. The token and API responses are stored in a sandboxed App Group container (`group.com.claudeusagewidget.shared`)
-3. **Widget** reads cached data from the shared container — it never touches the Keychain or makes API calls
+2. The token and API responses are written to a shared file (`~/Library/Application Support/com.claudeusagewidget.shared/shared.json`)
+3. **Widget** reads cached data from this file — it never touches the Keychain or makes API calls
 
 ### Why this architecture?
 
 The Claude Code CLI creates its OAuth token in the macOS Keychain. When a different process (like a widget extension) tries to read it, macOS shows a password prompt. Since Claude Code recreates the token on refresh (resetting Keychain ACLs), this prompt would appear repeatedly.
 
-By routing all Keychain access and API calls through the main app, only one process needs authorization — and the widget gets its data through the sandboxed shared container instead.
+By routing all Keychain access and API calls through the main app, only one process needs authorization — and the widget gets its data through the shared file instead.
 
 ### Token storage
 
-The OAuth token is stored in the App Group's `UserDefaults`, located in `~/Library/Group Containers/group.com.claudeusagewidget.shared/`. This directory is:
-- **Sandboxed** — only the two app group members (menu bar app + widget) can access it
+The shared data is stored as a JSON file in `~/Library/Application Support/com.claudeusagewidget.shared/`. Both the app and widget access this directory via sandbox temporary-exception entitlements (app: read-write, widget: read-only). This directory is:
+- **Sandboxed** — the app has read-write access, the widget has read-only access
 - **User-scoped** — stored in the user's Library, not system-wide
 - **Not synced** — not backed up to iCloud or shared across devices
 

@@ -1,42 +1,74 @@
 import Foundation
 
 enum SharedContainer {
-    static let suiteName = "group.com.claudeusagewidget.shared"
+    private static let directoryName = "com.claudeusagewidget.shared"
+    private static let fileName = "shared.json"
 
-    private static let tokenKey = "oauthToken"
-    private static let cachedUsageKey = "cachedUsage"
-    private static let lastSyncDateKey = "lastSyncDate"
+    /// Real home directory (bypasses sandbox container redirection)
+    private static var realHomeDirectory: String {
+        guard let pw = getpwuid(getuid()) else { return NSHomeDirectory() }
+        return String(cString: pw.pointee.pw_dir)
+    }
 
-    private static let defaults = UserDefaults(suiteName: suiteName)
+    private static var sharedFileURL: URL {
+        URL(fileURLWithPath: realHomeDirectory)
+            .appendingPathComponent("Library/Application Support")
+            .appendingPathComponent(directoryName)
+            .appendingPathComponent(fileName)
+    }
+
+    // MARK: - File-backed Storage
+
+    private struct SharedData: Codable {
+        var oauthToken: String?
+        var cachedUsage: CachedUsage?
+        var lastSyncDate: Date?
+    }
+
+    private static func load() -> SharedData {
+        guard let data = try? Data(contentsOf: sharedFileURL) else {
+            return SharedData()
+        }
+        return (try? JSONDecoder().decode(SharedData.self, from: data)) ?? SharedData()
+    }
+
+    private static func save(_ shared: SharedData) {
+        let dir = sharedFileURL.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? JSONEncoder().encode(shared).write(to: sharedFileURL, options: .atomic)
+    }
 
     // MARK: - OAuth Token
 
     static var oauthToken: String? {
-        get { defaults?.string(forKey: tokenKey) }
-        set { defaults?.set(newValue, forKey: tokenKey) }
+        get { load().oauthToken }
+        set {
+            var data = load()
+            data.oauthToken = newValue
+            save(data)
+        }
     }
 
     // MARK: - Cached Usage
 
     static var cachedUsage: CachedUsage? {
-        get {
-            guard let data = defaults?.data(forKey: cachedUsageKey) else { return nil }
-            return try? JSONDecoder().decode(CachedUsage.self, from: data)
-        }
+        get { load().cachedUsage }
         set {
-            if let newValue, let data = try? JSONEncoder().encode(newValue) {
-                defaults?.set(data, forKey: cachedUsageKey)
-            } else {
-                defaults?.removeObject(forKey: cachedUsageKey)
-            }
+            var data = load()
+            data.cachedUsage = newValue
+            save(data)
         }
     }
 
     // MARK: - Last Sync Date
 
     static var lastSyncDate: Date? {
-        get { defaults?.object(forKey: lastSyncDateKey) as? Date }
-        set { defaults?.set(newValue, forKey: lastSyncDateKey) }
+        get { load().lastSyncDate }
+        set {
+            var data = load()
+            data.lastSyncDate = newValue
+            save(data)
+        }
     }
 
     // MARK: - Convenience
@@ -46,8 +78,6 @@ enum SharedContainer {
     }
 
     static func clear() {
-        defaults?.removeObject(forKey: tokenKey)
-        defaults?.removeObject(forKey: cachedUsageKey)
-        defaults?.removeObject(forKey: lastSyncDateKey)
+        save(SharedData())
     }
 }
