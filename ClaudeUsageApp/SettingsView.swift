@@ -300,6 +300,9 @@ struct SettingsView: View {
             loadPinnedMetrics()
             Task { notifStatus = await UsageNotificationManager.checkAuthorizationStatus() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { notifStatus = await UsageNotificationManager.checkAuthorizationStatus() }
+        }
         .onChange(of: pinnedFiveHour) { _ in savePinnedMetrics() }
         .onChange(of: pinnedSevenDay) { _ in savePinnedMetrics() }
         .onChange(of: pinnedSonnet) { _ in savePinnedMetrics() }

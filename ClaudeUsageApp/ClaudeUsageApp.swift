@@ -7,6 +7,7 @@ struct ClaudeUsageApp: App {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     init() {
+        UsageNotificationManager.setupDelegate()
         syncProxyConfig()
         ThemeManager.shared.syncToSharedContainer()
     }

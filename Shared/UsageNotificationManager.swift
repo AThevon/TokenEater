@@ -28,8 +28,13 @@ final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
 enum UsageNotificationManager {
     private static let center = UNUserNotificationCenter.current()
 
-    static func requestPermission() {
+    /// Must be called early at app launch to ensure banners display in foreground.
+    static func setupDelegate() {
         center.delegate = NotificationDelegate.shared
+    }
+
+    static func requestPermission() {
+        setupDelegate()
         center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
