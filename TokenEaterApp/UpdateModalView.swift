@@ -2,10 +2,12 @@ import SwiftUI
 
 struct UpdateModalView: View {
     @Environment(UpdateStore.self) private var updateStore
+    @State private var copied = false
 
     private let sheetBg = Color(hex: "#141416")
     private let sheetCard = Color.white.opacity(0.04)
     private let accent = Color(hex: "#FF9F0A")
+    private let brewCommand = "brew update && brew upgrade --cask --greedy tokeneater"
 
     var body: some View {
         ZStack {
@@ -20,6 +22,9 @@ struct UpdateModalView: View {
                         .padding(.bottom, 20)
                 }
 
+                terminalSection
+                    .padding(.bottom, 16)
+
                 if let error = updateStore.updateError {
                     Label(error, systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
@@ -31,7 +36,7 @@ struct UpdateModalView: View {
             }
             .padding(24)
         }
-        .frame(width: 420, height: 340)
+        .frame(width: 440, height: 400)
     }
 
     // MARK: - Header
@@ -82,7 +87,7 @@ struct UpdateModalView: View {
                 .foregroundStyle(.white.opacity(0.5))
 
             ScrollView {
-                Text(notes)
+                Text(renderMarkdown(notes))
                     .font(.system(size: 12))
                     .foregroundStyle(.white.opacity(0.7))
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -98,6 +103,76 @@ struct UpdateModalView: View {
                     )
             )
             .frame(maxHeight: 150)
+        }
+    }
+
+    // MARK: - Markdown
+
+    private func renderMarkdown(_ raw: String) -> AttributedString {
+        let processed = raw
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { line -> String in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                if trimmed.hasPrefix("## ") {
+                    return "**\(trimmed.dropFirst(3))**"
+                } else if trimmed.hasPrefix("# ") {
+                    return "**\(trimmed.dropFirst(2))**"
+                } else if trimmed.hasPrefix("* ") {
+                    return "• \(trimmed.dropFirst(2))"
+                } else if trimmed.hasPrefix("- ") {
+                    return "• \(trimmed.dropFirst(2))"
+                }
+                return String(line)
+            }
+            .joined(separator: "\n")
+
+        if let attr = try? AttributedString(
+            markdown: processed,
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        ) {
+            return attr
+        }
+        return AttributedString(raw)
+    }
+
+    // MARK: - Terminal Command
+
+    private var terminalSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("update.terminal")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white.opacity(0.4))
+
+            HStack(spacing: 8) {
+                Text(brewCommand)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .lineLimit(1)
+
+                Spacer()
+
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(brewCommand, forType: .string)
+                    copied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { copied = false }
+                } label: {
+                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                        .font(.system(size: 11))
+                        .foregroundStyle(copied ? .green : .white.opacity(0.4))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.black.opacity(0.3))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    )
+            )
         }
     }
 

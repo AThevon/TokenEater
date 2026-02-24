@@ -216,6 +216,6 @@
 "update.now" = "Mettre à jour";
 "update.check" = "Vérifier les mises à jour";
 "update.badge" = "New";
+"update.terminal" = "Ou mettez à jour via Terminal :";
 "update.error.response" = "Impossible de joindre GitHub — réessayez plus tard";
-"update.error.script" = "Impossible de préparer le script de mise à jour";
 "update.error.launch" = "Impossible de lancer la mise à jour — commande copiée. Collez-la dans Terminal.";

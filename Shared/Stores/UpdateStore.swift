@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(AppKit)
+import AppKit
+#endif
 
 @MainActor
 @Observable
@@ -66,6 +69,12 @@ final class UpdateStore {
         updateError = nil
         do {
             try service.launchBrewUpdate()
+            showUpdateModal = false
+            #if canImport(AppKit)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                NSApplication.shared.terminate(nil)
+            }
+            #endif
         } catch {
             updateError = error.localizedDescription
             isUpdating = false

@@ -216,6 +216,6 @@
 "update.now" = "Update";
 "update.check" = "Check for updates";
 "update.badge" = "New";
+"update.terminal" = "Or update via Terminal:";
 "update.error.response" = "Couldn't reach GitHub — try again later";
-"update.error.script" = "Failed to prepare update script";
 "update.error.launch" = "Couldn't launch updater — command copied to clipboard. Paste in Terminal.";

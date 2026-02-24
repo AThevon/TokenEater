@@ -11,5 +11,9 @@
         <string>/Library/Application Support/com.tokeneater.shared/</string>
         <string>/Library/Application Support/com.claudeusagewidget.shared/</string>
     </array>
+    <key>com.apple.security.temporary-exception.apple-events</key>
+    <array>
+        <string>com.apple.Terminal</string>
+    </array>
 </dict>
 </plist>

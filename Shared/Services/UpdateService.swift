@@ -3,13 +3,11 @@ import AppKit
 
 enum UpdateError: LocalizedError {
     case invalidResponse
-    case scriptWriteFailed
     case scriptLaunchFailed
 
     var errorDescription: String? {
         switch self {
         case .invalidResponse: return String(localized: "update.error.response")
-        case .scriptWriteFailed: return String(localized: "update.error.script")
         case .scriptLaunchFailed: return String(localized: "update.error.launch")
         }
     }
@@ -20,15 +18,6 @@ final class UpdateService: UpdateServiceProtocol, @unchecked Sendable {
 
     private var currentVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
-    }
-
-    private var realHomeDirectory: String {
-        guard let pw = getpwuid(getuid()) else { return NSHomeDirectory() }
-        return String(cString: pw.pointee.pw_dir)
-    }
-
-    private var updateScriptPath: String {
-        "\(realHomeDirectory)/Library/Application Support/com.tokeneater.shared/update.command"
     }
 
     // MARK: - Check
@@ -70,64 +59,23 @@ final class UpdateService: UpdateServiceProtocol, @unchecked Sendable {
     // MARK: - Update
 
     func launchBrewUpdate() throws {
-        let script = """
-#!/bin/bash
-# TokenEater Auto-Update
+        let brewCmd = "BREW=$([ -x /opt/homebrew/bin/brew ] && echo /opt/homebrew/bin/brew || echo /usr/local/bin/brew); $BREW update; $BREW upgrade --cask --greedy tokeneater && sleep 1 && open /Applications/TokenEater.app"
 
-if [ -x "/opt/homebrew/bin/brew" ]; then
-    BREW="/opt/homebrew/bin/brew"
-elif [ -x "/usr/local/bin/brew" ]; then
-    BREW="/usr/local/bin/brew"
-else
-    echo "Homebrew not found."
-    echo "Run manually: brew upgrade --cask tokeneater"
-    read -p "Press Enter to close..."
-    exit 1
-fi
+        let source = "tell application \"Terminal\"\nactivate\ndo script \"\(brewCmd)\"\nend tell"
 
-echo "Updating TokenEater..."
-$BREW upgrade --cask tokeneater
-
-if [ $? -eq 0 ]; then
-    echo "Update complete! Relaunching..."
-    sleep 1
-    open /Applications/TokenEater.app
-else
-    echo "Update failed. Try: brew upgrade --cask tokeneater"
-    read -p "Press Enter to close..."
-fi
-
-rm -f "$0"
-"""
-
-        let dir = (updateScriptPath as NSString).deletingLastPathComponent
-        try? FileManager.default.createDirectory(
-            atPath: dir,
-            withIntermediateDirectories: true
-        )
-
-        guard FileManager.default.createFile(
-            atPath: updateScriptPath,
-            contents: script.data(using: .utf8)
-        ) else {
-            throw UpdateError.scriptWriteFailed
-        }
-
-        try FileManager.default.setAttributes(
-            [.posixPermissions: 0o755],
-            ofItemAtPath: updateScriptPath
-        )
-
-        let url = URL(fileURLWithPath: updateScriptPath)
-        guard NSWorkspace.shared.open(url) else {
-            // Fallback: copy brew command to clipboard
+        guard let script = NSAppleScript(source: source) else {
             NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString("brew upgrade --cask tokeneater", forType: .string)
+            NSPasteboard.general.setString("brew update && brew upgrade --cask --greedy tokeneater", forType: .string)
             throw UpdateError.scriptLaunchFailed
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            NSApplication.shared.terminate(nil)
+        var errorInfo: NSDictionary?
+        script.executeAndReturnError(&errorInfo)
+
+        if errorInfo != nil {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString("brew update && brew upgrade --cask --greedy tokeneater", forType: .string)
+            throw UpdateError.scriptLaunchFailed
         }
     }
 
