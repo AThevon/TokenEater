@@ -1,20 +1,5 @@
 import Foundation
 
-enum PacingZone: String {
-    case chill
-    case onTrack
-    case hot
-}
-
-struct PacingResult {
-    let delta: Double
-    let expectedUsage: Double
-    let actualUsage: Double
-    let zone: PacingZone
-    let message: String
-    let resetDate: Date?
-}
-
 enum PacingCalculator {
     private static let chillMessages = [
         "pacing.chill.1", "pacing.chill.2", "pacing.chill.3",
