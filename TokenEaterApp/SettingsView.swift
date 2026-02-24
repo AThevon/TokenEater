@@ -216,22 +216,10 @@ struct SettingsView: View {
             }
 
             Section {
-                Toggle("metric.session", isOn: Binding(
-                    get: { settingsStore.pinnedMetrics.contains(.fiveHour) },
-                    set: { if $0 { settingsStore.pinnedMetrics.insert(.fiveHour) } else if settingsStore.pinnedMetrics.count > 1 { settingsStore.pinnedMetrics.remove(.fiveHour) } }
-                ))
-                Toggle("metric.weekly", isOn: Binding(
-                    get: { settingsStore.pinnedMetrics.contains(.sevenDay) },
-                    set: { if $0 { settingsStore.pinnedMetrics.insert(.sevenDay) } else if settingsStore.pinnedMetrics.count > 1 { settingsStore.pinnedMetrics.remove(.sevenDay) } }
-                ))
-                Toggle("metric.sonnet", isOn: Binding(
-                    get: { settingsStore.pinnedMetrics.contains(.sonnet) },
-                    set: { if $0 { settingsStore.pinnedMetrics.insert(.sonnet) } else if settingsStore.pinnedMetrics.count > 1 { settingsStore.pinnedMetrics.remove(.sonnet) } }
-                ))
-                Toggle("pacing.label", isOn: Binding(
-                    get: { settingsStore.pinnedMetrics.contains(.pacing) },
-                    set: { if $0 { settingsStore.pinnedMetrics.insert(.pacing) } else if settingsStore.pinnedMetrics.count > 1 { settingsStore.pinnedMetrics.remove(.pacing) } }
-                ))
+                Toggle("metric.session", isOn: $settingsStore.showFiveHour)
+                Toggle("metric.weekly", isOn: $settingsStore.showSevenDay)
+                Toggle("metric.sonnet", isOn: $settingsStore.showSonnet)
+                Toggle("pacing.label", isOn: $settingsStore.showPacing)
             } header: {
                 Text("settings.metrics.pinned")
             } footer: {
@@ -239,12 +227,9 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Section("settings.pacing.display") {
-                Picker("Mode", selection: Binding(
-                    get: { settingsStore.pacingDisplayMode.rawValue },
-                    set: { settingsStore.pacingDisplayMode = PacingDisplayMode(rawValue: $0) ?? .dotDelta }
-                )) {
-                    Text("settings.pacing.dot").tag("dot")
-                    Text("settings.pacing.dotdelta").tag("dotDelta")
+                Picker("Mode", selection: $settingsStore.pacingDisplayMode) {
+                    Text("settings.pacing.dot").tag(PacingDisplayMode.dot)
+                    Text("settings.pacing.dotdelta").tag(PacingDisplayMode.dotDelta)
                 }
                 .pickerStyle(.radioGroup)
             }
@@ -252,32 +237,14 @@ struct SettingsView: View {
             Section("settings.theme.thresholds") {
                 HStack {
                     Text("settings.theme.warning")
-                    Slider(value: Binding(
-                        get: { Double(themeStore.warningThreshold) },
-                        set: { newValue in
-                            let val = Int(newValue)
-                            themeStore.warningThreshold = val
-                            if val >= themeStore.criticalThreshold {
-                                themeStore.criticalThreshold = min(val + 5, 95)
-                            }
-                        }
-                    ), in: 10...90, step: 5)
+                    Slider(value: $themeStore.warningThresholdDouble, in: 10...90, step: 5)
                     Text("\(themeStore.warningThreshold)%")
                         .monospacedDigit()
                         .frame(width: 40, alignment: .trailing)
                 }
                 HStack {
                     Text("settings.theme.critical")
-                    Slider(value: Binding(
-                        get: { Double(themeStore.criticalThreshold) },
-                        set: { newValue in
-                            let val = Int(newValue)
-                            themeStore.criticalThreshold = val
-                            if val <= themeStore.warningThreshold {
-                                themeStore.warningThreshold = max(val - 5, 10)
-                            }
-                        }
-                    ), in: 15...95, step: 5)
+                    Slider(value: $themeStore.criticalThresholdDouble, in: 15...95, step: 5)
                     Text("\(themeStore.criticalThreshold)%")
                         .monospacedDigit()
                         .frame(width: 40, alignment: .trailing)
@@ -337,6 +304,16 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .onChange(of: themeStore.warningThreshold) { _, newValue in
+            if newValue >= themeStore.criticalThreshold {
+                themeStore.criticalThreshold = min(newValue + 5, 95)
+            }
+        }
+        .onChange(of: themeStore.criticalThreshold) { _, newValue in
+            if newValue <= themeStore.warningThreshold {
+                themeStore.warningThreshold = max(newValue - 5, 10)
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             Task { await settingsStore.refreshNotificationStatus() }
         }

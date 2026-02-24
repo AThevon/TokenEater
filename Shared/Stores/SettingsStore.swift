@@ -33,6 +33,40 @@ final class SettingsStore {
         ProxyConfig(enabled: proxyEnabled, host: proxyHost, port: proxyPort)
     }
 
+    // MARK: - Metric toggles (stable @Bindable projections)
+
+    var showFiveHour: Bool {
+        get { pinnedMetrics.contains(.fiveHour) }
+        set {
+            if newValue { pinnedMetrics.insert(.fiveHour) }
+            else if pinnedMetrics.count > 1 { pinnedMetrics.remove(.fiveHour) }
+        }
+    }
+
+    var showSevenDay: Bool {
+        get { pinnedMetrics.contains(.sevenDay) }
+        set {
+            if newValue { pinnedMetrics.insert(.sevenDay) }
+            else if pinnedMetrics.count > 1 { pinnedMetrics.remove(.sevenDay) }
+        }
+    }
+
+    var showSonnet: Bool {
+        get { pinnedMetrics.contains(.sonnet) }
+        set {
+            if newValue { pinnedMetrics.insert(.sonnet) }
+            else if pinnedMetrics.count > 1 { pinnedMetrics.remove(.sonnet) }
+        }
+    }
+
+    var showPacing: Bool {
+        get { pinnedMetrics.contains(.pacing) }
+        set {
+            if newValue { pinnedMetrics.insert(.pacing) }
+            else if pinnedMetrics.count > 1 { pinnedMetrics.remove(.pacing) }
+        }
+    }
+
     // Notifications
     var notificationStatus: UNAuthorizationStatus = .notDetermined
 

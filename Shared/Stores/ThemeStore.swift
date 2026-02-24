@@ -66,6 +66,18 @@ final class ThemeStore {
         }
     }
 
+    // MARK: - Slider projections (stable @Bindable bindings)
+
+    var warningThresholdDouble: Double {
+        get { Double(warningThreshold) }
+        set { warningThreshold = Int(newValue) }
+    }
+
+    var criticalThresholdDouble: Double {
+        get { Double(criticalThreshold) }
+        set { criticalThreshold = Int(newValue) }
+    }
+
     // MARK: - Resolved
 
     var current: ThemeColors {
