@@ -38,19 +38,11 @@ struct ConnectionStep: View {
             Text("onboarding.connection.title")
                 .font(.system(size: 18, weight: .semibold, design: .rounded))
 
-            if viewModel.isDetailedMode {
-                Text("onboarding.connection.detailed")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 380)
-            } else {
-                Text("onboarding.connection.simple")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 380)
-            }
+            Text("onboarding.connection.simple")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 380)
 
             Button {
                 viewModel.connect()

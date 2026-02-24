@@ -7,9 +7,6 @@ struct PrerequisiteStep: View {
         VStack(spacing: 24) {
             Spacer()
 
-            // Mode toggle
-            modeToggle
-
             // Status icon
             statusIcon
 
@@ -46,17 +43,6 @@ struct PrerequisiteStep: View {
         .onAppear {
             viewModel.checkClaudeCode()
         }
-    }
-
-    // MARK: - Mode Toggle
-
-    private var modeToggle: some View {
-        Picker("", selection: $viewModel.isDetailedMode) {
-            Text("onboarding.mode.simple").tag(false)
-            Text("onboarding.mode.detailed").tag(true)
-        }
-        .pickerStyle(.segmented)
-        .frame(maxWidth: 240)
     }
 
     // MARK: - Status Icon
@@ -101,19 +87,11 @@ struct PrerequisiteStep: View {
             Text("onboarding.prereq.detected.title")
                 .font(.system(size: 18, weight: .semibold, design: .rounded))
 
-            if viewModel.isDetailedMode {
-                Text("onboarding.prereq.detected.detailed")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 380)
-            } else {
-                Text("onboarding.prereq.detected.simple")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 380)
-            }
+            Text("onboarding.prereq.detected.simple")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 380)
 
             planRequirement
         }

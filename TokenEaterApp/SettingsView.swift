@@ -39,7 +39,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Text("v3.3.2")
+                Text("v4.0.0")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }

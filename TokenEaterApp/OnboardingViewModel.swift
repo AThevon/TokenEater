@@ -33,7 +33,6 @@ enum NotificationStatus {
 @Observable
 final class OnboardingViewModel {
     var currentStep: OnboardingStep = .welcome
-    var isDetailedMode = false
     var claudeCodeStatus: ClaudeCodeStatus = .checking
     var connectionStatus: ConnectionStatus = .idle
     var notificationStatus: NotificationStatus = .unknown
@@ -91,6 +90,7 @@ final class OnboardingViewModel {
         repository.syncKeychainToken()
         guard repository.isConfigured else {
             connectionStatus = .failed(String(localized: "onboarding.connection.failed.notoken"))
+            NSApp.activate(ignoringOtherApps: true)
             return
         }
 
@@ -101,6 +101,7 @@ final class OnboardingViewModel {
             } catch {
                 connectionStatus = .failed(error.localizedDescription)
             }
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
 

@@ -7,9 +7,6 @@ struct NotificationStep: View {
         VStack(spacing: 24) {
             Spacer()
 
-            // Mode toggle (same as PrerequisiteStep)
-            modeToggle
-
             // Bell icon
             Image(systemName: "bell.badge.fill")
                 .font(.system(size: 48))
@@ -19,18 +16,12 @@ struct NotificationStep: View {
             Text("onboarding.notif.title")
                 .font(.system(size: 18, weight: .semibold, design: .rounded))
 
-            // Description (simple/detailed)
-            Group {
-                if viewModel.isDetailedMode {
-                    Text("onboarding.notif.detailed")
-                } else {
-                    Text("onboarding.notif.simple")
-                }
-            }
-            .font(.system(size: 13))
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: 380)
+            // Description
+            Text("onboarding.notif.simple")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 380)
 
             // Notification mockup
             notificationMockup
@@ -47,17 +38,9 @@ struct NotificationStep: View {
         .onAppear {
             viewModel.checkNotificationStatus()
         }
-    }
-
-    // MARK: - Mode Toggle
-
-    private var modeToggle: some View {
-        Picker("", selection: $viewModel.isDetailedMode) {
-            Text("onboarding.mode.simple").tag(false)
-            Text("onboarding.mode.detailed").tag(true)
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            viewModel.checkNotificationStatus()
         }
-        .pickerStyle(.segmented)
-        .frame(maxWidth: 240)
     }
 
     // MARK: - Notification Mockup
