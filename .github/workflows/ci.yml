@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: |
+          xcodegen generate
+          plutil -insert NSExtension \
+            -json '{"NSExtensionPointIdentifier":"com.apple.widgetkit-extension"}' \
+            TokenEaterWidget/Info.plist 2>/dev/null || true
+
+      - name: Build
+        run: |
+          xcodebuild \
+            -project TokenEater.xcodeproj \
+            -scheme TokenEaterApp \
+            -configuration Release \
+            -derivedDataPath build \
+            -destination 'platform=macOS' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            build
+
+      - name: Test
+        run: |
+          xcodebuild \
+            -project TokenEater.xcodeproj \
+            -scheme TokenEaterTests \
+            -configuration Debug \
+            -derivedDataPath build \
+            -destination 'platform=macOS' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            test
