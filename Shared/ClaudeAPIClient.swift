@@ -25,7 +25,39 @@ final class ClaudeAPIClient {
         SharedContainer.isConfigured
     }
 
-    // MARK: - Fetch Usage
+    // MARK: - Fetch Usage (with recovery)
+
+    /// Fetch usage with automatic token recovery on 401/403.
+    /// Silent keychain read → different token? update + retry once. Otherwise throw.
+    func fetchUsageWithRecovery() async throws -> UsageResponse {
+        do {
+            return try await fetchUsage()
+        } catch ClaudeAPIError.tokenExpired {
+            return try await attemptSilentTokenRecovery()
+        }
+    }
+
+    private func attemptSilentTokenRecovery() async throws -> UsageResponse {
+        let currentToken = SharedContainer.oauthToken
+
+        guard let credentials = KeychainOAuthReader.readClaudeCodeTokenSilently() else {
+            // Keychain inaccessible (locked or needs auth).
+            // Keep current token — it may work once keychain unlocks. Retry next cycle.
+            throw ClaudeAPIError.keychainLocked
+        }
+
+        guard credentials.accessToken != currentToken else {
+            // Same token in keychain — Claude Code hasn't refreshed yet.
+            // Keep it cached, let the ViewModel track the failed state.
+            throw ClaudeAPIError.tokenExpired
+        }
+
+        // Claude Code auto-refreshed the token — update and retry once
+        SharedContainer.oauthToken = credentials.accessToken
+        return try await fetchUsage()
+    }
+
+    // MARK: - Fetch Usage (raw)
 
     func fetchUsage() async throws -> UsageResponse {
         guard let token = SharedContainer.oauthToken else {
@@ -105,6 +137,7 @@ enum ClaudeAPIError: LocalizedError {
     case noToken
     case invalidResponse
     case tokenExpired
+    case keychainLocked
     case unsupportedPlan
     case httpError(Int)
 
@@ -116,6 +149,8 @@ enum ClaudeAPIError: LocalizedError {
             return String(localized: "error.invalidresponse")
         case .tokenExpired:
             return String(localized: "error.tokenexpired")
+        case .keychainLocked:
+            return String(localized: "error.keychainlocked")
         case .unsupportedPlan:
             return String(localized: "error.unsupportedplan")
         case .httpError(let code):

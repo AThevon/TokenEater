@@ -35,6 +35,13 @@ enum PacingDisplayMode: String {
     case dotDelta
 }
 
+enum AppErrorState: Equatable {
+    case none
+    case tokenExpired
+    case keychainLocked
+    case networkError(String)
+}
+
 // MARK: - ViewModel
 
 @MainActor
@@ -48,11 +55,17 @@ final class MenuBarViewModel: ObservableObject {
     @Published var pacingResult: PacingResult?
     @Published var lastUpdate: Date?
     @Published var isLoading = false
-    @Published var hasError = false
+    @Published var errorState: AppErrorState = .none
     @Published var hasConfig = false
+
+    var hasError: Bool { errorState != .none }
     @Published var pinnedMetrics: Set<MetricID> {
         didSet { savePinnedMetrics() }
     }
+
+    /// Token that last received a 401/403. Prevents retrying the API with a known-dead token.
+    /// Cleared when the keychain provides a different token.
+    private var lastFailedToken: String?
 
     private var timer: Timer?
     private var displaySettingsObserver: Any?
@@ -67,7 +80,9 @@ final class MenuBarViewModel: ObservableObject {
         }
         let onboardingDone = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
         if onboardingDone {
-            if let oauth = KeychainOAuthReader.readClaudeCodeToken() {
+            // Silent keychain read at launch — no macOS dialog.
+            // Token is usually already in SharedContainer from previous session.
+            if let oauth = KeychainOAuthReader.readClaudeCodeTokenSilently() {
                 SharedContainer.oauthToken = oauth.accessToken
             }
             hasConfig = SharedContainer.isConfigured
@@ -138,29 +153,42 @@ final class MenuBarViewModel: ObservableObject {
     }
 
     var menuBarImage: NSImage {
-        guard hasConfig, !hasError else {
+        guard hasConfig else {
             return renderText("--", color: .tertiaryLabelColor)
+        }
+        if hasError {
+            return renderText("!", color: .systemRed)
         }
         return renderPinnedMetrics()
     }
 
     func refresh() async {
-        // Sync Keychain token to SharedContainer
-        if let oauth = KeychainOAuthReader.readClaudeCodeToken() {
-            SharedContainer.oauthToken = oauth.accessToken
+        // Silently check keychain for a fresh token when we don't have a valid one,
+        // or when the current one already failed (auto-recovery from Claude Code refresh).
+        if !SharedContainer.isConfigured || lastFailedToken == SharedContainer.oauthToken {
+            if let oauth = KeychainOAuthReader.readClaudeCodeTokenSilently() {
+                if oauth.accessToken != lastFailedToken {
+                    SharedContainer.oauthToken = oauth.accessToken
+                    lastFailedToken = nil
+                    errorState = .none
+                }
+                // else: same dead token in keychain, skip API call
+            }
         }
 
-        guard ClaudeAPIClient.shared.isConfigured else {
-            hasConfig = false
+        guard SharedContainer.isConfigured,
+              SharedContainer.oauthToken != lastFailedToken else {
+            hasConfig = lastFailedToken != nil // had a token but it's dead
             return
         }
         hasConfig = true
         isLoading = true
         defer { isLoading = false }
         do {
-            let usage = try await ClaudeAPIClient.shared.fetchUsage()
+            let usage = try await ClaudeAPIClient.shared.fetchUsageWithRecovery()
             update(from: usage)
-            hasError = false
+            errorState = .none
+            lastFailedToken = nil
             lastUpdate = Date()
             WidgetCenter.shared.reloadAllTimelines()
             UsageNotificationManager.checkThresholds(
@@ -169,14 +197,27 @@ final class MenuBarViewModel: ObservableObject {
                 sonnet: sonnetPct,
                 thresholds: ThemeManager.shared.thresholds
             )
+        } catch let error as ClaudeAPIError {
+            switch error {
+            case .tokenExpired:
+                lastFailedToken = SharedContainer.oauthToken
+                errorState = .tokenExpired
+            case .keychainLocked:
+                errorState = .keychainLocked
+            default:
+                errorState = .networkError(error.localizedDescription)
+            }
         } catch {
-            hasError = true
+            errorState = .networkError(error.localizedDescription)
         }
     }
 
     func reloadConfig() {
+        // Interactive keychain read — only called from explicit user action (Connect button)
         if let oauth = KeychainOAuthReader.readClaudeCodeToken() {
             SharedContainer.oauthToken = oauth.accessToken
+            lastFailedToken = nil
+            errorState = .none
         }
         hasConfig = SharedContainer.isConfigured
         loadCached()
@@ -221,7 +262,7 @@ final class MenuBarViewModel: ObservableObject {
     }
 
     private func startRefreshTimer() {
-        timer = Timer.scheduledTimer(withTimeInterval: 300, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 await self?.refresh()
             }
@@ -336,6 +377,13 @@ struct MenuBarPopoverView: View {
             .padding(.horizontal, 16)
             .padding(.top, 14)
             .padding(.bottom, 10)
+
+            // Error banner
+            if viewModel.errorState != .none {
+                errorBanner
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+            }
 
             // Metrics
             VStack(spacing: 8) {
@@ -505,6 +553,38 @@ struct MenuBarPopoverView: View {
             }
             .frame(height: 4)
         }
+    }
+
+    @ViewBuilder
+    private var errorBanner: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            switch viewModel.errorState {
+            case .tokenExpired:
+                Label(String(localized: "error.banner.expired"), systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.red)
+                Text(String(localized: "error.banner.expired.hint"))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.5))
+            case .keychainLocked:
+                Label(String(localized: "error.banner.keychain"), systemImage: "lock.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.orange)
+                Text(String(localized: "error.banner.keychain.hint"))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.5))
+            case .networkError(let message):
+                Label(message, systemImage: "wifi.slash")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.orange)
+            case .none:
+                EmptyView()
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(Color.white.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
     private func colorForZone(_ zone: PacingZone) -> Color {

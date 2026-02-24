@@ -78,7 +78,12 @@
 "error.http" = "HTTP error %d";
 "error.network" = "Network error: %@";
 "error.invalidresponse.short" = "Invalid response";
+"error.keychainlocked" = "Keychain locked — will retry automatically";
 "error.unsupportedplan" = "Usage data not available — Claude Pro or Team plan required";
+"error.banner.expired" = "Token expired";
+"error.banner.expired.hint" = "Run /login in Claude Code — TokenEater will pick it up automatically";
+"error.banner.keychain" = "Keychain locked";
+"error.banner.keychain.hint" = "Will retry automatically — or open Settings to re-authorize";
 
 /* Connection Test */
 "test.success" = "Connected — Session: %d%%";

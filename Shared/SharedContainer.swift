@@ -51,6 +51,13 @@ enum SharedContainer {
         }
     }
 
+    /// Clear the token (on confirmed expiry or manual disconnect).
+    static func clearToken() {
+        var data = load()
+        data.oauthToken = nil
+        save(data)
+    }
+
     // MARK: - Cached Usage
 
     static var cachedUsage: CachedUsage? {
