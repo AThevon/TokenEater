@@ -53,13 +53,17 @@ final class UpdateService: UpdateServiceProtocol, @unchecked Sendable {
             return nil
         }
 
+        guard let releaseURL = URL(string: release.htmlURL) else {
+            throw UpdateError.invalidResponse
+        }
+
         let dmgAsset = release.assets.first { $0.name.hasSuffix(".dmg") }
 
         return UpdateInfo(
             version: remoteVersion,
             releaseNotes: release.body,
             downloadURL: dmgAsset.flatMap { URL(string: $0.browserDownloadURL) },
-            releaseURL: URL(string: release.htmlURL)!
+            releaseURL: releaseURL
         )
     }
 

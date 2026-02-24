@@ -36,7 +36,6 @@ struct TokenEaterApp: App {
                 usageStore.reloadConfig(thresholds: themeStore.thresholds)
                 usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
                 themeStore.syncToSharedFile()
-                updateStore.startAutoCheck()
             }
         }
         .windowResizability(.contentSize)
