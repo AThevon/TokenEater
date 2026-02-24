@@ -32,10 +32,11 @@ struct TokenEaterApp: App {
         .environment(updateStore)
         .onChange(of: settingsStore.hasCompletedOnboarding) { _, completed in
             if completed {
-                usageStore.proxyConfig = settingsStore.proxyConfig
-                usageStore.reloadConfig(thresholds: themeStore.thresholds)
-                usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
-                themeStore.syncToSharedFile()
+                Task {
+                    usageStore.proxyConfig = settingsStore.proxyConfig
+                    usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
+                    themeStore.syncToSharedFile()
+                }
             }
         }
         .windowResizability(.contentSize)
