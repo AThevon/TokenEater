@@ -37,6 +37,18 @@ targets:
       - target: TokenEaterWidgetExtension
         embed: true
 
+  TokenEaterTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: TokenEaterTests
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.tokeneater.tests
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: "NO"
+
   TokenEaterWidgetExtension:
     type: app-extension
     platform: macOS
@@ -55,6 +67,15 @@ targets:
       path: TokenEaterWidget/Info.plist
 
 schemes:
+  TokenEaterTests:
+    build:
+      targets:
+        TokenEaterTests: [test]
+    test:
+      config: Debug
+      targets:
+        - TokenEaterTests
+
   TokenEaterApp:
     build:
       targets:
