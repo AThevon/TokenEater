@@ -6,6 +6,7 @@ struct SettingsView: View {
     @Environment(UsageStore.self) private var usageStore
     @Environment(ThemeStore.self) private var themeStore
     @Environment(SettingsStore.self) private var settingsStore
+    @Environment(UpdateStore.self) private var updateStore
 
     @State private var testResult: ConnectionTestResult?
     @State private var isTesting = false
@@ -39,9 +40,26 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                Text("v4.0.0")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                HStack(spacing: 6) {
+                    let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+                    Text("v\(version)")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    if updateStore.updateAvailable {
+                        Button {
+                            updateStore.showUpdateModal = true
+                        } label: {
+                            Text("update.badge")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(accent)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(accent.opacity(0.15))
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
             .padding(.horizontal, 20)
             .padding(.top, 16)
@@ -153,6 +171,30 @@ struct SettingsView: View {
             }
 
             Section {
+                HStack {
+                    Button("update.check") {
+                        Task { await updateStore.checkForUpdate(userInitiated: true) }
+                    }
+                    .disabled(updateStore.isChecking)
+
+                    if updateStore.isChecking {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+
+                    Spacer()
+
+                    if let error = updateStore.updateError {
+                        Text(error)
+                            .font(.caption2)
+                            .foregroundStyle(.red)
+                    } else if updateStore.updateAvailable {
+                        Text("update.badge")
+                            .font(.caption2)
+                            .foregroundStyle(.green)
+                    }
+                }
+
                 Button("settings.onboarding.reset") {
                     settingsStore.hasCompletedOnboarding = false
                 }
