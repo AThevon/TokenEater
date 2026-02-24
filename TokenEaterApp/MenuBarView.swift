@@ -28,7 +28,7 @@ struct MenuBarPopoverView: View {
             .padding(.bottom, 10)
 
             // Error banner
-            if viewModel.errorState != .none {
+            if usageStore.hasError {
                 errorBanner
                     .padding(.horizontal, 16)
                     .padding(.bottom, 8)
@@ -211,7 +211,7 @@ struct MenuBarPopoverView: View {
     @ViewBuilder
     private var errorBanner: some View {
         VStack(alignment: .leading, spacing: 4) {
-            switch viewModel.errorState {
+            switch usageStore.errorState {
             case .tokenExpired:
                 Label(String(localized: "error.banner.expired"), systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 11, weight: .semibold))

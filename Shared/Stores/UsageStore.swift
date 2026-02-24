@@ -13,8 +13,13 @@ final class UsageStore {
     var pacingResult: PacingResult?
     var lastUpdate: Date?
     var isLoading = false
-    var hasError = false
+    var errorState: AppErrorState = .none
     var hasConfig = false
+
+    var hasError: Bool { errorState != .none }
+
+    /// Token that last received a 401/403. Prevents retrying the API with a known-dead token.
+    private var lastFailedToken: String?
 
     private let repository: UsageRepositoryProtocol
     private let notificationService: NotificationServiceProtocol
@@ -31,10 +36,19 @@ final class UsageStore {
     }
 
     func refresh(thresholds: UsageThresholds = .default) async {
-        repository.syncKeychainToken()
+        // Silent keychain read — try to recover token if not configured
+        // or if the current one already failed (auto-recovery from Claude Code refresh).
+        if !repository.isConfigured || lastFailedToken == repository.currentToken {
+            repository.syncKeychainTokenSilently()
+            if let currentToken = repository.currentToken, currentToken != lastFailedToken {
+                lastFailedToken = nil
+                errorState = .none
+            }
+        }
 
-        guard repository.isConfigured else {
-            hasConfig = false
+        guard repository.isConfigured,
+              repository.currentToken != lastFailedToken else {
+            hasConfig = lastFailedToken != nil
             return
         }
         hasConfig = true
@@ -43,7 +57,8 @@ final class UsageStore {
         do {
             let usage = try await repository.refreshUsage(proxyConfig: proxyConfig)
             update(from: usage)
-            hasError = false
+            errorState = .none
+            lastFailedToken = nil
             lastUpdate = Date()
             WidgetCenter.shared.reloadAllTimelines()
             notificationService.checkThresholds(
@@ -52,8 +67,18 @@ final class UsageStore {
                 sonnet: sonnetPct,
                 thresholds: thresholds
             )
+        } catch let error as APIError {
+            switch error {
+            case .tokenExpired:
+                lastFailedToken = repository.currentToken
+                errorState = .tokenExpired
+            case .keychainLocked:
+                errorState = .keychainLocked
+            default:
+                errorState = .networkError(error.localizedDescription)
+            }
         } catch {
-            hasError = true
+            errorState = .networkError(error.localizedDescription)
         }
     }
 
@@ -65,7 +90,10 @@ final class UsageStore {
     }
 
     func reloadConfig(thresholds: UsageThresholds = .default) {
+        // Interactive keychain read — only called from explicit user action
         repository.syncKeychainToken()
+        lastFailedToken = nil
+        errorState = .none
         hasConfig = repository.isConfigured
         loadCached()
         notificationService.requestPermission()
@@ -88,7 +116,6 @@ final class UsageStore {
     func stopAutoRefresh() {
         refreshTask?.cancel()
     }
-
 
     func testConnection() async -> ConnectionTestResult {
         await repository.testConnection(proxyConfig: proxyConfig)

@@ -29,3 +29,10 @@ enum PacingDisplayMode: String {
     case dot
     case dotDelta
 }
+
+enum AppErrorState: Equatable {
+    case none
+    case tokenExpired
+    case keychainLocked
+    case networkError(String)
+}

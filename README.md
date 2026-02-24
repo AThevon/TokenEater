@@ -136,7 +136,8 @@ brew uninstall --cask tokeneater
 This removes the app from `/Applications/`. To also remove all data:
 
 ```bash
-rm -rf ~/Library/Application\ Support/com.claudeusagewidget.shared
+rm -rf ~/Library/Application\ Support/com.tokeneater.shared
+rm -rf ~/Library/Application\ Support/com.claudeusagewidget.shared  # legacy path
 ```
 
 ### Manual
@@ -149,10 +150,11 @@ killall TokenEater 2>/dev/null
 rm -rf /Applications/TokenEater.app
 
 # 3. Remove shared data (token cache, usage data, theme settings)
-rm -rf ~/Library/Application\ Support/com.claudeusagewidget.shared
+rm -rf ~/Library/Application\ Support/com.tokeneater.shared
+rm -rf ~/Library/Application\ Support/com.claudeusagewidget.shared  # legacy path
 
 # 4. Remove preferences
-defaults delete com.claudeusagewidget.app 2>/dev/null
+defaults delete com.tokeneater.app 2>/dev/null
 ```
 
 > **Note:** The OAuth token itself lives in the macOS Keychain (managed by Claude Code). Uninstalling TokenEater does not touch it.
