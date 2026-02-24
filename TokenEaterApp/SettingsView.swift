@@ -337,9 +337,6 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .onAppear {
-            Task { await settingsStore.refreshNotificationStatus() }
-        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             Task { await settingsStore.refreshNotificationStatus() }
         }

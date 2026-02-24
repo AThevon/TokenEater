@@ -92,7 +92,10 @@ final class SettingsStore {
     }
 
     func refreshNotificationStatus() async {
-        notificationStatus = await notificationService.checkAuthorizationStatus()
+        let newStatus = await notificationService.checkAuthorizationStatus()
+        if newStatus != notificationStatus {
+            notificationStatus = newStatus
+        }
     }
 
     // MARK: - Keychain
