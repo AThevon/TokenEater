@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ConnectionStep: View {
     @Bindable var viewModel: OnboardingViewModel
+    @Environment(SettingsStore.self) private var settingsStore
 
     var body: some View {
         VStack(spacing: 24) {
@@ -186,6 +187,7 @@ struct ConnectionStep: View {
         switch viewModel.connectionStatus {
         case .success:
             Button {
+                settingsStore.hasCompletedOnboarding = true
                 viewModel.completeOnboarding()
                 NSApplication.shared.keyWindow?.close()
             } label: {

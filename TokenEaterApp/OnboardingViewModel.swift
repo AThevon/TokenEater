@@ -105,7 +105,6 @@ final class OnboardingViewModel {
     }
 
     func completeOnboarding() {
-        UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
         WidgetCenter.shared.reloadAllTimelines()
     }
 
