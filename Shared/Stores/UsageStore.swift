@@ -70,14 +70,16 @@ final class UsageStore {
         loadCached()
         notificationService.requestPermission()
         WidgetCenter.shared.reloadAllTimelines()
-        Task { await refresh(thresholds: thresholds) }
+        refreshTask?.cancel()
+        refreshTask = Task { await refresh(thresholds: thresholds) }
     }
 
     func startAutoRefresh(interval: TimeInterval = 300, thresholds: UsageThresholds = .default) {
         refreshTask?.cancel()
         refreshTask = Task { [weak self] in
             while !Task.isCancelled {
-                await self?.refresh(thresholds: thresholds)
+                guard let self else { return }
+                await self.refresh(thresholds: thresholds)
                 try? await Task.sleep(for: .seconds(interval))
             }
         }
@@ -86,6 +88,7 @@ final class UsageStore {
     func stopAutoRefresh() {
         refreshTask?.cancel()
     }
+
 
     func testConnection() async -> ConnectionTestResult {
         await repository.testConnection(proxyConfig: proxyConfig)

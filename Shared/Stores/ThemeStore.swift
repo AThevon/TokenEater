@@ -107,9 +107,7 @@ final class ThemeStore {
     private func scheduleSync() {
         syncWorkItem?.cancel()
         let item = DispatchWorkItem { [weak self] in
-            Task { @MainActor in
-                self?.syncToSharedFile()
-            }
+            self?.syncToSharedFile()
         }
         syncWorkItem = item
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: item)
