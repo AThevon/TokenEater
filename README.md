@@ -83,7 +83,7 @@ brew tap AThevon/tokeneater
 brew install --cask tokeneater
 ```
 
-To update later: `brew upgrade tokeneater`
+To update later: `brew uninstall tokeneater && brew install --cask tokeneater`
 
 > **Already installed manually?** Switch to Homebrew for automatic updates:
 > ```bash
