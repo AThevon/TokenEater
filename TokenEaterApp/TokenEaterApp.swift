@@ -47,12 +47,29 @@ struct TokenEaterApp: App {
                 .environment(settingsStore)
                 .environment(updateStore)
         } label: {
-            Image(nsImage: menuBarImage)
+            MenuBarLabel(
+                usageStore: usageStore,
+                themeStore: themeStore,
+                settingsStore: settingsStore
+            )
         }
         .menuBarExtraStyle(.window)
     }
+}
 
-    private var menuBarImage: NSImage {
+/// Isolated view for the menu bar icon — keeps @Observable tracking
+/// scoped here so usageStore/themeStore mutations never re-evaluate
+/// the App body (which would needlessly re-evaluate the WindowGroup).
+private struct MenuBarLabel: View {
+    let usageStore: UsageStore
+    let themeStore: ThemeStore
+    let settingsStore: SettingsStore
+
+    var body: some View {
+        Image(nsImage: rendered)
+    }
+
+    private var rendered: NSImage {
         MenuBarRenderer.render(MenuBarRenderer.RenderData(
             pinnedMetrics: settingsStore.pinnedMetrics,
             fiveHourPct: usageStore.fiveHourPct,

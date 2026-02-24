@@ -102,7 +102,7 @@ final class ThemeStore {
 
     // MARK: - Sync (debounced)
 
-    private var syncWorkItem: DispatchWorkItem?
+    @ObservationIgnored private var syncWorkItem: DispatchWorkItem?
 
     private func scheduleSync() {
         syncWorkItem?.cancel()
