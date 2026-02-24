@@ -1,94 +1,96 @@
-# Claude Usage Widget — Setup
+# TokenEater — Setup
 
-Widget macOS natif pour afficher la consommation Claude (session, hebdo tous modeles, hebdo Sonnet).
+Native macOS widget to display Claude usage (session, weekly all models, weekly Sonnet).
 
-## Prerequis
+## Prerequisites
 
-1. **macOS 14 (Sonoma)** ou plus recent
-2. **Xcode.app** installe depuis le Mac App Store (gratuit)
-3. **Homebrew** (pour XcodeGen)
+1. **macOS 14 (Sonoma)** or later
+2. **Xcode 15+** installed from the Mac App Store
+3. **Homebrew** (for XcodeGen)
+4. **Claude Code** installed and authenticated (`claude` then `/login`)
 
-### Installer Xcode
+### Install Xcode
 
 ```bash
-# Depuis le Mac App Store ou :
-xcode-select --install  # CommandLineTools seulement — PAS suffisant pour WidgetKit
-
-# Apres installation de Xcode.app :
+# After installing Xcode.app:
 sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 ```
 
 ## Build
 
 ```bash
-cd ClaudeUsageWidget
-./build.sh
+git clone https://github.com/AThevon/TokenEater.git
+cd TokenEater
+
+# Install XcodeGen
+brew install xcodegen
+
+# Generate Xcode project
+xcodegen generate
+
+# Fix widget Info.plist (XcodeGen strips NSExtension)
+plutil -insert NSExtension -json '{"NSExtensionPointIdentifier":"com.apple.widgetkit-extension"}' \
+  TokenEaterWidget/Info.plist 2>/dev/null || true
+
+# Build
+xcodebuild -project TokenEater.xcodeproj \
+  -scheme TokenEaterApp \
+  -configuration Release \
+  -derivedDataPath build build
 ```
 
-Le script :
-1. Verifie que Xcode.app est installe
-2. Installe XcodeGen si besoin (via Homebrew)
-3. Genere le `.xcodeproj` depuis `project.yml`
-4. Build l'app en Release
-5. Affiche le chemin de l'app buildee
-
-### Installation
+### Install
 
 ```bash
-cp -R "build/.../Claude Usage.app" /Applications/
-open "/Applications/Claude Usage.app"
+cp -R "build/Build/Products/Release/TokenEater.app" /Applications/
+xattr -cr /Applications/TokenEater.app
+open "/Applications/TokenEater.app"
 ```
 
 ## Configuration
 
-1. Lancez **Claude Usage.app**
-2. Collez votre **Session Key** :
-   - Ouvrez [claude.ai](https://claude.ai) dans Chrome
-   - DevTools (`Cmd + Option + I`) > **Application** > **Cookies** > **claude.ai**
-   - Copiez la valeur de `sessionKey` (commence par `sk-ant-sid01-`)
-3. Cliquez **Tester la connexion**
-   - L'Organization ID est auto-detecte
-   - Si ca echoue, entrez-le manuellement (visible dans l'URL claude.ai : `/organizations/VOTRE-UUID/...`)
-4. Ajoutez le widget : **clic droit sur le bureau** > **Modifier les widgets** > cherchez "Claude Usage"
+1. Open **TokenEater.app** — the onboarding wizard guides you through setup
+2. It reads the OAuth token from Claude Code's Keychain entry automatically
+3. Add the widget: **right-click desktop** > **Edit Widgets** > search "TokenEater"
 
 ## Structure
 
 ```
-ClaudeUsageWidget/
-├── project.yml                  # Config XcodeGen
-├── build.sh                     # Script de build
-├── ClaudeUsageApp/              # App hote (settings)
-│   ├── ClaudeUsageApp.swift
-│   ├── SettingsView.swift
-│   └── ClaudeUsageApp.entitlements
-├── ClaudeUsageWidget/           # Widget Extension
-│   ├── ClaudeUsageWidget.swift  # Widget entry point
-│   ├── Provider.swift           # TimelineProvider (fetch 15 min)
-│   ├── UsageEntry.swift         # TimelineEntry
-│   ├── UsageWidgetView.swift    # Vue SwiftUI
-│   ├── Info.plist
-│   └── ClaudeUsageWidget.entitlements
-└── Shared/                      # Code partage (App Group)
-    ├── ClaudeAPIClient.swift    # Client HTTP claude.ai
-    └── UsageModels.swift        # Modeles de donnees
+TokenEaterApp/               App host (settings UI, OAuth auth, menu bar)
+  ├── TokenEaterApp.swift
+  ├── SettingsView.swift
+  └── TokenEaterApp.entitlements
+TokenEaterWidget/            Widget Extension
+  ├── TokenEaterWidget.swift # Widget entry point
+  ├── Provider.swift         # TimelineProvider (15-min refresh)
+  ├── UsageEntry.swift       # TimelineEntry
+  ├── UsageWidgetView.swift  # SwiftUI view
+  ├── Info.plist
+  └── TokenEaterWidget.entitlements
+Shared/                      Shared code
+  ├── Models/                Pure Codable structs
+  ├── Services/              Protocol-based I/O
+  ├── Repositories/          Orchestration (Keychain → API → SharedFile)
+  ├── Stores/                @Observable state containers
+  └── Helpers/               Pure functions
 ```
 
-## API claude.ai
+## API
 
-- **Endpoint** : `GET https://claude.ai/api/organizations/{org_id}/usage`
-- **Auth** : Cookie `sessionKey`
-- **Reponse** :
-  - `five_hour.utilization` — Session (fenetre glissante 5h)
-  - `seven_day.utilization` — Hebdo tous modeles
-  - `seven_day_sonnet.utilization` — Hebdo Sonnet seulement
+- **Endpoint**: `GET https://api.anthropic.com/api/oauth/usage`
+- **Auth**: `Authorization: Bearer <oauth-token>`
+- **Response**:
+  - `five_hour.utilization` — Session (5h sliding window)
+  - `seven_day.utilization` — Weekly all models
+  - `seven_day_sonnet.utilization` — Weekly Sonnet only
 
-Le cookie expire environ chaque mois. Mettez-le a jour dans l'app si le widget affiche une erreur.
+The OAuth token is managed by Claude Code and refreshes automatically.
 
 ## Troubleshooting
 
-| Probleme | Solution |
-|----------|----------|
-| Widget affiche "Session expiree" | Mettez a jour le sessionKey dans l'app |
-| Widget affiche "Ouvrez l'app" | Lancez l'app et configurez le sessionKey |
-| Build echoue | Verifiez que `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` pointe vers Xcode.app |
-| Widget non visible | Deconnectez/reconnectez votre session ou redemarrez |
+| Problem | Solution |
+|---------|----------|
+| Widget shows error | Reopen the app and check connection in Settings |
+| Widget shows "Open app" | Launch the app and complete onboarding |
+| Build fails | Verify `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` points to Xcode.app |
+| Widget not visible | Disconnect/reconnect your session or restart |
