@@ -1,8 +1,8 @@
 import WidgetKit
 import SwiftUI
 
-struct ClaudeUsageWidget: Widget {
-    let kind: String = "ClaudeUsageWidget"
+struct TokenEaterWidget: Widget {
+    let kind: String = "TokenEaterWidget"
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: Provider()) { entry in
@@ -28,9 +28,9 @@ struct PacingWidget: Widget {
 }
 
 @main
-struct ClaudeUsageWidgetBundle: WidgetBundle {
+struct TokenEaterWidgetBundle: WidgetBundle {
     var body: some Widget {
-        ClaudeUsageWidget()
+        TokenEaterWidget()
         PacingWidget()
     }
 }

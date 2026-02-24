@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct ClaudeUsageApp: App {
+struct TokenEaterApp: App {
     @StateObject private var menuBarVM = MenuBarViewModel()
     @AppStorage("showMenuBar") private var showMenuBar = true
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false

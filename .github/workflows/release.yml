@@ -23,13 +23,13 @@ jobs:
           xcodegen generate
           plutil -insert NSExtension \
             -json '{"NSExtensionPointIdentifier":"com.apple.widgetkit-extension"}' \
-            ClaudeUsageWidget/Info.plist 2>/dev/null || true
+            TokenEaterWidget/Info.plist 2>/dev/null || true
 
       - name: Build
         run: |
           xcodebuild \
-            -project ClaudeUsageWidget.xcodeproj \
-            -scheme ClaudeUsageApp \
+            -project TokenEater.xcodeproj \
+            -scheme TokenEaterApp \
             -configuration Release \
             -derivedDataPath build \
             build

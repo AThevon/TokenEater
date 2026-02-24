@@ -10,7 +10,7 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-echo -e "${BLUE}=== Claude Usage Widget — Build ===${NC}"
+echo -e "${BLUE}=== TokenEater — Build ===${NC}"
 
 # 1. Check Xcode
 if ! xcode-select -p | grep -q "Xcode.app"; then
@@ -32,8 +32,8 @@ xcodegen generate
 # 4. Build
 echo -e "${BLUE}Build en cours...${NC}"
 xcodebuild \
-    -project ClaudeUsageWidget.xcodeproj \
-    -scheme ClaudeUsageApp \
+    -project TokenEater.xcodeproj \
+    -scheme TokenEaterApp \
     -configuration Release \
     -derivedDataPath build \
     build 2>&1 | tail -20
