@@ -207,3 +207,15 @@
 
 /* Settings - Onboarding reset */
 "settings.onboarding.reset" = "Run setup again";
+
+/* Update */
+"update.available" = "Update available";
+"update.releasenotes" = "What's new";
+"update.skip" = "Skip this version";
+"update.later" = "Later";
+"update.now" = "Update";
+"update.check" = "Check for updates";
+"update.badge" = "New";
+"update.error.response" = "Couldn't reach GitHub — try again later";
+"update.error.script" = "Failed to prepare update script";
+"update.error.launch" = "Couldn't launch updater — command copied to clipboard. Paste in Terminal.";

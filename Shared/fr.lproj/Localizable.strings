@@ -207,3 +207,15 @@
 
 /* Settings - Onboarding reset */
 "settings.onboarding.reset" = "Relancer la configuration";
+
+/* Update */
+"update.available" = "Mise à jour disponible";
+"update.releasenotes" = "Nouveautés";
+"update.skip" = "Ignorer cette version";
+"update.later" = "Plus tard";
+"update.now" = "Mettre à jour";
+"update.check" = "Vérifier les mises à jour";
+"update.badge" = "New";
+"update.error.response" = "Impossible de joindre GitHub — réessayez plus tard";
+"update.error.script" = "Impossible de préparer le script de mise à jour";
+"update.error.launch" = "Impossible de lancer la mise à jour — commande copiée. Collez-la dans Terminal.";
