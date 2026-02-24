@@ -179,9 +179,8 @@ struct ConnectionStep: View {
         switch viewModel.connectionStatus {
         case .success:
             Button {
-                settingsStore.hasCompletedOnboarding = true
                 viewModel.completeOnboarding()
-                NSApplication.shared.keyWindow?.close()
+                settingsStore.hasCompletedOnboarding = true
             } label: {
                 Text("onboarding.connection.start")
                     .frame(maxWidth: .infinity)

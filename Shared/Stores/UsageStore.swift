@@ -19,11 +19,11 @@ final class UsageStore {
     var hasError: Bool { errorState != .none }
 
     /// Token that last received a 401/403. Prevents retrying the API with a known-dead token.
-    private var lastFailedToken: String?
+    @ObservationIgnored private var lastFailedToken: String?
 
     private let repository: UsageRepositoryProtocol
     private let notificationService: NotificationServiceProtocol
-    private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored private var refreshTask: Task<Void, Never>?
 
     var proxyConfig: ProxyConfig?
 

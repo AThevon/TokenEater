@@ -16,7 +16,7 @@ final class UpdateStore {
     var showUpdateModal = false
 
     private let service: UpdateServiceProtocol
-    private var checkTask: Task<Void, Never>?
+    @ObservationIgnored private var checkTask: Task<Void, Never>?
 
     private var skippedVersion: String? {
         get { UserDefaults.standard.string(forKey: "skippedVersion") }
