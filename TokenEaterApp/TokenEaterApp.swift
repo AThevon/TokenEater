@@ -25,6 +25,7 @@ struct TokenEaterApp: App {
             if completed {
                 usageStore.proxyConfig = settingsStore.proxyConfig
                 usageStore.reloadConfig(thresholds: themeStore.thresholds)
+                usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
                 themeStore.syncToSharedFile()
             }
         }

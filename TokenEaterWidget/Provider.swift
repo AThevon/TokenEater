@@ -18,7 +18,7 @@ struct Provider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<UsageEntry>) -> Void) {
         let entry = fetchEntry()
-        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: Date()) ?? Date().addingTimeInterval(900)
+        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 5, to: Date()) ?? Date().addingTimeInterval(300)
         completion(Timeline(entries: [entry], policy: .after(nextUpdate)))
     }
 
@@ -30,7 +30,7 @@ struct Provider: TimelineProvider {
         if let cached = sharedFile.cachedUsage {
             let isStale: Bool
             if let lastSync = sharedFile.lastSyncDate {
-                isStale = Date().timeIntervalSince(lastSync) > 600
+                isStale = Date().timeIntervalSince(lastSync) > 120
             } else {
                 isStale = true
             }

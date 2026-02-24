@@ -136,10 +136,14 @@ struct MenuBarPopoverView: View {
         .frame(width: 260)
         .background(Color(nsColor: NSColor(red: 0.08, green: 0.08, blue: 0.09, alpha: 1)))
         .onAppear {
-            if settingsStore.hasCompletedOnboarding && usageStore.lastUpdate == nil {
-                usageStore.proxyConfig = settingsStore.proxyConfig
-                usageStore.reloadConfig(thresholds: themeStore.thresholds)
-                usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
+            if settingsStore.hasCompletedOnboarding {
+                if usageStore.lastUpdate == nil {
+                    usageStore.proxyConfig = settingsStore.proxyConfig
+                    usageStore.reloadConfig(thresholds: themeStore.thresholds)
+                    usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
+                } else {
+                    Task { await usageStore.refresh(thresholds: themeStore.thresholds) }
+                }
             }
         }
     }

@@ -102,7 +102,7 @@ final class UsageStore {
         refreshTask = Task { await refresh(thresholds: thresholds) }
     }
 
-    func startAutoRefresh(interval: TimeInterval = 300, thresholds: UsageThresholds = .default) {
+    func startAutoRefresh(interval: TimeInterval = 60, thresholds: UsageThresholds = .default) {
         refreshTask?.cancel()
         refreshTask = Task { [weak self] in
             while !Task.isCancelled {
