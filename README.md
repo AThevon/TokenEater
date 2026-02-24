@@ -62,7 +62,7 @@ Automatic alerts when usage crosses your configured thresholds:
 
 ### Authentication
 
-**Claude Code OAuth** — Reads the OAuth token from Claude Code's Keychain entry. Zero configuration needed if you have Claude Code installed. Tokens refresh automatically.
+**Claude Code OAuth** — Silently reads the OAuth token from Claude Code's Keychain entry. Zero configuration needed if you have Claude Code installed. Expired tokens are recovered automatically — no password prompts, no manual intervention.
 
 ### SOCKS5 Proxy
 
@@ -74,7 +74,7 @@ For users behind a corporate firewall, TokenEater supports routing API calls thr
 
 Fully localized in **English** and **French**. The app automatically follows your macOS system language.
 
-## Quick Install
+## Install
 
 ### Homebrew (recommended)
 
@@ -83,33 +83,79 @@ brew tap AThevon/tokeneater
 brew install --cask tokeneater
 ```
 
-To update later: `brew uninstall tokeneater && brew install --cask tokeneater`
-
-> **Already installed manually?** Switch to Homebrew for automatic updates:
-> ```bash
-> rm -rf /Applications/TokenEater.app
-> brew tap AThevon/tokeneater
-> brew install --cask tokeneater
-> ```
-
 ### Manual Download
 
 1. Go to [**Releases**](../../releases/latest) and download `TokenEater.dmg`
 2. Open the DMG, drag `TokenEater.app` into `Applications`
-3. **Important** — the app is not notarized by Apple. Before the first launch, run:
+3. The app is not notarized by Apple — before the first launch:
    ```bash
    xattr -cr /Applications/TokenEater.app
    ```
 4. Open `TokenEater.app` from Applications
 
-### Configure
+### First Setup
 
-**Prerequisites:** Install [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and authenticate (`claude` then `/login`). Requires a **Pro or Team plan**.
+**Prerequisites:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated (`claude` then `/login`). Requires a **Pro or Team plan**.
 
 1. Open TokenEater — a guided setup walks you through connecting your Claude Code account and enabling notifications
 2. Right-click on desktop > **Edit Widgets** > search "TokenEater"
 
 > Tokens refresh automatically via Claude Code. No maintenance needed.
+
+## Update
+
+### Homebrew
+
+```bash
+brew update
+brew upgrade --cask tokeneater
+```
+
+> If `brew upgrade` fails (e.g. app was manually moved/deleted), reinstall cleanly:
+> ```bash
+> brew uninstall --cask tokeneater
+> brew install --cask tokeneater
+> ```
+
+### Manual
+
+1. Quit TokenEater (menu bar > Quit)
+2. Download the latest DMG from [**Releases**](../../releases/latest)
+3. Replace the app in `/Applications/`
+4. Run `xattr -cr /Applications/TokenEater.app`
+5. Reopen — your settings and token are preserved (stored separately from the app)
+
+## Uninstall
+
+### Homebrew
+
+```bash
+brew uninstall --cask tokeneater
+```
+
+This removes the app from `/Applications/`. To also remove all data:
+
+```bash
+rm -rf ~/Library/Application\ Support/com.claudeusagewidget.shared
+```
+
+### Manual
+
+```bash
+# 1. Quit the app
+killall TokenEater 2>/dev/null
+
+# 2. Remove the app
+rm -rf /Applications/TokenEater.app
+
+# 3. Remove shared data (token cache, usage data, theme settings)
+rm -rf ~/Library/Application\ Support/com.claudeusagewidget.shared
+
+# 4. Remove preferences
+defaults delete com.claudeusagewidget.app 2>/dev/null
+```
+
+> **Note:** The OAuth token itself lives in the macOS Keychain (managed by Claude Code). Uninstalling TokenEater does not touch it.
 
 ## Build from source
 
@@ -156,7 +202,7 @@ Shared/                  Shared code (API client, models, pacing, notifications)
 project.yml              XcodeGen configuration
 ```
 
-The host app and widget extension are both sandboxed and communicate through a shared JSON file in `~/Library/Application Support/`. The menu bar app reads the OAuth token from the macOS Keychain, calls the API, and writes the data to the shared file. The widget reads from this file only — it never touches the Keychain or the network. The menu bar refreshes every 5 minutes independently.
+The host app and widget extension are both sandboxed and communicate through a shared JSON file in `~/Library/Application Support/`. The menu bar app reads the OAuth token from the macOS Keychain (silently, without triggering password dialogs), calls the API, and writes the data to the shared file. The widget reads from this file only — it never touches the Keychain or the network. The menu bar refreshes every 60 seconds. On 401/403, it silently checks the Keychain for a fresh token from Claude Code's auto-refresh and recovers automatically.
 
 ## How it works
 
