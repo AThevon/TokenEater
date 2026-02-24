@@ -2,51 +2,58 @@ import SwiftUI
 
 @main
 struct TokenEaterApp: App {
-    @StateObject private var menuBarVM = MenuBarViewModel()
-    @AppStorage("showMenuBar") private var showMenuBar = true
-    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @State private var usageStore = UsageStore()
+    @State private var themeStore = ThemeStore()
+    @State private var settingsStore = SettingsStore()
 
     init() {
-        UsageNotificationManager.setupDelegate()
-        syncProxyConfig()
-        ThemeManager.shared.syncToSharedContainer()
+        NotificationService().setupDelegate()
     }
 
     var body: some Scene {
         WindowGroup(id: "settings") {
-            if hasCompletedOnboarding {
-                SettingsView(onConfigSaved: { [weak menuBarVM] in
-                    menuBarVM?.reloadConfig()
-                    syncProxyConfig()
-                })
+            if settingsStore.hasCompletedOnboarding {
+                SettingsView()
             } else {
                 OnboardingView()
             }
         }
-        .onChange(of: hasCompletedOnboarding) { completed in
+        .environment(usageStore)
+        .environment(themeStore)
+        .environment(settingsStore)
+        .onChange(of: settingsStore.hasCompletedOnboarding) { _, completed in
             if completed {
-                menuBarVM.reloadConfig()
-                syncProxyConfig()
+                usageStore.proxyConfig = settingsStore.proxyConfig
+                usageStore.reloadConfig(thresholds: themeStore.thresholds)
+                themeStore.syncToSharedFile()
             }
         }
         .windowResizability(.contentSize)
 
-        MenuBarExtra(isInserted: $showMenuBar) {
-            MenuBarPopoverView(viewModel: menuBarVM)
+        MenuBarExtra(isInserted: Bindable(settingsStore).showMenuBar) {
+            MenuBarPopoverView()
+                .environment(usageStore)
+                .environment(themeStore)
+                .environment(settingsStore)
         } label: {
-            Image(nsImage: menuBarVM.menuBarImage)
+            Image(nsImage: menuBarImage)
         }
         .menuBarExtraStyle(.window)
     }
 
-    private func syncProxyConfig() {
-        ClaudeAPIClient.shared.proxyConfig = ProxyConfig(
-            enabled: UserDefaults.standard.bool(forKey: "proxyEnabled"),
-            host: UserDefaults.standard.string(forKey: "proxyHost") ?? "127.0.0.1",
-            port: {
-                let port = UserDefaults.standard.integer(forKey: "proxyPort")
-                return port > 0 ? port : 1080
-            }()
-        )
+    private var menuBarImage: NSImage {
+        MenuBarRenderer.render(MenuBarRenderer.RenderData(
+            pinnedMetrics: settingsStore.pinnedMetrics,
+            fiveHourPct: usageStore.fiveHourPct,
+            sevenDayPct: usageStore.sevenDayPct,
+            sonnetPct: usageStore.sonnetPct,
+            pacingDelta: usageStore.pacingDelta,
+            pacingZone: usageStore.pacingZone,
+            pacingDisplayMode: settingsStore.pacingDisplayMode,
+            hasConfig: usageStore.hasConfig,
+            hasError: usageStore.hasError,
+            colorForPct: { themeStore.menuBarNSColor(for: $0) },
+            colorForZone: { themeStore.menuBarPacingNSColor(for: $0) }
+        ))
     }
 }

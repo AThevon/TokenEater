@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct NotificationStep: View {
-    @ObservedObject var viewModel: OnboardingViewModel
+    @Bindable var viewModel: OnboardingViewModel
 
     var body: some View {
         VStack(spacing: 24) {
@@ -121,7 +121,7 @@ struct NotificationStep: View {
                 }
 
                 Button {
-                    UsageNotificationManager.sendTest()
+                    viewModel.sendTestNotification()
                 } label: {
                     Label("onboarding.notif.test", systemImage: "paperplane")
                 }

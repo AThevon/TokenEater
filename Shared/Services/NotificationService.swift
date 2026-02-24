@@ -1,6 +1,36 @@
 import Foundation
 import UserNotifications
 
+// MARK: - Usage Level
+
+enum UsageLevel: Int, Comparable {
+    case green = 0
+    case orange = 1
+    case red = 2
+
+    static func < (lhs: UsageLevel, rhs: UsageLevel) -> Bool {
+        lhs.rawValue < rhs.rawValue
+    }
+
+    static func from(pct: Int, thresholds: UsageThresholds = .default) -> UsageLevel {
+        if pct >= thresholds.criticalPercent { return .red }
+        if pct >= thresholds.warningPercent { return .orange }
+        return .green
+    }
+}
+
+// MARK: - Notification Delegate
+
+/// Allows notifications to display as banners even when the app is in the foreground.
+final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = NotificationDelegate()
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound])
+    }
+}
+
+// MARK: - Notification Service
+
 final class NotificationService: NotificationServiceProtocol {
     private let center = UNUserNotificationCenter.current()
 

@@ -3,7 +3,7 @@ import WidgetKit
 
 struct PacingWidgetView: View {
     let entry: UsageEntry
-    private var theme: ThemeColors { SharedContainer.theme }
+    private var theme: ThemeColors { SharedFileService().theme }
 
     var body: some View {
         Group {

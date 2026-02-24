@@ -2,12 +2,10 @@ import SwiftUI
 import WidgetKit
 import UserNotifications
 
-extension Notification.Name {
-    static let displaySettingsDidChange = Notification.Name("displaySettingsDidChange")
-}
-
 struct SettingsView: View {
-    var onConfigSaved: (() -> Void)?
+    @Environment(UsageStore.self) private var usageStore
+    @Environment(ThemeStore.self) private var themeStore
+    @Environment(SettingsStore.self) private var settingsStore
 
     @State private var testResult: ConnectionTestResult?
     @State private var isTesting = false
@@ -16,33 +14,16 @@ struct SettingsView: View {
     @State private var importMessage: String?
     @State private var importSuccess = false
     @State private var authMethodLabel = ""
-
-    @AppStorage("showMenuBar") private var showMenuBar = true
-    @AppStorage("pacingDisplayMode") private var pacingDisplayMode = "dotDelta"
-
-    @State private var pinnedFiveHour = true
-    @State private var pinnedSevenDay = true
-    @State private var pinnedSonnet = false
-    @State private var pinnedPacing = false
-
-    @State private var notifStatus: UNAuthorizationStatus = .notDetermined
     @State private var notifTestCooldown = false
-
-    @AppStorage("proxyEnabled") private var proxyEnabled = false
-    @AppStorage("proxyHost") private var proxyHost = "127.0.0.1"
-    @AppStorage("proxyPort") private var proxyPort = 1080
-
-    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = true
-
-    @ObservedObject private var themeManager = ThemeManager.shared
     @State private var showResetAlert = false
 
-    // Colors for guide sheet
     private let sheetBg = Color(hex: "#141416")
     private let sheetCard = Color.white.opacity(0.04)
     private let accent = Color(hex: "#FF9F0A")
 
     var body: some View {
+        @Bindable var settingsStore = settingsStore
+        @Bindable var themeStore = themeStore
         VStack(spacing: 0) {
             // App header
             HStack(spacing: 12) {
@@ -173,7 +154,7 @@ struct SettingsView: View {
 
             Section {
                 Button("settings.onboarding.reset") {
-                    hasCompletedOnboarding = false
+                    settingsStore.hasCompletedOnboarding = false
                 }
                 .foregroundStyle(.secondary)
             }
@@ -184,16 +165,31 @@ struct SettingsView: View {
     // MARK: - Display Tab
 
     private var displayTab: some View {
-        Form {
+        @Bindable var settingsStore = settingsStore
+        @Bindable var themeStore = themeStore
+
+        return Form {
             Section("settings.menubar.title") {
-                Toggle("settings.menubar.toggle", isOn: $showMenuBar)
+                Toggle("settings.menubar.toggle", isOn: $settingsStore.showMenuBar)
             }
 
             Section {
-                Toggle("metric.session", isOn: $pinnedFiveHour)
-                Toggle("metric.weekly", isOn: $pinnedSevenDay)
-                Toggle("metric.sonnet", isOn: $pinnedSonnet)
-                Toggle("pacing.label", isOn: $pinnedPacing)
+                Toggle("metric.session", isOn: Binding(
+                    get: { settingsStore.pinnedMetrics.contains(.fiveHour) },
+                    set: { if $0 { settingsStore.pinnedMetrics.insert(.fiveHour) } else if settingsStore.pinnedMetrics.count > 1 { settingsStore.pinnedMetrics.remove(.fiveHour) } }
+                ))
+                Toggle("metric.weekly", isOn: Binding(
+                    get: { settingsStore.pinnedMetrics.contains(.sevenDay) },
+                    set: { if $0 { settingsStore.pinnedMetrics.insert(.sevenDay) } else if settingsStore.pinnedMetrics.count > 1 { settingsStore.pinnedMetrics.remove(.sevenDay) } }
+                ))
+                Toggle("metric.sonnet", isOn: Binding(
+                    get: { settingsStore.pinnedMetrics.contains(.sonnet) },
+                    set: { if $0 { settingsStore.pinnedMetrics.insert(.sonnet) } else if settingsStore.pinnedMetrics.count > 1 { settingsStore.pinnedMetrics.remove(.sonnet) } }
+                ))
+                Toggle("pacing.label", isOn: Binding(
+                    get: { settingsStore.pinnedMetrics.contains(.pacing) },
+                    set: { if $0 { settingsStore.pinnedMetrics.insert(.pacing) } else if settingsStore.pinnedMetrics.count > 1 { settingsStore.pinnedMetrics.remove(.pacing) } }
+                ))
             } header: {
                 Text("settings.metrics.pinned")
             } footer: {
@@ -201,7 +197,10 @@ struct SettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Section("settings.pacing.display") {
-                Picker("Mode", selection: $pacingDisplayMode) {
+                Picker("Mode", selection: Binding(
+                    get: { settingsStore.pacingDisplayMode.rawValue },
+                    set: { settingsStore.pacingDisplayMode = PacingDisplayMode(rawValue: $0) ?? .dotDelta }
+                )) {
                     Text("settings.pacing.dot").tag("dot")
                     Text("settings.pacing.dotdelta").tag("dotDelta")
                 }
@@ -212,32 +211,32 @@ struct SettingsView: View {
                 HStack {
                     Text("settings.theme.warning")
                     Slider(value: Binding(
-                        get: { Double(themeManager.warningThreshold) },
+                        get: { Double(themeStore.warningThreshold) },
                         set: { newValue in
                             let val = Int(newValue)
-                            themeManager.warningThreshold = val
-                            if val >= themeManager.criticalThreshold {
-                                themeManager.criticalThreshold = min(val + 5, 95)
+                            themeStore.warningThreshold = val
+                            if val >= themeStore.criticalThreshold {
+                                themeStore.criticalThreshold = min(val + 5, 95)
                             }
                         }
                     ), in: 10...90, step: 5)
-                    Text("\(themeManager.warningThreshold)%")
+                    Text("\(themeStore.warningThreshold)%")
                         .monospacedDigit()
                         .frame(width: 40, alignment: .trailing)
                 }
                 HStack {
                     Text("settings.theme.critical")
                     Slider(value: Binding(
-                        get: { Double(themeManager.criticalThreshold) },
+                        get: { Double(themeStore.criticalThreshold) },
                         set: { newValue in
                             let val = Int(newValue)
-                            themeManager.criticalThreshold = val
-                            if val <= themeManager.warningThreshold {
-                                themeManager.warningThreshold = max(val - 5, 10)
+                            themeStore.criticalThreshold = val
+                            if val <= themeStore.warningThreshold {
+                                themeStore.warningThreshold = max(val - 5, 10)
                             }
                         }
                     ), in: 15...95, step: 5)
-                    Text("\(themeManager.criticalThreshold)%")
+                    Text("\(themeStore.criticalThreshold)%")
                         .monospacedDigit()
                         .frame(width: 40, alignment: .trailing)
                 }
@@ -247,7 +246,7 @@ struct SettingsView: View {
                 HStack {
                     Text("settings.notifications.status")
                     Spacer()
-                    switch notifStatus {
+                    switch settingsStore.notificationStatus {
                     case .authorized:
                         Label("settings.notifications.on", systemImage: "checkmark.circle.fill")
                             .font(.caption)
@@ -264,31 +263,31 @@ struct SettingsView: View {
                 }
 
                 HStack(spacing: 12) {
-                    if notifStatus == .denied {
+                    if settingsStore.notificationStatus == .denied {
                         Button("settings.notifications.open") {
                             NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings")!)
                         }
-                    } else if notifStatus != .authorized {
+                    } else if settingsStore.notificationStatus != .authorized {
                         Button("settings.notifications.enable") {
-                            UsageNotificationManager.requestPermission()
+                            settingsStore.requestNotificationPermission()
                             Task {
                                 try? await Task.sleep(for: .seconds(0.5))
-                                notifStatus = await UsageNotificationManager.checkAuthorizationStatus()
+                                await settingsStore.refreshNotificationStatus()
                             }
                         }
                         .buttonStyle(.borderedProminent)
                     }
 
                     Button("settings.notifications.test") {
-                        if notifStatus != .authorized {
-                            UsageNotificationManager.requestPermission()
+                        if settingsStore.notificationStatus != .authorized {
+                            settingsStore.requestNotificationPermission()
                         }
-                        UsageNotificationManager.sendTest()
+                        settingsStore.sendTestNotification()
                         notifTestCooldown = true
                         Task {
                             try? await Task.sleep(for: .seconds(3))
                             notifTestCooldown = false
-                            notifStatus = await UsageNotificationManager.checkAuthorizationStatus()
+                            await settingsStore.refreshNotificationStatus()
                         }
                     }
                     .disabled(notifTestCooldown)
@@ -297,33 +296,27 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .onAppear {
-            loadPinnedMetrics()
-            Task { notifStatus = await UsageNotificationManager.checkAuthorizationStatus() }
+            Task { await settingsStore.refreshNotificationStatus() }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            Task { notifStatus = await UsageNotificationManager.checkAuthorizationStatus() }
-        }
-        .onChange(of: pinnedFiveHour) { _ in savePinnedMetrics() }
-        .onChange(of: pinnedSevenDay) { _ in savePinnedMetrics() }
-        .onChange(of: pinnedSonnet) { _ in savePinnedMetrics() }
-        .onChange(of: pinnedPacing) { _ in savePinnedMetrics() }
-        .onChange(of: pacingDisplayMode) { _ in
-            NotificationCenter.default.post(name: .displaySettingsDidChange, object: nil)
+            Task { await settingsStore.refreshNotificationStatus() }
         }
     }
 
     // MARK: - Theming Tab
 
     private var themingTab: some View {
-        Form {
+        @Bindable var themeStore = themeStore
+
+        return Form {
             // Menu bar monochrome
             Section("settings.theme.menubar") {
-                Toggle("settings.theme.monochrome", isOn: $themeManager.menuBarMonochrome)
+                Toggle("settings.theme.monochrome", isOn: $themeStore.menuBarMonochrome)
             }
 
             // Preset picker
             Section("settings.theme.preset") {
-                Picker("settings.theme.preset", selection: $themeManager.selectedPreset) {
+                Picker("settings.theme.preset", selection: $themeStore.selectedPreset) {
                     ForEach(ThemeColors.allPresets, id: \.key) { preset in
                         Text(preset.label).tag(preset.key)
                     }
@@ -334,16 +327,16 @@ struct SettingsView: View {
             }
 
             // Custom colors (visible only when preset == "custom")
-            if themeManager.selectedPreset == "custom" {
+            if themeStore.selectedPreset == "custom" {
                 Section("settings.theme.colors") {
-                    themeColorPicker("settings.theme.gauge.normal", hex: $themeManager.customTheme.gaugeNormal)
-                    themeColorPicker("settings.theme.gauge.warning", hex: $themeManager.customTheme.gaugeWarning)
-                    themeColorPicker("settings.theme.gauge.critical", hex: $themeManager.customTheme.gaugeCritical)
-                    themeColorPicker("settings.theme.pacing.chill", hex: $themeManager.customTheme.pacingChill)
-                    themeColorPicker("settings.theme.pacing.ontrack", hex: $themeManager.customTheme.pacingOnTrack)
-                    themeColorPicker("settings.theme.pacing.hot", hex: $themeManager.customTheme.pacingHot)
-                    themeColorPicker("settings.theme.widget.bg", hex: $themeManager.customTheme.widgetBackground)
-                    themeColorPicker("settings.theme.widget.text", hex: $themeManager.customTheme.widgetText)
+                    themeColorPicker("settings.theme.gauge.normal", hex: $themeStore.customTheme.gaugeNormal)
+                    themeColorPicker("settings.theme.gauge.warning", hex: $themeStore.customTheme.gaugeWarning)
+                    themeColorPicker("settings.theme.gauge.critical", hex: $themeStore.customTheme.gaugeCritical)
+                    themeColorPicker("settings.theme.pacing.chill", hex: $themeStore.customTheme.pacingChill)
+                    themeColorPicker("settings.theme.pacing.ontrack", hex: $themeStore.customTheme.pacingOnTrack)
+                    themeColorPicker("settings.theme.pacing.hot", hex: $themeStore.customTheme.pacingHot)
+                    themeColorPicker("settings.theme.widget.bg", hex: $themeStore.customTheme.widgetBackground)
+                    themeColorPicker("settings.theme.widget.text", hex: $themeStore.customTheme.widgetText)
                 }
             }
 
@@ -352,15 +345,15 @@ struct SettingsView: View {
                 HStack(spacing: 24) {
                     Spacer()
                     themePreviewGauge(
-                        pct: Double(max(themeManager.warningThreshold - 15, 5)),
+                        pct: Double(max(themeStore.warningThreshold - 15, 5)),
                         label: "settings.theme.preview.normal"
                     )
                     themePreviewGauge(
-                        pct: Double(themeManager.warningThreshold + themeManager.criticalThreshold) / 2.0,
+                        pct: Double(themeStore.warningThreshold + themeStore.criticalThreshold) / 2.0,
                         label: "settings.theme.preview.warning"
                     )
                     themePreviewGauge(
-                        pct: Double(min(themeManager.criticalThreshold + 5, 100)),
+                        pct: Double(min(themeStore.criticalThreshold + 5, 100)),
                         label: "settings.theme.preview.critical"
                     )
                     Spacer()
@@ -377,15 +370,15 @@ struct SettingsView: View {
                 .alert("settings.theme.reset.confirm", isPresented: $showResetAlert) {
                     Button("settings.theme.reset.cancel", role: .cancel) { }
                     Button("settings.theme.reset.action", role: .destructive) {
-                        themeManager.resetToDefaults()
+                        themeStore.resetToDefaults()
                     }
                 }
             }
         }
         .formStyle(.grouped)
-        .onChange(of: themeManager.selectedPreset) { [oldPreset = themeManager.selectedPreset] newValue in
-            if newValue == "custom", let source = ThemeColors.preset(for: oldPreset) {
-                themeManager.customTheme = source
+        .onChange(of: themeStore.selectedPreset) { oldValue, newValue in
+            if newValue == "custom", let source = ThemeColors.preset(for: oldValue) {
+                themeStore.customTheme = source
             }
         }
     }
@@ -405,8 +398,8 @@ struct SettingsView: View {
     }
 
     private func themePreviewGauge(pct: Double, label: LocalizedStringKey) -> some View {
-        let theme = themeManager.current
-        let thresholds = themeManager.thresholds
+        let theme = themeStore.current
+        let thresholds = themeStore.thresholds
         let color = theme.gaugeColor(for: pct, thresholds: thresholds)
         let fraction = pct / 100.0
 
@@ -433,27 +426,29 @@ struct SettingsView: View {
     // MARK: - Proxy Tab
 
     private var proxyTab: some View {
-        Form {
+        @Bindable var settingsStore = settingsStore
+
+        return Form {
             Section {
-                Toggle("settings.proxy.toggle", isOn: $proxyEnabled)
+                Toggle("settings.proxy.toggle", isOn: $settingsStore.proxyEnabled)
             } footer: {
                 Text("settings.proxy.footer")
             }
 
             Section("settings.proxy.config") {
                 LabeledContent("settings.proxy.host") {
-                    TextField("127.0.0.1", text: $proxyHost)
+                    TextField("127.0.0.1", text: $settingsStore.proxyHost)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
                 }
                 LabeledContent("settings.proxy.port") {
-                    TextField("1080", value: $proxyPort, format: .number)
+                    TextField("1080", value: $settingsStore.proxyPort, format: .number)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
                         .frame(width: 80)
                 }
             }
-            .disabled(!proxyEnabled)
+            .disabled(!settingsStore.proxyEnabled)
 
             Section {
                 Text("settings.proxy.hint")
@@ -462,9 +457,6 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .onChange(of: proxyEnabled) { _ in onConfigSaved?() }
-        .onChange(of: proxyHost) { _ in onConfigSaved?() }
-        .onChange(of: proxyPort) { _ in onConfigSaved?() }
     }
 
     // MARK: - Guide Sheet
@@ -592,32 +584,10 @@ struct SettingsView: View {
     // MARK: - Config
 
     private func loadConfig() {
-        loadPinnedMetrics()
-        if let oauth = KeychainOAuthReader.readClaudeCodeToken() {
-            SharedContainer.oauthToken = oauth.accessToken
+        if settingsStore.keychainTokenExists() {
             authMethodLabel = String(localized: "connect.method.oauth")
         }
-    }
-
-    private func loadPinnedMetrics() {
-        if let saved = UserDefaults.standard.stringArray(forKey: "pinnedMetrics") {
-            let set = Set(saved)
-            pinnedFiveHour = set.contains(MetricID.fiveHour.rawValue)
-            pinnedSevenDay = set.contains(MetricID.sevenDay.rawValue)
-            pinnedSonnet = set.contains(MetricID.sonnet.rawValue)
-            pinnedPacing = set.contains(MetricID.pacing.rawValue)
-        }
-    }
-
-    private func savePinnedMetrics() {
-        var metrics: [String] = []
-        if pinnedFiveHour { metrics.append(MetricID.fiveHour.rawValue) }
-        if pinnedSevenDay { metrics.append(MetricID.sevenDay.rawValue) }
-        if pinnedSonnet { metrics.append(MetricID.sonnet.rawValue) }
-        if pinnedPacing { metrics.append(MetricID.pacing.rawValue) }
-        if metrics.isEmpty { metrics.append(MetricID.fiveHour.rawValue); pinnedFiveHour = true }
-        UserDefaults.standard.set(metrics, forKey: "pinnedMetrics")
-        NotificationCenter.default.post(name: .displaySettingsDidChange, object: nil)
+        Task { await settingsStore.refreshNotificationStatus() }
     }
 
     // MARK: - Actions
@@ -625,15 +595,12 @@ struct SettingsView: View {
     private func testConnection() {
         isTesting = true
         testResult = nil
-
         Task {
-            let result = await ClaudeAPIClient.shared.testConnection()
-            await MainActor.run {
-                testResult = result
-                isTesting = false
-                if result.success {
-                    WidgetCenter.shared.reloadAllTimelines()
-                }
+            let result = await usageStore.testConnection()
+            testResult = result
+            isTesting = false
+            if result.success {
+                WidgetCenter.shared.reloadAllTimelines()
             }
         }
     }
@@ -641,30 +608,25 @@ struct SettingsView: View {
     private func connectAutoDetect() {
         isImporting = true
         importMessage = nil
-
-        guard let oauth = KeychainOAuthReader.readClaudeCodeToken() else {
+        guard settingsStore.keychainTokenExists() else {
             isImporting = false
             importMessage = String(localized: "connect.noclaudecode")
             importSuccess = false
             return
         }
-
-        // Sync token to SharedContainer
-        SharedContainer.oauthToken = oauth.accessToken
-
         Task {
-            let result = await ClaudeAPIClient.shared.testConnection()
-            await MainActor.run {
-                isImporting = false
-                if result.success {
-                    authMethodLabel = String(localized: "connect.method.oauth")
-                    importMessage = String(localized: "connect.oauth.success")
-                    importSuccess = true
-                    onConfigSaved?()
-                } else {
-                    importMessage = result.message
-                    importSuccess = false
-                }
+            let result = await usageStore.connectAutoDetect()
+            isImporting = false
+            if result.success {
+                authMethodLabel = String(localized: "connect.method.oauth")
+                importMessage = String(localized: "connect.oauth.success")
+                importSuccess = true
+                usageStore.proxyConfig = settingsStore.proxyConfig
+                usageStore.reloadConfig(thresholds: themeStore.thresholds)
+                themeStore.syncToSharedFile()
+            } else {
+                importMessage = result.message
+                importSuccess = false
             }
         }
     }

@@ -30,24 +30,38 @@ enum NotificationStatus {
 }
 
 @MainActor
-final class OnboardingViewModel: ObservableObject {
-    @Published var currentStep: OnboardingStep = .welcome
-    @Published var isDetailedMode = false
-    @Published var claudeCodeStatus: ClaudeCodeStatus = .checking
-    @Published var connectionStatus: ConnectionStatus = .idle
-    @Published var notificationStatus: NotificationStatus = .unknown
+@Observable
+final class OnboardingViewModel {
+    var currentStep: OnboardingStep = .welcome
+    var isDetailedMode = false
+    var claudeCodeStatus: ClaudeCodeStatus = .checking
+    var connectionStatus: ConnectionStatus = .idle
+    var notificationStatus: NotificationStatus = .unknown
+
+    private let keychainService: KeychainServiceProtocol
+    private let repository: UsageRepositoryProtocol
+    private let notificationService: NotificationServiceProtocol
+
+    init(
+        keychainService: KeychainServiceProtocol = KeychainService(),
+        repository: UsageRepositoryProtocol = UsageRepository(),
+        notificationService: NotificationServiceProtocol = NotificationService()
+    ) {
+        self.keychainService = keychainService
+        self.repository = repository
+        self.notificationService = notificationService
+    }
 
     func checkClaudeCode() {
         claudeCodeStatus = .checking
-        // Small delay so the UI has time to show "checking" state
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            self?.claudeCodeStatus = KeychainOAuthReader.tokenExists() ? .detected : .notFound
+            self?.claudeCodeStatus = self?.keychainService.tokenExists() == true ? .detected : .notFound
         }
     }
 
     func checkNotificationStatus() {
         Task {
-            let status = await UsageNotificationManager.checkAuthorizationStatus()
+            let status = await notificationService.checkAuthorizationStatus()
             switch status {
             case .authorized, .provisional, .ephemeral:
                 notificationStatus = .authorized
@@ -62,26 +76,27 @@ final class OnboardingViewModel: ObservableObject {
     }
 
     func requestNotifications() {
-        UsageNotificationManager.requestPermission()
-        // Re-check after a short delay (system dialog is async)
+        notificationService.requestPermission()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             self?.checkNotificationStatus()
         }
     }
 
+    func sendTestNotification() {
+        notificationService.sendTest()
+    }
+
     func connect() {
         connectionStatus = .connecting
-
-        guard let oauth = KeychainOAuthReader.readClaudeCodeToken() else {
+        repository.syncKeychainToken()
+        guard repository.isConfigured else {
             connectionStatus = .failed(String(localized: "onboarding.connection.failed.notoken"))
             return
         }
 
-        SharedContainer.oauthToken = oauth.accessToken
-
         Task {
             do {
-                let usage = try await ClaudeAPIClient.shared.fetchUsage()
+                let usage = try await repository.refreshUsage(proxyConfig: nil)
                 connectionStatus = .success(usage)
             } catch {
                 connectionStatus = .failed(error.localizedDescription)

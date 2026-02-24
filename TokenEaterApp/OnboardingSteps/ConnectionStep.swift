@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ConnectionStep: View {
-    @ObservedObject var viewModel: OnboardingViewModel
+    @Bindable var viewModel: OnboardingViewModel
 
     var body: some View {
         VStack(spacing: 24) {

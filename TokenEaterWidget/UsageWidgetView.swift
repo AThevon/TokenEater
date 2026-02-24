@@ -4,7 +4,7 @@ import WidgetKit
 // MARK: - Widget Background (macOS 13 compat)
 
 struct WidgetBackgroundModifier: ViewModifier {
-    var backgroundColor: Color = Color(hex: SharedContainer.theme.widgetBackground).opacity(0.85)
+    var backgroundColor: Color = Color(hex: SharedFileService().theme.widgetBackground).opacity(0.85)
 
     func body(content: Content) -> some View {
         if #available(macOS 14.0, *) {
@@ -23,8 +23,8 @@ struct UsageWidgetView: View {
     let entry: UsageEntry
 
     @Environment(\.widgetFamily) var family
-    private var theme: ThemeColors { SharedContainer.theme }
-    private var thresholds: UsageThresholds { SharedContainer.thresholds }
+    private var theme: ThemeColors { SharedFileService().theme }
+    private var thresholds: UsageThresholds { SharedFileService().thresholds }
 
     var body: some View {
         Group {
@@ -283,8 +283,8 @@ struct CircularUsageView: View {
     let label: String
     let resetInfo: String
     let utilization: Double
-    var theme: ThemeColors = SharedContainer.theme
-    var thresholds: UsageThresholds = SharedContainer.thresholds
+    var theme: ThemeColors = SharedFileService().theme
+    var thresholds: UsageThresholds = SharedFileService().thresholds
 
     private var ringGradient: LinearGradient {
         theme.gaugeGradient(for: utilization, thresholds: thresholds)
@@ -326,7 +326,7 @@ struct CircularUsageView: View {
 
 struct CircularPacingView: View {
     let pacing: PacingResult
-    var theme: ThemeColors = SharedContainer.theme
+    var theme: ThemeColors = SharedFileService().theme
 
     private var ringColor: Color {
         theme.pacingColor(for: pacing.zone)
@@ -387,8 +387,8 @@ struct LargeUsageBarView: View {
     let utilization: Double
     var colorOverride: Color? = nil
     var displayText: String? = nil
-    var theme: ThemeColors = SharedContainer.theme
-    var thresholds: UsageThresholds = SharedContainer.thresholds
+    var theme: ThemeColors = SharedFileService().theme
+    var thresholds: UsageThresholds = SharedFileService().thresholds
 
     private var barGradient: LinearGradient {
         if let color = colorOverride {

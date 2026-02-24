@@ -23,6 +23,11 @@ enum APIError: LocalizedError {
     }
 }
 
+struct ConnectionTestResult {
+    let success: Bool
+    let message: String
+}
+
 protocol APIClientProtocol: Sendable {
     func fetchUsage(token: String, proxyConfig: ProxyConfig?) async throws -> UsageResponse
     func testConnection(token: String, proxyConfig: ProxyConfig?) async -> ConnectionTestResult

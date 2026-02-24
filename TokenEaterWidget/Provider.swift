@@ -2,6 +2,8 @@ import WidgetKit
 import Foundation
 
 struct Provider: TimelineProvider {
+    private let sharedFile = SharedFileService()
+
     func placeholder(in context: Context) -> UsageEntry {
         .placeholder
     }
@@ -21,13 +23,13 @@ struct Provider: TimelineProvider {
     }
 
     private func fetchEntry() -> UsageEntry {
-        guard SharedContainer.isConfigured else {
+        guard sharedFile.isConfigured else {
             return .unconfigured
         }
 
-        if let cached = SharedContainer.cachedUsage {
+        if let cached = sharedFile.cachedUsage {
             let isStale: Bool
-            if let lastSync = SharedContainer.lastSyncDate {
+            if let lastSync = sharedFile.lastSyncDate {
                 isStale = Date().timeIntervalSince(lastSync) > 600
             } else {
                 isStale = true
