@@ -64,6 +64,10 @@ Automatic alerts when usage crosses your configured thresholds:
 
 **Claude Code OAuth** — Silently reads the OAuth token from Claude Code's Keychain entry. Zero configuration needed if you have Claude Code installed. Expired tokens are recovered automatically — no password prompts, no manual intervention.
 
+### Auto-Update
+
+TokenEater checks for new versions automatically via GitHub Releases. When an update is available, a modal shows the release notes and lets you update with one click — it runs `brew upgrade` behind the scenes. You can also check manually from Settings > Connection.
+
 ### SOCKS5 Proxy
 
 For users behind a corporate firewall, TokenEater supports routing API calls through a SOCKS5 proxy (e.g. `ssh -D 1080 user@bastion`).
@@ -104,7 +108,11 @@ brew install --cask tokeneater
 
 ## Update
 
-### Homebrew
+### In-App (recommended)
+
+TokenEater checks for updates automatically. When a new version is available, a modal will appear with the release notes — click **Update** and the app handles the rest via Homebrew. You can also check manually from **Settings > Connection > Check for updates**.
+
+### Homebrew (manual)
 
 ```bash
 brew update
@@ -117,7 +125,7 @@ brew upgrade --cask tokeneater
 > brew install --cask tokeneater
 > ```
 
-### Manual
+### Manual Download
 
 1. Quit TokenEater (menu bar > Quit)
 2. Download the latest DMG from [**Releases**](../../releases/latest)
