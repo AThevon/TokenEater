@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct PrerequisiteStep: View {
-    @Bindable var viewModel: OnboardingViewModel
+    @ObservedObject var viewModel: OnboardingViewModel
 
     var body: some View {
         VStack(spacing: 24) {

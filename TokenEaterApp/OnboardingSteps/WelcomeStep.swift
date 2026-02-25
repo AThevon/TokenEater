@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct WelcomeStep: View {
-    @Bindable var viewModel: OnboardingViewModel
+    @ObservedObject var viewModel: OnboardingViewModel
 
     // Demo data for preview gauges
     private let demoValues: [(String, Int, Color)] = [

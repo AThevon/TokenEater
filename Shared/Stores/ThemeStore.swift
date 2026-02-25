@@ -1,16 +1,15 @@
 import SwiftUI
 
 @MainActor
-@Observable
-final class ThemeStore {
-    var selectedPreset: String {
+final class ThemeStore: ObservableObject {
+    @Published var selectedPreset: String {
         didSet {
             UserDefaults.standard.set(selectedPreset, forKey: "selectedPreset")
             scheduleSync()
         }
     }
 
-    var customTheme: ThemeColors {
+    @Published var customTheme: ThemeColors {
         didSet {
             if let data = try? JSONEncoder().encode(customTheme),
                let json = String(data: data, encoding: .utf8) {
@@ -20,21 +19,21 @@ final class ThemeStore {
         }
     }
 
-    var warningThreshold: Int {
+    @Published var warningThreshold: Int {
         didSet {
             UserDefaults.standard.set(warningThreshold, forKey: "warningThreshold")
             scheduleSync()
         }
     }
 
-    var criticalThreshold: Int {
+    @Published var criticalThreshold: Int {
         didSet {
             UserDefaults.standard.set(criticalThreshold, forKey: "criticalThreshold")
             scheduleSync()
         }
     }
 
-    var menuBarMonochrome: Bool {
+    @Published var menuBarMonochrome: Bool {
         didSet {
             UserDefaults.standard.set(menuBarMonochrome, forKey: "menuBarMonochrome")
         }
@@ -63,18 +62,6 @@ final class ThemeStore {
         } else {
             self.customTheme = .default
         }
-    }
-
-    // MARK: - Slider projections (stable @Bindable bindings)
-
-    var warningThresholdDouble: Double {
-        get { Double(warningThreshold) }
-        set { warningThreshold = Int(newValue) }
-    }
-
-    var criticalThresholdDouble: Double {
-        get { Double(criticalThreshold) }
-        set { criticalThreshold = Int(newValue) }
     }
 
     // MARK: - Resolved
@@ -113,7 +100,7 @@ final class ThemeStore {
 
     // MARK: - Sync (debounced)
 
-    @ObservationIgnored private var syncWorkItem: DispatchWorkItem?
+    private var syncWorkItem: DispatchWorkItem?
 
     private func scheduleSync() {
         syncWorkItem?.cancel()

@@ -1,8 +1,8 @@
 import SwiftUI
 
 struct ConnectionStep: View {
-    @Bindable var viewModel: OnboardingViewModel
-    @Environment(SettingsStore.self) private var settingsStore
+    @ObservedObject var viewModel: OnboardingViewModel
+    @EnvironmentObject private var settingsStore: SettingsStore
 
     var body: some View {
         VStack(spacing: 24) {

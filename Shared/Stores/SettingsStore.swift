@@ -2,30 +2,29 @@ import SwiftUI
 import UserNotifications
 
 @MainActor
-@Observable
-final class SettingsStore {
+final class SettingsStore: ObservableObject {
     // Menu bar
-    var showMenuBar: Bool {
+    @Published var showMenuBar: Bool {
         didSet { UserDefaults.standard.set(showMenuBar, forKey: "showMenuBar") }
     }
-    var pinnedMetrics: Set<MetricID> {
+    @Published var pinnedMetrics: Set<MetricID> {
         didSet { savePinnedMetrics() }
     }
-    var pacingDisplayMode: PacingDisplayMode {
+    @Published var pacingDisplayMode: PacingDisplayMode {
         didSet { UserDefaults.standard.set(pacingDisplayMode.rawValue, forKey: "pacingDisplayMode") }
     }
-    var hasCompletedOnboarding: Bool {
+    @Published var hasCompletedOnboarding: Bool {
         didSet { UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding") }
     }
 
     // Proxy
-    var proxyEnabled: Bool {
+    @Published var proxyEnabled: Bool {
         didSet { UserDefaults.standard.set(proxyEnabled, forKey: "proxyEnabled") }
     }
-    var proxyHost: String {
+    @Published var proxyHost: String {
         didSet { UserDefaults.standard.set(proxyHost, forKey: "proxyHost") }
     }
-    var proxyPort: Int {
+    @Published var proxyPort: Int {
         didSet { UserDefaults.standard.set(proxyPort, forKey: "proxyPort") }
     }
 
@@ -33,7 +32,7 @@ final class SettingsStore {
         ProxyConfig(enabled: proxyEnabled, host: proxyHost, port: proxyPort)
     }
 
-    // MARK: - Metric toggles (stable @Bindable projections)
+    // MARK: - Metric toggles
 
     var showFiveHour: Bool {
         get { pinnedMetrics.contains(.fiveHour) }
@@ -68,7 +67,7 @@ final class SettingsStore {
     }
 
     // Notifications
-    var notificationStatus: UNAuthorizationStatus = .notDetermined
+    @Published var notificationStatus: UNAuthorizationStatus = .notDetermined
 
     private let notificationService: NotificationServiceProtocol
     private let keychainService: KeychainServiceProtocol

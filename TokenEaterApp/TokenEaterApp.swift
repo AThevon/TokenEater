@@ -2,79 +2,85 @@ import SwiftUI
 
 @main
 struct TokenEaterApp: App {
-    @State private var usageStore = UsageStore()
-    @State private var themeStore = ThemeStore()
-    @State private var settingsStore = SettingsStore()
-    @State private var updateStore = UpdateStore()
+    private let usageStore = UsageStore()
+    private let themeStore = ThemeStore()
+    private let settingsStore = SettingsStore()
+    private let updateStore = UpdateStore()
+
+    @AppStorage("showMenuBar") private var showMenuBar = true
 
     init() {
         NotificationService().setupDelegate()
     }
 
     var body: some Scene {
-        // FIX 6: SettingsContentView isolates Bindable(updateStore) from App.body
         WindowGroup(id: "settings") {
-            if settingsStore.hasCompletedOnboarding {
-                SettingsContentView()
-            } else {
-                OnboardingView()
-            }
+            RootView()
         }
-        .environment(usageStore)
-        .environment(themeStore)
-        .environment(settingsStore)
-        .environment(updateStore)
-        .onChange(of: settingsStore.hasCompletedOnboarding) { _, completed in
-            if completed {
-                Task {
-                    usageStore.proxyConfig = settingsStore.proxyConfig
-                    usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
-                    themeStore.syncToSharedFile()
-                }
-            }
-        }
+        .environmentObject(usageStore)
+        .environmentObject(themeStore)
+        .environmentObject(settingsStore)
+        .environmentObject(updateStore)
         .windowResizability(.contentSize)
 
-        // FIX 2: MenuBarLabel uses @Environment — add .environment() on label:
-        MenuBarExtra(isInserted: Bindable(settingsStore).showMenuBar) {
+        MenuBarExtra(isInserted: $showMenuBar) {
             MenuBarPopoverView()
-                .environment(usageStore)
-                .environment(themeStore)
-                .environment(settingsStore)
-                .environment(updateStore)
+                .environmentObject(usageStore)
+                .environmentObject(themeStore)
+                .environmentObject(settingsStore)
+                .environmentObject(updateStore)
         } label: {
             MenuBarLabel()
-                .environment(usageStore)
-                .environment(themeStore)
-                .environment(settingsStore)
+                .environmentObject(usageStore)
+                .environmentObject(themeStore)
+                .environmentObject(settingsStore)
         }
         .menuBarExtraStyle(.window)
     }
 }
 
-// MARK: - FIX 6: Isolates Bindable(updateStore) from App.body
+// MARK: - Root (routes onboarding vs settings — only observes settingsStore)
 
-private struct SettingsContentView: View {
-    @Environment(UpdateStore.self) private var updateStore
+private struct RootView: View {
+    @EnvironmentObject private var settingsStore: SettingsStore
 
     var body: some View {
-        @Bindable var updateStore = updateStore
+        if settingsStore.hasCompletedOnboarding {
+            SettingsContentView()
+        } else {
+            OnboardingView()
+        }
+    }
+}
+
+// MARK: - Settings Content (post-onboarding setup + update modal)
+
+private struct SettingsContentView: View {
+    @EnvironmentObject private var updateStore: UpdateStore
+    @EnvironmentObject private var usageStore: UsageStore
+    @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var themeStore: ThemeStore
+
+    var body: some View {
         SettingsView()
             .sheet(isPresented: $updateStore.showUpdateModal) {
                 UpdateModalView()
             }
             .task {
+                usageStore.proxyConfig = settingsStore.proxyConfig
+                usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
+                themeStore.syncToSharedFile()
                 updateStore.startAutoCheck()
             }
     }
 }
 
-// MARK: - FIX 2: Menu Bar Label uses @Environment (proper observation scoping)
+// MARK: - Menu Bar Label
 
 private struct MenuBarLabel: View {
-    @Environment(UsageStore.self) private var usageStore
-    @Environment(ThemeStore.self) private var themeStore
-    @Environment(SettingsStore.self) private var settingsStore
+    @EnvironmentObject private var usageStore: UsageStore
+    @EnvironmentObject private var themeStore: ThemeStore
+    @EnvironmentObject private var settingsStore: SettingsStore
 
     var body: some View {
         Image(nsImage: rendered)

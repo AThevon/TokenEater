@@ -1,30 +1,29 @@
 import SwiftUI
 
 @MainActor
-@Observable
-final class UsageStore {
-    var fiveHourPct: Int = 0
-    var sevenDayPct: Int = 0
-    var sonnetPct: Int = 0
-    var fiveHourReset: String = ""
-    var pacingDelta: Int = 0
-    var pacingZone: PacingZone = .onTrack
-    var pacingResult: PacingResult?
-    var lastUpdate: Date?
-    var isLoading = false
-    var errorState: AppErrorState = .none
-    var hasConfig = false
+final class UsageStore: ObservableObject {
+    @Published var fiveHourPct: Int = 0
+    @Published var sevenDayPct: Int = 0
+    @Published var sonnetPct: Int = 0
+    @Published var fiveHourReset: String = ""
+    @Published var pacingDelta: Int = 0
+    @Published var pacingZone: PacingZone = .onTrack
+    @Published var pacingResult: PacingResult?
+    @Published var lastUpdate: Date?
+    @Published var isLoading = false
+    @Published var errorState: AppErrorState = .none
+    @Published var hasConfig = false
 
     var hasError: Bool { errorState != .none }
 
     /// Token that last received a 401/403. Prevents retrying the API with a known-dead token.
-    @ObservationIgnored private var lastFailedToken: String?
+    private var lastFailedToken: String?
 
     private let repository: UsageRepositoryProtocol
     private let notificationService: NotificationServiceProtocol
-    @ObservationIgnored private var refreshTask: Task<Void, Never>?
+    private var refreshTask: Task<Void, Never>?
 
-    @ObservationIgnored var proxyConfig: ProxyConfig?
+    var proxyConfig: ProxyConfig?
 
     init(
         repository: UsageRepositoryProtocol = UsageRepository(),

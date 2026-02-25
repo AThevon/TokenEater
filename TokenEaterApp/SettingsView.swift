@@ -8,7 +8,6 @@ struct SettingsView: View {
     private let sheetCard = Color.white.opacity(0.04)
     private let accent = Color(hex: "#FF9F0A")
 
-    // FIX 5: Tabs extracted into separate structs for proper observation scoping
     var body: some View {
         VStack(spacing: 0) {
             SettingsHeaderView()
@@ -156,10 +155,10 @@ struct SettingsView: View {
     }
 }
 
-// MARK: - Header (isolated observation scope)
+// MARK: - Header
 
 private struct SettingsHeaderView: View {
-    @Environment(UpdateStore.self) private var updateStore
+    @EnvironmentObject private var updateStore: UpdateStore
 
     private let accent = Color(hex: "#FF9F0A")
 
@@ -204,13 +203,13 @@ private struct SettingsHeaderView: View {
     }
 }
 
-// MARK: - Connection Tab (isolated observation scope)
+// MARK: - Connection Tab
 
 private struct ConnectionTab: View {
-    @Environment(UsageStore.self) private var usageStore
-    @Environment(SettingsStore.self) private var settingsStore
-    @Environment(ThemeStore.self) private var themeStore
-    @Environment(UpdateStore.self) private var updateStore
+    @EnvironmentObject private var usageStore: UsageStore
+    @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var themeStore: ThemeStore
+    @EnvironmentObject private var updateStore: UpdateStore
 
     @Binding var showGuide: Bool
     @State private var testResult: ConnectionTestResult?
@@ -379,28 +378,36 @@ private struct ConnectionTab: View {
     }
 }
 
-// MARK: - Display Tab (isolated observation scope)
+// MARK: - Display Tab
 
 private struct DisplayTab: View {
-    @Environment(SettingsStore.self) private var settingsStore
-    @Environment(ThemeStore.self) private var themeStore
+    @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var themeStore: ThemeStore
 
     @State private var notifTestCooldown = false
 
-    var body: some View {
-        @Bindable var settingsStore = settingsStore
-        @Bindable var themeStore = themeStore
+    // Local @State bindings — stable across body re-evaluations.
+    // Binding to computed properties via $store.computedProp creates
+    // unstable LocationProjections that the AttributeGraph can never
+    // memoize, causing an infinite re-evaluation loop in Release builds.
+    @State private var showFiveHour = true
+    @State private var showSevenDay = true
+    @State private var showSonnet = false
+    @State private var showPacing = false
+    @State private var warningSlider: Double = 60
+    @State private var criticalSlider: Double = 85
 
+    var body: some View {
         Form {
             Section("settings.menubar.title") {
                 Toggle("settings.menubar.toggle", isOn: $settingsStore.showMenuBar)
             }
 
             Section {
-                Toggle("metric.session", isOn: $settingsStore.showFiveHour)
-                Toggle("metric.weekly", isOn: $settingsStore.showSevenDay)
-                Toggle("metric.sonnet", isOn: $settingsStore.showSonnet)
-                Toggle("pacing.label", isOn: $settingsStore.showPacing)
+                Toggle("metric.session", isOn: $showFiveHour)
+                Toggle("metric.weekly", isOn: $showSevenDay)
+                Toggle("metric.sonnet", isOn: $showSonnet)
+                Toggle("pacing.label", isOn: $showPacing)
             } header: {
                 Text("settings.metrics.pinned")
             } footer: {
@@ -418,15 +425,15 @@ private struct DisplayTab: View {
             Section("settings.theme.thresholds") {
                 HStack {
                     Text("settings.theme.warning")
-                    Slider(value: $themeStore.warningThresholdDouble, in: 10...90, step: 5)
-                    Text("\(themeStore.warningThreshold)%")
+                    Slider(value: $warningSlider, in: 10...90, step: 5)
+                    Text("\(Int(warningSlider))%")
                         .monospacedDigit()
                         .frame(width: 40, alignment: .trailing)
                 }
                 HStack {
                     Text("settings.theme.critical")
-                    Slider(value: $themeStore.criticalThresholdDouble, in: 15...95, step: 5)
-                    Text("\(themeStore.criticalThreshold)%")
+                    Slider(value: $criticalSlider, in: 15...95, step: 5)
+                    Text("\(Int(criticalSlider))%")
                         .monospacedDigit()
                         .frame(width: 40, alignment: .trailing)
                 }
@@ -485,33 +492,79 @@ private struct DisplayTab: View {
             }
         }
         .formStyle(.grouped)
-        .onChange(of: themeStore.warningThreshold) { _, newValue in
-            if newValue >= themeStore.criticalThreshold {
-                themeStore.criticalThreshold = min(newValue + 5, 95)
+        // Initialize local state from stores
+        .task {
+            warningSlider = Double(themeStore.warningThreshold)
+            criticalSlider = Double(themeStore.criticalThreshold)
+            showFiveHour = settingsStore.pinnedMetrics.contains(.fiveHour)
+            showSevenDay = settingsStore.pinnedMetrics.contains(.sevenDay)
+            showSonnet = settingsStore.pinnedMetrics.contains(.sonnet)
+            showPacing = settingsStore.pinnedMetrics.contains(.pacing)
+        }
+        // Sync: local toggle → store (with at-least-one guard)
+        .onChange(of: showFiveHour) { _, new in syncMetric(.fiveHour, on: new, revert: { showFiveHour = true }) }
+        .onChange(of: showSevenDay) { _, new in syncMetric(.sevenDay, on: new, revert: { showSevenDay = true }) }
+        .onChange(of: showSonnet) { _, new in syncMetric(.sonnet, on: new, revert: { showSonnet = true }) }
+        .onChange(of: showPacing) { _, new in syncMetric(.pacing, on: new, revert: { showPacing = true }) }
+        // Sync: store → local toggles (for external changes, e.g. from MenuBar popover)
+        .onChange(of: settingsStore.pinnedMetrics) { _, metrics in
+            if showFiveHour != metrics.contains(.fiveHour) { showFiveHour = metrics.contains(.fiveHour) }
+            if showSevenDay != metrics.contains(.sevenDay) { showSevenDay = metrics.contains(.sevenDay) }
+            if showSonnet != metrics.contains(.sonnet) { showSonnet = metrics.contains(.sonnet) }
+            if showPacing != metrics.contains(.pacing) { showPacing = metrics.contains(.pacing) }
+        }
+        // Sync: local slider → store (with constraint enforcement)
+        .onChange(of: warningSlider) { _, new in
+            let int = Int(new)
+            if themeStore.warningThreshold != int {
+                themeStore.warningThreshold = int
+            }
+            if int >= themeStore.criticalThreshold {
+                themeStore.criticalThreshold = min(int + 5, 95)
             }
         }
-        .onChange(of: themeStore.criticalThreshold) { _, newValue in
-            if newValue <= themeStore.warningThreshold {
-                themeStore.warningThreshold = max(newValue - 5, 10)
+        .onChange(of: criticalSlider) { _, new in
+            let int = Int(new)
+            if themeStore.criticalThreshold != int {
+                themeStore.criticalThreshold = int
+            }
+            if int <= themeStore.warningThreshold {
+                themeStore.warningThreshold = max(int - 5, 10)
             }
         }
-        // FIX 5: .onReceive at struct body level (not in computed property)
+        // Sync: store → local sliders (for external changes, e.g. theme reset)
+        .onChange(of: themeStore.warningThreshold) { _, new in
+            let double = Double(new)
+            if warningSlider != double { warningSlider = double }
+        }
+        .onChange(of: themeStore.criticalThreshold) { _, new in
+            let double = Double(new)
+            if criticalSlider != double { criticalSlider = double }
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             Task { await settingsStore.refreshNotificationStatus() }
         }
     }
+
+    private func syncMetric(_ metric: MetricID, on: Bool, revert: @escaping () -> Void) {
+        if on {
+            settingsStore.pinnedMetrics.insert(metric)
+        } else if settingsStore.pinnedMetrics.count > 1 {
+            settingsStore.pinnedMetrics.remove(metric)
+        } else {
+            revert()
+        }
+    }
 }
 
-// MARK: - Theming Tab (isolated observation scope)
+// MARK: - Theming Tab
 
 private struct ThemingTab: View {
-    @Environment(ThemeStore.self) private var themeStore
+    @EnvironmentObject private var themeStore: ThemeStore
 
     @State private var showResetAlert = false
 
     var body: some View {
-        @Bindable var themeStore = themeStore
-
         Form {
             Section("settings.theme.menubar") {
                 Toggle("settings.theme.monochrome", isOn: $themeStore.menuBarMonochrome)
@@ -623,14 +676,12 @@ private struct ThemingTab: View {
     }
 }
 
-// MARK: - Proxy Tab (isolated observation scope)
+// MARK: - Proxy Tab
 
 private struct ProxyTab: View {
-    @Environment(SettingsStore.self) private var settingsStore
+    @EnvironmentObject private var settingsStore: SettingsStore
 
     var body: some View {
-        @Bindable var settingsStore = settingsStore
-
         Form {
             Section {
                 Toggle("settings.proxy.toggle", isOn: $settingsStore.proxyEnabled)

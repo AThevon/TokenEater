@@ -8,8 +8,25 @@
 ## Build & Test local
 
 ### Prérequis
-- Xcode 15+, XcodeGen (`brew install xcodegen`)
+- **Xcode 16.4** (version identique au CI `macos-15`) — installé via `xcodes install 16.4`
+- XcodeGen (`brew install xcodegen`)
 - Le `DEVELOPMENT_TEAM` n'est pas dans `project.yml` — il est détecté automatiquement depuis le certificat Apple local
+
+### Toolchain CI (iso-prod)
+
+Le CI (`macos-15`) utilise **Xcode 16.4 / Swift 6.1.2**. Pour builder localement un binaire identique à ce que les users reçoivent via brew cask :
+
+```bash
+export DEVELOPER_DIR=/Applications/Xcode-16.4.0.app/Contents/Developer
+```
+
+**NE PAS** mettre à jour le runner CI vers un Xcode plus récent sans tester — `@Observable` a des bugs d'optimisation en Release avec Swift 6.1.x qui ne se reproduisent pas avec Swift 6.2+. Voir la section Notes techniques.
+
+Pour installer Xcode 16.4 à côté de la version courante :
+```bash
+brew install xcodes  # si pas déjà installé
+xcodes install 16.4 --directory /Applications
+```
 
 ### Build seul (sans install)
 ```bash
@@ -70,18 +87,18 @@ open /Applications/TokenEater.app
 
 ## Architecture
 
-Le codebase suit **MV Pattern + Repository Pattern + Protocol-Oriented Design** avec `@Observable` (Swift 5.9+) :
+Le codebase suit **MV Pattern + Repository Pattern + Protocol-Oriented Design** avec `ObservableObject` + `@Published` :
 
 ### Layers
 - **Models** (`Shared/Models/`) : Structs Codable pures (UsageResponse, ThemeColors, ProxyConfig, MetricModels, PacingModels)
 - **Services** (`Shared/Services/`) : I/O single-responsibility avec design protocol-based (APIClient, KeychainService, SharedFileService, NotificationService)
 - **Repository** (`Shared/Repositories/`) : Orchestre le pipeline Keychain → API → SharedFile
-- **Stores** (`Shared/Stores/`) : Conteneurs d'état `@Observable` injectés via `@Environment` (UsageStore, ThemeStore, SettingsStore)
+- **Stores** (`Shared/Stores/`) : Conteneurs d'état `ObservableObject` injectés via `@EnvironmentObject` (UsageStore, ThemeStore, SettingsStore)
 - **Helpers** (`Shared/Helpers/`) : Fonctions pures (PacingCalculator, MenuBarRenderer)
 
 ### Key Patterns
 - **Pas de singletons** — toutes les dépendances sont injectées
-- **@Environment DI** — les stores sont passés via l'environment SwiftUI
+- **@EnvironmentObject DI** — les stores sont passés via `.environmentObject()` SwiftUI
 - **Services protocol-based** — chaque service a un protocole pour la testabilité
 - **Strategy pattern pour les thèmes** — presets ThemeColors + support thème custom
 
@@ -97,3 +114,41 @@ Le codebase suit **MV Pattern + Repository Pattern + Protocol-Oriented Design** 
 - `FileManager.containerURL(forSecurityApplicationGroupIdentifier:)` retourne une URL sur macOS même sans provisioning valide, mais le sandbox bloque l'accès côté widget
 - `FileManager.default.homeDirectoryForCurrentUser` retourne le chemin sandbox container, pas le vrai home — utiliser `getpwuid(getuid())` pour le vrai chemin
 - WidgetKit exige `app-sandbox: true` — un widget sans sandbox ne s'affiche pas
+
+### @Observable interdit
+
+**NE PAS utiliser `@Observable`** (Swift 5.9 Observation framework). Le projet utilise `ObservableObject` + `@Published` exclusivement.
+
+Raison : `@Observable` provoque un freeze 100% CPU (boucle infinie de ré-évaluation SwiftUI) en Release builds compilés avec Swift 6.1.x (Xcode 16.4, utilisé par le CI `macos-15`). Le bug ne se reproduit PAS en Debug ni avec Swift 6.2+ (Xcode 26+), ce qui le rend impossible à diagnostiquer localement sans le bon toolchain.
+
+Pattern à utiliser :
+- `class Store: ObservableObject` (pas `@Observable`)
+- `@Published var property` (pas de propriété nue)
+- `@EnvironmentObject var store: Store` (pas `@Environment(Store.self)`)
+- `.environmentObject(store)` (pas `.environment(store)`)
+- `@StateObject var store = Store()` (pas `@State var store = Store()`)
+- `@ObservedObject` pour les sous-vues qui reçoivent un store
+- `$store.property` pour les bindings (pas `@Bindable`)
+
+### Test iso-prod (mega nuke)
+
+Pour tester localement un binaire **identique à ce que brew cask livre**, utiliser le workflow `test-build.yml` :
+```bash
+gh workflow run test-build.yml -f branch=<branche>
+# Attendre la fin, puis télécharger le DMG :
+gh run download <run-id> -n TokenEater-test -D /tmp/tokeneater-test/
+```
+
+Avant d'installer le DMG, faire un mega nuke (inclut UserDefaults + sandbox containers — le nuke standard ne suffit pas) :
+```bash
+killall TokenEater NotificationCenter chronod cfprefsd 2>/dev/null; sleep 1
+defaults delete com.tokeneater.app 2>/dev/null
+defaults delete com.claudeusagewidget.app 2>/dev/null
+rm -f ~/Library/Preferences/com.tokeneater.app.plist ~/Library/Preferences/com.claudeusagewidget.app.plist
+for c in com.tokeneater.app com.tokeneater.app.widget com.claudeusagewidget.app com.claudeusagewidget.app.widget; do
+    d="$HOME/Library/Containers/$c/Data"; [ -d "$d" ] && rm -rf "$d/Library/Preferences/"* "$d/Library/Caches/"* "$d/Library/Application Support/"* "$d/tmp/"* 2>/dev/null
+done
+rm -rf ~/Library/Application\ Support/com.tokeneater.shared ~/Library/Caches/com.tokeneater.app
+rm -rf /Applications/TokenEater.app
+# Puis: monter DMG, copier .app, xattr -cr, lsregister, lancer manuellement
+```

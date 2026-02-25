@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct UpdateModalView: View {
-    @Environment(UpdateStore.self) private var updateStore
+    @EnvironmentObject private var updateStore: UpdateStore
     @State private var copied = false
 
     private let sheetBg = Color(hex: "#141416")

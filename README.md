@@ -172,7 +172,7 @@ defaults delete com.tokeneater.app 2>/dev/null
 ### Requirements
 
 - macOS 14 (Sonoma) or later
-- Xcode 15+
+- Xcode 16.4+
 - [XcodeGen](https://github.com/yonaskolb/XcodeGen): `brew install xcodegen`
 
 ### Steps
@@ -210,7 +210,7 @@ Shared/                  Shared code (services, stores, models, pacing, notifica
   ├── Models/            Pure Codable structs
   ├── Services/          Protocol-based I/O (API, Keychain, SharedFile, Notification)
   ├── Repositories/      Orchestration (UsageRepository)
-  ├── Stores/            @Observable state containers
+  ├── Stores/            ObservableObject state containers
   ├── Helpers/           Pure functions (PacingCalculator, MenuBarRenderer)
   ├── en.lproj/          English strings
   └── fr.lproj/          French strings

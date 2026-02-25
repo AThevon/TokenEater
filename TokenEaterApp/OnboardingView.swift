@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct OnboardingView: View {
-    @State private var viewModel = OnboardingViewModel()
+    @StateObject private var viewModel = OnboardingViewModel()
 
     var body: some View {
         VStack(spacing: 0) {

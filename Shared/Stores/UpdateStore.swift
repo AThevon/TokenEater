@@ -4,19 +4,18 @@ import AppKit
 #endif
 
 @MainActor
-@Observable
-final class UpdateStore {
-    var updateAvailable = false
-    var latestVersion: String?
-    var releaseNotes: String?
-    @ObservationIgnored var releaseURL: URL?
-    var isChecking = false
-    var isUpdating = false
-    var updateError: String?
-    var showUpdateModal = false
+final class UpdateStore: ObservableObject {
+    @Published var updateAvailable = false
+    @Published var latestVersion: String?
+    @Published var releaseNotes: String?
+    var releaseURL: URL?
+    @Published var isChecking = false
+    @Published var isUpdating = false
+    @Published var updateError: String?
+    @Published var showUpdateModal = false
 
     private let service: UpdateServiceProtocol
-    @ObservationIgnored private var checkTask: Task<Void, Never>?
+    private var checkTask: Task<Void, Never>?
 
     private var skippedVersion: String? {
         get { UserDefaults.standard.string(forKey: "skippedVersion") }

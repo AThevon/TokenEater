@@ -3,9 +3,9 @@ import SwiftUI
 // MARK: - Popover View
 
 struct MenuBarPopoverView: View {
-    @Environment(UsageStore.self) private var usageStore
-    @Environment(ThemeStore.self) private var themeStore
-    @Environment(SettingsStore.self) private var settingsStore
+    @EnvironmentObject private var usageStore: UsageStore
+    @EnvironmentObject private var themeStore: ThemeStore
+    @EnvironmentObject private var settingsStore: SettingsStore
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
