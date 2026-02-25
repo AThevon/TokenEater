@@ -13,8 +13,18 @@ concurrency:
 jobs:
   build-and-test:
     runs-on: macos-15
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+
+      - name: Cache Homebrew
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/Homebrew
+            /usr/local/Cellar/xcodegen
+            /opt/homebrew/Cellar/xcodegen
+          key: brew-xcodegen-${{ runner.os }}
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -26,7 +36,7 @@ jobs:
             -json '{"NSExtensionPointIdentifier":"com.apple.widgetkit-extension"}' \
             TokenEaterWidget/Info.plist 2>/dev/null || true
 
-      - name: Build
+      - name: Build (Release)
         run: |
           xcodebuild \
             -project TokenEater.xcodeproj \

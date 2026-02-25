@@ -1,31 +1,38 @@
 import Testing
 import Foundation
+import UserNotifications
 
+private let settingsKeys = [
+    "showMenuBar", "pinnedMetrics", "pacingDisplayMode",
+    "hasCompletedOnboarding", "proxyEnabled", "proxyHost", "proxyPort"
+]
+
+private func cleanDefaults() {
+    for key in settingsKeys {
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+}
+
+@Suite("SettingsStore", .serialized)
 @MainActor
-@Suite("SettingsStore")
 struct SettingsStoreTests {
 
-    // Clean UserDefaults before each test to avoid cross-test pollution
-    private static let settingsKeys = [
-        "showMenuBar", "pinnedMetrics", "pacingDisplayMode",
-        "hasCompletedOnboarding", "proxyEnabled", "proxyHost", "proxyPort"
-    ]
+    // MARK: - Helpers
 
-    private func cleanDefaults() {
-        for key in Self.settingsKeys {
-            UserDefaults.standard.removeObject(forKey: key)
-        }
+    private func makeStore(
+        keychain: MockKeychainService = MockKeychainService()
+    ) -> (SettingsStore, MockNotificationService, MockKeychainService) {
+        cleanDefaults()
+        let notif = MockNotificationService()
+        let store = SettingsStore(notificationService: notif, keychainService: keychain)
+        return (store, notif, keychain)
     }
 
     // MARK: - Proxy Config
 
     @Test("proxyConfig reflects current values")
     func proxyConfigReflectsValues() {
-        cleanDefaults()
-        let store = SettingsStore(
-            notificationService: MockNotificationService(),
-            keychainService: MockKeychainService()
-        )
+        let (store, _, _) = makeStore()
         store.proxyEnabled = true
         store.proxyHost = "10.0.0.1"
         store.proxyPort = 8080
@@ -38,11 +45,7 @@ struct SettingsStoreTests {
 
     @Test("proxyConfig returns defaults on fresh store")
     func proxyConfigDefaults() {
-        cleanDefaults()
-        let store = SettingsStore(
-            notificationService: MockNotificationService(),
-            keychainService: MockKeychainService()
-        )
+        let (store, _, _) = makeStore()
 
         let config = store.proxyConfig
         #expect(config.enabled == false)
@@ -54,12 +57,7 @@ struct SettingsStoreTests {
 
     @Test("toggleMetric adds a metric not in the set")
     func toggleMetricAdds() {
-        cleanDefaults()
-        let store = SettingsStore(
-            notificationService: MockNotificationService(),
-            keychainService: MockKeychainService()
-        )
-        // Default pinnedMetrics = [.fiveHour, .sevenDay]
+        let (store, _, _) = makeStore()
         #expect(!store.pinnedMetrics.contains(.sonnet))
 
         store.toggleMetric(.sonnet)
@@ -68,12 +66,7 @@ struct SettingsStoreTests {
 
     @Test("toggleMetric removes metric when count > 1")
     func toggleMetricRemoves() {
-        cleanDefaults()
-        let store = SettingsStore(
-            notificationService: MockNotificationService(),
-            keychainService: MockKeychainService()
-        )
-        // Default has 2 metrics: .fiveHour and .sevenDay
+        let (store, _, _) = makeStore()
         #expect(store.pinnedMetrics.count == 2)
         #expect(store.pinnedMetrics.contains(.fiveHour))
 
@@ -83,12 +76,7 @@ struct SettingsStoreTests {
 
     @Test("toggleMetric does not remove last metric")
     func toggleMetricKeepsLast() {
-        cleanDefaults()
-        let store = SettingsStore(
-            notificationService: MockNotificationService(),
-            keychainService: MockKeychainService()
-        )
-        // Reduce to a single metric
+        let (store, _, _) = makeStore()
         store.pinnedMetrics = [.sonnet]
         #expect(store.pinnedMetrics.count == 1)
 
@@ -97,31 +85,94 @@ struct SettingsStoreTests {
         #expect(store.pinnedMetrics.count == 1)
     }
 
+    @Test("toggleMetric works with .pacing")
+    func toggleMetricPacing() {
+        let (store, _, _) = makeStore()
+        #expect(!store.pinnedMetrics.contains(.pacing))
+
+        store.toggleMetric(.pacing)
+        #expect(store.pinnedMetrics.contains(.pacing))
+
+        store.toggleMetric(.pacing)
+        // Still has other metrics, so pacing should be removed
+        #expect(!store.pinnedMetrics.contains(.pacing))
+    }
+
     // MARK: - Keychain delegation
 
     @Test("keychainTokenExists delegates to service")
     func keychainTokenExistsDelegates() {
-        cleanDefaults()
-        let mockKeychain = MockKeychainService()
-        mockKeychain.storedToken = "some-token"
-        let store = SettingsStore(
-            notificationService: MockNotificationService(),
-            keychainService: mockKeychain
-        )
+        let keychain = MockKeychainService()
+        keychain.storedToken = "some-token"
+        let (store, _, _) = makeStore(keychain: keychain)
 
         #expect(store.keychainTokenExists() == true)
     }
 
+    @Test("keychainTokenExists returns false when no token")
+    func keychainTokenExistsFalseWhenNoToken() {
+        let (store, _, _) = makeStore()
+
+        #expect(store.keychainTokenExists() == false)
+    }
+
     @Test("readKeychainToken delegates to service")
     func readKeychainTokenDelegates() {
-        cleanDefaults()
-        let mockKeychain = MockKeychainService()
-        mockKeychain.storedToken = "abc"
-        let store = SettingsStore(
-            notificationService: MockNotificationService(),
-            keychainService: mockKeychain
-        )
+        let keychain = MockKeychainService()
+        keychain.storedToken = "abc"
+        let (store, _, _) = makeStore(keychain: keychain)
 
         #expect(store.readKeychainToken() == "abc")
+    }
+
+    // MARK: - Notification delegation
+
+    @Test("requestNotificationPermission delegates to service")
+    func requestNotificationPermissionDelegates() {
+        let (store, notif, _) = makeStore()
+
+        store.requestNotificationPermission()
+
+        #expect(notif.permissionRequested == true)
+    }
+
+    @Test("sendTestNotification delegates to service")
+    func sendTestNotificationDelegates() {
+        let (store, notif, _) = makeStore()
+
+        store.sendTestNotification()
+
+        #expect(notif.testSent == true)
+    }
+
+    @Test("refreshNotificationStatus updates status from service")
+    func refreshNotificationStatusUpdates() async {
+        let (store, notif, _) = makeStore()
+        notif.stubbedAuthStatus = .authorized
+
+        await store.refreshNotificationStatus()
+
+        #expect(store.notificationStatus == .authorized)
+    }
+
+    // MARK: - Persistence
+
+    @Test("hasCompletedOnboarding persists to UserDefaults")
+    func hasCompletedOnboardingPersists() {
+        let (store, _, _) = makeStore()
+
+        store.hasCompletedOnboarding = true
+        #expect(UserDefaults.standard.bool(forKey: "hasCompletedOnboarding") == true)
+    }
+
+    @Test("pinnedMetrics persists to UserDefaults")
+    func pinnedMetricsPersists() {
+        let (store, _, _) = makeStore()
+
+        store.pinnedMetrics = [.sonnet, .pacing]
+
+        let saved = UserDefaults.standard.stringArray(forKey: "pinnedMetrics") ?? []
+        #expect(saved.contains("sonnet"))
+        #expect(saved.contains("pacing"))
     }
 }
