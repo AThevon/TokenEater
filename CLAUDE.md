@@ -108,6 +108,36 @@ Le codebase suit **MV Pattern + Repository Pattern + Protocol-Oriented Design** 
 - Le partage utilise des `temporary-exception` entitlements (pas d'App Groups — incompatible avec les comptes Apple Developer gratuits sur macOS Sequoia)
 - Migration automatique depuis l'ancien chemin `com.claudeusagewidget.shared/` — code de migration conservé indéfiniment pour les mises à jour tardives via Homebrew Cask
 
+## Règles SwiftUI — ne pas enfreindre
+
+Leçons apprises à la dure. Chaque règle a causé un bug en production.
+
+### App struct
+
+- **PAS de `@StateObject` dans le `App` struct** — utiliser `private let` pour les stores. `@StateObject` force `App.body` à se ré-évaluer sur chaque `objectWillChange` de n'importe quel store, ce qui cascade dans tout l'arbre de vues. Les stores sont injectés via `.environmentObject()`, les vues enfants les observent individuellement.
+- Utiliser `@AppStorage` pour les bindings nécessaires au niveau App (ex: `isInserted` du `MenuBarExtra`), pas un binding vers un store.
+
+### Bindings
+
+- **PAS de binding vers des computed properties** — `$store.computedProp` crée un `LocationProjection` instable que l'AttributeGraph ne peut jamais mémoïser → boucle infinie. Utiliser `@State` local + `.onChange` pour synchroniser.
+- **PAS de `Binding(get:set:)`** — les closures ne sont pas `Equatable`, AG voit toujours "différent" → ré-évaluation infinie. Même solution : `@State` + `.onChange`.
+
+### Keychain
+
+- **Toujours utiliser `readOAuthTokenSilently()` (`kSecUseAuthenticationUISkip`)** pour les lectures automatiques (refresh, recovery, popover open). La lecture interactive (`readOAuthToken()`) est réservée **uniquement** au premier connect pendant l'onboarding.
+- Ne jamais ajouter de nouveau call site pour `syncKeychainToken()` (interactif) — utiliser `syncKeychainTokenSilently()`.
+
+### Observation framework
+
+- **PAS de `@Observable`** — voir section dédiée ci-dessous.
+- **PAS de `@Bindable`** — utiliser `$store.property` via `@EnvironmentObject`.
+- **PAS de `@Environment(Store.self)`** — utiliser `@EnvironmentObject var store: Store`.
+
+### Précautions Release builds
+
+- Les bugs SwiftUI se manifestent **uniquement en Release** (optimisations du compilateur + pas d'AnyView wrapping). Toujours tester en Release avec `DEVELOPER_DIR` pointant vers Xcode 16.4 avant de valider un fix SwiftUI.
+- `SWIFT_ENABLE_OPAQUE_TYPE_ERASURE` (Xcode 16+) wrappe les vues en `AnyView` en Debug, masquant les problèmes d'identité de vue.
+
 ## Notes techniques
 
 - `UserDefaults(suiteName:)` ne fonctionne PAS pour le partage app/widget avec un compte Apple gratuit (Personal Team) — `cfprefsd` vérifie le provisioning profile
@@ -126,7 +156,7 @@ Pattern à utiliser :
 - `@Published var property` (pas de propriété nue)
 - `@EnvironmentObject var store: Store` (pas `@Environment(Store.self)`)
 - `.environmentObject(store)` (pas `.environment(store)`)
-- `@StateObject var store = Store()` (pas `@State var store = Store()`)
+- `private let store = Store()` dans l'App struct (pas `@StateObject` ni `@State`)
 - `@ObservedObject` pour les sous-vues qui reçoivent un store
 - `$store.property` pour les bindings (pas `@Bindable`)
 
