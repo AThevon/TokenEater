@@ -88,8 +88,8 @@ final class UsageStore: ObservableObject {
     }
 
     func reloadConfig(thresholds: UsageThresholds = .default) {
-        // Interactive keychain read — only called from explicit user action
-        repository.syncKeychainToken()
+        // Silent keychain read — never triggers macOS password dialog
+        repository.syncKeychainTokenSilently()
         lastFailedToken = nil
         errorState = .none
         hasConfig = repository.isConfigured
@@ -120,7 +120,7 @@ final class UsageStore: ObservableObject {
     }
 
     func connectAutoDetect() async -> ConnectionTestResult {
-        repository.syncKeychainToken()
+        repository.syncKeychainTokenSilently()
         let result = await repository.testConnection(proxyConfig: proxyConfig)
         if result.success {
             hasConfig = true
