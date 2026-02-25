@@ -1,6 +1,5 @@
 import SwiftUI
 import UserNotifications
-import WidgetKit
 
 enum OnboardingStep: Int, CaseIterable {
     case welcome = 0
@@ -106,7 +105,7 @@ final class OnboardingViewModel {
     }
 
     func completeOnboarding() {
-        WidgetCenter.shared.reloadAllTimelines()
+        WidgetReloader.scheduleReload()
     }
 
     func goNext() {

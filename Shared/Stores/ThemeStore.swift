@@ -1,5 +1,4 @@
 import SwiftUI
-import WidgetKit
 
 @MainActor
 @Observable
@@ -127,6 +126,6 @@ final class ThemeStore {
 
     func syncToSharedFile() {
         sharedFileService.updateTheme(current, thresholds: thresholds)
-        WidgetCenter.shared.reloadAllTimelines()
+        WidgetReloader.scheduleReload()
     }
 }

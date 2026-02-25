@@ -12,16 +12,10 @@ struct TokenEaterApp: App {
     }
 
     var body: some Scene {
+        // FIX 6: SettingsContentView isolates Bindable(updateStore) from App.body
         WindowGroup(id: "settings") {
             if settingsStore.hasCompletedOnboarding {
-                SettingsView()
-                    .sheet(isPresented: Bindable(updateStore).showUpdateModal) {
-                        UpdateModalView()
-                            .environment(updateStore)
-                    }
-                    .task {
-                        updateStore.startAutoCheck()
-                    }
+                SettingsContentView()
             } else {
                 OnboardingView()
             }
@@ -41,6 +35,7 @@ struct TokenEaterApp: App {
         }
         .windowResizability(.contentSize)
 
+        // FIX 2: MenuBarLabel uses @Environment — add .environment() on label:
         MenuBarExtra(isInserted: Bindable(settingsStore).showMenuBar) {
             MenuBarPopoverView()
                 .environment(usageStore)
@@ -48,23 +43,38 @@ struct TokenEaterApp: App {
                 .environment(settingsStore)
                 .environment(updateStore)
         } label: {
-            MenuBarLabel(
-                usageStore: usageStore,
-                themeStore: themeStore,
-                settingsStore: settingsStore
-            )
+            MenuBarLabel()
+                .environment(usageStore)
+                .environment(themeStore)
+                .environment(settingsStore)
         }
         .menuBarExtraStyle(.window)
     }
 }
 
-/// Isolated view for the menu bar icon — keeps @Observable tracking
-/// scoped here so usageStore/themeStore mutations never re-evaluate
-/// the App body (which would needlessly re-evaluate the WindowGroup).
+// MARK: - FIX 6: Isolates Bindable(updateStore) from App.body
+
+private struct SettingsContentView: View {
+    @Environment(UpdateStore.self) private var updateStore
+
+    var body: some View {
+        @Bindable var updateStore = updateStore
+        SettingsView()
+            .sheet(isPresented: $updateStore.showUpdateModal) {
+                UpdateModalView()
+            }
+            .task {
+                updateStore.startAutoCheck()
+            }
+    }
+}
+
+// MARK: - FIX 2: Menu Bar Label uses @Environment (proper observation scoping)
+
 private struct MenuBarLabel: View {
-    let usageStore: UsageStore
-    let themeStore: ThemeStore
-    let settingsStore: SettingsStore
+    @Environment(UsageStore.self) private var usageStore
+    @Environment(ThemeStore.self) private var themeStore
+    @Environment(SettingsStore.self) private var settingsStore
 
     var body: some View {
         Image(nsImage: rendered)
@@ -81,8 +91,9 @@ private struct MenuBarLabel: View {
             pacingDisplayMode: settingsStore.pacingDisplayMode,
             hasConfig: usageStore.hasConfig,
             hasError: usageStore.hasError,
-            colorForPct: { themeStore.menuBarNSColor(for: $0) },
-            colorForZone: { themeStore.menuBarPacingNSColor(for: $0) }
+            themeColors: themeStore.current,
+            thresholds: themeStore.thresholds,
+            menuBarMonochrome: themeStore.menuBarMonochrome
         ))
     }
 }

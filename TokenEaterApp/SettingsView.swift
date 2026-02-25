@@ -1,97 +1,226 @@
 import SwiftUI
-import WidgetKit
 import UserNotifications
 
 struct SettingsView: View {
-    @Environment(UsageStore.self) private var usageStore
-    @Environment(ThemeStore.self) private var themeStore
-    @Environment(SettingsStore.self) private var settingsStore
-    @Environment(UpdateStore.self) private var updateStore
-
-    @State private var testResult: ConnectionTestResult?
-    @State private var isTesting = false
     @State private var showGuide = false
-    @State private var isImporting = false
-    @State private var importMessage: String?
-    @State private var importSuccess = false
-    @State private var authMethodLabel = ""
-    @State private var notifTestCooldown = false
-    @State private var showResetAlert = false
 
     private let sheetBg = Color(hex: "#141416")
     private let sheetCard = Color.white.opacity(0.04)
     private let accent = Color(hex: "#FF9F0A")
 
+    // FIX 5: Tabs extracted into separate structs for proper observation scoping
     var body: some View {
-        @Bindable var settingsStore = settingsStore
-        @Bindable var themeStore = themeStore
         VStack(spacing: 0) {
-            // App header
-            HStack(spacing: 12) {
-                Image(nsImage: NSImage(named: "AppIcon") ?? NSApp.applicationIconImage)
-                    .resizable()
-                    .frame(width: 40, height: 40)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("TokenEater")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                    Text("settings.subtitle")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-                HStack(spacing: 6) {
-                    let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-                    Text("v\(version)")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                    if updateStore.updateAvailable {
-                        Button {
-                            updateStore.showUpdateModal = true
-                        } label: {
-                            Text("update.badge")
-                                .font(.system(size: 9, weight: .bold))
-                                .foregroundStyle(accent)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(accent.opacity(0.15))
-                                .clipShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
-            .padding(.bottom, 8)
-
+            SettingsHeaderView()
             TabView {
-                connectionTab
+                ConnectionTab(showGuide: $showGuide)
                     .tabItem {
                         Label("settings.tab.connection", systemImage: "bolt.horizontal.fill")
                     }
-                displayTab
+                DisplayTab()
                     .tabItem {
                         Label("settings.tab.display", systemImage: "menubar.rectangle")
                     }
-                themingTab
+                ThemingTab()
                     .tabItem {
                         Label("settings.tab.theming", systemImage: "paintpalette.fill")
                     }
-                proxyTab
+                ProxyTab()
                     .tabItem {
                         Label("settings.tab.proxy", systemImage: "network")
                     }
             }
         }
         .frame(width: 500, height: 480)
-        .onAppear { loadConfig() }
         .sheet(isPresented: $showGuide) { guideSheet }
     }
 
-    // MARK: - Connection Tab
+    // MARK: - Guide Sheet
 
-    private var connectionTab: some View {
+    private var guideSheet: some View {
+        ZStack {
+            sheetBg.ignoresSafeArea()
+
+            ScrollView {
+                VStack(spacing: 0) {
+                    HStack {
+                        Text("guide.title")
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                        Spacer()
+                        Button {
+                            showGuide = false
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 20))
+                                .foregroundStyle(.white.opacity(0.3))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.bottom, 20)
+
+                    guideSection(
+                        icon: "terminal.fill",
+                        color: Color(hex: "#22C55E"),
+                        title: String(localized: "guide.oauth.title"),
+                        badge: String(localized: "guide.oauth.badge"),
+                        steps: [
+                            String(localized: "guide.oauth.step1"),
+                            String(localized: "guide.oauth.step2"),
+                            String(localized: "guide.oauth.step3"),
+                        ]
+                    )
+
+                    HStack(spacing: 12) {
+                        Image(systemName: "square.grid.2x2")
+                            .font(.system(size: 14))
+                            .foregroundStyle(accent)
+                            .frame(width: 32, height: 32)
+                            .background(accent.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("guide.widget")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.9))
+                            Text("guide.widget.detail")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.white.opacity(0.45))
+                        }
+                        Spacer()
+                    }
+                    .padding(14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(accent.opacity(0.06))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(accent.opacity(0.15), lineWidth: 1)
+                            )
+                    )
+                }
+                .padding(24)
+            }
+        }
+        .frame(width: 460, height: 360)
+    }
+
+    private func guideSection(icon: String, color: Color, title: String, badge: String? = nil, steps: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(color)
+                Text(title)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.9))
+                if let badge = badge {
+                    Text(badge)
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(color)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(color.opacity(0.15))
+                        .clipShape(Capsule())
+                }
+            }
+
+            VStack(spacing: 6) {
+                ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
+                    HStack(alignment: .top, spacing: 10) {
+                        Text("\(index + 1)")
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(color.opacity(0.8))
+                            .frame(width: 18, height: 18)
+                            .background(color.opacity(0.1))
+                            .clipShape(Circle())
+                        Text(.init(step))
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.7))
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer()
+                    }
+                }
+            }
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(sheetCard)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                    )
+            )
+        }
+        .padding(.bottom, 16)
+    }
+}
+
+// MARK: - Header (isolated observation scope)
+
+private struct SettingsHeaderView: View {
+    @Environment(UpdateStore.self) private var updateStore
+
+    private let accent = Color(hex: "#FF9F0A")
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(nsImage: NSImage(named: "AppIcon") ?? NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 40, height: 40)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            VStack(alignment: .leading, spacing: 1) {
+                Text("TokenEater")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                Text("settings.subtitle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            HStack(spacing: 6) {
+                let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+                Text("v\(version)")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                if updateStore.updateAvailable {
+                    Button {
+                        updateStore.showUpdateModal = true
+                    } label: {
+                        Text("update.badge")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(accent)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(accent.opacity(0.15))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .padding(.bottom, 8)
+    }
+}
+
+// MARK: - Connection Tab (isolated observation scope)
+
+private struct ConnectionTab: View {
+    @Environment(UsageStore.self) private var usageStore
+    @Environment(SettingsStore.self) private var settingsStore
+    @Environment(ThemeStore.self) private var themeStore
+    @Environment(UpdateStore.self) private var updateStore
+
+    @Binding var showGuide: Bool
+    @State private var testResult: ConnectionTestResult?
+    @State private var isTesting = false
+    @State private var isImporting = false
+    @State private var importMessage: String?
+    @State private var importSuccess = false
+    @State private var authMethodLabel = ""
+
+    var body: some View {
         Form {
             Section {
                 HStack {
@@ -147,7 +276,7 @@ struct SettingsView: View {
                     .disabled(isTesting)
 
                     Button {
-                        WidgetCenter.shared.reloadAllTimelines()
+                        WidgetReloader.scheduleReload()
                     } label: {
                         Label("settings.refresh", systemImage: "arrow.clockwise")
                     }
@@ -202,15 +331,67 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .onAppear {
+            if settingsStore.keychainTokenExists() {
+                authMethodLabel = String(localized: "connect.method.oauth")
+            }
+            Task { await settingsStore.refreshNotificationStatus() }
+        }
     }
 
-    // MARK: - Display Tab
+    private func testConnection() {
+        isTesting = true
+        testResult = nil
+        Task {
+            let result = await usageStore.testConnection()
+            testResult = result
+            isTesting = false
+            if result.success {
+                WidgetReloader.scheduleReload()
+            }
+        }
+    }
 
-    private var displayTab: some View {
+    private func connectAutoDetect() {
+        isImporting = true
+        importMessage = nil
+        guard settingsStore.keychainTokenExists() else {
+            isImporting = false
+            importMessage = String(localized: "connect.noclaudecode")
+            importSuccess = false
+            return
+        }
+        Task {
+            let result = await usageStore.connectAutoDetect()
+            isImporting = false
+            if result.success {
+                authMethodLabel = String(localized: "connect.method.oauth")
+                importMessage = String(localized: "connect.oauth.success")
+                importSuccess = true
+                usageStore.proxyConfig = settingsStore.proxyConfig
+                usageStore.reloadConfig(thresholds: themeStore.thresholds)
+                themeStore.syncToSharedFile()
+            } else {
+                importMessage = result.message
+                importSuccess = false
+            }
+        }
+    }
+}
+
+// MARK: - Display Tab (isolated observation scope)
+
+private struct DisplayTab: View {
+    @Environment(SettingsStore.self) private var settingsStore
+    @Environment(ThemeStore.self) private var themeStore
+
+    @State private var notifTestCooldown = false
+
+    var body: some View {
         @Bindable var settingsStore = settingsStore
         @Bindable var themeStore = themeStore
 
-        return Form {
+        Form {
             Section("settings.menubar.title") {
                 Toggle("settings.menubar.toggle", isOn: $settingsStore.showMenuBar)
             }
@@ -314,23 +495,28 @@ struct SettingsView: View {
                 themeStore.warningThreshold = max(newValue - 5, 10)
             }
         }
+        // FIX 5: .onReceive at struct body level (not in computed property)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             Task { await settingsStore.refreshNotificationStatus() }
         }
     }
+}
 
-    // MARK: - Theming Tab
+// MARK: - Theming Tab (isolated observation scope)
 
-    private var themingTab: some View {
+private struct ThemingTab: View {
+    @Environment(ThemeStore.self) private var themeStore
+
+    @State private var showResetAlert = false
+
+    var body: some View {
         @Bindable var themeStore = themeStore
 
-        return Form {
-            // Menu bar monochrome
+        Form {
             Section("settings.theme.menubar") {
                 Toggle("settings.theme.monochrome", isOn: $themeStore.menuBarMonochrome)
             }
 
-            // Preset picker
             Section("settings.theme.preset") {
                 Picker("settings.theme.preset", selection: $themeStore.selectedPreset) {
                     ForEach(ThemeColors.allPresets, id: \.key) { preset in
@@ -342,7 +528,6 @@ struct SettingsView: View {
                 .labelsHidden()
             }
 
-            // Custom colors (visible only when preset == "custom")
             if themeStore.selectedPreset == "custom" {
                 Section("settings.theme.colors") {
                     themeColorPicker("settings.theme.gauge.normal", hex: $themeStore.customTheme.gaugeNormal)
@@ -356,7 +541,6 @@ struct SettingsView: View {
                 }
             }
 
-            // Preview gauges
             Section("settings.theme.preview") {
                 HStack(spacing: 24) {
                     Spacer()
@@ -376,7 +560,6 @@ struct SettingsView: View {
                 }
             }
 
-            // Reset
             Section {
                 Button(role: .destructive) {
                     showResetAlert = true
@@ -438,13 +621,17 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
         }
     }
+}
 
-    // MARK: - Proxy Tab
+// MARK: - Proxy Tab (isolated observation scope)
 
-    private var proxyTab: some View {
+private struct ProxyTab: View {
+    @Environment(SettingsStore.self) private var settingsStore
+
+    var body: some View {
         @Bindable var settingsStore = settingsStore
 
-        return Form {
+        Form {
             Section {
                 Toggle("settings.proxy.toggle", isOn: $settingsStore.proxyEnabled)
             } footer: {
@@ -473,177 +660,5 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-    }
-
-    // MARK: - Guide Sheet
-
-    private var guideSheet: some View {
-        ZStack {
-            sheetBg.ignoresSafeArea()
-
-            ScrollView {
-                VStack(spacing: 0) {
-                    HStack {
-                        Text("guide.title")
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-                        Spacer()
-                        Button {
-                            showGuide = false
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 20))
-                                .foregroundStyle(.white.opacity(0.3))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(.bottom, 20)
-
-                    // Method 1: Claude Code (only method now)
-                    guideSection(
-                        icon: "terminal.fill",
-                        color: Color(hex: "#22C55E"),
-                        title: String(localized: "guide.oauth.title"),
-                        badge: String(localized: "guide.oauth.badge"),
-                        steps: [
-                            String(localized: "guide.oauth.step1"),
-                            String(localized: "guide.oauth.step2"),
-                            String(localized: "guide.oauth.step3"),
-                        ]
-                    )
-
-                    // Add widget
-                    HStack(spacing: 12) {
-                        Image(systemName: "square.grid.2x2")
-                            .font(.system(size: 14))
-                            .foregroundStyle(accent)
-                            .frame(width: 32, height: 32)
-                            .background(accent.opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("guide.widget")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.9))
-                            Text("guide.widget.detail")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.white.opacity(0.45))
-                        }
-                        Spacer()
-                    }
-                    .padding(14)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(accent.opacity(0.06))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(accent.opacity(0.15), lineWidth: 1)
-                            )
-                    )
-                }
-                .padding(24)
-            }
-        }
-        .frame(width: 460, height: 360)
-    }
-
-    private func guideSection(icon: String, color: Color, title: String, badge: String? = nil, steps: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(color)
-                Text(title)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.9))
-                if let badge = badge {
-                    Text(badge)
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(color)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(color.opacity(0.15))
-                        .clipShape(Capsule())
-                }
-            }
-
-            VStack(spacing: 6) {
-                ForEach(Array(steps.enumerated()), id: \.offset) { index, step in
-                    HStack(alignment: .top, spacing: 10) {
-                        Text("\(index + 1)")
-                            .font(.system(size: 10, weight: .bold, design: .rounded))
-                            .foregroundStyle(color.opacity(0.8))
-                            .frame(width: 18, height: 18)
-                            .background(color.opacity(0.1))
-                            .clipShape(Circle())
-                        Text(.init(step))
-                            .font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.7))
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer()
-                    }
-                }
-            }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(sheetCard)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color.white.opacity(0.05), lineWidth: 1)
-                    )
-            )
-        }
-        .padding(.bottom, 16)
-    }
-
-    // MARK: - Config
-
-    private func loadConfig() {
-        if settingsStore.keychainTokenExists() {
-            authMethodLabel = String(localized: "connect.method.oauth")
-        }
-        Task { await settingsStore.refreshNotificationStatus() }
-    }
-
-    // MARK: - Actions
-
-    private func testConnection() {
-        isTesting = true
-        testResult = nil
-        Task {
-            let result = await usageStore.testConnection()
-            testResult = result
-            isTesting = false
-            if result.success {
-                WidgetCenter.shared.reloadAllTimelines()
-            }
-        }
-    }
-
-    private func connectAutoDetect() {
-        isImporting = true
-        importMessage = nil
-        guard settingsStore.keychainTokenExists() else {
-            isImporting = false
-            importMessage = String(localized: "connect.noclaudecode")
-            importSuccess = false
-            return
-        }
-        Task {
-            let result = await usageStore.connectAutoDetect()
-            isImporting = false
-            if result.success {
-                authMethodLabel = String(localized: "connect.method.oauth")
-                importMessage = String(localized: "connect.oauth.success")
-                importSuccess = true
-                usageStore.proxyConfig = settingsStore.proxyConfig
-                usageStore.reloadConfig(thresholds: themeStore.thresholds)
-                themeStore.syncToSharedFile()
-            } else {
-                importMessage = result.message
-                importSuccess = false
-            }
-        }
     }
 }

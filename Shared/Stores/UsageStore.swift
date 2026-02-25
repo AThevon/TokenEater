@@ -1,5 +1,4 @@
 import SwiftUI
-import WidgetKit
 
 @MainActor
 @Observable
@@ -25,7 +24,7 @@ final class UsageStore {
     private let notificationService: NotificationServiceProtocol
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
 
-    var proxyConfig: ProxyConfig?
+    @ObservationIgnored var proxyConfig: ProxyConfig?
 
     init(
         repository: UsageRepositoryProtocol = UsageRepository(),
@@ -60,7 +59,7 @@ final class UsageStore {
             errorState = .none
             lastFailedToken = nil
             lastUpdate = Date()
-            WidgetCenter.shared.reloadAllTimelines()
+            WidgetReloader.scheduleReload()
             notificationService.checkThresholds(
                 fiveHour: fiveHourPct,
                 sevenDay: sevenDayPct,
@@ -97,7 +96,7 @@ final class UsageStore {
         hasConfig = repository.isConfigured
         loadCached()
         notificationService.requestPermission()
-        WidgetCenter.shared.reloadAllTimelines()
+        WidgetReloader.scheduleReload()
         refreshTask?.cancel()
         refreshTask = Task { await refresh(thresholds: thresholds) }
     }

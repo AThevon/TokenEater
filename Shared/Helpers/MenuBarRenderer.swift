@@ -1,7 +1,8 @@
 import AppKit
 
 enum MenuBarRenderer {
-    struct RenderData {
+    // FIX 1: Equatable RenderData with pure data (no closures)
+    struct RenderData: Equatable {
         let pinnedMetrics: Set<MetricID>
         let fiveHourPct: Int
         let sevenDayPct: Int
@@ -11,16 +12,45 @@ enum MenuBarRenderer {
         let pacingDisplayMode: PacingDisplayMode
         let hasConfig: Bool
         let hasError: Bool
-        let colorForPct: (Int) -> NSColor
-        let colorForZone: (PacingZone) -> NSColor
+        let themeColors: ThemeColors
+        let thresholds: UsageThresholds
+        let menuBarMonochrome: Bool
     }
 
+    // FIX 1: Static cache — returns same NSImage when data unchanged
+    private static var cachedImage: NSImage?
+    private static var cachedData: RenderData?
+
     static func render(_ data: RenderData) -> NSImage {
-        guard data.hasConfig, !data.hasError else {
-            return renderText("--", color: .tertiaryLabelColor)
+        if let cached = cachedImage, let prev = cachedData, prev == data {
+            return cached
         }
-        return renderPinnedMetrics(data)
+
+        let image: NSImage
+        if !data.hasConfig || data.hasError {
+            image = renderText("--", color: .tertiaryLabelColor)
+        } else {
+            image = renderPinnedMetrics(data)
+        }
+
+        cachedImage = image
+        cachedData = data
+        return image
     }
+
+    // MARK: - Color helpers (replaces closures)
+
+    private static func colorForPct(_ pct: Int, data: RenderData) -> NSColor {
+        if data.menuBarMonochrome { return .labelColor }
+        return data.themeColors.gaugeNSColor(for: Double(pct), thresholds: data.thresholds)
+    }
+
+    private static func colorForZone(_ zone: PacingZone, data: RenderData) -> NSColor {
+        if data.menuBarMonochrome { return .labelColor }
+        return data.themeColors.pacingNSColor(for: zone)
+    }
+
+    // MARK: - Rendering
 
     private static func renderPinnedMetrics(_ data: RenderData) -> NSImage {
         let height: CGFloat = 22
@@ -41,7 +71,7 @@ enum MenuBarRenderer {
                 str.append(NSAttributedString(string: "  ", attributes: sepAttrs))
             }
             if metric == .pacing {
-                let dotColor = data.colorForZone(data.pacingZone)
+                let dotColor = colorForZone(data.pacingZone, data: data)
                 let dotAttrs: [NSAttributedString.Key: Any] = [
                     .font: NSFont.systemFont(ofSize: 11, weight: .bold),
                     .foregroundColor: dotColor,
@@ -66,18 +96,19 @@ enum MenuBarRenderer {
                 str.append(NSAttributedString(string: "\(metric.shortLabel) ", attributes: labelAttrs))
                 let pctAttrs: [NSAttributedString.Key: Any] = [
                     .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .bold),
-                    .foregroundColor: data.colorForPct(value),
+                    .foregroundColor: colorForPct(value, data: data),
                 ]
                 str.append(NSAttributedString(string: "\(value)%", attributes: pctAttrs))
             }
         }
 
+        // FIX 4: Modern NSImage API (replaces deprecated lockFocus/unlockFocus)
         let size = str.size()
         let imgSize = NSSize(width: ceil(size.width) + 2, height: height)
-        let img = NSImage(size: imgSize)
-        img.lockFocus()
-        str.draw(at: NSPoint(x: 1, y: (height - size.height) / 2))
-        img.unlockFocus()
+        let img = NSImage(size: imgSize, flipped: false) { _ in
+            str.draw(at: NSPoint(x: 1, y: (height - size.height) / 2))
+            return true
+        }
         img.isTemplate = false
         return img
     }
@@ -90,10 +121,11 @@ enum MenuBarRenderer {
         ]
         let str = NSAttributedString(string: text, attributes: attrs)
         let size = str.size()
-        let img = NSImage(size: NSSize(width: ceil(size.width) + 2, height: height))
-        img.lockFocus()
-        str.draw(at: NSPoint(x: 1, y: (height - size.height) / 2))
-        img.unlockFocus()
+        let imgSize = NSSize(width: ceil(size.width) + 2, height: height)
+        let img = NSImage(size: imgSize, flipped: false) { _ in
+            str.draw(at: NSPoint(x: 1, y: (height - size.height) / 2))
+            return true
+        }
         img.isTemplate = false
         return img
     }

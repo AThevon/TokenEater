@@ -9,7 +9,7 @@ final class UpdateStore {
     var updateAvailable = false
     var latestVersion: String?
     var releaseNotes: String?
-    var releaseURL: URL?
+    @ObservationIgnored var releaseURL: URL?
     var isChecking = false
     var isUpdating = false
     var updateError: String?

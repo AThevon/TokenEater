@@ -1,5 +1,4 @@
 import SwiftUI
-import WidgetKit
 
 // MARK: - Popover View
 
