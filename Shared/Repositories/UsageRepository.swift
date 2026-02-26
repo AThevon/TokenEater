@@ -59,6 +59,13 @@ final class UsageRepository: UsageRepositoryProtocol {
         }
     }
 
+    func fetchProfile(proxyConfig: ProxyConfig?) async throws -> ProfileResponse {
+        guard let token = sharedFileService.oauthToken else {
+            throw APIError.noToken
+        }
+        return try await apiClient.fetchProfile(token: token, proxyConfig: proxyConfig)
+    }
+
     func testConnection(proxyConfig: ProxyConfig?) async -> ConnectionTestResult {
         guard let token = sharedFileService.oauthToken else {
             return ConnectionTestResult(success: false, message: String(localized: "error.notoken"))

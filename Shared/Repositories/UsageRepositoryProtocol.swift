@@ -2,6 +2,7 @@ import Foundation
 
 protocol UsageRepositoryProtocol {
     func refreshUsage(proxyConfig: ProxyConfig?) async throws -> UsageResponse
+    func fetchProfile(proxyConfig: ProxyConfig?) async throws -> ProfileResponse
     func testConnection(proxyConfig: ProxyConfig?) async -> ConnectionTestResult
     /// Interactive keychain read — may trigger macOS dialog.
     func syncKeychainToken()
