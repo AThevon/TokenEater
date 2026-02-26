@@ -204,14 +204,14 @@ struct MenuBarPopoverView: View {
             .offset(x: 4, y: 4)
         }
         .overlay(alignment: .bottom) {
-            if let reset = usageStore.fiveHourReset, !reset.isEmpty {
-                Text(String(format: String(localized: "metric.reset"), reset))
+            if !usageStore.fiveHourReset.isEmpty {
+                Text(String(format: String(localized: "metric.reset"), usageStore.fiveHourReset))
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(.white.opacity(0.25))
                     .offset(y: 18)
             }
         }
-        .padding(.bottom, usageStore.fiveHourReset != nil ? 14 : 0)
+        .padding(.bottom, !usageStore.fiveHourReset.isEmpty ? 14 : 0)
     }
 
     // MARK: - Satellite Rings (Weekly + Sonnet)
