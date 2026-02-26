@@ -7,10 +7,16 @@ struct TokenEaterApp: App {
     private let settingsStore = SettingsStore()
     private let updateStore = UpdateStore()
 
-    @AppStorage("showMenuBar") private var showMenuBar = true
+    private let statusBarController: StatusBarController
 
     init() {
         NotificationService().setupDelegate()
+        statusBarController = StatusBarController(
+            usageStore: usageStore,
+            themeStore: themeStore,
+            settingsStore: settingsStore,
+            updateStore: updateStore
+        )
     }
 
     var body: some Scene {
@@ -22,20 +28,6 @@ struct TokenEaterApp: App {
         .environmentObject(settingsStore)
         .environmentObject(updateStore)
         .windowResizability(.contentSize)
-
-        MenuBarExtra(isInserted: $showMenuBar) {
-            MenuBarPopoverView()
-                .environmentObject(usageStore)
-                .environmentObject(themeStore)
-                .environmentObject(settingsStore)
-                .environmentObject(updateStore)
-        } label: {
-            MenuBarLabel()
-                .environmentObject(usageStore)
-                .environmentObject(themeStore)
-                .environmentObject(settingsStore)
-        }
-        .menuBarExtraStyle(.window)
     }
 }
 
@@ -75,31 +67,3 @@ private struct SettingsContentView: View {
     }
 }
 
-// MARK: - Menu Bar Label
-
-private struct MenuBarLabel: View {
-    @EnvironmentObject private var usageStore: UsageStore
-    @EnvironmentObject private var themeStore: ThemeStore
-    @EnvironmentObject private var settingsStore: SettingsStore
-
-    var body: some View {
-        Image(nsImage: rendered)
-    }
-
-    private var rendered: NSImage {
-        MenuBarRenderer.render(MenuBarRenderer.RenderData(
-            pinnedMetrics: settingsStore.pinnedMetrics,
-            fiveHourPct: usageStore.fiveHourPct,
-            sevenDayPct: usageStore.sevenDayPct,
-            sonnetPct: usageStore.sonnetPct,
-            pacingDelta: usageStore.pacingDelta,
-            pacingZone: usageStore.pacingZone,
-            pacingDisplayMode: settingsStore.pacingDisplayMode,
-            hasConfig: usageStore.hasConfig,
-            hasError: usageStore.hasError,
-            themeColors: themeStore.current,
-            thresholds: themeStore.thresholds,
-            menuBarMonochrome: themeStore.menuBarMonochrome
-        ))
-    }
-}

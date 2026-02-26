@@ -15,12 +15,31 @@ struct MenuBarPopoverView: View {
                 Text("TokenEater")
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(.white)
+                // Plan badge
+                if usageStore.planType != .unknown {
+                    Text(usageStore.planType.rawValue.uppercased())
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Color.blue.opacity(0.3))
+                        .clipShape(Capsule())
+                }
                 Spacer()
                 if usageStore.isLoading {
                     ProgressView()
                         .scaleEffect(0.5)
                         .frame(width: 16, height: 16)
                 }
+                Button {
+                    NotificationCenter.default.post(name: .openDashboard, object: nil)
+                } label: {
+                    Image(systemName: "macwindow")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+                .buttonStyle(.plain)
+                .help(Text("Dashboard"))
             }
             .padding(.horizontal, 16)
             .padding(.top, 14)
