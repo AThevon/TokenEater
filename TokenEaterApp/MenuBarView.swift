@@ -17,12 +17,12 @@ struct MenuBarPopoverView: View {
                     .foregroundStyle(.white)
                 // Plan badge
                 if usageStore.planType != .unknown {
-                    Text(usageStore.planType.rawValue.uppercased())
+                    Text(usageStore.planType.displayLabel)
                         .font(.system(size: 8, weight: .bold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 4)
                         .padding(.vertical, 1)
-                        .background(Color.blue.opacity(0.3))
+                        .background(usageStore.planType.badgeColor.opacity(0.3))
                         .clipShape(Capsule())
                 }
                 Spacer()

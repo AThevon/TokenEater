@@ -142,7 +142,7 @@ final class UsageStore: ObservableObject {
         guard repository.isConfigured else { return }
         do {
             let profile = try await repository.fetchProfile(proxyConfig: proxyConfig)
-            planType = PlanType(from: profile.account)
+            planType = PlanType(from: profile.account, organization: profile.organization)
             rateLimitTier = profile.organization?.rateLimitTier
             organizationName = profile.organization?.name
         } catch {

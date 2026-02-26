@@ -77,17 +77,17 @@ struct DashboardView: View {
                 .foregroundStyle(.white)
 
             if usageStore.planType != .unknown {
-                Text(usageStore.planType.rawValue.uppercased())
+                Text(usageStore.planType.displayLabel)
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(planBadgeColor.opacity(0.3))
+                    .background(usageStore.planType.badgeColor.opacity(0.3))
                     .clipShape(Capsule())
             }
 
             if let tier = usageStore.rateLimitTier {
-                Text(tier.replacingOccurrences(of: "default_claude_", with: "").uppercased())
+                Text(tier.formattedRateLimitTier)
                     .font(.system(size: 8, weight: .medium))
                     .foregroundStyle(.white.opacity(0.4))
             }
@@ -114,15 +114,6 @@ struct DashboardView: View {
                     .foregroundStyle(.white.opacity(0.5))
             }
             .buttonStyle(.plain)
-        }
-    }
-
-    private var planBadgeColor: Color {
-        switch usageStore.planType {
-        case .max: return .purple
-        case .pro: return .blue
-        case .free: return .gray
-        case .unknown: return .clear
         }
     }
 
