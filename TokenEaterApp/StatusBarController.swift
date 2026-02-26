@@ -33,6 +33,10 @@ final class StatusBarController: NSObject {
         setupPopover()
         observeStoreChanges()
         observeDashboardRequest()
+
+        DispatchQueue.main.async { [weak self] in
+            self?.showDashboard()
+        }
     }
 
     // MARK: - Setup
@@ -134,24 +138,27 @@ final class StatusBarController: NSObject {
             return
         }
 
-        let dashboardView = DashboardView()
+        let appView = MainAppView()
             .environmentObject(usageStore)
             .environmentObject(themeStore)
             .environmentObject(settingsStore)
+            .environmentObject(updateStore)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 650, height: 550),
-            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
+            contentRect: NSRect(x: 0, y: 0, width: 900, height: 600),
+            styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = true
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
-        window.backgroundColor = NSColor(red: 0.04, green: 0.04, blue: 0.10, alpha: 1)
-        window.contentViewController = NSHostingController(rootView: dashboardView)
+        window.contentViewController = NSHostingController(rootView: appView)
         window.center()
-        window.setFrameAutosaveName("DashboardWindow")
+        window.setFrameAutosaveName("MainWindow")
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
 

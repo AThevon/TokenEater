@@ -6,8 +6,6 @@ struct MenuBarPopoverView: View {
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var themeStore: ThemeStore
     @EnvironmentObject private var settingsStore: SettingsStore
-    @Environment(\.openWindow) private var openWindow
-
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -131,14 +129,7 @@ struct MenuBarPopoverView: View {
                     Task { await usageStore.refresh(thresholds: themeStore.thresholds) }
                 }
                 actionButton(icon: "gear", label: String(localized: "menubar.settings")) {
-                    NSApp.activate(ignoringOtherApps: true)
-                    if let window = NSApp.windows.first(where: {
-                        ($0.identifier?.rawValue ?? "").contains("settings")
-                    }) {
-                        window.makeKeyAndOrderFront(nil)
-                    } else {
-                        openWindow(id: "settings")
-                    }
+                    NotificationCenter.default.post(name: .openDashboard, object: nil)
                 }
                 actionButton(icon: "power", label: String(localized: "menubar.quit")) {
                     NSApplication.shared.terminate(nil)
