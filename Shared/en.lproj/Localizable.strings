@@ -167,6 +167,10 @@
 "theme.neon" = "Neon";
 "theme.pastel" = "Pastel";
 
+/* Dashboard */
+"dashboard.pacing.reset.days" = "Resets in %dd %dh";
+"dashboard.pacing.reset.hours" = "Resets in %dh";
+
 /* Durations */
 "duration.days.hours" = "%dd %dh";
 
