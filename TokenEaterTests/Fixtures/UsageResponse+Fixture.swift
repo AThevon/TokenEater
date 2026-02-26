@@ -18,12 +18,14 @@ extension UsageResponse {
         fiveHourUtil: Double = 42,
         sevenDayUtil: Double = 65,
         sonnetUtil: Double = 30,
-        sevenDayResetsAt: String? = nil
+        fiveHourResetsAt: String? = nil,
+        sevenDayResetsAt: String? = nil,
+        sonnetResetsAt: String? = nil
     ) -> UsageResponse {
         UsageResponse(
-            fiveHour: .fixture(utilization: fiveHourUtil),
+            fiveHour: .fixture(utilization: fiveHourUtil, resetsAt: fiveHourResetsAt),
             sevenDay: .fixture(utilization: sevenDayUtil, resetsAt: sevenDayResetsAt),
-            sevenDaySonnet: .fixture(utilization: sonnetUtil)
+            sevenDaySonnet: .fixture(utilization: sonnetUtil, resetsAt: sonnetResetsAt)
         )
     }
 }

@@ -73,9 +73,9 @@ struct UsageStoreTests {
 
         await store.refresh()
 
-        #expect(notif.lastThresholdCheck?.fiveHour == 42)
-        #expect(notif.lastThresholdCheck?.sevenDay == 65)
-        #expect(notif.lastThresholdCheck?.sonnet == 30)
+        #expect(notif.lastThresholdCheck?.fiveHour.pct == 42)
+        #expect(notif.lastThresholdCheck?.sevenDay.pct == 65)
+        #expect(notif.lastThresholdCheck?.sonnet.pct == 30)
     }
 
     // MARK: - refresh — hasConfig

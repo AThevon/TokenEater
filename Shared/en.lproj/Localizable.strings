@@ -103,11 +103,23 @@
 "pacing.label" = "Pacing";
 "pacing.reset" = "reset %@";
 
-/* Notifications */
+/* Notifications — fallback (no reset time available) */
 "notif.orange.body" = "You're past %d%% — consider slowing down";
 "notif.red.body" = "Critical usage — limit almost reached";
 "notif.green.body" = "Usage reset — you're back in the green";
 "notif.test.body" = "Notifications are working — you're all set!";
+
+/* Notifications — escalation with reset time */
+"notif.orange.body.session.chill" = "Resets in %1$@ (at %2$@) — your pace is fine";
+"notif.orange.body.session.ontrack" = "Resets in %1$@ (at %2$@) — pace yourself";
+"notif.orange.body.session.hot" = "Resets in %1$@ (at %2$@) — you're burning fast";
+"notif.orange.body.weekly" = "Resets on %@ — pace yourself";
+"notif.red.body.session" = "Limit almost reached — resets in %1$@ (at %2$@)";
+"notif.red.body.weekly" = "Limit almost reached — resets on %@";
+
+/* Notifications — recovery with next reset time */
+"notif.green.body.session" = "You're back! Next reset at %@";
+"notif.green.body.weekly" = "You're back! Next reset on %@";
 "settings.notifications.title" = "Notifications";
 "settings.notifications.status" = "Status";
 "settings.notifications.on" = "Enabled";

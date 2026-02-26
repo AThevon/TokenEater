@@ -60,9 +60,10 @@ final class UsageStore: ObservableObject {
             lastUpdate = Date()
             WidgetReloader.scheduleReload()
             notificationService.checkThresholds(
-                fiveHour: fiveHourPct,
-                sevenDay: sevenDayPct,
-                sonnet: sonnetPct,
+                fiveHour: MetricSnapshot(pct: fiveHourPct, resetsAt: usage.fiveHour?.resetsAtDate),
+                sevenDay: MetricSnapshot(pct: sevenDayPct, resetsAt: usage.sevenDay?.resetsAtDate),
+                sonnet: MetricSnapshot(pct: sonnetPct, resetsAt: usage.sevenDaySonnet?.resetsAtDate),
+                pacingZone: pacingZone,
                 thresholds: thresholds
             )
         } catch let error as APIError {
