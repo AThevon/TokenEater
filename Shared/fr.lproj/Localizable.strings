@@ -55,6 +55,9 @@
 "settings.proxy.host" = "Hôte";
 "settings.proxy.port" = "Port";
 "settings.proxy.hint" = "Exemple : ssh -D 1080 user@bastion puis activez le proxy ici.";
+"settings.connected" = "Connecté";
+"settings.disconnected" = "Non connecté";
+"settings.redetect" = "Re-détecter";
 
 /* Connect */
 "connect.button" = "Connexion";
