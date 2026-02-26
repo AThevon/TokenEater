@@ -56,9 +56,14 @@ open "/Applications/TokenEater.app"
 ## Structure
 
 ```
-TokenEaterApp/               App host (settings UI, OAuth auth, menu bar)
+TokenEaterApp/               App host (unified window, OAuth auth, menu bar)
   ├── TokenEaterApp.swift
-  ├── SettingsView.swift
+  ├── MainAppView.swift       # Unified floating window (sidebar + sections)
+  ├── DashboardView.swift     # 2-column dashboard with metrics
+  ├── DisplaySectionView.swift
+  ├── ThemesSectionView.swift
+  ├── SettingsSectionView.swift
+  ├── OnboardingView.swift
   └── TokenEaterApp.entitlements
 TokenEaterWidget/            Widget Extension
   ├── TokenEaterWidget.swift # Widget entry point
@@ -71,7 +76,7 @@ Shared/                      Shared code
   ├── Models/                Pure Codable structs
   ├── Services/              Protocol-based I/O
   ├── Repositories/          Orchestration (Keychain → API → SharedFile)
-  ├── Stores/                @Observable state containers
+  ├── Stores/                ObservableObject state containers
   └── Helpers/               Pure functions
 ```
 
