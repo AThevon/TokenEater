@@ -31,6 +31,7 @@ enum NotificationStatus {
 @MainActor
 final class OnboardingViewModel: ObservableObject {
     @Published var currentStep: OnboardingStep = .welcome
+    @Published var isNavigatingForward: Bool = true
     @Published var claudeCodeStatus: ClaudeCodeStatus = .checking
     @Published var connectionStatus: ConnectionStatus = .idle
     @Published var notificationStatus: NotificationStatus = .unknown
@@ -109,6 +110,7 @@ final class OnboardingViewModel: ObservableObject {
 
     func goNext() {
         guard let next = OnboardingStep(rawValue: currentStep.rawValue + 1) else { return }
+        isNavigatingForward = true
         withAnimation(.easeInOut(duration: 0.3)) {
             currentStep = next
         }
@@ -116,6 +118,7 @@ final class OnboardingViewModel: ObservableObject {
 
     func goBack() {
         guard let prev = OnboardingStep(rawValue: currentStep.rawValue - 1) else { return }
+        isNavigatingForward = false
         withAnimation(.easeInOut(duration: 0.3)) {
             currentStep = prev
         }

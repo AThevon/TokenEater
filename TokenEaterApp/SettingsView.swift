@@ -414,12 +414,15 @@ private struct DisplayTab: View {
                 Text("settings.metrics.pinned.footer")
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Section("settings.pacing.display") {
-                Picker("Mode", selection: $settingsStore.pacingDisplayMode) {
-                    Text("settings.pacing.dot").tag(PacingDisplayMode.dot)
-                    Text("settings.pacing.dotdelta").tag(PacingDisplayMode.dotDelta)
+            if showPacing {
+                Section("settings.pacing.display") {
+                    Picker("Mode", selection: $settingsStore.pacingDisplayMode) {
+                        Text("settings.pacing.dot").tag(PacingDisplayMode.dot)
+                        Text("settings.pacing.dotdelta").tag(PacingDisplayMode.dotDelta)
+                    }
+                    .pickerStyle(.radioGroup)
                 }
-                .pickerStyle(.radioGroup)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
             Section("settings.theme.thresholds") {
@@ -505,13 +508,19 @@ private struct DisplayTab: View {
         .onChange(of: showFiveHour) { _, new in syncMetric(.fiveHour, on: new, revert: { showFiveHour = true }) }
         .onChange(of: showSevenDay) { _, new in syncMetric(.sevenDay, on: new, revert: { showSevenDay = true }) }
         .onChange(of: showSonnet) { _, new in syncMetric(.sonnet, on: new, revert: { showSonnet = true }) }
-        .onChange(of: showPacing) { _, new in syncMetric(.pacing, on: new, revert: { showPacing = true }) }
+        .onChange(of: showPacing) { _, new in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                syncMetric(.pacing, on: new, revert: { showPacing = true })
+            }
+        }
         // Sync: store → local toggles (for external changes, e.g. from MenuBar popover)
         .onChange(of: settingsStore.pinnedMetrics) { _, metrics in
             if showFiveHour != metrics.contains(.fiveHour) { showFiveHour = metrics.contains(.fiveHour) }
             if showSevenDay != metrics.contains(.sevenDay) { showSevenDay = metrics.contains(.sevenDay) }
             if showSonnet != metrics.contains(.sonnet) { showSonnet = metrics.contains(.sonnet) }
-            if showPacing != metrics.contains(.pacing) { showPacing = metrics.contains(.pacing) }
+            if showPacing != metrics.contains(.pacing) {
+                withAnimation(.easeInOut(duration: 0.2)) { showPacing = metrics.contains(.pacing) }
+            }
         }
         // Sync: local slider → store (with constraint enforcement)
         .onChange(of: warningSlider) { _, new in

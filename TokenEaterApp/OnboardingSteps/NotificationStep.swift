@@ -136,7 +136,7 @@ struct NotificationStep: View {
     // MARK: - Bottom Bar
 
     private var bottomBar: some View {
-        HStack {
+        HStack(alignment: .top) {
             Button {
                 viewModel.goBack()
             } label: {

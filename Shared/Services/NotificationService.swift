@@ -55,50 +55,84 @@ final class NotificationService: NotificationServiceProtocol {
         send(id: "test_\(Date().timeIntervalSince1970)", content: content)
     }
 
-    func checkThresholds(fiveHour: Int, sevenDay: Int, sonnet: Int, thresholds: UsageThresholds) {
-        check(metric: "fiveHour", label: String(localized: "metric.session"), pct: fiveHour, thresholds: thresholds)
-        check(metric: "sevenDay", label: String(localized: "metric.weekly"), pct: sevenDay, thresholds: thresholds)
-        check(metric: "sonnet", label: String(localized: "metric.sonnet"), pct: sonnet, thresholds: thresholds)
+    func checkThresholds(
+        fiveHour: MetricSnapshot,
+        sevenDay: MetricSnapshot,
+        sonnet: MetricSnapshot,
+        pacingZone: PacingZone?,
+        thresholds: UsageThresholds
+    ) {
+        check(metric: "fiveHour", label: String(localized: "metric.session"),
+              snapshot: fiveHour, metricType: .session, pacingZone: pacingZone, thresholds: thresholds)
+        check(metric: "sevenDay", label: String(localized: "metric.weekly"),
+              snapshot: sevenDay, metricType: .weekly, pacingZone: nil, thresholds: thresholds)
+        check(metric: "sonnet", label: String(localized: "metric.sonnet"),
+              snapshot: sonnet, metricType: .weekly, pacingZone: nil, thresholds: thresholds)
     }
 
-    private func check(metric: String, label: String, pct: Int, thresholds: UsageThresholds) {
+    private func check(
+        metric: String,
+        label: String,
+        snapshot: MetricSnapshot,
+        metricType: NotificationBodyFormatter.MetricType,
+        pacingZone: PacingZone?,
+        thresholds: UsageThresholds
+    ) {
         let key = "lastLevel_\(metric)"
         let previousRaw = UserDefaults.standard.integer(forKey: key)
         let previous = UsageLevel(rawValue: previousRaw) ?? .green
-        let current = UsageLevel.from(pct: pct, thresholds: thresholds)
+        let current = UsageLevel.from(pct: snapshot.pct, thresholds: thresholds)
 
         guard current != previous else { return }
         UserDefaults.standard.set(current.rawValue, forKey: key)
 
         if current > previous {
-            notifyEscalation(metric: metric, label: label, pct: pct, level: current, thresholds: thresholds)
+            notifyEscalation(metric: metric, label: label, pct: snapshot.pct, level: current,
+                             metricType: metricType, resetsAt: snapshot.resetsAt, pacingZone: pacingZone, thresholds: thresholds)
         } else if current == .green && previous > .green {
-            notifyRecovery(metric: metric, label: label, pct: pct)
+            notifyRecovery(metric: metric, label: label, pct: snapshot.pct,
+                           metricType: metricType, resetsAt: snapshot.resetsAt)
         }
     }
 
-    private func notifyEscalation(metric: String, label: String, pct: Int, level: UsageLevel, thresholds: UsageThresholds) {
+    private func notifyEscalation(
+        metric: String, label: String, pct: Int, level: UsageLevel,
+        metricType: NotificationBodyFormatter.MetricType, resetsAt: Date?,
+        pacingZone: PacingZone?, thresholds: UsageThresholds
+    ) {
         let content = UNMutableNotificationContent()
         content.sound = .default
 
         switch level {
         case .orange:
             content.title = "\u{26a0}\u{fe0f} \(label) — \(pct)%"
-            content.body = String(format: String(localized: "notif.orange.body"), thresholds.warningPercent)
         case .red:
             content.title = "\u{1f534} \(label) — \(pct)%"
-            content.body = String(localized: "notif.red.body")
         case .green:
             return
         }
 
+        content.body = NotificationBodyFormatter.escalationBody(
+            metricType: metricType,
+            level: level,
+            resetsAt: resetsAt,
+            pacingZone: pacingZone,
+            thresholds: thresholds
+        )
+
         send(id: "escalation_\(metric)", content: content)
     }
 
-    private func notifyRecovery(metric: String, label: String, pct: Int) {
+    private func notifyRecovery(
+        metric: String, label: String, pct: Int,
+        metricType: NotificationBodyFormatter.MetricType, resetsAt: Date?
+    ) {
         let content = UNMutableNotificationContent()
         content.title = "\u{1f7e2} \(label) — \(pct)%"
-        content.body = String(localized: "notif.green.body")
+        content.body = NotificationBodyFormatter.recoveryBody(
+            metricType: metricType,
+            resetsAt: resetsAt
+        )
         content.sound = .default
         send(id: "recovery_\(metric)", content: content)
     }

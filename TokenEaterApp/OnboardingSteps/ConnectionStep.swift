@@ -114,7 +114,7 @@ struct ConnectionStep: View {
                             .stroke(color, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                             .frame(width: 56, height: 56)
                             .rotationEffect(.degrees(-90))
-                        Text("\(value)%")
+                        Text(verbatim: "\(value)%")
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
                     }
                     Text(label)
