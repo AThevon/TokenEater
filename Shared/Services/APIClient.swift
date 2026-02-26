@@ -2,6 +2,7 @@ import Foundation
 
 final class APIClient: APIClientProtocol, @unchecked Sendable {
     private let oauthURL = URL(string: "https://api.anthropic.com/api/oauth/usage")!
+    private let profileURL = URL(string: "https://api.anthropic.com/api/oauth/profile")!
 
     private func session(proxyConfig: ProxyConfig?) -> URLSession {
         guard let proxy = proxyConfig, proxy.enabled else { return .shared }
@@ -22,6 +23,14 @@ final class APIClient: APIClientProtocol, @unchecked Sendable {
         return request
     }
 
+    private func makeProfileRequest(token: String) -> URLRequest {
+        var request = URLRequest(url: profileURL)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        return request
+    }
+
     func fetchUsage(token: String, proxyConfig: ProxyConfig?) async throws -> UsageResponse {
         let request = makeRequest(token: token)
         let (data, response) = try await session(proxyConfig: proxyConfig).data(for: request)
@@ -33,6 +42,24 @@ final class APIClient: APIClientProtocol, @unchecked Sendable {
         switch httpResponse.statusCode {
         case 200:
             return try JSONDecoder().decode(UsageResponse.self, from: data)
+        case 401, 403:
+            throw APIError.tokenExpired
+        default:
+            throw APIError.httpError(httpResponse.statusCode)
+        }
+    }
+
+    func fetchProfile(token: String, proxyConfig: ProxyConfig?) async throws -> ProfileResponse {
+        let request = makeProfileRequest(token: token)
+        let (data, response) = try await session(proxyConfig: proxyConfig).data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        switch httpResponse.statusCode {
+        case 200:
+            return try JSONDecoder().decode(ProfileResponse.self, from: data)
         case 401, 403:
             throw APIError.tokenExpired
         default:

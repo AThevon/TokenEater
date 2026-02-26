@@ -285,6 +285,13 @@ private final class TokenRecoveryMockAPIClient: APIClientProtocol, @unchecked Se
         return successUsage
     }
 
+    func fetchProfile(token: String, proxyConfig: ProxyConfig?) async throws -> ProfileResponse {
+        if token == failToken {
+            throw APIError.tokenExpired
+        }
+        return .fixture()
+    }
+
     func testConnection(token: String, proxyConfig: ProxyConfig?) async -> ConnectionTestResult {
         ConnectionTestResult(success: true, message: "OK")
     }
