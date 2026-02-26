@@ -238,3 +238,9 @@
 "update.terminal" = "Ou mettez à jour via Terminal :";
 "update.error.response" = "Impossible de joindre GitHub — réessayez plus tard";
 "update.error.launch" = "Impossible de lancer la mise à jour — commande copiée. Collez-la dans Terminal.";
+
+/* Sidebar */
+"sidebar.dashboard" = "Tableau de bord";
+"sidebar.display" = "Affichage";
+"sidebar.themes" = "Thèmes";
+"sidebar.settings" = "Réglages";

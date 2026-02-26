@@ -238,3 +238,9 @@
 "update.terminal" = "Or update via Terminal:";
 "update.error.response" = "Couldn't reach GitHub — try again later";
 "update.error.launch" = "Couldn't launch updater — command copied to clipboard. Paste in Terminal.";
+
+/* Sidebar */
+"sidebar.dashboard" = "Dashboard";
+"sidebar.display" = "Display";
+"sidebar.themes" = "Themes";
+"sidebar.settings" = "Settings";
