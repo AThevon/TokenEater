@@ -3,17 +3,25 @@ import Security
 
 final class KeychainService: KeychainServiceProtocol, @unchecked Sendable {
 
+    private let credentialsFileReader: CredentialsFileReaderProtocol
+
+    init(credentialsFileReader: CredentialsFileReaderProtocol = CredentialsFileReader()) {
+        self.credentialsFileReader = credentialsFileReader
+    }
+
     /// Interactive read — may trigger macOS Keychain dialog.
     func readOAuthToken() -> String? {
-        readToken(allowUI: true)
+        credentialsFileReader.readToken() ?? readKeychainToken(allowUI: true)
     }
 
     /// Silent read — never triggers a dialog. Returns nil if auth is needed.
     func readOAuthTokenSilently() -> String? {
-        readToken(allowUI: false)
+        credentialsFileReader.readToken() ?? readKeychainToken(allowUI: false)
     }
 
     func tokenExists() -> Bool {
+        if credentialsFileReader.tokenExists() { return true }
+
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "Claude Code-credentials",
@@ -27,7 +35,7 @@ final class KeychainService: KeychainServiceProtocol, @unchecked Sendable {
 
     // MARK: - Private
 
-    private func readToken(allowUI: Bool) -> String? {
+    private func readKeychainToken(allowUI: Bool) -> String? {
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "Claude Code-credentials",
