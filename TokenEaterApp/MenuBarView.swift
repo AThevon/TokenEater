@@ -52,20 +52,22 @@ struct MenuBarPopoverView: View {
                     .padding(.bottom, 8)
             }
 
-            // Metrics
-            VStack(spacing: 8) {
-                metricRow(id: .fiveHour, label: String(localized: "metric.session"), pct: usageStore.fiveHourPct, reset: usageStore.fiveHourReset)
-                metricRow(id: .sevenDay, label: String(localized: "metric.weekly"), pct: usageStore.sevenDayPct, reset: nil)
-                metricRow(id: .sonnet, label: String(localized: "metric.sonnet"), pct: usageStore.sonnetPct, reset: nil)
-            }
-            .padding(.horizontal, 16)
+            // Mini hero ring — Session (fiveHour)
+            heroRing
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+
+            // Satellite rings — Weekly + Sonnet
+            satelliteRings
+                .padding(.horizontal, 24)
+                .padding(.bottom, 12)
 
             // Pacing section
             if let pacing = usageStore.pacingResult {
                 Divider()
                     .overlay(Color.white.opacity(0.08))
-                    .padding(.vertical, 8)
                     .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
 
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 6) {
@@ -77,6 +79,7 @@ struct MenuBarPopoverView: View {
                             Image(systemName: settingsStore.pinnedMetrics.contains(.pacing) ? "pin.fill" : "pin")
                                 .font(.system(size: 9))
                                 .foregroundStyle(settingsStore.pinnedMetrics.contains(.pacing) ? colorForZone(pacing.zone) : .white.opacity(0.2))
+                                .rotationEffect(.degrees(settingsStore.pinnedMetrics.contains(.pacing) ? 0 : 45))
                         }
                         .buttonStyle(.plain)
                         .help(settingsStore.pinnedMetrics.contains(.pacing) ? Text(String(localized: "menubar.hide")) : Text(String(localized: "menubar.show")))
@@ -86,28 +89,21 @@ struct MenuBarPopoverView: View {
                             .foregroundStyle(.white.opacity(0.5))
                         Spacer()
                         let sign = pacing.delta >= 0 ? "+" : ""
-                        Text("\(sign)\(Int(pacing.delta))%")
-                            .font(.system(size: 13, weight: .black, design: .rounded))
-                            .foregroundStyle(colorForZone(pacing.zone))
+                        GlowText(
+                            "\(sign)\(Int(pacing.delta))%",
+                            font: .system(size: 13, weight: .black, design: .rounded),
+                            color: colorForZone(pacing.zone),
+                            glowRadius: 3
+                        )
                     }
 
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(Color.white.opacity(0.06))
-                                .frame(height: 4)
-
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(gradientForZone(pacing.zone))
-                                .frame(width: max(0, geo.size.width * CGFloat(min(pacing.actualUsage, 100)) / 100), height: 4)
-
-                            Rectangle()
-                                .fill(Color.white.opacity(0.5))
-                                .frame(width: 2, height: 10)
-                                .offset(x: geo.size.width * CGFloat(min(pacing.expectedUsage, 100)) / 100 - 1)
-                        }
-                    }
-                    .frame(height: 10)
+                    PacingBar(
+                        actual: pacing.actualUsage,
+                        expected: pacing.expectedUsage,
+                        zone: pacing.zone,
+                        gradient: gradientForZone(pacing.zone),
+                        compact: true
+                    )
 
                     Text(pacing.message)
                         .font(.system(size: 10, weight: .medium))
@@ -151,7 +147,7 @@ struct MenuBarPopoverView: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
         }
-        .frame(width: 260)
+        .frame(width: 300)
         .background(Color(nsColor: NSColor(red: 0.08, green: 0.08, blue: 0.09, alpha: 1)))
         .onAppear {
             if settingsStore.hasCompletedOnboarding {
@@ -163,6 +159,111 @@ struct MenuBarPopoverView: View {
                     Task { await usageStore.refresh(thresholds: themeStore.thresholds) }
                 }
             }
+        }
+    }
+
+    // MARK: - Hero Ring (Session)
+
+    private var heroRing: some View {
+        let pct = usageStore.fiveHourPct
+        let isPinned = settingsStore.pinnedMetrics.contains(.fiveHour)
+        return ZStack {
+            RingGauge(
+                percentage: pct,
+                gradient: gradientForPct(pct),
+                size: 100,
+                glowColor: colorForPct(pct),
+                glowRadius: 6
+            )
+
+            VStack(spacing: 2) {
+                GlowText(
+                    "\(pct)%",
+                    font: .system(size: 24, weight: .black, design: .rounded),
+                    color: colorForPct(pct),
+                    glowRadius: 4
+                )
+                Text(String(localized: "metric.session"))
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    settingsStore.toggleMetric(.fiveHour)
+                }
+            } label: {
+                Image(systemName: isPinned ? "pin.fill" : "pin")
+                    .font(.system(size: 9))
+                    .foregroundStyle(isPinned ? colorForPct(pct) : .white.opacity(0.2))
+                    .rotationEffect(.degrees(isPinned ? 0 : 45))
+            }
+            .buttonStyle(.plain)
+            .help(isPinned ? Text(String(localized: "menubar.hide")) : Text(String(localized: "menubar.show")))
+            .offset(x: 4, y: 4)
+        }
+        .overlay(alignment: .bottom) {
+            if let reset = usageStore.fiveHourReset, !reset.isEmpty {
+                Text(String(format: String(localized: "metric.reset"), reset))
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.25))
+                    .offset(y: 18)
+            }
+        }
+        .padding(.bottom, usageStore.fiveHourReset != nil ? 14 : 0)
+    }
+
+    // MARK: - Satellite Rings (Weekly + Sonnet)
+
+    private var satelliteRings: some View {
+        HStack(spacing: 32) {
+            satelliteRingItem(
+                id: .sevenDay,
+                label: String(localized: "metric.weekly"),
+                pct: usageStore.sevenDayPct
+            )
+            satelliteRingItem(
+                id: .sonnet,
+                label: String(localized: "metric.sonnet"),
+                pct: usageStore.sonnetPct
+            )
+        }
+    }
+
+    private func satelliteRingItem(id: MetricID, label: String, pct: Int) -> some View {
+        let isPinned = settingsStore.pinnedMetrics.contains(id)
+        return VStack(spacing: 4) {
+            ZStack {
+                RingGauge(
+                    percentage: pct,
+                    gradient: gradientForPct(pct),
+                    size: 40,
+                    glowColor: colorForPct(pct),
+                    glowRadius: 3
+                )
+                GlowText(
+                    "\(pct)%",
+                    font: .system(size: 10, weight: .black, design: .rounded),
+                    color: colorForPct(pct),
+                    glowRadius: 2
+                )
+            }
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.white.opacity(0.5))
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    settingsStore.toggleMetric(id)
+                }
+            } label: {
+                Image(systemName: isPinned ? "pin.fill" : "pin")
+                    .font(.system(size: 8))
+                    .foregroundStyle(isPinned ? colorForPct(pct) : .white.opacity(0.2))
+                    .rotationEffect(.degrees(isPinned ? 0 : 45))
+            }
+            .buttonStyle(.plain)
+            .help(isPinned ? Text(String(localized: "menubar.hide")) : Text(String(localized: "menubar.show")))
         }
     }
 
@@ -182,52 +283,6 @@ struct MenuBarPopoverView: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.white.opacity(0.5))
-    }
-
-    private func metricRow(id: MetricID, label: String, pct: Int, reset: String?) -> some View {
-        let isPinned = settingsStore.pinnedMetrics.contains(id)
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        settingsStore.toggleMetric(id)
-                    }
-                } label: {
-                    Image(systemName: isPinned ? "pin.fill" : "pin")
-                        .font(.system(size: 9))
-                        .foregroundStyle(isPinned ? colorForPct(pct) : .white.opacity(0.2))
-                        .rotationEffect(.degrees(isPinned ? 0 : 45))
-                }
-                .buttonStyle(.plain)
-                .help(isPinned ? Text(String(localized: "menubar.hide")) : Text(String(localized: "menubar.show")))
-
-                Text(label)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.5))
-                Spacer()
-                if let reset = reset, !reset.isEmpty {
-                    Text(String(format: String(localized: "metric.reset"), reset))
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.25))
-                }
-                Text("\(pct)%")
-                    .font(.system(size: 13, weight: .black, design: .rounded))
-                    .foregroundStyle(colorForPct(pct))
-            }
-
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.white.opacity(0.06))
-                        .frame(height: 4)
-
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(gradientForPct(pct))
-                        .frame(width: max(0, geo.size.width * CGFloat(pct) / 100), height: 4)
-                }
-            }
-            .frame(height: 4)
-        }
     }
 
     @ViewBuilder
