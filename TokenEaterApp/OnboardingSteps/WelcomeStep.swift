@@ -11,7 +11,7 @@ struct WelcomeStep: View {
     ]
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 24) {
             Spacer()
 
             // App icon
@@ -70,7 +70,7 @@ struct WelcomeStep: View {
                             .stroke(color, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                             .frame(width: 56, height: 56)
                             .rotationEffect(.degrees(-90))
-                        Text("\(value)%")
+                        Text(verbatim: "\(value)%")
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
                     }
                     Text(label)

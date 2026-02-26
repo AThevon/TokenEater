@@ -19,8 +19,8 @@ struct OnboardingView: View {
                 }
             }
             .transition(.asymmetric(
-                insertion: .move(edge: .trailing).combined(with: .opacity),
-                removal: .move(edge: .leading).combined(with: .opacity)
+                insertion: .move(edge: viewModel.isNavigatingForward ? .trailing : .leading).combined(with: .opacity),
+                removal: .move(edge: viewModel.isNavigatingForward ? .leading : .trailing).combined(with: .opacity)
             ))
             .id(viewModel.currentStep)
 
@@ -36,5 +36,18 @@ struct OnboardingView: View {
             .padding(.bottom, 20)
         }
         .frame(width: 520, height: 540)
+        .onAppear {
+            NSApp.activate(ignoringOtherApps: true)
+            DispatchQueue.main.async {
+                if let window = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }) {
+                    window.level = .floating
+                    window.orderFrontRegardless()
+                    // Reset to normal after bringing to front so it doesn't stay always-on-top
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        window.level = .normal
+                    }
+                }
+            }
+        }
     }
 }
