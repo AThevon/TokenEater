@@ -6,53 +6,30 @@ struct PrerequisiteStep: View {
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
-
-            // Status icon
             statusIcon
-
-            // Content adapted to detection status
             statusContent
-
             Spacer()
 
             // Navigation
             HStack {
-                Button {
-                    viewModel.goBack()
-                } label: {
-                    Text("onboarding.back")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-
+                darkButton("onboarding.back") { viewModel.goBack() }
                 Spacer()
-
-                Button {
-                    viewModel.goNext()
-                } label: {
-                    Text("onboarding.continue")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .keyboardShortcut(.defaultAction)
-                .disabled(viewModel.claudeCodeStatus != .detected)
+                darkPrimaryButton("onboarding.continue") { viewModel.goNext() }
+                    .disabled(viewModel.claudeCodeStatus != .detected)
+                    .opacity(viewModel.claudeCodeStatus != .detected ? 0.4 : 1.0)
             }
         }
         .padding(32)
-        .onAppear {
-            viewModel.checkClaudeCode()
-        }
+        .onAppear { viewModel.checkClaudeCode() }
     }
-
-    // MARK: - Status Icon
 
     @ViewBuilder
     private var statusIcon: some View {
         switch viewModel.claudeCodeStatus {
         case .checking:
             ProgressView()
-                .controlSize(.large)
+                .scaleEffect(1.2)
+                .tint(.white)
         case .detected:
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 48))
@@ -64,19 +41,15 @@ struct PrerequisiteStep: View {
         }
     }
 
-    // MARK: - Status Content
-
     @ViewBuilder
     private var statusContent: some View {
         switch viewModel.claudeCodeStatus {
         case .checking:
             Text("onboarding.prereq.checking")
                 .font(.system(size: 15))
-                .foregroundStyle(.secondary)
-
+                .foregroundStyle(.white.opacity(0.6))
         case .detected:
             detectedContent
-
         case .notFound:
             notFoundContent
         }
@@ -84,25 +57,29 @@ struct PrerequisiteStep: View {
 
     private var detectedContent: some View {
         VStack(spacing: 12) {
-            Text("onboarding.prereq.detected.title")
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
-
+            GlowText(
+                String(localized: "onboarding.prereq.detected.title"),
+                font: .system(size: 18, weight: .semibold, design: .rounded),
+                color: .white,
+                glowRadius: 4
+            )
             Text("onboarding.prereq.detected.simple")
                 .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.6))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 380)
-
             planRequirement
         }
     }
 
     private var notFoundContent: some View {
         VStack(spacing: 16) {
-            Text("onboarding.prereq.notfound.title")
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
-
-            // Install guide
+            GlowText(
+                String(localized: "onboarding.prereq.notfound.title"),
+                font: .system(size: 18, weight: .semibold, design: .rounded),
+                color: .white,
+                glowRadius: 4
+            )
             VStack(alignment: .leading, spacing: 12) {
                 guideStep(number: 1, text: String(localized: "onboarding.prereq.step1"))
                 guideStep(number: 2, text: String(localized: "onboarding.prereq.step2"))
@@ -111,22 +88,16 @@ struct PrerequisiteStep: View {
             .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(.ultraThinMaterial)
+                    .fill(.ultraThinMaterial.opacity(0.15))
             )
-
             HStack(spacing: 12) {
                 Link(destination: URL(string: "https://docs.anthropic.com/en/docs/claude-code/overview")!) {
                     Label("onboarding.prereq.install.link", systemImage: "arrow.up.right")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.blue)
                 }
-
-                Button {
-                    viewModel.checkClaudeCode()
-                } label: {
-                    Label("onboarding.prereq.retry", systemImage: "arrow.clockwise")
-                }
-                .buttonStyle(.bordered)
+                darkButton("onboarding.prereq.retry") { viewModel.checkClaudeCode() }
             }
-
             planRequirement
         }
     }
@@ -140,7 +111,7 @@ struct PrerequisiteStep: View {
                 .foregroundStyle(.orange)
                 .font(.system(size: 11))
         }
-        .foregroundStyle(.secondary)
+        .foregroundStyle(.white.opacity(0.5))
         .padding(.top, 4)
     }
 
@@ -150,11 +121,11 @@ struct PrerequisiteStep: View {
                 .font(.system(size: 11, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
                 .frame(width: 22, height: 22)
-                .background(Color.accentColor)
+                .background(Color.blue)
                 .clipShape(Circle())
             Text(text)
                 .font(.system(size: 13))
-                .foregroundStyle(.primary)
+                .foregroundStyle(.white.opacity(0.8))
         }
     }
 }

@@ -37,3 +37,39 @@ func darkToggle(_ label: String, isOn: Binding<Bool>) -> some View {
     .toggleStyle(.switch)
     .tint(.blue)
 }
+
+// MARK: - Dark Button (secondary)
+
+func darkButton(_ titleKey: LocalizedStringResource, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+        Text(titleKey)
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(.white.opacity(0.7))
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
+            .background(
+                Capsule()
+                    .fill(.white.opacity(0.08))
+                    .overlay(Capsule().stroke(.white.opacity(0.15), lineWidth: 1))
+            )
+    }
+    .buttonStyle(.plain)
+}
+
+// MARK: - Dark Primary Button
+
+func darkPrimaryButton(_ titleKey: LocalizedStringResource, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+        Text(titleKey)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 28)
+            .padding(.vertical, 12)
+            .background(
+                Capsule()
+                    .fill(.white.opacity(0.15))
+                    .overlay(Capsule().stroke(.white.opacity(0.3), lineWidth: 1))
+            )
+    }
+    .buttonStyle(.plain)
+}
