@@ -59,23 +59,3 @@ struct MainAppView: View {
             .padding(4)
     }
 }
-
-// MARK: - Temporary Stub Views (replaced in Tasks 5-7)
-
-struct DisplaySectionView: View {
-    var body: some View {
-        Text("Display").foregroundStyle(.white.opacity(0.5))
-    }
-}
-
-struct ThemesSectionView: View {
-    var body: some View {
-        Text("Themes").foregroundStyle(.white.opacity(0.5))
-    }
-}
-
-struct SettingsSectionView: View {
-    var body: some View {
-        Text("Settings").foregroundStyle(.white.opacity(0.5))
-    }
-}
