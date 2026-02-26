@@ -168,6 +168,8 @@
 "theme.pastel" = "Pastel";
 
 /* Dashboard */
+"dashboard.tier" = "Tier";
+"dashboard.org" = "Organisation";
 "dashboard.pacing.reset.days" = "Reset dans %dj %dh";
 "dashboard.pacing.reset.hours" = "Reset dans %dh";
 

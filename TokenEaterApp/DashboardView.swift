@@ -11,32 +11,17 @@ struct DashboardView: View {
             AnimatedGradient(baseColors: backgroundColors)
                 .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                // Header
-                dashboardHeader
-                    .padding(.horizontal, 24)
-                    .padding(.top, 20)
-                    .padding(.bottom, 16)
+            HStack(spacing: 0) {
+                // Left column (~55%) — Metrics
+                leftColumn
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                ScrollView {
-                    VStack(spacing: 24) {
-                        // Hero: Session ring
-                        heroSection
-
-                        // Satellite rings: Weekly + model-specific
-                        satelliteSection
-
-                        // Pacing
-                        if let pacing = usageStore.pacingResult {
-                            pacingSection(pacing: pacing)
-                        }
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 24)
-                }
+                // Right column (~45%) — Context
+                rightColumn
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .padding(24)
         }
-        .frame(width: 650, height: 550)
         .onAppear {
             if settingsStore.hasCompletedOnboarding, usageStore.lastUpdate == nil {
                 usageStore.proxyConfig = settingsStore.proxyConfig
@@ -58,6 +43,45 @@ struct DashboardView: View {
             return [Color(red: 0.04, green: 0.04, blue: 0.10), Color(red: 0.08, green: 0.08, blue: 0.16)]
         case .hot:
             return [Color(red: 0.10, green: 0.04, blue: 0.04), Color(red: 0.16, green: 0.08, blue: 0.08)]
+        }
+    }
+
+    // MARK: - Left Column (Metrics)
+
+    private var leftColumn: some View {
+        VStack(spacing: 16) {
+            Spacer()
+
+            // Hero ring
+            heroSection
+
+            // Satellite rings
+            satelliteSection
+
+            Spacer()
+        }
+    }
+
+    // MARK: - Right Column (Context)
+
+    private var rightColumn: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Header
+            dashboardHeader
+
+            Spacer()
+
+            // Profile card
+            if usageStore.planType != .unknown {
+                profileCard
+            }
+
+            // Pacing card
+            if let pacing = usageStore.pacingResult {
+                pacingCard(pacing: pacing)
+            }
+
+            Spacer()
         }
     }
 
@@ -84,12 +108,6 @@ struct DashboardView: View {
                     .padding(.vertical, 2)
                     .background(usageStore.planType.badgeColor.opacity(0.3))
                     .clipShape(Capsule())
-            }
-
-            if let tier = usageStore.rateLimitTier {
-                Text(tier.formattedRateLimitTier)
-                    .font(.system(size: 8, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.4))
             }
 
             Spacer()
@@ -121,7 +139,6 @@ struct DashboardView: View {
 
     private var heroSection: some View {
         ZStack {
-            // Particles
             ParticleField(
                 particleCount: 25,
                 speed: Double(usageStore.fiveHourPct) / 100.0,
@@ -130,36 +147,32 @@ struct DashboardView: View {
             )
             .frame(width: 280, height: 280)
 
-            VStack(spacing: 4) {
-                RingGauge(
-                    percentage: usageStore.fiveHourPct,
-                    gradient: gaugeGradient(for: usageStore.fiveHourPct),
-                    size: 200,
-                    glowColor: gaugeColor(for: usageStore.fiveHourPct),
-                    glowRadius: 8
-                )
-                .overlay {
-                    VStack(spacing: 2) {
-                        GlowText(
-                            "\(usageStore.fiveHourPct)%",
-                            font: .system(size: 42, weight: .black, design: .rounded),
-                            color: gaugeColor(for: usageStore.fiveHourPct),
-                            glowRadius: 6
-                        )
-                        Text(String(localized: "metric.session"))
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.5))
-                        if !usageStore.fiveHourReset.isEmpty {
-                            Text(String(format: String(localized: "metric.reset"), usageStore.fiveHourReset))
-                                .font(.system(size: 10))
-                                .foregroundStyle(.white.opacity(0.3))
-                        }
+            RingGauge(
+                percentage: usageStore.fiveHourPct,
+                gradient: gaugeGradient(for: usageStore.fiveHourPct),
+                size: 200,
+                glowColor: gaugeColor(for: usageStore.fiveHourPct),
+                glowRadius: 8
+            )
+            .overlay {
+                VStack(spacing: 2) {
+                    GlowText(
+                        "\(usageStore.fiveHourPct)%",
+                        font: .system(size: 42, weight: .black, design: .rounded),
+                        color: gaugeColor(for: usageStore.fiveHourPct),
+                        glowRadius: 6
+                    )
+                    Text(String(localized: "metric.session"))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.5))
+                    if !usageStore.fiveHourReset.isEmpty {
+                        Text(String(format: String(localized: "metric.reset"), usageStore.fiveHourReset))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.white.opacity(0.3))
                     }
                 }
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8)
     }
 
     // MARK: - Satellite Rings
@@ -175,7 +188,6 @@ struct DashboardView: View {
                 satelliteRing(label: "Cowork", pct: usageStore.coworkPct)
             }
         }
-        .frame(maxWidth: .infinity)
     }
 
     private func satelliteRing(label: String, pct: Int) -> some View {
@@ -202,9 +214,40 @@ struct DashboardView: View {
         }
     }
 
-    // MARK: - Pacing Section
+    // MARK: - Profile Card
 
-    private func pacingSection(pacing: PacingResult) -> some View {
+    private var profileCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let tier = usageStore.rateLimitTier {
+                HStack(spacing: 6) {
+                    Text(String(localized: "dashboard.tier"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.5))
+                    Text(tier.formattedRateLimitTier)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+            }
+            if let org = usageStore.organizationName {
+                HStack(spacing: 6) {
+                    Text(String(localized: "dashboard.org"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.5))
+                    Text(org)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.ultraThinMaterial.opacity(0.15))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    // MARK: - Pacing Card
+
+    private func pacingCard(pacing: PacingResult) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text(String(localized: "pacing.label"))
@@ -246,8 +289,9 @@ struct DashboardView: View {
             }
         }
         .padding(16)
-        .background(.ultraThinMaterial.opacity(0.3))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.ultraThinMaterial.opacity(0.15))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     // MARK: - Theme Helpers
