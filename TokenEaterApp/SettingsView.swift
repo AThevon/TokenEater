@@ -414,12 +414,14 @@ private struct DisplayTab: View {
                 Text("settings.metrics.pinned.footer")
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Section("settings.pacing.display") {
-                Picker("Mode", selection: $settingsStore.pacingDisplayMode) {
-                    Text("settings.pacing.dot").tag(PacingDisplayMode.dot)
-                    Text("settings.pacing.dotdelta").tag(PacingDisplayMode.dotDelta)
+            if showPacing {
+                Section("settings.pacing.display") {
+                    Picker("Mode", selection: $settingsStore.pacingDisplayMode) {
+                        Text("settings.pacing.dot").tag(PacingDisplayMode.dot)
+                        Text("settings.pacing.dotdelta").tag(PacingDisplayMode.dotDelta)
+                    }
+                    .pickerStyle(.radioGroup)
                 }
-                .pickerStyle(.radioGroup)
             }
 
             Section("settings.theme.thresholds") {
