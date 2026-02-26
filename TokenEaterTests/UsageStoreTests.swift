@@ -349,4 +349,59 @@ struct UsageStoreTests {
 
         #expect(result.success == false)
     }
+
+    // MARK: - refresh — new buckets (opus, cowork)
+
+    @Test("refresh extracts opus and cowork percentages")
+    func refreshExtractsNewBuckets() async {
+        let usage = UsageResponse(
+            fiveHour: .fixture(utilization: 50),
+            sevenDay: .fixture(utilization: 40),
+            sevenDaySonnet: .fixture(utilization: 30),
+            sevenDayOpus: .fixture(utilization: 20),
+            sevenDayCowork: .fixture(utilization: 10)
+        )
+        let (store, _, _) = makeSUT(usage: usage)
+
+        await store.refresh()
+
+        #expect(store.opusPct == 20)
+        #expect(store.coworkPct == 10)
+        #expect(store.hasOpus == true)
+        #expect(store.hasCowork == true)
+    }
+
+    @Test("refresh sets hasOpus false when bucket nil")
+    func refreshNilOpus() async {
+        let usage = UsageResponse(fiveHour: .fixture(utilization: 50))
+        let (store, _, _) = makeSUT(usage: usage)
+
+        await store.refresh()
+
+        #expect(store.hasOpus == false)
+        #expect(store.opusPct == 0)
+    }
+
+    // MARK: - refreshProfile
+
+    @Test("refreshProfile updates plan type")
+    func refreshProfileSetsPlanType() async {
+        let (store, repo, _) = makeSUT()
+        repo.stubbedProfile = .fixture(hasClaudeMax: false, hasClaudePro: true)
+
+        await store.refreshProfile()
+
+        #expect(store.planType == .pro)
+    }
+
+    @Test("refreshProfile failure does not set error state")
+    func refreshProfileFailureSilent() async {
+        let (store, repo, _) = makeSUT()
+        repo.stubbedProfileError = .invalidResponse
+
+        await store.refreshProfile()
+
+        #expect(store.errorState == .none)
+        #expect(store.planType == .unknown)
+    }
 }
