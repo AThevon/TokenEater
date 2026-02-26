@@ -4,7 +4,8 @@ import UserNotifications
 
 private let settingsKeys = [
     "showMenuBar", "pinnedMetrics", "pacingDisplayMode",
-    "hasCompletedOnboarding", "proxyEnabled", "proxyHost", "proxyPort"
+    "hasCompletedOnboarding", "proxyEnabled", "proxyHost", "proxyPort",
+    "clickBehavior"
 ]
 
 private func cleanDefaults() {
@@ -174,5 +175,21 @@ struct SettingsStoreTests {
         let saved = UserDefaults.standard.stringArray(forKey: "pinnedMetrics") ?? []
         #expect(saved.contains("sonnet"))
         #expect(saved.contains("pacing"))
+    }
+
+    // MARK: - Click Behavior
+
+    @Test("clickBehavior defaults to popover")
+    func clickBehaviorDefault() {
+        UserDefaults.standard.removeObject(forKey: "clickBehavior")
+        let (store, _, _) = makeStore()
+        #expect(store.clickBehavior == .popover)
+    }
+
+    @Test("clickBehavior persists to UserDefaults")
+    func clickBehaviorPersists() {
+        let (store, _, _) = makeStore()
+        store.clickBehavior = .dashboard
+        #expect(UserDefaults.standard.string(forKey: "clickBehavior") == "dashboard")
     }
 }
