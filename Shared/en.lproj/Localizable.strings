@@ -36,6 +36,9 @@
 "settings.refresh" = "Refresh";
 "settings.guide" = "Guide";
 "settings.testing" = "Testing...";
+"settings.clickbehavior" = "Menu Bar Click";
+"settings.clickbehavior.popover" = "Quick Glance";
+"settings.clickbehavior.dashboard" = "Dashboard";
 "settings.menubar.toggle" = "Show in menu bar";
 "settings.menubar.title" = "Menu bar";
 "settings.tab.connection" = "Connection";

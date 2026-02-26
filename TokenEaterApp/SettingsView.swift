@@ -390,6 +390,7 @@ private struct DisplayTab: View {
     // Binding to computed properties via $store.computedProp creates
     // unstable LocationProjections that the AttributeGraph can never
     // memoize, causing an infinite re-evaluation loop in Release builds.
+    @State private var localClickBehavior: ClickBehavior = .popover
     @State private var showFiveHour = true
     @State private var showSevenDay = true
     @State private var showSonnet = false
@@ -399,6 +400,23 @@ private struct DisplayTab: View {
 
     var body: some View {
         Form {
+            Section {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(String(localized: "settings.clickbehavior"))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+
+                    Picker("", selection: $localClickBehavior) {
+                        Text(String(localized: "settings.clickbehavior.popover")).tag(ClickBehavior.popover)
+                        Text(String(localized: "settings.clickbehavior.dashboard")).tag(ClickBehavior.dashboard)
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: localClickBehavior) { _, newValue in
+                        settingsStore.clickBehavior = newValue
+                    }
+                }
+            }
+
             Section("settings.menubar.title") {
                 Toggle("settings.menubar.toggle", isOn: $settingsStore.showMenuBar)
             }
@@ -492,6 +510,7 @@ private struct DisplayTab: View {
         .formStyle(.grouped)
         // Initialize local state from stores
         .task {
+            localClickBehavior = settingsStore.clickBehavior
             warningSlider = Double(themeStore.warningThreshold)
             criticalSlider = Double(themeStore.criticalThreshold)
             showFiveHour = settingsStore.pinnedMetrics.contains(.fiveHour)

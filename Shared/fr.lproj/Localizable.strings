@@ -36,6 +36,9 @@
 "settings.refresh" = "Rafraîchir";
 "settings.guide" = "Guide";
 "settings.testing" = "Test en cours...";
+"settings.clickbehavior" = "Clic barre de menu";
+"settings.clickbehavior.popover" = "Aperçu rapide";
+"settings.clickbehavior.dashboard" = "Dashboard";
 "settings.menubar.toggle" = "Afficher dans la barre de menu";
 "settings.menubar.title" = "Barre de menu";
 "settings.tab.connection" = "Connexion";
