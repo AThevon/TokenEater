@@ -10,16 +10,12 @@ struct MenuBarPopoverView: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Text("TokenEater")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.white)
-                // Plan badge
                 if usageStore.planType != .unknown {
                     Text(usageStore.planType.displayLabel)
                         .font(.system(size: 8, weight: .bold))
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 4)
-                        .padding(.vertical, 1)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
                         .background(usageStore.planType.badgeColor.opacity(0.3))
                         .clipShape(Capsule())
                 }
@@ -31,8 +27,8 @@ struct MenuBarPopoverView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 10)
+            .padding(.top, 12)
+            .padding(.bottom, 14)
 
             // Error banner
             if usageStore.hasError {
