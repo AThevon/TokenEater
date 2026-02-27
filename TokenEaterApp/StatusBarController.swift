@@ -145,7 +145,7 @@ final class StatusBarController: NSObject {
             .environmentObject(updateStore)
 
         let isOnboarding = !settingsStore.hasCompletedOnboarding
-        let size = isOnboarding ? NSSize(width: 680, height: 540) : NSSize(width: 820, height: 580)
+        let size = isOnboarding ? NSSize(width: 680, height: 620) : NSSize(width: 820, height: 580)
         var styleMask: NSWindow.StyleMask = [.titled, .closable, .fullSizeContentView]
         if !isOnboarding { styleMask.insert(.resizable) }
 

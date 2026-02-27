@@ -8,7 +8,7 @@ struct MainAppView: View {
 
     @State private var selectedSection: AppSection = .dashboard
 
-    private let panelBg = Color(red: 0.04, green: 0.04, blue: 0.10)
+    private let panelBg = Color(red: 0.10, green: 0.10, blue: 0.12)
 
     var body: some View {
         if settingsStore.hasCompletedOnboarding {
@@ -47,6 +47,12 @@ struct MainAppView: View {
             themeStore.syncToSharedFile()
             updateStore.startAutoCheck()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .navigateToSection)) { notification in
+            if let section = notification.userInfo?["section"] as? String,
+               let target = AppSection(rawValue: section) {
+                selectedSection = target
+            }
+        }
     }
 
     // MARK: - Onboarding Content
@@ -57,5 +63,6 @@ struct MainAppView: View {
             .background(RoundedRectangle(cornerRadius: 16).fill(panelBg))
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .padding(4)
+            .frame(width: 680, height: 620)
     }
 }
