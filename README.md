@@ -218,7 +218,7 @@ Shared/                  Shared code (services, stores, models, pacing, notifica
 project.yml              XcodeGen configuration
 ```
 
-The host app and widget extension are both sandboxed and communicate through a shared JSON file in `~/Library/Application Support/`. The menu bar app reads the OAuth token from the macOS Keychain (silently, without triggering password dialogs), calls the API, and writes the data to the shared file. The widget reads from this file only — it never touches the Keychain or the network. The menu bar refreshes every 60 seconds. On 401/403, it silently checks the Keychain for a fresh token from Claude Code's auto-refresh and recovers automatically.
+The host app and widget extension are both sandboxed and communicate through a shared JSON file in `~/Library/Application Support/`. The menu bar app reads the OAuth token from the macOS Keychain (silently, without triggering password dialogs), calls the API, and writes the data to the shared file. The widget reads from this file only — it never touches the Keychain or the network. The menu bar refreshes every 30 seconds. On 401/403, it silently checks the Keychain for a fresh token from Claude Code's auto-refresh and recovers automatically.
 
 ## How it works
 
