@@ -53,6 +53,9 @@ struct MainAppView: View {
                 selectedSection = target
             }
         }
+        .sheet(isPresented: $updateStore.showUpdateModal) {
+            UpdateModalView()
+        }
     }
 
     // MARK: - Onboarding Content

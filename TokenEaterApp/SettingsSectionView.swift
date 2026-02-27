@@ -160,9 +160,6 @@ struct SettingsSectionView: View {
         .onAppear {
             Task { await settingsStore.refreshNotificationStatus() }
         }
-        .sheet(isPresented: $updateStore.showUpdateModal) {
-            UpdateModalView()
-        }
     }
 
     private func connectAutoDetect() {
