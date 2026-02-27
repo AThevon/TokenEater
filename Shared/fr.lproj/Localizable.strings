@@ -36,6 +36,9 @@
 "settings.refresh" = "Rafraîchir";
 "settings.guide" = "Guide";
 "settings.testing" = "Test en cours...";
+"settings.clickbehavior" = "Clic barre de menu";
+"settings.clickbehavior.popover" = "Aperçu rapide";
+"settings.clickbehavior.dashboard" = "Dashboard";
 "settings.menubar.toggle" = "Afficher dans la barre de menu";
 "settings.menubar.title" = "Barre de menu";
 "settings.tab.connection" = "Connexion";
@@ -52,6 +55,9 @@
 "settings.proxy.host" = "Hôte";
 "settings.proxy.port" = "Port";
 "settings.proxy.hint" = "Exemple : ssh -D 1080 user@bastion puis activez le proxy ici.";
+"settings.connected" = "Connecté";
+"settings.disconnected" = "Non connecté";
+"settings.redetect" = "Re-détecter";
 
 /* Connect */
 "connect.button" = "Connexion";
@@ -164,6 +170,12 @@
 "theme.neon" = "Néon";
 "theme.pastel" = "Pastel";
 
+/* Dashboard */
+"dashboard.tier" = "Tier";
+"dashboard.org" = "Organisation";
+"dashboard.pacing.reset.days" = "Reset dans %dj %dh";
+"dashboard.pacing.reset.hours" = "Reset dans %dh";
+
 /* Durations */
 "duration.days.hours" = "%dj %dh";
 
@@ -231,3 +243,9 @@
 "update.terminal" = "Ou mettez à jour via Terminal :";
 "update.error.response" = "Impossible de joindre GitHub — réessayez plus tard";
 "update.error.launch" = "Impossible de lancer la mise à jour — commande copiée. Collez-la dans Terminal.";
+
+/* Sidebar */
+"sidebar.dashboard" = "Tableau de bord";
+"sidebar.display" = "Affichage";
+"sidebar.themes" = "Thèmes";
+"sidebar.settings" = "Réglages";

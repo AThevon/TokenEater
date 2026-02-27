@@ -2,6 +2,8 @@ import Foundation
 
 final class MockUsageRepository: UsageRepositoryProtocol {
     var stubbedUsage: UsageResponse?
+    var stubbedProfile: ProfileResponse?
+    var stubbedProfileError: APIError?
     var stubbedError: APIError?
     var isConfiguredValue = false
     var cachedValue: CachedUsage?
@@ -20,6 +22,11 @@ final class MockUsageRepository: UsageRepositoryProtocol {
     func refreshUsage(proxyConfig: ProxyConfig?) async throws -> UsageResponse {
         if let error = stubbedError { throw error }
         return stubbedUsage ?? UsageResponse()
+    }
+
+    func fetchProfile(proxyConfig: ProxyConfig?) async throws -> ProfileResponse {
+        if let error = stubbedProfileError { throw error }
+        return stubbedProfile ?? .fixture()
     }
 
     func testConnection(proxyConfig: ProxyConfig?) async -> ConnectionTestResult {

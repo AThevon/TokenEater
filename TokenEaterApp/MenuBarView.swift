@@ -6,15 +6,19 @@ struct MenuBarPopoverView: View {
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var themeStore: ThemeStore
     @EnvironmentObject private var settingsStore: SettingsStore
-    @Environment(\.openWindow) private var openWindow
-
     var body: some View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Text("TokenEater")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.white)
+                if usageStore.planType != .unknown {
+                    Text(usageStore.planType.displayLabel)
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(usageStore.planType.badgeColor.opacity(0.3))
+                        .clipShape(Capsule())
+                }
                 Spacer()
                 if usageStore.isLoading {
                     ProgressView()
@@ -23,8 +27,8 @@ struct MenuBarPopoverView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 10)
+            .padding(.top, 12)
+            .padding(.bottom, 14)
 
             // Error banner
             if usageStore.hasError {
@@ -33,62 +37,52 @@ struct MenuBarPopoverView: View {
                     .padding(.bottom, 8)
             }
 
-            // Metrics
-            VStack(spacing: 8) {
-                metricRow(id: .fiveHour, label: String(localized: "metric.session"), pct: usageStore.fiveHourPct, reset: usageStore.fiveHourReset)
-                metricRow(id: .sevenDay, label: String(localized: "metric.weekly"), pct: usageStore.sevenDayPct, reset: nil)
-                metricRow(id: .sonnet, label: String(localized: "metric.sonnet"), pct: usageStore.sonnetPct, reset: nil)
-            }
-            .padding(.horizontal, 16)
+            // Mini hero ring — Session (fiveHour)
+            heroRing
+                .padding(.horizontal, 16)
+                .padding(.bottom, 20)
+
+            // Satellite rings — Weekly + Sonnet
+            satelliteRings
+                .padding(.horizontal, 24)
+                .padding(.bottom, 14)
 
             // Pacing section
             if let pacing = usageStore.pacingResult {
-                Divider()
-                    .overlay(Color.white.opacity(0.08))
-                    .padding(.vertical, 8)
-                    .padding(.horizontal, 16)
-
                 VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 6) {
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                settingsStore.toggleMetric(.pacing)
-                            }
-                        } label: {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            settingsStore.toggleMetric(.pacing)
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
                             Image(systemName: settingsStore.pinnedMetrics.contains(.pacing) ? "pin.fill" : "pin")
-                                .font(.system(size: 9))
+                                .font(.system(size: 7))
                                 .foregroundStyle(settingsStore.pinnedMetrics.contains(.pacing) ? colorForZone(pacing.zone) : .white.opacity(0.2))
-                        }
-                        .buttonStyle(.plain)
-                        .help(settingsStore.pinnedMetrics.contains(.pacing) ? Text(String(localized: "menubar.hide")) : Text(String(localized: "menubar.show")))
-
-                        Text(String(localized: "pacing.label"))
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.5))
-                        Spacer()
-                        let sign = pacing.delta >= 0 ? "+" : ""
-                        Text("\(sign)\(Int(pacing.delta))%")
-                            .font(.system(size: 13, weight: .black, design: .rounded))
-                            .foregroundStyle(colorForZone(pacing.zone))
-                    }
-
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(Color.white.opacity(0.06))
-                                .frame(height: 4)
-
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(gradientForZone(pacing.zone))
-                                .frame(width: max(0, geo.size.width * CGFloat(min(pacing.actualUsage, 100)) / 100), height: 4)
-
-                            Rectangle()
-                                .fill(Color.white.opacity(0.5))
-                                .frame(width: 2, height: 10)
-                                .offset(x: geo.size.width * CGFloat(min(pacing.expectedUsage, 100)) / 100 - 1)
+                                .rotationEffect(.degrees(settingsStore.pinnedMetrics.contains(.pacing) ? 0 : 45))
+                            Text(String(localized: "pacing.label"))
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.5))
+                            Spacer()
+                            let sign = pacing.delta >= 0 ? "+" : ""
+                            GlowText(
+                                "\(sign)\(Int(pacing.delta))%",
+                                font: .system(size: 13, weight: .black, design: .rounded),
+                                color: colorForZone(pacing.zone),
+                                glowRadius: 3
+                            )
                         }
                     }
-                    .frame(height: 10)
+                    .buttonStyle(.plain)
+                    .help(settingsStore.pinnedMetrics.contains(.pacing) ? Text(String(localized: "menubar.hide")) : Text(String(localized: "menubar.show")))
+
+                    PacingBar(
+                        actual: pacing.actualUsage,
+                        expected: pacing.expectedUsage,
+                        zone: pacing.zone,
+                        gradient: gradientForZone(pacing.zone),
+                        compact: true
+                    )
 
                     Text(pacing.message)
                         .font(.system(size: 10, weight: .medium))
@@ -106,33 +100,53 @@ struct MenuBarPopoverView: View {
                     .padding(.top, 10)
             }
 
-            Divider()
-                .overlay(Color.white.opacity(0.08))
-                .padding(.top, 10)
-
-            // Actions
-            HStack(spacing: 0) {
-                actionButton(icon: "arrow.clockwise", label: String(localized: "menubar.refresh")) {
-                    Task { await usageStore.refresh(thresholds: themeStore.thresholds) }
-                }
-                actionButton(icon: "gear", label: String(localized: "menubar.settings")) {
-                    NSApp.activate(ignoringOtherApps: true)
-                    if let window = NSApp.windows.first(where: {
-                        ($0.identifier?.rawValue ?? "").contains("settings")
-                    }) {
-                        window.makeKeyAndOrderFront(nil)
-                    } else {
-                        openWindow(id: "settings")
+            // Footer
+            VStack(spacing: 8) {
+                // CTA — Open TokenEater
+                Button {
+                    NotificationCenter.default.post(name: .openDashboard, object: nil)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "diamond.fill")
+                            .font(.system(size: 8))
+                        Text("Open TokenEater")
+                            .font(.system(size: 12, weight: .semibold))
                     }
+                    .foregroundStyle(.white.opacity(0.8))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background(.white.opacity(0.12))
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(.white.opacity(0.15), lineWidth: 0.5))
                 }
-                actionButton(icon: "power", label: String(localized: "menubar.quit")) {
-                    NSApplication.shared.terminate(nil)
+                .buttonStyle(.plain)
+
+                // Refresh · Quit
+                HStack(spacing: 4) {
+                    Button(String(localized: "menubar.refresh")) {
+                        Task { await usageStore.refresh(thresholds: themeStore.thresholds) }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.4))
+
+                    Text("·")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white.opacity(0.25))
+
+                    Button(String(localized: "menubar.quit")) {
+                        NSApplication.shared.terminate(nil)
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.4))
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 10)
         }
-        .frame(width: 260)
+        .frame(width: 300)
         .background(Color(nsColor: NSColor(red: 0.08, green: 0.08, blue: 0.09, alpha: 1)))
         .onAppear {
             if settingsStore.hasCompletedOnboarding {
@@ -147,69 +161,110 @@ struct MenuBarPopoverView: View {
         }
     }
 
-    // MARK: - Helpers
+    // MARK: - Hero Ring (Session)
 
-    private func actionButton(icon: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 2) {
-                Image(systemName: icon)
-                    .font(.system(size: 12))
-                Text(label)
-                    .font(.system(size: 9))
+    private var heroRing: some View {
+        let pct = usageStore.fiveHourPct
+        let isPinned = settingsStore.pinnedMetrics.contains(.fiveHour)
+        return Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                settingsStore.toggleMetric(.fiveHour)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(.white.opacity(0.5))
-    }
+        } label: {
+            VStack(spacing: 10) {
+                ZStack {
+                    RingGauge(
+                        percentage: pct,
+                        gradient: gradientForPct(pct),
+                        size: 100,
+                        glowColor: colorForPct(pct),
+                        glowRadius: 6
+                    )
 
-    private func metricRow(id: MetricID, label: String, pct: Int, reset: String?) -> some View {
-        let isPinned = settingsStore.pinnedMetrics.contains(id)
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        settingsStore.toggleMetric(id)
+                    VStack(spacing: 2) {
+                        GlowText(
+                            "\(pct)%",
+                            font: .system(size: 24, weight: .black, design: .rounded),
+                            color: colorForPct(pct),
+                            glowRadius: 4
+                        )
+                        Text(String(localized: "metric.session"))
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.5))
                     }
-                } label: {
+                }
+
+                HStack(spacing: 3) {
                     Image(systemName: isPinned ? "pin.fill" : "pin")
-                        .font(.system(size: 9))
+                        .font(.system(size: 7))
                         .foregroundStyle(isPinned ? colorForPct(pct) : .white.opacity(0.2))
                         .rotationEffect(.degrees(isPinned ? 0 : 45))
-                }
-                .buttonStyle(.plain)
-                .help(isPinned ? Text(String(localized: "menubar.hide")) : Text(String(localized: "menubar.show")))
-
-                Text(label)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.5))
-                Spacer()
-                if let reset = reset, !reset.isEmpty {
-                    Text(String(format: String(localized: "metric.reset"), reset))
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.25))
-                }
-                Text("\(pct)%")
-                    .font(.system(size: 13, weight: .black, design: .rounded))
-                    .foregroundStyle(colorForPct(pct))
-            }
-
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.white.opacity(0.06))
-                        .frame(height: 4)
-
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(gradientForPct(pct))
-                        .frame(width: max(0, geo.size.width * CGFloat(pct) / 100), height: 4)
+                    if !usageStore.fiveHourReset.isEmpty {
+                        Text(String(format: String(localized: "metric.reset"), usageStore.fiveHourReset))
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.25))
+                    }
                 }
             }
-            .frame(height: 4)
+        }
+        .buttonStyle(.plain)
+        .help(isPinned ? Text(String(localized: "menubar.hide")) : Text(String(localized: "menubar.show")))
+    }
+
+    // MARK: - Satellite Rings (Weekly + Sonnet)
+
+    private var satelliteRings: some View {
+        HStack(spacing: 32) {
+            satelliteRingItem(
+                id: .sevenDay,
+                label: String(localized: "metric.weekly"),
+                pct: usageStore.sevenDayPct
+            )
+            satelliteRingItem(
+                id: .sonnet,
+                label: String(localized: "metric.sonnet"),
+                pct: usageStore.sonnetPct
+            )
         }
     }
+
+    private func satelliteRingItem(id: MetricID, label: String, pct: Int) -> some View {
+        let isPinned = settingsStore.pinnedMetrics.contains(id)
+        return Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                settingsStore.toggleMetric(id)
+            }
+        } label: {
+            VStack(spacing: 4) {
+                ZStack {
+                    RingGauge(
+                        percentage: pct,
+                        gradient: gradientForPct(pct),
+                        size: 40,
+                        glowColor: colorForPct(pct),
+                        glowRadius: 3
+                    )
+                    GlowText(
+                        "\(pct)%",
+                        font: .system(size: 10, weight: .black, design: .rounded),
+                        color: colorForPct(pct),
+                        glowRadius: 2
+                    )
+                }
+                Text(label)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.5))
+                Image(systemName: isPinned ? "pin.fill" : "pin")
+                    .font(.system(size: 7))
+                    .foregroundStyle(isPinned ? colorForPct(pct) : .white.opacity(0.2))
+                    .rotationEffect(.degrees(isPinned ? 0 : 45))
+            }
+        }
+        .buttonStyle(.plain)
+        .help(isPinned ? Text(String(localized: "menubar.hide")) : Text(String(localized: "menubar.show")))
+    }
+
+    // MARK: - Helpers
 
     @ViewBuilder
     private var errorBanner: some View {

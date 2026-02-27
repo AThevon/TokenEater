@@ -3,7 +3,6 @@ import SwiftUI
 struct WelcomeStep: View {
     @ObservedObject var viewModel: OnboardingViewModel
 
-    // Demo data for preview gauges
     private let demoValues: [(String, Int, Color)] = [
         ("5h", 35, Color(hex: "#22C55E")),
         ("7d", 52, Color(hex: "#FF9F0A")),
@@ -19,15 +18,19 @@ struct WelcomeStep: View {
                 .resizable()
                 .frame(width: 72, height: 72)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
-                .shadow(color: .black.opacity(0.3), radius: 10, y: 4)
+                .shadow(color: .black.opacity(0.5), radius: 12, y: 6)
 
             // Title
-            Text("TokenEater")
-                .font(.system(size: 26, weight: .bold, design: .rounded))
+            GlowText(
+                "TokenEater",
+                font: .system(size: 28, weight: .bold, design: .rounded),
+                color: .white,
+                glowRadius: 6
+            )
 
             Text("onboarding.welcome.subtitle")
                 .font(.system(size: 14))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.6))
                 .multilineTextAlignment(.center)
 
             // Demo preview
@@ -36,7 +39,7 @@ struct WelcomeStep: View {
 
             Text("onboarding.welcome.description")
                 .font(.system(size: 12))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.white.opacity(0.4))
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: 400)
@@ -44,15 +47,9 @@ struct WelcomeStep: View {
             Spacer()
 
             // CTA
-            Button {
+            darkPrimaryButton("onboarding.continue") {
                 viewModel.goNext()
-            } label: {
-                Text("onboarding.continue")
-                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .keyboardShortcut(.defaultAction)
         }
         .padding(32)
     }
@@ -62,31 +59,30 @@ struct WelcomeStep: View {
             ForEach(demoValues, id: \.0) { label, value, color in
                 VStack(spacing: 8) {
                     ZStack {
-                        Circle()
-                            .stroke(color.opacity(0.15), lineWidth: 6)
-                            .frame(width: 56, height: 56)
-                        Circle()
-                            .trim(from: 0, to: CGFloat(value) / 100)
-                            .stroke(color, style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                            .frame(width: 56, height: 56)
-                            .rotationEffect(.degrees(-90))
-                        Text(verbatim: "\(value)%")
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        RingGauge(
+                            percentage: value,
+                            gradient: LinearGradient(colors: [color], startPoint: .leading, endPoint: .trailing),
+                            size: 56,
+                            glowColor: color,
+                            glowRadius: 3
+                        )
+                        GlowText(
+                            "\(value)%",
+                            font: .system(size: 12, weight: .bold, design: .rounded),
+                            color: color,
+                            glowRadius: 2
+                        )
                     }
                     Text(label)
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.white.opacity(0.5))
                 }
             }
         }
         .padding(20)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                )
+                .fill(.ultraThinMaterial.opacity(0.15))
         )
     }
 }

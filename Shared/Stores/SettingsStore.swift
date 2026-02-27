@@ -90,7 +90,6 @@ final class SettingsStore: ObservableObject {
         self.pacingDisplayMode = PacingDisplayMode(
             rawValue: UserDefaults.standard.string(forKey: "pacingDisplayMode") ?? "dotDelta"
         ) ?? .dotDelta
-
         if let saved = UserDefaults.standard.stringArray(forKey: "pinnedMetrics") {
             self.pinnedMetrics = Set(saved.compactMap { MetricID(rawValue: $0) })
         } else {

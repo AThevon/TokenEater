@@ -13,6 +13,14 @@ final class UsageStore: ObservableObject {
     @Published var isLoading = false
     @Published var errorState: AppErrorState = .none
     @Published var hasConfig = false
+    @Published var opusPct: Int = 0
+    @Published var coworkPct: Int = 0
+    @Published var oauthAppsPct: Int = 0
+    @Published var hasOpus: Bool = false
+    @Published var hasCowork: Bool = false
+    @Published var planType: PlanType = .unknown
+    @Published var rateLimitTier: String?
+    @Published var organizationName: String?
 
     var hasError: Bool { errorState != .none }
 
@@ -99,6 +107,7 @@ final class UsageStore: ObservableObject {
         WidgetReloader.scheduleReload()
         refreshTask?.cancel()
         refreshTask = Task { await refresh(thresholds: thresholds) }
+        Task { await refreshProfile() }
     }
 
     func startAutoRefresh(interval: TimeInterval = 60, thresholds: UsageThresholds = .default) {
@@ -129,12 +138,29 @@ final class UsageStore: ObservableObject {
         return result
     }
 
+    func refreshProfile() async {
+        guard repository.isConfigured else { return }
+        do {
+            let profile = try await repository.fetchProfile(proxyConfig: proxyConfig)
+            planType = PlanType(from: profile.account, organization: profile.organization)
+            rateLimitTier = profile.organization?.rateLimitTier
+            organizationName = profile.organization?.name
+        } catch {
+            // Profile fetch failure is non-critical — don't update errorState
+        }
+    }
+
     // MARK: - Private
 
     private func update(from usage: UsageResponse) {
         fiveHourPct = Int(usage.fiveHour?.utilization ?? 0)
         sevenDayPct = Int(usage.sevenDay?.utilization ?? 0)
         sonnetPct = Int(usage.sevenDaySonnet?.utilization ?? 0)
+        opusPct = Int(usage.sevenDayOpus?.utilization ?? 0)
+        coworkPct = Int(usage.sevenDayCowork?.utilization ?? 0)
+        oauthAppsPct = Int(usage.sevenDayOauthApps?.utilization ?? 0)
+        hasOpus = usage.sevenDayOpus != nil
+        hasCowork = usage.sevenDayCowork != nil
 
         if let reset = usage.fiveHour?.resetsAtDate {
             let diff = reset.timeIntervalSinceNow

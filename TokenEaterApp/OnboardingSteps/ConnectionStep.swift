@@ -20,14 +20,12 @@ struct ConnectionStep: View {
             }
 
             Spacer()
-
-            // Navigation
             bottomBar
         }
         .padding(32)
     }
 
-    // MARK: - Priming (before connection)
+    // MARK: - Priming
 
     private var primingContent: some View {
         VStack(spacing: 16) {
@@ -35,24 +33,21 @@ struct ConnectionStep: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.blue)
 
-            Text("onboarding.connection.title")
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
+            GlowText(
+                String(localized: "onboarding.connection.title"),
+                font: .system(size: 18, weight: .semibold, design: .rounded),
+                color: .white,
+                glowRadius: 4
+            )
 
             Text("onboarding.connection.simple")
                 .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.6))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 380)
 
-            Button {
-                viewModel.connect()
-            } label: {
-                Label("onboarding.connection.authorize", systemImage: "key.fill")
-                    .frame(maxWidth: 200)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .padding(.top, 8)
+            darkPrimaryButton("onboarding.connection.authorize") { viewModel.connect() }
+                .padding(.top, 8)
         }
     }
 
@@ -61,10 +56,11 @@ struct ConnectionStep: View {
     private var connectingContent: some View {
         VStack(spacing: 16) {
             ProgressView()
-                .controlSize(.large)
+                .scaleEffect(1.2)
+                .tint(.white)
             Text("onboarding.connection.connecting")
                 .font(.system(size: 15))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.6))
         }
     }
 
@@ -76,13 +72,15 @@ struct ConnectionStep: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.green)
 
-            Text("onboarding.connection.success.title")
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
+            GlowText(
+                String(localized: "onboarding.connection.success.title"),
+                font: .system(size: 18, weight: .semibold, design: .rounded),
+                color: .white,
+                glowRadius: 4
+            )
 
-            // Real data preview
             realDataPreview(usage: usage)
 
-            // Widget hint
             Label {
                 Text("onboarding.connection.widget.hint")
                     .font(.system(size: 12))
@@ -91,7 +89,7 @@ struct ConnectionStep: View {
                     .foregroundStyle(.blue)
                     .font(.system(size: 11))
             }
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.white.opacity(0.5))
         }
     }
 
@@ -106,31 +104,30 @@ struct ConnectionStep: View {
             ForEach(values, id: \.0) { label, value, color in
                 VStack(spacing: 8) {
                     ZStack {
-                        Circle()
-                            .stroke(color.opacity(0.15), lineWidth: 6)
-                            .frame(width: 56, height: 56)
-                        Circle()
-                            .trim(from: 0, to: CGFloat(value) / 100)
-                            .stroke(color, style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                            .frame(width: 56, height: 56)
-                            .rotationEffect(.degrees(-90))
-                        Text(verbatim: "\(value)%")
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        RingGauge(
+                            percentage: value,
+                            gradient: LinearGradient(colors: [color], startPoint: .leading, endPoint: .trailing),
+                            size: 56,
+                            glowColor: color,
+                            glowRadius: 3
+                        )
+                        GlowText(
+                            "\(value)%",
+                            font: .system(size: 12, weight: .bold, design: .rounded),
+                            color: color,
+                            glowRadius: 2
+                        )
                     }
                     Text(label)
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(.white.opacity(0.5))
                 }
             }
         }
         .padding(20)
         .background(
             RoundedRectangle(cornerRadius: 16)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                )
+                .fill(.ultraThinMaterial.opacity(0.15))
         )
     }
 
@@ -142,16 +139,19 @@ struct ConnectionStep: View {
                 .font(.system(size: 48))
                 .foregroundStyle(.orange)
 
-            Text("onboarding.connection.failed.title")
-                .font(.system(size: 18, weight: .semibold, design: .rounded))
+            GlowText(
+                String(localized: "onboarding.connection.failed.title"),
+                font: .system(size: 18, weight: .semibold, design: .rounded),
+                color: .white,
+                glowRadius: 4
+            )
 
             Text(message)
                 .font(.system(size: 13))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.6))
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 380)
 
-            // Tip about re-login
             Label {
                 Text("onboarding.connection.failed.tip")
                     .font(.system(size: 12))
@@ -160,15 +160,9 @@ struct ConnectionStep: View {
                     .foregroundStyle(.yellow)
                     .font(.system(size: 11))
             }
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.white.opacity(0.5))
 
-            Button {
-                viewModel.connectionStatus = .idle
-            } label: {
-                Label("onboarding.connection.retry", systemImage: "arrow.clockwise")
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.large)
+            darkButton("onboarding.connection.retry") { viewModel.connectionStatus = .idle }
         }
     }
 
@@ -178,26 +172,13 @@ struct ConnectionStep: View {
     private var bottomBar: some View {
         switch viewModel.connectionStatus {
         case .success:
-            Button {
+            darkPrimaryButton("onboarding.connection.start") {
                 viewModel.completeOnboarding()
                 settingsStore.hasCompletedOnboarding = true
-            } label: {
-                Text("onboarding.connection.start")
-                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .keyboardShortcut(.defaultAction)
         default:
             HStack {
-                Button {
-                    viewModel.goBack()
-                } label: {
-                    Text("onboarding.back")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-
+                darkButton("onboarding.back") { viewModel.goBack() }
                 Spacer()
             }
         }

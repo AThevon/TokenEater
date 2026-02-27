@@ -2,10 +2,15 @@ import SwiftUI
 
 struct OnboardingView: View {
     @StateObject private var viewModel = OnboardingViewModel()
+    @State private var forward = true
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Step content
+        ZStack {
+            AnimatedGradient(baseColors: [
+                Color(red: 0.10, green: 0.10, blue: 0.12),
+                Color(red: 0.14, green: 0.10, blue: 0.18),
+            ])
+
             Group {
                 switch viewModel.currentStep {
                 case .welcome:
@@ -19,35 +24,26 @@ struct OnboardingView: View {
                 }
             }
             .transition(.asymmetric(
-                insertion: .move(edge: viewModel.isNavigatingForward ? .trailing : .leading).combined(with: .opacity),
-                removal: .move(edge: viewModel.isNavigatingForward ? .leading : .trailing).combined(with: .opacity)
+                insertion: .move(edge: forward ? .trailing : .leading).combined(with: .opacity),
+                removal: .move(edge: forward ? .leading : .trailing).combined(with: .opacity)
             ))
             .id(viewModel.currentStep)
 
             // Page dots
-            HStack(spacing: 8) {
-                ForEach(OnboardingStep.allCases, id: \.rawValue) { step in
-                    Circle()
-                        .fill(step == viewModel.currentStep ? Color.accentColor : Color.secondary.opacity(0.3))
-                        .frame(width: 8, height: 8)
-                        .animation(.easeInOut(duration: 0.2), value: viewModel.currentStep)
-                }
-            }
-            .padding(.bottom, 20)
-        }
-        .frame(width: 520, height: 580)
-        .onAppear {
-            NSApp.activate(ignoringOtherApps: true)
-            DispatchQueue.main.async {
-                if let window = NSApp.windows.first(where: { $0.isVisible && $0.contentView != nil }) {
-                    window.level = .floating
-                    window.orderFrontRegardless()
-                    // Reset to normal after bringing to front so it doesn't stay always-on-top
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        window.level = .normal
+            VStack {
+                Spacer()
+                HStack(spacing: 8) {
+                    ForEach(OnboardingStep.allCases, id: \.rawValue) { step in
+                        Circle()
+                            .fill(step == viewModel.currentStep ? Color.white : Color.white.opacity(0.2))
+                            .frame(width: 6, height: 6)
                     }
                 }
+                .padding(.bottom, 24)
             }
+        }
+        .onChange(of: viewModel.currentStep) { oldValue, newValue in
+            forward = newValue.rawValue > oldValue.rawValue
         }
     }
 }

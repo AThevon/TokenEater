@@ -2,6 +2,7 @@ import Foundation
 
 final class MockAPIClient: APIClientProtocol, @unchecked Sendable {
     var stubbedUsage: UsageResponse?
+    var stubbedProfile: ProfileResponse?
     var stubbedError: Error?
     var fetchCallCount = 0
     var stubbedConnectionResult = ConnectionTestResult(success: true, message: "OK")
@@ -10,6 +11,11 @@ final class MockAPIClient: APIClientProtocol, @unchecked Sendable {
         fetchCallCount += 1
         if let error = stubbedError { throw error }
         return stubbedUsage ?? UsageResponse()
+    }
+
+    func fetchProfile(token: String, proxyConfig: ProxyConfig?) async throws -> ProfileResponse {
+        if let error = stubbedError { throw error }
+        return stubbedProfile ?? .fixture()
     }
 
     func testConnection(token: String, proxyConfig: ProxyConfig?) async -> ConnectionTestResult {

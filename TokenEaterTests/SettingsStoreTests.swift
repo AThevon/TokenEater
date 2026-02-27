@@ -175,4 +175,5 @@ struct SettingsStoreTests {
         #expect(saved.contains("sonnet"))
         #expect(saved.contains("pacing"))
     }
+
 }

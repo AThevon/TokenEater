@@ -33,5 +33,6 @@ struct ConnectionTestResult {
 
 protocol APIClientProtocol: Sendable {
     func fetchUsage(token: String, proxyConfig: ProxyConfig?) async throws -> UsageResponse
+    func fetchProfile(token: String, proxyConfig: ProxyConfig?) async throws -> ProfileResponse
     func testConnection(token: String, proxyConfig: ProxyConfig?) async -> ConnectionTestResult
 }
