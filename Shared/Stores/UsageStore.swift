@@ -110,7 +110,7 @@ final class UsageStore: ObservableObject {
         Task { await refreshProfile() }
     }
 
-    func startAutoRefresh(interval: TimeInterval = 60, thresholds: UsageThresholds = .default) {
+    func startAutoRefresh(interval: TimeInterval = 30, thresholds: UsageThresholds = .default) {
         refreshTask?.cancel()
         refreshTask = Task { [weak self] in
             while !Task.isCancelled {

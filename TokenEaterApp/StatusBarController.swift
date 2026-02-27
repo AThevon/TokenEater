@@ -34,6 +34,11 @@ final class StatusBarController: NSObject {
         observeStoreChanges()
         observeDashboardRequest()
 
+        if settingsStore.hasCompletedOnboarding {
+            bootstrapRefresh()
+        }
+        observeOnboardingForRefresh()
+
         DispatchQueue.main.async { [weak self] in
             self?.showDashboard()
         }
@@ -71,6 +76,26 @@ final class StatusBarController: NSObject {
             self?.updateMenuBarIcon()
         }
         .store(in: &cancellables)
+    }
+
+    private func bootstrapRefresh() {
+        usageStore.proxyConfig = settingsStore.proxyConfig
+        usageStore.reloadConfig(thresholds: themeStore.thresholds)
+        usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
+        themeStore.syncToSharedFile()
+        updateStore.startAutoCheck()
+    }
+
+    private func observeOnboardingForRefresh() {
+        settingsStore.$hasCompletedOnboarding
+            .removeDuplicates()
+            .filter { $0 }
+            .first()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.bootstrapRefresh()
+            }
+            .store(in: &cancellables)
     }
 
     private func observeDashboardRequest() {

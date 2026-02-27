@@ -23,11 +23,8 @@ struct DashboardView: View {
             .padding(24)
         }
         .onAppear {
-            if settingsStore.hasCompletedOnboarding, usageStore.lastUpdate == nil {
-                usageStore.proxyConfig = settingsStore.proxyConfig
-                usageStore.reloadConfig(thresholds: themeStore.thresholds)
-                usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
-            } else {
+            // Single refresh on appear — auto-refresh lifecycle is owned by StatusBarController
+            if settingsStore.hasCompletedOnboarding {
                 Task { await usageStore.refresh(thresholds: themeStore.thresholds) }
             }
         }

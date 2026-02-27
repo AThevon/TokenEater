@@ -42,10 +42,8 @@ struct MainAppView: View {
         }
         .padding(4)
         .task {
-            usageStore.proxyConfig = settingsStore.proxyConfig
-            usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
-            themeStore.syncToSharedFile()
-            updateStore.startAutoCheck()
+            // Single refresh on appear — auto-refresh lifecycle is owned by StatusBarController
+            await usageStore.refresh(thresholds: themeStore.thresholds)
         }
         .onReceive(NotificationCenter.default.publisher(for: .navigateToSection)) { notification in
             if let section = notification.userInfo?["section"] as? String,
