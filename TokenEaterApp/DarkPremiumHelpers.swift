@@ -29,13 +29,16 @@ func cardLabel(_ text: String) -> some View {
 // MARK: - Dark Toggle
 
 func darkToggle(_ label: String, isOn: Binding<Bool>) -> some View {
-    Toggle(isOn: isOn) {
+    HStack {
+        Toggle("", isOn: isOn)
+            .toggleStyle(.switch)
+            .tint(.blue)
+            .labelsHidden()
         Text(label)
             .font(.system(size: 13))
             .foregroundStyle(.white.opacity(0.8))
+        Spacer()
     }
-    .toggleStyle(.switch)
-    .tint(.blue)
 }
 
 // MARK: - Dark Button (secondary)

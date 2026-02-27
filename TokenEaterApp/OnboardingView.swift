@@ -7,8 +7,8 @@ struct OnboardingView: View {
     var body: some View {
         ZStack {
             AnimatedGradient(baseColors: [
-                Color(red: 0.04, green: 0.04, blue: 0.10),
-                Color(red: 0.08, green: 0.04, blue: 0.16),
+                Color(red: 0.10, green: 0.10, blue: 0.12),
+                Color(red: 0.14, green: 0.10, blue: 0.18),
             ])
 
             Group {

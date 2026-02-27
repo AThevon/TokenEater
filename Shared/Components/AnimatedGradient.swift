@@ -7,7 +7,7 @@ struct AnimatedGradient: View {
     @State private var start = UnitPoint(x: 0, y: 0)
     @State private var end = UnitPoint(x: 1, y: 1)
 
-    init(baseColors: [Color] = [Color(red: 0.04, green: 0.04, blue: 0.10), Color(red: 0.08, green: 0.08, blue: 0.16)], animationDuration: Double = 30) {
+    init(baseColors: [Color] = [Color(red: 0.10, green: 0.10, blue: 0.12), Color(red: 0.14, green: 0.12, blue: 0.18)], animationDuration: Double = 30) {
         self.baseColors = baseColors
         self.animationDuration = animationDuration
     }

@@ -3,7 +3,7 @@ import SwiftUI
 struct AppSidebar: View {
     @Binding var selection: AppSection
 
-    private let sidebarBg = Color(red: 0.04, green: 0.04, blue: 0.10)
+    private let sidebarBg = Color(red: 0.10, green: 0.10, blue: 0.12)
 
     var body: some View {
         VStack(spacing: 0) {
