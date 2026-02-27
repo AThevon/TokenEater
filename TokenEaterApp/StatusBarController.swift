@@ -163,11 +163,16 @@ final class StatusBarController: NSObject {
         window.isMovableByWindowBackground = true
         window.delegate = self
 
-        window.contentViewController = NSHostingController(rootView: appView)
+        let hostingController = NSHostingController(rootView: appView)
+        hostingController.sizingOptions = []
+        window.contentViewController = hostingController
         window.setContentSize(size)
         window.center()
 
-        if !isOnboarding {
+        if isOnboarding {
+            window.minSize = size
+            window.maxSize = size
+        } else {
             window.minSize = NSSize(width: 720, height: 450)
             window.setFrameAutosaveName("TokenEaterMain")
         }
