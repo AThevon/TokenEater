@@ -8,7 +8,6 @@ struct DisplaySectionView: View {
     // Binding to computed properties via $store.computedProp creates
     // unstable LocationProjections that the AttributeGraph can never
     // memoize, causing an infinite re-evaluation loop in Release builds.
-    @State private var localClickBehavior: ClickBehavior = .popover
     @State private var showFiveHour = true
     @State private var showSevenDay = true
     @State private var showSonnet = false
@@ -17,22 +16,6 @@ struct DisplaySectionView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             sectionTitle(String(localized: "sidebar.display"))
-
-            // Click Behavior
-            glassCard {
-                VStack(alignment: .leading, spacing: 8) {
-                    cardLabel(String(localized: "settings.clickbehavior"))
-                    Picker("", selection: $localClickBehavior) {
-                        Text(String(localized: "settings.clickbehavior.popover")).tag(ClickBehavior.popover)
-                        Text(String(localized: "settings.clickbehavior.dashboard")).tag(ClickBehavior.dashboard)
-                    }
-                    .pickerStyle(.segmented)
-                    .colorMultiply(.white)
-                    .onChange(of: localClickBehavior) { _, newValue in
-                        settingsStore.clickBehavior = newValue
-                    }
-                }
-            }
 
             // Menu Bar
             glassCard {
@@ -63,7 +46,6 @@ struct DisplaySectionView: View {
         .padding(24)
         // Initialize local state from stores
         .task {
-            localClickBehavior = settingsStore.clickBehavior
             showFiveHour = settingsStore.pinnedMetrics.contains(.fiveHour)
             showSevenDay = settingsStore.pinnedMetrics.contains(.sevenDay)
             showSonnet = settingsStore.pinnedMetrics.contains(.sonnet)

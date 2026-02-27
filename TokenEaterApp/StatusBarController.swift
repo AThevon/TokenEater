@@ -76,14 +76,19 @@ final class StatusBarController: NSObject {
     private func observeDashboardRequest() {
         NotificationCenter.default.addObserver(
             self,
-            selector: #selector(handleDashboardRequest),
+            selector: #selector(handleDashboardRequest(_:)),
             name: .openDashboard,
             object: nil
         )
     }
 
-    @objc private func handleDashboardRequest() {
+    @objc private func handleDashboardRequest(_ notification: Notification) {
         showDashboard()
+
+        if let section = notification.userInfo?["section"] as? String,
+           let target = AppSection(rawValue: section) {
+            NotificationCenter.default.post(name: .navigateToSection, object: nil, userInfo: ["section": target.rawValue])
+        }
     }
 
     // MARK: - Menu Bar Icon
@@ -109,12 +114,7 @@ final class StatusBarController: NSObject {
     // MARK: - Click handling
 
     @objc private func statusBarClicked() {
-        switch settingsStore.clickBehavior {
-        case .popover:
-            togglePopover()
-        case .dashboard:
-            showDashboard()
-        }
+        togglePopover()
     }
 
     private func togglePopover() {
@@ -144,9 +144,14 @@ final class StatusBarController: NSObject {
             .environmentObject(settingsStore)
             .environmentObject(updateStore)
 
+        let isOnboarding = !settingsStore.hasCompletedOnboarding
+        let size = isOnboarding ? NSSize(width: 680, height: 540) : NSSize(width: 820, height: 580)
+        var styleMask: NSWindow.StyleMask = [.titled, .closable, .fullSizeContentView]
+        if !isOnboarding { styleMask.insert(.resizable) }
+
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 900, height: 600),
-            styleMask: [.titled, .closable, .fullSizeContentView],
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: styleMask,
             backing: .buffered,
             defer: false
         )
@@ -156,13 +161,46 @@ final class StatusBarController: NSObject {
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
+        window.delegate = self
+
         window.contentViewController = NSHostingController(rootView: appView)
+        window.setContentSize(size)
         window.center()
-        window.setFrameAutosaveName("MainWindow")
+
+        if !isOnboarding {
+            window.minSize = NSSize(width: 720, height: 450)
+            window.setFrameAutosaveName("TokenEaterMain")
+        }
+
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
 
         self.dashboardWindow = window
+        observeOnboardingCompletion()
+    }
+
+    private func observeOnboardingCompletion() {
+        settingsStore.$hasCompletedOnboarding
+            .dropFirst()
+            .filter { $0 }
+            .first()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.transitionToMainWindow()
+            }
+            .store(in: &cancellables)
+    }
+
+    private func transitionToMainWindow() {
+        guard let window = dashboardWindow else { return }
+        window.styleMask.insert(.resizable)
+        window.contentMinSize = NSSize(width: 720, height: 450)
+        window.contentMaxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        window.minSize = NSSize(width: 720, height: 450)
+        window.setFrameAutosaveName("TokenEaterMain")
+        let mainSize = NSSize(width: 820, height: 580)
+        window.setContentSize(mainSize)
+        window.center()
     }
 
     // MARK: - Event Monitor
@@ -182,8 +220,20 @@ final class StatusBarController: NSObject {
     }
 }
 
+// MARK: - NSWindowDelegate
+
+extension StatusBarController: NSWindowDelegate {
+    nonisolated func windowShouldClose(_ sender: NSWindow) -> Bool {
+        MainActor.assumeIsolated {
+            sender.orderOut(nil)
+        }
+        return false
+    }
+}
+
 // MARK: - Notification
 
 extension Notification.Name {
     static let openDashboard = Notification.Name("openDashboard")
+    static let navigateToSection = Notification.Name("navigateToSection")
 }

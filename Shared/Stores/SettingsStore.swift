@@ -13,9 +13,6 @@ final class SettingsStore: ObservableObject {
     @Published var pacingDisplayMode: PacingDisplayMode {
         didSet { UserDefaults.standard.set(pacingDisplayMode.rawValue, forKey: "pacingDisplayMode") }
     }
-    @Published var clickBehavior: ClickBehavior {
-        didSet { UserDefaults.standard.set(clickBehavior.rawValue, forKey: "clickBehavior") }
-    }
     @Published var hasCompletedOnboarding: Bool {
         didSet { UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding") }
     }
@@ -93,10 +90,6 @@ final class SettingsStore: ObservableObject {
         self.pacingDisplayMode = PacingDisplayMode(
             rawValue: UserDefaults.standard.string(forKey: "pacingDisplayMode") ?? "dotDelta"
         ) ?? .dotDelta
-        self.clickBehavior = ClickBehavior(
-            rawValue: UserDefaults.standard.string(forKey: "clickBehavior") ?? "popover"
-        ) ?? .popover
-
         if let saved = UserDefaults.standard.stringArray(forKey: "pinnedMetrics") {
             self.pinnedMetrics = Set(saved.compactMap { MetricID(rawValue: $0) })
         } else {

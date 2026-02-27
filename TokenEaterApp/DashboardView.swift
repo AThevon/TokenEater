@@ -33,17 +33,26 @@ struct DashboardView: View {
         }
     }
 
-    // MARK: - Background colors based on pacing zone
+    // MARK: - Background colors tinted by 5h gauge state
 
     private var backgroundColors: [Color] {
-        switch usageStore.pacingZone {
-        case .chill:
-            return [Color(red: 0.04, green: 0.04, blue: 0.10), Color(red: 0.04, green: 0.08, blue: 0.16)]
-        case .onTrack:
-            return [Color(red: 0.04, green: 0.04, blue: 0.10), Color(red: 0.08, green: 0.08, blue: 0.16)]
-        case .hot:
-            return [Color(red: 0.10, green: 0.04, blue: 0.04), Color(red: 0.16, green: 0.08, blue: 0.08)]
-        }
+        let base = Color(red: 0.10, green: 0.10, blue: 0.12)
+        let stateColor = themeStore.current.gaugeColor(
+            for: Double(usageStore.fiveHourPct),
+            thresholds: themeStore.thresholds
+        )
+        let tinted = blend(stateColor, into: base, amount: 0.15)
+        return [base, tinted]
+    }
+
+    private func blend(_ accent: Color, into base: Color, amount: Double) -> Color {
+        let a = NSColor(accent).usingColorSpace(.sRGB) ?? NSColor(accent)
+        let b = NSColor(base).usingColorSpace(.sRGB) ?? NSColor(base)
+        return Color(
+            red: b.redComponent + (a.redComponent - b.redComponent) * amount,
+            green: b.greenComponent + (a.greenComponent - b.greenComponent) * amount,
+            blue: b.blueComponent + (a.blueComponent - b.blueComponent) * amount
+        )
     }
 
     // MARK: - Left Column (Metrics)
