@@ -164,6 +164,82 @@ struct PacingCalculatorTests {
         #expect(result?.zone == .chill)
     }
 
+    // MARK: - Custom margin
+
+    @Test("custom margin: wide margin (20) keeps delta +15 as onTrack")
+    func wideMarginKeepsOnTrack() {
+        let now = Self.stableNow()
+        // At 50% elapsed, expected = 50. Utilization = 65 → delta = +15
+        let usage = UsageResponse.fixture(
+            sevenDayUtil: 65,
+            sevenDayResetsAt: makeResetsAt(elapsedFraction: 0.5, now: now)
+        )
+        let result = PacingCalculator.calculate(from: usage, now: now, margin: 20)
+        #expect(result?.zone == .onTrack)
+    }
+
+    @Test("custom margin: narrow margin (5) makes delta +6 hot")
+    func narrowMarginMakesHot() {
+        let now = Self.stableNow()
+        // At 50% elapsed, expected = 50. Utilization = 56 → delta = +6
+        let usage = UsageResponse.fixture(
+            sevenDayUtil: 56,
+            sevenDayResetsAt: makeResetsAt(elapsedFraction: 0.5, now: now)
+        )
+        let result = PacingCalculator.calculate(from: usage, now: now, margin: 5)
+        #expect(result?.zone == .hot)
+    }
+
+    @Test("custom margin: narrow margin (5) makes delta -6 chill")
+    func narrowMarginMakesChill() {
+        let now = Self.stableNow()
+        // At 50% elapsed, expected = 50. Utilization = 44 → delta = -6
+        let usage = UsageResponse.fixture(
+            sevenDayUtil: 44,
+            sevenDayResetsAt: makeResetsAt(elapsedFraction: 0.5, now: now)
+        )
+        let result = PacingCalculator.calculate(from: usage, now: now, margin: 5)
+        #expect(result?.zone == .chill)
+    }
+
+    @Test("custom margin: exact boundary is onTrack")
+    func customMarginBoundaryIsOnTrack() {
+        let now = Self.stableNow()
+        // At 50% elapsed, expected = 50. Utilization = 65 → delta = +15
+        let usage = UsageResponse.fixture(
+            sevenDayUtil: 65,
+            sevenDayResetsAt: makeResetsAt(elapsedFraction: 0.5, now: now)
+        )
+        let result = PacingCalculator.calculate(from: usage, now: now, margin: 15)
+        #expect(result?.zone == .onTrack)
+    }
+
+    @Test("custom margin: just beyond boundary is hot")
+    func customMarginJustBeyondIsHot() {
+        let now = Self.stableNow()
+        // At 50% elapsed, expected = 50. Utilization = 66 → delta ≈ +16
+        let usage = UsageResponse.fixture(
+            sevenDayUtil: 66,
+            sevenDayResetsAt: makeResetsAt(elapsedFraction: 0.5, now: now)
+        )
+        let result = PacingCalculator.calculate(from: usage, now: now, margin: 15)
+        #expect(result?.zone == .hot)
+    }
+
+    @Test("default margin preserves backward compatibility")
+    func defaultMarginIsBackwardCompatible() {
+        let now = Self.stableNow()
+        // At 50% elapsed, expected = 50. Utilization = 61 → delta ≈ +11, should be hot with default margin
+        let usage = UsageResponse.fixture(
+            sevenDayUtil: 61,
+            sevenDayResetsAt: makeResetsAt(elapsedFraction: 0.5, now: now)
+        )
+        let withDefault = PacingCalculator.calculate(from: usage, now: now)
+        let withExplicit10 = PacingCalculator.calculate(from: usage, now: now, margin: 10)
+        #expect(withDefault?.zone == withExplicit10?.zone)
+        #expect(withDefault?.zone == .hot)
+    }
+
     // MARK: - Boundary values
 
     @Test("utilization 0% at 50% elapsed is chill")

@@ -32,6 +32,11 @@ final class UsageStore: ObservableObject {
     private var refreshTask: Task<Void, Never>?
 
     var proxyConfig: ProxyConfig?
+    var pacingMargin: Int = 10 {
+        didSet { recalculatePacing() }
+    }
+
+    private var lastUsage: UsageResponse?
 
     init(
         repository: UsageRepositoryProtocol = UsageRepository(),
@@ -153,6 +158,7 @@ final class UsageStore: ObservableObject {
     // MARK: - Private
 
     private func update(from usage: UsageResponse) {
+        lastUsage = usage
         fiveHourPct = Int(usage.fiveHour?.utilization ?? 0)
         sevenDayPct = Int(usage.sevenDay?.utilization ?? 0)
         sonnetPct = Int(usage.sevenDaySonnet?.utilization ?? 0)
@@ -175,7 +181,16 @@ final class UsageStore: ObservableObject {
             fiveHourReset = ""
         }
 
-        if let pacing = PacingCalculator.calculate(from: usage) {
+        if let pacing = PacingCalculator.calculate(from: usage, margin: Double(pacingMargin)) {
+            pacingDelta = Int(pacing.delta)
+            pacingZone = pacing.zone
+            pacingResult = pacing
+        }
+    }
+
+    private func recalculatePacing() {
+        guard let usage = lastUsage else { return }
+        if let pacing = PacingCalculator.calculate(from: usage, margin: Double(pacingMargin)) {
             pacingDelta = Int(pacing.delta)
             pacingZone = pacing.zone
             pacingResult = pacing

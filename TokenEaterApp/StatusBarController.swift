@@ -76,10 +76,18 @@ final class StatusBarController: NSObject {
             self?.updateMenuBarIcon()
         }
         .store(in: &cancellables)
+
+        settingsStore.$pacingMargin
+            .removeDuplicates()
+            .sink { [weak self] margin in
+                self?.usageStore.pacingMargin = margin
+            }
+            .store(in: &cancellables)
     }
 
     private func bootstrapRefresh() {
         usageStore.proxyConfig = settingsStore.proxyConfig
+        usageStore.pacingMargin = settingsStore.pacingMargin
         usageStore.reloadConfig(thresholds: themeStore.thresholds)
         usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
         themeStore.syncToSharedFile()

@@ -48,6 +48,7 @@
 "settings.pacing.display" = "Affichage rythme";
 "settings.pacing.dot" = "Point seul";
 "settings.pacing.dotdelta" = "Point + delta (%)";
+"settings.pacing.margin" = "Marge";
 "settings.tab.proxy" = "Proxy";
 "settings.proxy.toggle" = "Activer le proxy SOCKS5";
 "settings.proxy.footer" = "Utile derrière un firewall corporate via un tunnel SSH.";

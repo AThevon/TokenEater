@@ -48,6 +48,7 @@
 "settings.pacing.display" = "Pacing display";
 "settings.pacing.dot" = "Dot only";
 "settings.pacing.dotdelta" = "Dot + delta (%)";
+"settings.pacing.margin" = "Margin";
 "settings.tab.proxy" = "Proxy";
 "settings.proxy.toggle" = "Enable SOCKS5 proxy";
 "settings.proxy.footer" = "Useful behind a corporate firewall via an SSH tunnel.";
