@@ -1,8 +1,24 @@
 import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    var usageStore: UsageStore!
+    var themeStore: ThemeStore!
+    var settingsStore: SettingsStore!
+    var updateStore: UpdateStore!
+
+    private var statusBarController: StatusBarController?
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        statusBarController = StatusBarController(
+            usageStore: usageStore,
+            themeStore: themeStore,
+            settingsStore: settingsStore,
+            updateStore: updateStore
+        )
     }
 }
 
@@ -15,16 +31,12 @@ struct TokenEaterApp: App {
     private let settingsStore = SettingsStore()
     private let updateStore = UpdateStore()
 
-    private let statusBarController: StatusBarController
-
     init() {
         NotificationService().setupDelegate()
-        statusBarController = StatusBarController(
-            usageStore: usageStore,
-            themeStore: themeStore,
-            settingsStore: settingsStore,
-            updateStore: updateStore
-        )
+        appDelegate.usageStore = usageStore
+        appDelegate.themeStore = themeStore
+        appDelegate.settingsStore = settingsStore
+        appDelegate.updateStore = updateStore
     }
 
     var body: some Scene {
