@@ -2,10 +2,12 @@ import SwiftUI
 
 struct ThemesSectionView: View {
     @EnvironmentObject private var themeStore: ThemeStore
+    @EnvironmentObject private var settingsStore: SettingsStore
 
     @State private var showResetAlert = false
     @State private var warningSlider: Double = 60
     @State private var criticalSlider: Double = 85
+    @State private var marginSlider: Double = 10
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -45,6 +47,7 @@ struct ThemesSectionView: View {
                     cardLabel(String(localized: "settings.theme.thresholds"))
                     thresholdSlider(label: String(localized: "settings.theme.warning"), value: $warningSlider, range: 10...90)
                     thresholdSlider(label: String(localized: "settings.theme.critical"), value: $criticalSlider, range: 15...95)
+                    thresholdSlider(label: String(localized: "settings.pacing.margin"), value: $marginSlider, range: 5...25, step: 1, prefix: "\u{00B1}")
 
                     // Preview gauges
                     HStack(spacing: 24) {
@@ -83,6 +86,7 @@ struct ThemesSectionView: View {
         .task {
             warningSlider = Double(themeStore.warningThreshold)
             criticalSlider = Double(themeStore.criticalThreshold)
+            marginSlider = Double(settingsStore.pacingMargin)
         }
         .onChange(of: warningSlider) { _, new in
             let int = Int(new)
@@ -99,6 +103,13 @@ struct ThemesSectionView: View {
         }
         .onChange(of: themeStore.criticalThreshold) { _, new in
             let d = Double(new); if criticalSlider != d { criticalSlider = d }
+        }
+        .onChange(of: marginSlider) { _, new in
+            let int = Int(new)
+            if settingsStore.pacingMargin != int { settingsStore.pacingMargin = int }
+        }
+        .onChange(of: settingsStore.pacingMargin) { _, new in
+            let d = Double(new); if marginSlider != d { marginSlider = d }
         }
         .onChange(of: themeStore.selectedPreset) { oldValue, newValue in
             if newValue == "custom", let source = ThemeColors.preset(for: oldValue) {
@@ -183,18 +194,18 @@ struct ThemesSectionView: View {
         }
     }
 
-    private func thresholdSlider(label: String, value: Binding<Double>, range: ClosedRange<Double>) -> some View {
+    private func thresholdSlider(label: String, value: Binding<Double>, range: ClosedRange<Double>, step: Double = 5, prefix: String = "") -> some View {
         HStack {
             Text(label)
                 .font(.system(size: 12))
                 .foregroundStyle(.white.opacity(0.7))
                 .frame(width: 60, alignment: .leading)
-            Slider(value: value, in: range, step: 5)
+            Slider(value: value, in: range, step: step)
                 .tint(.blue)
-            Text("\(Int(value.wrappedValue))%")
+            Text("\(prefix)\(Int(value.wrappedValue))%")
                 .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(.white.opacity(0.5))
-                .frame(width: 40, alignment: .trailing)
+                .frame(width: 44, alignment: .trailing)
         }
     }
 
