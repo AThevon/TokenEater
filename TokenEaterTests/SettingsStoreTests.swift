@@ -4,7 +4,8 @@ import UserNotifications
 
 private let settingsKeys = [
     "showMenuBar", "pinnedMetrics", "pacingDisplayMode",
-    "hasCompletedOnboarding", "proxyEnabled", "proxyHost", "proxyPort"
+    "hasCompletedOnboarding", "proxyEnabled", "proxyHost", "proxyPort",
+    "overlayEnabled"
 ]
 
 private func cleanDefaults() {
@@ -174,6 +175,21 @@ struct SettingsStoreTests {
         let saved = UserDefaults.standard.stringArray(forKey: "pinnedMetrics") ?? []
         #expect(saved.contains("sonnet"))
         #expect(saved.contains("pacing"))
+    }
+
+    // MARK: - Overlay
+
+    @Test("overlayEnabled defaults to true")
+    func overlayEnabledDefaults() {
+        let (store, _, _) = makeStore()
+        #expect(store.overlayEnabled == true)
+    }
+
+    @Test("overlayEnabled persists to UserDefaults")
+    func overlayEnabledPersists() {
+        let (store, _, _) = makeStore()
+        store.overlayEnabled = false
+        #expect(UserDefaults.standard.object(forKey: "overlayEnabled") as? Bool == false)
     }
 
 }

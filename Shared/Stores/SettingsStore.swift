@@ -28,6 +28,11 @@ final class SettingsStore: ObservableObject {
         didSet { UserDefaults.standard.set(proxyPort, forKey: "proxyPort") }
     }
 
+    // Overlay
+    @Published var overlayEnabled: Bool {
+        didSet { UserDefaults.standard.set(overlayEnabled, forKey: "overlayEnabled") }
+    }
+
     var proxyConfig: ProxyConfig {
         ProxyConfig(enabled: proxyEnabled, host: proxyHost, port: proxyPort)
     }
@@ -87,6 +92,7 @@ final class SettingsStore: ObservableObject {
             let port = UserDefaults.standard.integer(forKey: "proxyPort")
             return port > 0 ? port : 1080
         }()
+        self.overlayEnabled = UserDefaults.standard.object(forKey: "overlayEnabled") as? Bool ?? true
         self.pacingDisplayMode = PacingDisplayMode(
             rawValue: UserDefaults.standard.string(forKey: "pacingDisplayMode") ?? "dotDelta"
         ) ?? .dotDelta
