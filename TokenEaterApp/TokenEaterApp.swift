@@ -5,8 +5,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var themeStore: ThemeStore!
     var settingsStore: SettingsStore!
     var updateStore: UpdateStore!
+    var sessionStore: SessionStore!
 
     private var statusBarController: StatusBarController?
+    private var overlayWindowController: OverlayWindowController?
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
@@ -19,6 +21,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settingsStore: settingsStore,
             updateStore: updateStore
         )
+        sessionStore.startMonitoring()
+        overlayWindowController = OverlayWindowController(
+            sessionStore: sessionStore,
+            settingsStore: settingsStore
+        )
     }
 }
 
@@ -30,6 +37,7 @@ struct TokenEaterApp: App {
     private let themeStore = ThemeStore()
     private let settingsStore = SettingsStore()
     private let updateStore = UpdateStore()
+    private let sessionStore = SessionStore()
 
     init() {
         NotificationService().setupDelegate()
@@ -37,6 +45,7 @@ struct TokenEaterApp: App {
         appDelegate.themeStore = themeStore
         appDelegate.settingsStore = settingsStore
         appDelegate.updateStore = updateStore
+        appDelegate.sessionStore = sessionStore
     }
 
     var body: some Scene {
