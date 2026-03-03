@@ -29,7 +29,7 @@ struct MainAppView: View {
                 case .dashboard:
                     DashboardView()
                 case .display:
-                    DisplaySectionView()
+                    DisplaySectionView(initialMetrics: settingsStore.pinnedMetrics)
                 case .themes:
                     ThemesSectionView()
                 case .settings:
