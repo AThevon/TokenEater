@@ -244,6 +244,10 @@
 "update.error.response" = "Couldn't reach GitHub — try again later";
 "update.error.launch" = "Couldn't launch updater — command copied to clipboard. Paste in Terminal.";
 
+/* Session Overlay */
+"settings.overlay.title" = "Session Overlay";
+"settings.overlay.toggle" = "Show session overlay";
+
 /* Sidebar */
 "sidebar.dashboard" = "Dashboard";
 "sidebar.display" = "Display";

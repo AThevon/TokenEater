@@ -244,6 +244,10 @@
 "update.error.response" = "Impossible de joindre GitHub — réessayez plus tard";
 "update.error.launch" = "Impossible de lancer la mise à jour — commande copiée. Collez-la dans Terminal.";
 
+/* Session Overlay */
+"settings.overlay.title" = "Overlay de session";
+"settings.overlay.toggle" = "Afficher l'overlay de session";
+
 /* Sidebar */
 "sidebar.dashboard" = "Tableau de bord";
 "sidebar.display" = "Affichage";

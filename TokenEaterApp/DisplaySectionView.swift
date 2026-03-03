@@ -26,6 +26,14 @@ struct DisplaySectionView: View {
                 }
             }
 
+            // Session Overlay
+            glassCard {
+                VStack(alignment: .leading, spacing: 8) {
+                    cardLabel(String(localized: "settings.overlay.title"))
+                    darkToggle(String(localized: "settings.overlay.toggle"), isOn: $settingsStore.overlayEnabled)
+                }
+            }
+
             // Pinned Metrics
             glassCard {
                 VStack(alignment: .leading, spacing: 8) {
