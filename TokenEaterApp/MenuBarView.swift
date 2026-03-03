@@ -6,6 +6,11 @@ struct MenuBarPopoverView: View {
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var themeStore: ThemeStore
     @EnvironmentObject private var settingsStore: SettingsStore
+
+    @State private var lastUpdateText = ""
+
+    private let updateTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
+
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -92,9 +97,8 @@ struct MenuBarPopoverView: View {
             }
 
             // Last update
-            if let date = usageStore.lastUpdate {
-                let formattedDate = date.formatted(.relative(presentation: .named))
-                Text(String(format: String(localized: "menubar.updated"), formattedDate))
+            if !lastUpdateText.isEmpty {
+                Text(String(format: String(localized: "menubar.updated"), lastUpdateText))
                     .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.3))
                     .padding(.top, 10)
@@ -149,10 +153,23 @@ struct MenuBarPopoverView: View {
         .frame(width: 300)
         .background(Color(nsColor: NSColor(red: 0.08, green: 0.08, blue: 0.09, alpha: 1)))
         .onAppear {
+            refreshLastUpdateText()
             // Single refresh on appear — auto-refresh lifecycle is owned by StatusBarController
             if settingsStore.hasCompletedOnboarding {
                 Task { await usageStore.refresh(thresholds: themeStore.thresholds) }
             }
+        }
+        .onReceive(updateTimer) { _ in
+            refreshLastUpdateText()
+        }
+        .onChange(of: usageStore.lastUpdate) { _, _ in
+            refreshLastUpdateText()
+        }
+    }
+
+    private func refreshLastUpdateText() {
+        if let date = usageStore.lastUpdate {
+            lastUpdateText = date.formatted(.relative(presentation: .named))
         }
     }
 

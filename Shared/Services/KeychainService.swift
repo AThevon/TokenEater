@@ -27,6 +27,7 @@ final class KeychainService: KeychainServiceProtocol, @unchecked Sendable {
             kSecAttrService as String: "Claude Code-credentials",
             kSecReturnAttributes as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecUseAuthenticationUI as String: kSecUseAuthenticationUISkip,
         ]
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)

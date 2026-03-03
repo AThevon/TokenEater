@@ -5,10 +5,15 @@ struct DashboardView: View {
     @EnvironmentObject private var themeStore: ThemeStore
     @EnvironmentObject private var settingsStore: SettingsStore
 
+    @State private var isVisible = false
+    @State private var lastUpdateText = ""
+
+    private let updateTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
+
     var body: some View {
         ZStack {
             // Animated background
-            AnimatedGradient(baseColors: backgroundColors)
+            AnimatedGradient(baseColors: backgroundColors, isActive: isVisible)
                 .ignoresSafeArea()
 
             HStack(spacing: 0) {
@@ -23,10 +28,27 @@ struct DashboardView: View {
             .padding(24)
         }
         .onAppear {
+            isVisible = true
+            refreshLastUpdateText()
             // Single refresh on appear — auto-refresh lifecycle is owned by StatusBarController
             if settingsStore.hasCompletedOnboarding {
                 Task { await usageStore.refresh(thresholds: themeStore.thresholds) }
             }
+        }
+        .onDisappear {
+            isVisible = false
+        }
+        .onReceive(updateTimer) { _ in
+            refreshLastUpdateText()
+        }
+        .onChange(of: usageStore.lastUpdate) { _, _ in
+            refreshLastUpdateText()
+        }
+    }
+
+    private func refreshLastUpdateText() {
+        if let date = usageStore.lastUpdate {
+            lastUpdateText = date.formatted(.relative(presentation: .named))
         }
     }
 
@@ -124,8 +146,8 @@ struct DashboardView: View {
                     .frame(width: 16, height: 16)
             }
 
-            if let date = usageStore.lastUpdate {
-                Text(String(format: String(localized: "menubar.updated"), date.formatted(.relative(presentation: .named))))
+            if !lastUpdateText.isEmpty {
+                Text(String(format: String(localized: "menubar.updated"), lastUpdateText))
                     .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.3))
             }
@@ -149,7 +171,8 @@ struct DashboardView: View {
                 particleCount: 25,
                 speed: Double(usageStore.fiveHourPct) / 100.0,
                 color: gaugeColor(for: usageStore.fiveHourPct),
-                radius: 130
+                radius: 130,
+                isActive: isVisible
             )
             .frame(width: 280, height: 280)
 
