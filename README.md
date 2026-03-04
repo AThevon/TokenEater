@@ -91,7 +91,7 @@ Automatic alerts when usage crosses your configured thresholds:
 
 ### Authentication
 
-**Claude Code OAuth** — Silently reads the OAuth token from Claude Code's Keychain entry. Zero configuration needed if you have Claude Code installed. Expired tokens are recovered automatically — no password prompts, no manual intervention.
+**Claude Code OAuth** — Reads the OAuth token from Claude Code's credentials file (`~/.claude/.credentials.json`), with Keychain as a fallback during initial setup only. Zero configuration needed if you have Claude Code installed. Expired tokens are recovered automatically — no password prompts, no manual intervention.
 
 ### Auto-Update
 
@@ -246,13 +246,13 @@ Shared/                  Shared code (services, stores, models, pacing, notifica
 project.yml              XcodeGen configuration
 ```
 
-The host app and widget extension are both sandboxed and communicate through a shared JSON file in `~/Library/Application Support/`. The menu bar app reads the OAuth token from the macOS Keychain (silently, without triggering password dialogs), calls the API, and writes the data to the shared file. The widget reads from this file only — it never touches the Keychain or the network. The menu bar refreshes every 30 seconds. On 401/403, it silently checks the Keychain for a fresh token from Claude Code's auto-refresh and recovers automatically.
+The host app and widget extension are both sandboxed and communicate through a shared JSON file in `~/Library/Application Support/`. The menu bar app reads the OAuth token from Claude Code's credentials file (`~/.claude/.credentials.json`), calls the API, and writes the data to the shared file. The Keychain is only accessed as a fallback during onboarding or manual re-authorization. The widget reads from the shared file only — it never touches the Keychain or the network. The menu bar refreshes every 30 seconds. On 401/403, it re-reads the credentials file for a fresh token from Claude Code's auto-refresh and recovers automatically.
 
 The Agent Watchers overlay runs a separate session monitor that scans running Claude Code processes every 2 seconds using macOS system APIs (`sysctl`, `proc_pidpath`, `proc_pidinfo`), then tail-reads their JSONL log files to determine each session's current state. The overlay is rendered as a transparent `NSPanel` with click-through behavior outside the interactive zone.
 
 ## How it works
 
-TokenEater reads the OAuth token from Claude Code's Keychain entry and calls:
+TokenEater reads the OAuth token from Claude Code's credentials file and calls:
 
 ```
 GET https://api.anthropic.com/api/oauth/usage
@@ -268,15 +268,13 @@ TokenEater uses a **shared JSON file** to safely pass data between the menu bar 
 
 ### How it works
 
-1. **Menu bar app** reads the Claude Code OAuth token from the macOS Keychain
+1. **Menu bar app** reads the Claude Code OAuth token from `~/.claude/.credentials.json` (Keychain is only used as a fallback during onboarding)
 2. The token and API responses are written to a shared file (`~/Library/Application Support/com.tokeneater.shared/shared.json`)
-3. **Widget** reads cached data from this file — it never touches the Keychain or makes API calls
+3. **Widget** reads cached data from this file — it never touches the Keychain, the credentials file, or the network
 
-### Why this architecture?
+### Why credentials file over Keychain?
 
-The Claude Code CLI creates its OAuth token in the macOS Keychain. When a different process (like a widget extension) tries to read it, macOS shows a password prompt. Since Claude Code recreates the token on refresh (resetting Keychain ACLs), this prompt would appear repeatedly.
-
-By routing all Keychain access and API calls through the main app, only one process needs authorization — and the widget gets its data through the shared file instead.
+Claude Code stores its OAuth token in both the macOS Keychain and `~/.claude/.credentials.json`. Reading the Keychain from a third-party app triggers macOS password prompts — and since Claude Code recreates the token on refresh (resetting Keychain ACLs), these prompts would appear repeatedly. The credentials file provides the same token without any system dialogs. Keychain access is reserved for initial onboarding (as a last resort) and manual re-authorization.
 
 ### Why not App Groups?
 
