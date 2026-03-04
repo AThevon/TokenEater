@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 
 @Suite("ProcessResolver")
 struct ProcessResolverTests {
@@ -36,5 +37,57 @@ struct ProcessResolverTests {
     @Test("rejects empty path")
     func rejectsEmpty() {
         #expect(!ProcessResolver.isClaudePath(""))
+    }
+
+    // MARK: - TTY resolution
+
+    @Test("getProcessTTY returns a valid TTY for the current process")
+    func ttyForCurrentProcess() {
+        let tty = ProcessResolver.getProcessTTY(pid: ProcessInfo.processInfo.processIdentifier)
+        // In CI or Xcode, the test runner may not have a TTY — that's fine
+        if let tty {
+            #expect(tty.hasPrefix("/dev/tty"))
+        }
+    }
+
+    @Test("getProcessTTY returns nil for invalid PID")
+    func ttyForInvalidPid() {
+        #expect(ProcessResolver.getProcessTTY(pid: -1) == nil)
+    }
+
+    // MARK: - Electron helper detection
+
+    @Test("detects Electron helper bundle URL")
+    func detectsElectronHelper() {
+        let helperURL = URL(fileURLWithPath: "/Applications/Cursor.app/Contents/Frameworks/Cursor Helper (Plugin).app")
+        #expect(ProcessResolver.isElectronHelper(bundleURL: helperURL))
+    }
+
+    @Test("does not flag main app as Electron helper")
+    func doesNotFlagMainApp() {
+        let mainURL = URL(fileURLWithPath: "/Applications/Cursor.app")
+        #expect(!ProcessResolver.isElectronHelper(bundleURL: mainURL))
+    }
+
+    @Test("handles nil bundle URL")
+    func handlesNilBundleURL() {
+        #expect(!ProcessResolver.isElectronHelper(bundleURL: nil))
+    }
+
+    // MARK: - Terminal bundles
+
+    @Test("terminalBundles includes Cursor")
+    func includesCursor() {
+        #expect(ProcessResolver.terminalBundles.contains("com.todesktop.230313mzl4w4u92"))
+    }
+
+    @Test("terminalBundles includes Kitty")
+    func includesKitty() {
+        #expect(ProcessResolver.terminalBundles.contains("net.kovidgoyal.kitty"))
+    }
+
+    @Test("terminalBundles includes iTerm2")
+    func includesITerm2() {
+        #expect(ProcessResolver.terminalBundles.contains("com.googlecode.iterm2"))
     }
 }
