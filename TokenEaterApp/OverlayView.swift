@@ -29,25 +29,8 @@ struct OverlayView: View {
         }
         .padding(.vertical, 12)
         .padding(leftSide ? .leading : .trailing, 8)
-        .background(
-            GeometryReader { geo in
-                Color.clear.preference(
-                    key: SessionsBoundsKey.self,
-                    value: geo.frame(in: .global)
-                )
-            }
-        )
         .offset(y: contentOffset + dragDelta)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: leftSide ? .leading : .trailing)
-        .onPreferenceChange(SessionsBoundsKey.self) { bounds in
-            // Convert from screen coords (AppKit Y-up) to local SwiftUI coords (Y-down)
-            guard let screen = NSScreen.main else { return }
-            let screenTop = screen.visibleFrame.maxY
-            let minY = screenTop - bounds.maxY
-            let maxY = screenTop - bounds.minY
-            overlayState.sessionsMinY = minY
-            overlayState.sessionsMaxY = maxY
-        }
         .contentShape(Rectangle())
         .gesture(
             DragGesture(minimumDistance: 10)
@@ -60,6 +43,7 @@ struct OverlayView: View {
                         contentOffset += value.translation.height
                         contentOffset = max(-maxOffset, min(maxOffset, contentOffset))
                     }
+                    overlayState.contentOffset = contentOffset
                 }
         )
     }
@@ -116,12 +100,5 @@ struct OverlayView: View {
                 ProcessResolver.activateTerminal(for: process)
             }
         }
-    }
-}
-
-private struct SessionsBoundsKey: PreferenceKey {
-    static var defaultValue: CGRect = .zero
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
-        value = nextValue()
     }
 }

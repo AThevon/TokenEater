@@ -8,8 +8,7 @@ final class OverlayState: ObservableObject {
     @Published var windowHeight: CGFloat = 800
     @Published var windowWidth: CGFloat = 200
     @Published var leftSide: Bool = false
-    @Published var sessionsMinY: CGFloat = 0
-    @Published var sessionsMaxY: CGFloat = 0
+    @Published var contentOffset: CGFloat = 0
 }
 
 @MainActor
@@ -235,10 +234,17 @@ final class OverlayWindowController {
             return
         }
 
+        let scale = CGFloat(settingsStore.overlayScale)
+        let itemHeight: CGFloat = 40 * scale
+        let itemSpacing: CGFloat = 6 * scale
+        let count = sessionStore.activeSessions.count
+        let totalHeight = CGFloat(count) * itemHeight + CGFloat(max(0, count - 1)) * itemSpacing
+        let startY = (overlayState.windowHeight - totalHeight) / 2 + overlayState.contentOffset
+
         panel.ignoresMouseEvents = !OverlayHitTest.isCursorNearSessions(
             cursorY: localY,
-            sessionsMinY: overlayState.sessionsMinY,
-            sessionsMaxY: overlayState.sessionsMaxY
+            sessionsMinY: startY,
+            sessionsMaxY: startY + totalHeight
         )
     }
 }
