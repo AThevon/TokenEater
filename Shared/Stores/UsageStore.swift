@@ -48,8 +48,8 @@ final class UsageStore: ObservableObject {
         // Prevent concurrent refreshes — multiple .task/.onAppear can race
         guard !isLoading else { return }
 
-        // Throttle: skip if a successful refresh happened less than 15s ago (avoids 429)
-        if !force, let last = lastUpdate, Date().timeIntervalSince(last) < 15 {
+        // Throttle: skip if a successful refresh happened less than 20s ago (avoids 429)
+        if !force, let last = lastUpdate, Date().timeIntervalSince(last) < 20 {
             return
         }
 
@@ -117,8 +117,12 @@ final class UsageStore: ObservableObject {
         notificationService.requestPermission()
         WidgetReloader.scheduleReload()
         refreshTask?.cancel()
-        refreshTask = Task { await refresh(thresholds: thresholds) }
-        Task { await refreshProfile() }
+        // Sequential: refresh first, then profile after a delay to avoid 429
+        refreshTask = Task {
+            await refresh(thresholds: thresholds)
+            try? await Task.sleep(for: .seconds(2))
+            await refreshProfile()
+        }
     }
 
     func startAutoRefresh(interval: TimeInterval = 30, thresholds: UsageThresholds = .default) {
@@ -151,13 +155,18 @@ final class UsageStore: ObservableObject {
         return result
     }
 
+    private var lastProfileFetch: Date?
+
     func refreshProfile() async {
         guard repository.isConfigured else { return }
+        // Throttle: profile rarely changes, skip if fetched less than 60s ago
+        if let last = lastProfileFetch, Date().timeIntervalSince(last) < 60 { return }
         do {
             let profile = try await repository.fetchProfile(proxyConfig: proxyConfig)
             planType = PlanType(from: profile.account, organization: profile.organization)
             rateLimitTier = profile.organization?.rateLimitTier
             organizationName = profile.organization?.name
+            lastProfileFetch = Date()
         } catch {
             // Profile fetch failure is non-critical — don't update errorState
         }
