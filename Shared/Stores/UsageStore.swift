@@ -45,8 +45,11 @@ final class UsageStore: ObservableObject {
     }
 
     func refresh(thresholds: UsageThresholds = .default, force: Bool = false) async {
-        // Throttle: skip if a successful refresh happened less than 10s ago (avoids 429)
-        if !force, let last = lastUpdate, Date().timeIntervalSince(last) < 10 {
+        // Prevent concurrent refreshes — multiple .task/.onAppear can race
+        guard !isLoading else { return }
+
+        // Throttle: skip if a successful refresh happened less than 15s ago (avoids 429)
+        if !force, let last = lastUpdate, Date().timeIntervalSince(last) < 15 {
             return
         }
 
@@ -121,6 +124,8 @@ final class UsageStore: ObservableObject {
     func startAutoRefresh(interval: TimeInterval = 30, thresholds: UsageThresholds = .default) {
         refreshTask?.cancel()
         refreshTask = Task { [weak self] in
+            // Wait first — reloadConfig already triggers an initial refresh
+            try? await Task.sleep(for: .seconds(interval))
             while !Task.isCancelled {
                 guard let self else { return }
                 await self.refresh(thresholds: thresholds)
