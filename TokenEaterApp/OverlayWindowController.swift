@@ -8,6 +8,8 @@ final class OverlayState: ObservableObject {
     @Published var windowHeight: CGFloat = 800
     @Published var windowWidth: CGFloat = 200
     @Published var leftSide: Bool = false
+    @Published var sessionsMinY: CGFloat = 0
+    @Published var sessionsMaxY: CGFloat = 0
 }
 
 @MainActor
@@ -226,8 +228,17 @@ final class OverlayWindowController {
             return
         }
 
-        // Interactive zone: edge-side area — click-through everywhere else
+        // Interactive zone: edge-side area AND near session items vertically
         let distanceFromEdge = settingsStore.overlayLeftSide ? localX : (frame.width - localX)
-        panel.ignoresMouseEvents = distanceFromEdge > interactiveZone
+        guard distanceFromEdge <= interactiveZone else {
+            panel.ignoresMouseEvents = true
+            return
+        }
+
+        panel.ignoresMouseEvents = !OverlayHitTest.isCursorNearSessions(
+            cursorY: localY,
+            sessionsMinY: overlayState.sessionsMinY,
+            sessionsMaxY: overlayState.sessionsMaxY
+        )
     }
 }
