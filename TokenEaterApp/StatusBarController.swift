@@ -14,17 +14,20 @@ final class StatusBarController: NSObject {
     private let themeStore: ThemeStore
     private let settingsStore: SettingsStore
     private let updateStore: UpdateStore
+    private let sessionStore: SessionStore
 
     init(
         usageStore: UsageStore,
         themeStore: ThemeStore,
         settingsStore: SettingsStore,
-        updateStore: UpdateStore
+        updateStore: UpdateStore,
+        sessionStore: SessionStore
     ) {
         self.usageStore = usageStore
         self.themeStore = themeStore
         self.settingsStore = settingsStore
         self.updateStore = updateStore
+        self.sessionStore = sessionStore
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         super.init()
@@ -78,10 +81,19 @@ final class StatusBarController: NSObject {
             self?.updateMenuBarIcon()
         }
         .store(in: &cancellables)
+
+        settingsStore.$pacingMargin
+            .removeDuplicates()
+            .sink { [weak self] newMargin in
+                self?.usageStore.pacingMargin = newMargin
+                self?.usageStore.recalculatePacing()
+            }
+            .store(in: &cancellables)
     }
 
     private func bootstrapRefresh() {
         usageStore.proxyConfig = settingsStore.proxyConfig
+        usageStore.pacingMargin = settingsStore.pacingMargin
         usageStore.reloadConfig(thresholds: themeStore.thresholds)
         usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
         themeStore.syncToSharedFile()
@@ -173,9 +185,10 @@ final class StatusBarController: NSObject {
             .environmentObject(themeStore)
             .environmentObject(settingsStore)
             .environmentObject(updateStore)
+            .environmentObject(sessionStore)
 
         let isOnboarding = !settingsStore.hasCompletedOnboarding
-        let size = isOnboarding ? NSSize(width: 680, height: 620) : NSSize(width: 820, height: 580)
+        let size = isOnboarding ? NSSize(width: 680, height: 660) : NSSize(width: 820, height: 580)
         var styleMask: NSWindow.StyleMask = [.titled, .closable, .fullSizeContentView]
         if !isOnboarding { styleMask.insert(.resizable) }
 

@@ -2,7 +2,6 @@ import SwiftUI
 
 struct OnboardingView: View {
     @StateObject private var viewModel = OnboardingViewModel()
-    @State private var forward = true
 
     var body: some View {
         ZStack {
@@ -11,27 +10,28 @@ struct OnboardingView: View {
                 Color(red: 0.14, green: 0.10, blue: 0.18),
             ])
 
-            Group {
-                switch viewModel.currentStep {
-                case .welcome:
-                    WelcomeStep(viewModel: viewModel)
-                case .prerequisites:
-                    PrerequisiteStep(viewModel: viewModel)
-                case .notifications:
-                    NotificationStep(viewModel: viewModel)
-                case .connection:
-                    ConnectionStep(viewModel: viewModel)
+            VStack(spacing: 0) {
+                Group {
+                    switch viewModel.currentStep {
+                    case .welcome:
+                        WelcomeStep(viewModel: viewModel)
+                    case .prerequisites:
+                        PrerequisiteStep(viewModel: viewModel)
+                    case .notifications:
+                        NotificationStep(viewModel: viewModel)
+                    case .agentWatchers:
+                        AgentWatchersStep(viewModel: viewModel)
+                    case .connection:
+                        ConnectionStep(viewModel: viewModel)
+                    }
                 }
-            }
-            .transition(.asymmetric(
-                insertion: .move(edge: forward ? .trailing : .leading).combined(with: .opacity),
-                removal: .move(edge: forward ? .leading : .trailing).combined(with: .opacity)
-            ))
-            .id(viewModel.currentStep)
+                .frame(maxHeight: .infinity)
+                .transition(.asymmetric(
+                    insertion: .move(edge: viewModel.isNavigatingForward ? .trailing : .leading).combined(with: .opacity),
+                    removal: .move(edge: viewModel.isNavigatingForward ? .leading : .trailing).combined(with: .opacity)
+                ))
+                .id(viewModel.currentStep)
 
-            // Page dots
-            VStack {
-                Spacer()
                 HStack(spacing: 8) {
                     ForEach(OnboardingStep.allCases, id: \.rawValue) { step in
                         Circle()
@@ -39,11 +39,8 @@ struct OnboardingView: View {
                             .frame(width: 6, height: 6)
                     }
                 }
-                .padding(.bottom, 24)
+                .padding(.bottom, 16)
             }
-        }
-        .onChange(of: viewModel.currentStep) { oldValue, newValue in
-            forward = newValue.rawValue > oldValue.rawValue
         }
     }
 }

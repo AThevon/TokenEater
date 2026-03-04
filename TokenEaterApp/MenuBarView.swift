@@ -96,6 +96,11 @@ struct MenuBarPopoverView: View {
                 .padding(.horizontal, 16)
             }
 
+            // Watchers toggle
+            watchersToggle
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+
             // Last update
             if !lastUpdateText.isEmpty {
                 Text(String(format: String(localized: "menubar.updated"), lastUpdateText))
@@ -274,6 +279,40 @@ struct MenuBarPopoverView: View {
         }
         .buttonStyle(.plain)
         .help(isPinned ? Text(String(localized: "menubar.hide")) : Text(String(localized: "menubar.show")))
+    }
+
+    // MARK: - Watchers Toggle
+
+    private var watchersToggle: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                settingsStore.overlayEnabled.toggle()
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: settingsStore.overlayEnabled ? "eye.fill" : "eye.slash")
+                    .font(.system(size: 11))
+                    .foregroundStyle(settingsStore.overlayEnabled ? .blue : .white.opacity(0.25))
+                    .frame(width: 18)
+
+                Text(String(localized: "sidebar.agentWatchers"))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.5))
+
+                Spacer()
+
+                Circle()
+                    .fill(settingsStore.overlayEnabled ? .blue : .white.opacity(0.12))
+                    .frame(width: 6, height: 6)
+            }
+            .padding(.vertical, 6)
+            .padding(.horizontal, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(settingsStore.overlayEnabled ? .blue.opacity(0.08) : .white.opacity(0.03))
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Helpers

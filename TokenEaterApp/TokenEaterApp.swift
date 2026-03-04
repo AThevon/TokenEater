@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var usageStore: UsageStore!
@@ -9,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var statusBarController: StatusBarController?
     private var overlayWindowController: OverlayWindowController?
+    private var monitorCancellable: AnyCancellable?
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
@@ -19,13 +21,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             usageStore: usageStore,
             themeStore: themeStore,
             settingsStore: settingsStore,
-            updateStore: updateStore
+            updateStore: updateStore,
+            sessionStore: sessionStore
         )
-        sessionStore.startMonitoring()
+        if settingsStore.sessionMonitorEnabled {
+            sessionStore.startMonitoring()
+        }
         overlayWindowController = OverlayWindowController(
             sessionStore: sessionStore,
             settingsStore: settingsStore
         )
+
+        monitorCancellable = settingsStore.$sessionMonitorEnabled
+            .dropFirst()
+            .sink { [weak self] enabled in
+                guard let self else { return }
+                if enabled {
+                    self.sessionStore.startMonitoring()
+                } else {
+                    self.sessionStore.stopMonitoring()
+                }
+            }
     }
 }
 

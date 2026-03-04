@@ -109,6 +109,11 @@
 "pacing.label" = "Rythme";
 "pacing.reset" = "reset %@";
 
+/* Marge pacing */
+"settings.pacing.margin" = "Sensibilité du pacing";
+"settings.pacing.margin.value" = "Marge";
+"settings.pacing.margin.hint" = "Écart (%) toléré par rapport au rythme idéal avant de changer de zone.";
+
 /* Notifications — fallback (pas de temps de reset dispo) */
 "notif.orange.body" = "Tu dépasses %d%% — lève le pied";
 "notif.red.body" = "Usage critique — limite presque atteinte";
@@ -248,8 +253,49 @@
 "settings.overlay.title" = "Overlay de session";
 "settings.overlay.toggle" = "Afficher l'overlay de session";
 
+/* Agent Watchers */
+"settings.watchers.description" = "Un overlay flottant qui montre vos sessions Claude Code actives. Survolez pour agrandir, cliquez pour basculer vers une session.";
+"settings.watchers.legend" = "Légende des statuts";
+"settings.watchers.idle" = "Idle — en attente d'une action";
+"settings.watchers.thinking" = "Thinking — génère une réponse";
+"settings.watchers.executing" = "Executing — exécute un outil";
+"settings.watchers.waiting" = "Waiting — attend votre action";
+"settings.watchers.subagent" = "Subagent — sous-agent en cours";
+"settings.watchers.compacting" = "Compacting — compresse le contexte";
+"settings.watchers.detailed" = "Mode détaillé";
+"settings.watchers.simple.idle" = "Idle — en attente d'une action";
+"settings.watchers.simple.working" = "Working — Claude travaille";
+"settings.watchers.behavior" = "Comportement";
+"settings.watchers.dock" = "Effet de loupe style Dock";
+"settings.watchers.leftside" = "Côté gauche";
+"settings.watchers.size" = "Taille des cartes";
+"settings.watchers.size.reset" = "Réinitialiser";
+"settings.watchers.tmux.title" = "Configuration tmux";
+"settings.watchers.tmux.hint" = "Si vous utilisez tmux, ajoutez cette ligne à votre ~/.tmux.conf pour que TokenEater puisse basculer vers le bon pane au clic :";
+"settings.watchers.tmux.copy" = "Copier";
+
+/* Onboarding - Agent Watchers */
+"onboarding.watchers.title" = "Agent Watchers";
+"onboarding.watchers.description" = "Un overlay flottant qui montre vos sessions Claude Code actives d'un coup d'œil. Survolez pour agrandir, cliquez pour basculer vers une session.";
+"onboarding.watchers.tmux.hint" = "Si vous utilisez tmux, ajoutez cette ligne à votre config pour activer le switch au clic :";
+"onboarding.watchers.settings.hint" = "Vous pouvez simplifier l'affichage dans les Réglages.";
+
+/* Performance */
+"sidebar.performance" = "Performance";
+"settings.performance.description" = "Si TokenEater consomme trop de CPU, désactivez les fonctionnalités gourmandes ici.";
+"settings.performance.dashboard" = "Dashboard";
+"settings.performance.particles" = "Particules animées";
+"settings.performance.gradient" = "Dégradé animé";
+"settings.performance.watchers" = "Agent Watchers";
+"settings.performance.animations" = "Animations des watchers";
+"settings.performance.monitor" = "Session Monitor";
+"settings.performance.monitor.toggle" = "Détection des sessions";
+"settings.performance.monitor.warning" = "Désactiver coupe entièrement l'overlay Agent Watchers.";
+"onboarding.performance.hint" = "Vous pouvez ajuster les performances dans les Réglages si besoin.";
+
 /* Sidebar */
 "sidebar.dashboard" = "Tableau de bord";
 "sidebar.display" = "Affichage";
 "sidebar.themes" = "Thèmes";
+"sidebar.agentWatchers" = "Watchers";
 "sidebar.settings" = "Réglages";

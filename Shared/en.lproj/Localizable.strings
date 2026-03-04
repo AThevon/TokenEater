@@ -109,6 +109,11 @@
 "pacing.label" = "Pacing";
 "pacing.reset" = "reset %@";
 
+/* Pacing Margin */
+"settings.pacing.margin" = "Pacing Sensitivity";
+"settings.pacing.margin.value" = "Margin";
+"settings.pacing.margin.hint" = "How far (%) usage can deviate from ideal pace before switching zones.";
+
 /* Notifications — fallback (no reset time available) */
 "notif.orange.body" = "You're past %d%% — consider slowing down";
 "notif.red.body" = "Critical usage — limit almost reached";
@@ -248,8 +253,49 @@
 "settings.overlay.title" = "Session Overlay";
 "settings.overlay.toggle" = "Show session overlay";
 
+/* Agent Watchers */
+"settings.watchers.description" = "A floating overlay showing your active Claude Code sessions. Hover to expand, click to jump to a session.";
+"settings.watchers.legend" = "Status legend";
+"settings.watchers.idle" = "Idle — waiting for input";
+"settings.watchers.thinking" = "Thinking — generating a response";
+"settings.watchers.executing" = "Executing — running a tool";
+"settings.watchers.waiting" = "Waiting — needs your input";
+"settings.watchers.subagent" = "Subagent — spawned an agent";
+"settings.watchers.compacting" = "Compacting — compressing context";
+"settings.watchers.detailed" = "Detailed status mode";
+"settings.watchers.simple.idle" = "Idle — waiting for input";
+"settings.watchers.simple.working" = "Working — Claude is busy";
+"settings.watchers.behavior" = "Behavior";
+"settings.watchers.dock" = "Dock magnification effect";
+"settings.watchers.leftside" = "Left side";
+"settings.watchers.size" = "Card size";
+"settings.watchers.size.reset" = "Reset to default";
+"settings.watchers.tmux.title" = "tmux setup";
+"settings.watchers.tmux.hint" = "If you use tmux, add this line to your ~/.tmux.conf so TokenEater can switch to the right pane on click:";
+"settings.watchers.tmux.copy" = "Copy";
+
+/* Onboarding - Agent Watchers */
+"onboarding.watchers.title" = "Agent Watchers";
+"onboarding.watchers.description" = "A floating overlay that shows your active Claude Code sessions at a glance. Hover to expand, click to jump straight to a session.";
+"onboarding.watchers.tmux.hint" = "If you use tmux, add this line to your config to enable click-to-switch:";
+"onboarding.watchers.settings.hint" = "You can switch to a simplified view in Settings.";
+
+/* Performance */
+"sidebar.performance" = "Performance";
+"settings.performance.description" = "If TokenEater uses too much CPU, disable resource-heavy features here.";
+"settings.performance.dashboard" = "Dashboard";
+"settings.performance.particles" = "Animated particles";
+"settings.performance.gradient" = "Animated gradient";
+"settings.performance.watchers" = "Agent Watchers";
+"settings.performance.animations" = "Watcher animations";
+"settings.performance.monitor" = "Session Monitor";
+"settings.performance.monitor.toggle" = "Session detection";
+"settings.performance.monitor.warning" = "Disabling this turns off the Agent Watchers overlay entirely.";
+"onboarding.performance.hint" = "You can adjust performance settings if needed.";
+
 /* Sidebar */
 "sidebar.dashboard" = "Dashboard";
 "sidebar.display" = "Display";
 "sidebar.themes" = "Themes";
+"sidebar.agentWatchers" = "Watchers";
 "sidebar.settings" = "Settings";

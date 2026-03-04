@@ -21,8 +21,11 @@ final class UsageStore: ObservableObject {
     @Published var planType: PlanType = .unknown
     @Published var rateLimitTier: String?
     @Published var organizationName: String?
+    @Published private(set) var lastUsage: UsageResponse?
 
     var hasError: Bool { errorState != .none }
+
+    var pacingMargin: Int = 10
 
     /// Token that last received a 401/403. Prevents retrying the API with a known-dead token.
     private var lastFailedToken: String?
@@ -153,6 +156,7 @@ final class UsageStore: ObservableObject {
     // MARK: - Private
 
     private func update(from usage: UsageResponse) {
+        lastUsage = usage
         fiveHourPct = Int(usage.fiveHour?.utilization ?? 0)
         sevenDayPct = Int(usage.sevenDay?.utilization ?? 0)
         sonnetPct = Int(usage.sevenDaySonnet?.utilization ?? 0)
@@ -175,7 +179,16 @@ final class UsageStore: ObservableObject {
             fiveHourReset = ""
         }
 
-        if let pacing = PacingCalculator.calculate(from: usage) {
+        if let pacing = PacingCalculator.calculate(from: usage, margin: Double(pacingMargin)) {
+            pacingDelta = Int(pacing.delta)
+            pacingZone = pacing.zone
+            pacingResult = pacing
+        }
+    }
+
+    func recalculatePacing() {
+        guard let usage = lastUsage else { return }
+        if let pacing = PacingCalculator.calculate(from: usage, margin: Double(pacingMargin)) {
             pacingDelta = Int(pacing.delta)
             pacingZone = pacing.zone
             pacingResult = pacing

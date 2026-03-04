@@ -68,6 +68,8 @@ extension AppSection {
         case .dashboard: "chart.bar.fill"
         case .display: "display"
         case .themes: "paintpalette.fill"
+        case .agentWatchers: "eye.fill"
+        case .performance: "gauge.with.dots.needle.33percent"
         case .settings: "gearshape.fill"
         }
     }
@@ -77,6 +79,8 @@ extension AppSection {
         case .dashboard: String(localized: "sidebar.dashboard")
         case .display: String(localized: "sidebar.display")
         case .themes: String(localized: "sidebar.themes")
+        case .agentWatchers: String(localized: "sidebar.agentWatchers")
+        case .performance: String(localized: "sidebar.performance")
         case .settings: String(localized: "sidebar.settings")
         }
     }

@@ -5,7 +5,8 @@ enum OnboardingStep: Int, CaseIterable {
     case welcome = 0
     case prerequisites = 1
     case notifications = 2
-    case connection = 3
+    case agentWatchers = 3
+    case connection = 4
 }
 
 enum ClaudeCodeStatus {
