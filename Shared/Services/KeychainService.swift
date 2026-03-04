@@ -19,6 +19,11 @@ final class KeychainService: KeychainServiceProtocol, @unchecked Sendable {
         credentialsFileReader.readToken() ?? readKeychainToken(allowUI: false)
     }
 
+    /// Read token from credentials file only — no Keychain access at all.
+    func readCredentialsFileToken() -> String? {
+        credentialsFileReader.readToken()
+    }
+
     func tokenExists() -> Bool {
         if credentialsFileReader.tokenExists() { return true }
 

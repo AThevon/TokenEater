@@ -5,5 +5,7 @@ protocol KeychainServiceProtocol: Sendable {
     func readOAuthToken() -> String?
     /// Silent read — never triggers dialog. Returns nil if auth is needed.
     func readOAuthTokenSilently() -> String?
+    /// Read token from credentials file only — no Keychain access at all.
+    func readCredentialsFileToken() -> String?
     func tokenExists() -> Bool
 }

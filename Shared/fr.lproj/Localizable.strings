@@ -90,6 +90,9 @@
 "error.banner.expired.hint" = "Lancez /login dans Claude Code — TokenEater le récupérera automatiquement";
 "error.banner.keychain" = "Keychain verrouillé";
 "error.banner.keychain.hint" = "Nouvelle tentative automatique — ou ouvrez les Réglages pour ré-autoriser";
+"error.banner.reauth" = "Autorisation requise";
+"error.banner.reauth.hint" = "Token expiré et la récupération automatique a échoué";
+"error.banner.reauth.button" = "Ré-autoriser";
 
 /* Connection Test */
 "test.success" = "Connexion OK — Session : %d%%";

@@ -65,6 +65,27 @@ struct UsageRepositoryTests {
         #expect(sharedFile._oauthToken == nil)
     }
 
+    // MARK: - syncCredentialsFile
+
+    @Test("syncCredentialsFile copies credentials file token to shared file")
+    func syncCredentialsFileCopiesToSharedFile() {
+        let (repo, _, keychain, sharedFile) = makeSUT()
+        keychain.storedToken = "cred-tok"
+
+        repo.syncCredentialsFile()
+
+        #expect(sharedFile._oauthToken == "cred-tok")
+    }
+
+    @Test("syncCredentialsFile does nothing when no credentials file token")
+    func syncCredentialsFileDoesNothingWhenNoToken() {
+        let (repo, _, _, sharedFile) = makeSUT()
+
+        repo.syncCredentialsFile()
+
+        #expect(sharedFile._oauthToken == nil)
+    }
+
     // MARK: - currentToken
 
     @Test("currentToken delegates to shared file oauthToken")

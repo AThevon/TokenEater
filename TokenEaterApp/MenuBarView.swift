@@ -335,6 +335,26 @@ struct MenuBarPopoverView: View {
                 Text(String(localized: "error.banner.keychain.hint"))
                     .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.5))
+            case .needsReauth:
+                Label(String(localized: "error.banner.reauth"), systemImage: "key.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.orange)
+                Text(String(localized: "error.banner.reauth.hint"))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.5))
+                Button {
+                    Task { await usageStore.reauthenticate() }
+                } label: {
+                    Text(String(localized: "error.banner.reauth.button"))
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(.orange.opacity(0.3))
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
             case .networkError(let message):
                 Label(message, systemImage: "wifi.slash")
                     .font(.system(size: 11, weight: .semibold))

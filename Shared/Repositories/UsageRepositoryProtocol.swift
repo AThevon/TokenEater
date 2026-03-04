@@ -8,6 +8,8 @@ protocol UsageRepositoryProtocol {
     func syncKeychainToken()
     /// Silent keychain read — never triggers dialog.
     func syncKeychainTokenSilently()
+    /// Credentials file sync — no Keychain access at all.
+    func syncCredentialsFile()
     var isConfigured: Bool { get }
     var cachedUsage: CachedUsage? { get }
     var currentToken: String? { get }

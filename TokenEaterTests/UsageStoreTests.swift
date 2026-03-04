@@ -57,13 +57,13 @@ struct UsageStoreTests {
         #expect(store.isLoading == false)
     }
 
-    @Test("refresh calls syncKeychainTokenSilently when not configured")
-    func refreshCallsSyncSilentlyWhenNotConfigured() async {
+    @Test("refresh calls syncCredentialsFile when not configured")
+    func refreshCallsSyncCredentialsFileWhenNotConfigured() async {
         let (store, repo, _) = makeSUT(isConfigured: false)
 
         await store.refresh()
 
-        #expect(repo.syncSilentCallCount == 1)
+        #expect(repo.syncCredentialsFileCallCount == 1)
         #expect(repo.syncCallCount == 0)
     }
 
@@ -110,13 +110,13 @@ struct UsageStoreTests {
         #expect(store.hasError == true)
     }
 
-    @Test("refresh sets keychainLocked error")
-    func refreshSetsKeychainLockedError() async {
+    @Test("refresh sets needsReauth error on keychainLocked")
+    func refreshSetsNeedsReauthError() async {
         let (store, _, _) = makeSUT(shouldFail: true, failWith: .keychainLocked)
 
         await store.refresh()
 
-        #expect(store.errorState == .keychainLocked)
+        #expect(store.errorState == .needsReauth)
     }
 
     @Test("refresh sets networkError on generic API error")
