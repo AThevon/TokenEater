@@ -92,6 +92,9 @@ final class UsageStore: ObservableObject {
                 errorState = .tokenExpired
             case .keychainLocked:
                 errorState = .keychainLocked
+            case .httpError(429):
+                // Rate limited — silently skip, auto-refresh will retry later
+                break
             default:
                 errorState = .networkError(error.localizedDescription)
             }
