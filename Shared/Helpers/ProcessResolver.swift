@@ -114,12 +114,16 @@ enum ProcessResolver {
         }
     }
 
+    /// Check if an executable path matches a known Claude Code installation.
+    static func isClaudePath(_ path: String) -> Bool {
+        knownClaudePaths.contains { path.contains($0) }
+    }
+
     private static func isClaudeProcess(pid: Int32) -> Bool {
         var pathBuffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
         let ret = proc_pidpath(pid, &pathBuffer, UInt32(MAXPATHLEN))
         guard ret > 0 else { return false }
-        let path = String(cString: pathBuffer)
-        return knownClaudePaths.contains { path.contains($0) }
+        return isClaudePath(String(cString: pathBuffer))
     }
 
     private static func getProcessCwd(pid: Int32) -> String? {
