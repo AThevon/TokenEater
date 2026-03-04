@@ -17,7 +17,7 @@ struct ParticleField: View {
 
     var body: some View {
         if isActive {
-            TimelineView(.animation(minimumInterval: 1.0 / 12.0)) { timeline in
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
                 particleCanvas(time: timeline.date.timeIntervalSinceReferenceDate * (0.2 + speed * 0.8))
             }
         } else {
