@@ -133,7 +133,8 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
                     state: resolvedState,
                     lastUpdate: modDate,
                     startedAt: startedAt,
-                    processPid: process.pid
+                    processPid: process.pid,
+                    sourceKind: process.sourceKind
                 )
                 activeSessions.append(session)
 

@@ -6,6 +6,7 @@ struct ClaudeProcessInfo: Sendable {
     let pid: Int32
     let parentPid: Int32
     let cwd: String
+    let sourceKind: SessionSourceKind
 }
 
 enum ProcessResolver {
@@ -19,11 +20,60 @@ enum ProcessResolver {
         let allProcs = listAllProcesses()
         guard !allProcs.isEmpty else { return [] }
 
+        // Build a pid → parentPid lookup for ancestor walking
+        var parentLookup: [Int32: Int32] = [:]
+        for proc in allProcs {
+            parentLookup[proc.pid] = proc.parentPid
+        }
+
         return allProcs.compactMap { proc in
             guard isClaudeProcess(pid: proc.pid) else { return nil }
             guard let cwd = getProcessCwd(pid: proc.pid) else { return nil }
-            return ClaudeProcessInfo(pid: proc.pid, parentPid: proc.parentPid, cwd: cwd)
+            let kind = resolveSourceKind(pid: proc.parentPid, parentLookup: parentLookup)
+            return ClaudeProcessInfo(pid: proc.pid, parentPid: proc.parentPid, cwd: cwd, sourceKind: kind)
         }
+    }
+
+    private static let idePathPatterns = [
+        "Visual Studio Code", "Code.app", "Cursor.app",
+        "Zed.app", "Windsurf.app", "Sublime Text.app",
+        "IntelliJ", "GoLand", "WebStorm", "PyCharm", "CLion", "Rider",
+        "RustRover", "DataGrip", "PhpStorm", "AppCode",
+    ]
+
+    private static let terminalPathPatterns = [
+        "/bin/zsh", "/bin/bash", "/bin/sh", "/bin/fish",
+        "/bin/tmux", "/bin/screen",
+        "Terminal.app", "iTerm.app", "iTerm2.app",
+        "WezTerm.app", "Warp.app", "Alacritty.app", "kitty.app",
+        "Ghostty.app",
+    ]
+
+    /// Walk the entire ancestor chain; IDE wins over terminal (shells are always present).
+    private static func resolveSourceKind(
+        pid: Int32,
+        parentLookup: [Int32: Int32]
+    ) -> SessionSourceKind {
+        var foundTerminal = false
+        var currentPid = pid
+        for _ in 0..<15 {
+            guard currentPid > 1 else { break }
+            var pathBuffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
+            let ret = proc_pidpath(currentPid, &pathBuffer, UInt32(MAXPATHLEN))
+            if ret > 0 {
+                let path = String(cString: pathBuffer)
+                // IDE found → return immediately, always wins
+                if idePathPatterns.contains(where: { path.contains($0) }) {
+                    return .ide
+                }
+                if terminalPathPatterns.contains(where: { path.contains($0) }) {
+                    foundTerminal = true
+                }
+            }
+            guard let ppid = parentLookup[currentPid], ppid > 1 else { break }
+            currentPid = ppid
+        }
+        return foundTerminal ? .terminal : .unknown
     }
 
     /// Activate the terminal running a Claude process.

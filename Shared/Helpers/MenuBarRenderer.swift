@@ -28,7 +28,7 @@ enum MenuBarRenderer {
 
         let image: NSImage
         if !data.hasConfig || data.hasError {
-            image = renderText("--", color: .tertiaryLabelColor)
+            image = renderLogoTemplate()
         } else {
             image = renderPinnedMetrics(data)
         }
@@ -132,6 +132,44 @@ enum MenuBarRenderer {
             return true
         }
         img.isTemplate = false
+        return img
+    }
+
+    /// App logo silhouette for menu bar (template — macOS renders white/black automatically).
+    private static func renderLogoTemplate() -> NSImage {
+        let s: CGFloat = 16
+        let height: CGFloat = 22
+        let imgSize = NSSize(width: s + 2, height: height)
+        let scale = s / 300.0
+        let yOff = (height - s) / 2
+
+        let img = NSImage(size: imgSize, flipped: true) { _ in
+            let ctx = NSGraphicsContext.current!.cgContext
+            ctx.translateBy(x: 1, y: yOff)
+            ctx.scaleBy(x: scale, y: scale)
+
+            NSColor.black.setFill()
+
+            // L-shaped main body
+            let lPath = CGMutablePath()
+            let r: CGFloat = 32
+            lPath.addRoundedRect(in: CGRect(x: 0, y: 0, width: 300, height: 122), cornerWidth: r, cornerHeight: r)
+            lPath.addRoundedRect(in: CGRect(x: 0, y: 0, width: 122, height: 300), cornerWidth: r, cornerHeight: r)
+            ctx.addPath(lPath)
+            ctx.fillPath(using: .winding)
+
+            // Two horizontal bars
+            let bar1 = CGRect(x: 142, y: 142, width: 158, height: 70)
+            let bar2 = CGRect(x: 142, y: 230, width: 158, height: 70)
+            let barR: CGFloat = 24
+            ctx.addPath(CGPath(roundedRect: bar1, cornerWidth: barR, cornerHeight: barR, transform: nil))
+            ctx.fillPath()
+            ctx.addPath(CGPath(roundedRect: bar2, cornerWidth: barR, cornerHeight: barR, transform: nil))
+            ctx.fillPath()
+
+            return true
+        }
+        img.isTemplate = true
         return img
     }
 }

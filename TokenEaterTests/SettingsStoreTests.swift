@@ -5,7 +5,7 @@ import UserNotifications
 private let settingsKeys = [
     "showMenuBar", "pinnedMetrics", "pacingDisplayMode",
     "hasCompletedOnboarding", "proxyEnabled", "proxyHost", "proxyPort",
-    "overlayEnabled"
+    "overlayEnabled", "watcherStyle"
 ]
 
 private func cleanDefaults() {
@@ -190,6 +190,39 @@ struct SettingsStoreTests {
         let (store, _, _) = makeStore()
         store.overlayEnabled = false
         #expect(UserDefaults.standard.object(forKey: "overlayEnabled") as? Bool == false)
+    }
+
+    // MARK: - Watcher Style
+
+    @Test("watcherStyle defaults to frost")
+    func watcherStyleDefaults() {
+        let (store, _, _) = makeStore()
+        #expect(store.watcherStyle == .frost)
+    }
+
+    @Test("watcherStyle persists to UserDefaults")
+    func watcherStylePersists() {
+        let (store, _, _) = makeStore()
+        store.watcherStyle = .neon
+        #expect(UserDefaults.standard.string(forKey: "watcherStyle") == "neon")
+    }
+
+    @Test("watcherStyle reads from UserDefaults on init")
+    func watcherStyleReadsFromDefaults() {
+        cleanDefaults()
+        UserDefaults.standard.set("neon", forKey: "watcherStyle")
+        let notif = MockNotificationService()
+        let store = SettingsStore(notificationService: notif, keychainService: MockKeychainService())
+        #expect(store.watcherStyle == .neon)
+    }
+
+    @Test("watcherStyle falls back to frost on invalid value")
+    func watcherStyleFallsBackOnInvalid() {
+        cleanDefaults()
+        UserDefaults.standard.set("cyberpunk", forKey: "watcherStyle")
+        let notif = MockNotificationService()
+        let store = SettingsStore(notificationService: notif, keychainService: MockKeychainService())
+        #expect(store.watcherStyle == .frost)
     }
 
 }

@@ -59,6 +59,7 @@ final class StatusBarController: NSObject {
 
     private func setupPopover() {
         popover.behavior = .transient
+        popover.appearance = NSAppearance(named: .darkAqua)
     }
 
     private func installPopoverContent() {

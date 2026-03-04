@@ -64,12 +64,12 @@ struct OverlayView: View {
         let vDistToGroup = abs(groupCenterY - cursor.y)
         guard vDistToGroup < totalHeight / 2 + 80 else { return 0 }
 
-        // Horizontal factor: reaches max at halfway through the zone
+        // Horizontal factor: steep curve — max reached within ~60px of travel
         let hActivationZone: CGFloat = 180
         let hDistance = leftSide ? cursor.x : (wWidth - cursor.x)
         guard hDistance < hActivationZone else { return 0 }
         let rawH = 1 - (hDistance / hActivationZone)
-        let hFactor = min(1, pow(rawH * 2.0, 0.5)) // max at half distance
+        let hFactor = min(1, rawH * 3.0)
 
         let base: CGFloat = 0.75 * hFactor
 

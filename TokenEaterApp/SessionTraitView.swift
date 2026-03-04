@@ -1,5 +1,7 @@
 import SwiftUI
 
+// MARK: - Session Trait View
+
 struct SessionTraitView: View {
     let session: ClaudeSession
     let proximity: CGFloat // 0 = collapsed capsule, 1 = fully expanded card
@@ -17,6 +19,7 @@ struct SessionTraitView: View {
     // MARK: - Display logic (simple vs detailed)
 
     private var isDetailed: Bool { settingsStore.watchersDetailedMode }
+    private var style: WatcherStyle { settingsStore.watcherStyle }
 
     private var needsAttention: Bool {
         session.state == .idle || session.state == .waiting
@@ -54,6 +57,33 @@ struct SessionTraitView: View {
         }
     }
 
+    /// Neon: more saturated version of stateColor
+    private var neonColor: Color {
+        if isDetailed {
+            switch session.state {
+            case .idle: return Color(red: 0.2, green: 1.0, blue: 0.55)
+            case .thinking: return Color(red: 1.0, green: 0.55, blue: 0.1)
+            case .toolExec: return Color(red: 0.3, green: 0.5, blue: 1.0)
+            case .waiting: return Color(red: 0.8, green: 0.35, blue: 1.0)
+            case .subagent: return Color(red: 0.1, green: 1.0, blue: 1.0)
+            case .compacting: return Color(red: 0.5, green: 0.5, blue: 0.6)
+            }
+        } else {
+            switch session.state {
+            case .idle, .waiting: return Color(red: 0.2, green: 1.0, blue: 0.55)
+            case .thinking, .toolExec, .subagent, .compacting: return Color(red: 1.0, green: 0.55, blue: 0.1)
+            }
+        }
+    }
+
+    /// Active color depends on style
+    private var activeColor: Color {
+        switch style {
+        case .neon: return neonColor
+        case .frost: return stateColor
+        }
+    }
+
     private var stateLabel: String {
         if isDetailed {
             switch session.state {
@@ -70,6 +100,12 @@ struct SessionTraitView: View {
             case .thinking, .toolExec, .subagent, .compacting: return "working…"
             }
         }
+    }
+
+    // MARK: - Style-dependent properties
+
+    private var fontDesign: Font.Design {
+        style == .neon ? .monospaced : .rounded
     }
 
     // MARK: - Interpolated dimensions
@@ -97,43 +133,22 @@ struct SessionTraitView: View {
         HStack(spacing: proximity > 0.15 ? 8 : 0) {
             if leftSide {
                 textContent
-                accentBar
+                accentIndicator
             } else {
-                accentBar
+                accentIndicator
                 textContent
             }
         }
         .padding(.horizontal, lerp(0, 10 * scale, proximity))
         .padding(.vertical, lerp(2 * scale, 8 * scale, proximity))
-        .frame(width: itemWidth, height: itemHeight, alignment: leftSide ? .trailing : .leading)
-        .background {
-            ZStack {
-                // Frosted glass (fades in)
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(.ultraThinMaterial)
-                    .opacity(materialOpacity)
-
-                // Solid color fill (fades out — visible only at low proximity)
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(stateColor)
-                    .opacity(max(0, 1 - materialOpacity) * 0.85)
-
-                // Subtle state-colored border on expanded card
-                if proximity > 0.3 {
-                    RoundedRectangle(cornerRadius: cornerRadius)
-                        .strokeBorder(stateColor.opacity(0.15), lineWidth: 0.5)
-                        .opacity(materialOpacity)
-                }
-            }
-        }
-        // Glow on collapsed capsules when active
-        .shadow(
-            color: isActive && proximity < 0.3
-                ? stateColor.opacity(glowing ? 0.7 : 0.2)
-                : .black.opacity(Double(proximity) * 0.1),
-            radius: isActive && proximity < 0.3 ? (glowing ? 8 : 3) : 6,
-            y: isActive && proximity < 0.3 ? 0 : 2
+        .frame(
+            width: itemWidth,
+            height: itemHeight,
+            alignment: leftSide ? .trailing : .leading
         )
+        .background { backgroundForStyle }
+        .overlay(alignment: leftSide ? .bottomLeading : .bottomTrailing) { sourceIcon }
+        .shadow(color: shadowColor, radius: shadowRadius, y: shadowY)
         .scaleEffect(x: nudgeScaleX, y: 1.0, anchor: leftSide ? .leading : .trailing)
         .scaleEffect(isPressed ? 0.96 : 1.0)
         .onTapGesture {
@@ -148,12 +163,13 @@ struct SessionTraitView: View {
                 onTap?()
             }
         }
-        .onAppear { updateAnimations() }
+        .onAppear {
+            updateAnimations()
+        }
         .onChange(of: session.state) { oldState, newState in
-            // Nudge: start bouncing when transitioning to an attention state
             let wasAttention = (oldState == .idle || oldState == .waiting)
             let isAttention = (newState == .idle || newState == .waiting)
-            if !wasAttention && isAttention {
+            if !wasAttention && isAttention && proximity <= 0.15 {
                 startNudge()
             } else if !isAttention {
                 stopNudge()
@@ -161,7 +177,6 @@ struct SessionTraitView: View {
             updateAnimations()
         }
         .onChange(of: proximity > 0.15) { _, isNear in
-            // Stop nudge when user hovers close enough to see the session
             if isNear && nudging {
                 stopNudge()
             }
@@ -179,13 +194,126 @@ struct SessionTraitView: View {
         }
     }
 
+    // MARK: - Background per style
+
     @ViewBuilder
-    private var accentBar: some View {
-        RoundedRectangle(cornerRadius: lerp(2.5, 1.5, proximity))
-            .fill(stateColor)
-            .frame(width: barWidth)
-            .opacity(session.state == .thinking ? (breathing ? 1.0 : 0.65) : 0.9)
+    private var backgroundForStyle: some View {
+        switch style {
+        case .frost:
+            frostBackground
+        case .neon:
+            neonBackground
+        }
     }
+
+    @ViewBuilder
+    private var frostBackground: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .fill(.black.opacity(0.55))
+                .opacity(materialOpacity)
+
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .fill(.ultraThinMaterial)
+                .opacity(materialOpacity)
+
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .fill(stateColor)
+                .opacity(max(0, 1 - materialOpacity) * 0.85)
+
+            if proximity > 0.3 {
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .strokeBorder(stateColor.opacity(0.15), lineWidth: 0.5)
+                    .opacity(materialOpacity)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var neonBackground: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .fill(.black.opacity(0.85))
+                .opacity(materialOpacity)
+
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .fill(neonColor)
+                .opacity(max(0, 1 - materialOpacity) * 0.9)
+
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .strokeBorder(neonColor.opacity(0.8), lineWidth: 1.5)
+                .opacity(materialOpacity)
+        }
+    }
+
+    // MARK: - Shadow per style
+
+    private var shadowColor: Color {
+        switch style {
+        case .frost:
+            if isActive && proximity < 0.3 {
+                return stateColor.opacity(glowing ? 0.7 : 0.2)
+            }
+            return .black.opacity(Double(proximity) * 0.1)
+        case .neon:
+            if isActive && proximity < 0.3 {
+                return neonColor.opacity(glowing ? 0.9 : 0.3)
+            }
+            return neonColor.opacity(Double(proximity) * 0.25)
+        }
+    }
+
+    private var shadowRadius: CGFloat {
+        switch style {
+        case .frost:
+            return isActive && proximity < 0.3 ? (glowing ? 8 : 3) : 6
+        case .neon:
+            return isActive && proximity < 0.3 ? (glowing ? 12 : 5) : 8
+        }
+    }
+
+    private var shadowY: CGFloat {
+        switch style {
+        case .frost:
+            return isActive && proximity < 0.3 ? 0 : 2
+        case .neon:
+            return 0
+        }
+    }
+
+    // MARK: - Accent indicator
+
+    @ViewBuilder
+    private var accentIndicator: some View {
+        switch style {
+        case .frost:
+            RoundedRectangle(cornerRadius: lerp(2.5, 1.5, proximity))
+                .fill(activeColor)
+                .frame(width: barWidth)
+                .opacity(session.state == .thinking ? (breathing ? 1.0 : 0.65) : 0.9)
+        case .neon:
+            EmptyView()
+        }
+    }
+
+    // MARK: - Source icon
+
+    @ViewBuilder
+    private var sourceIcon: some View {
+        if session.sourceKind != .unknown && proximity > 0.5 {
+            let icon = session.sourceKind == .ide
+                ? "chevron.left.forwardslash.chevron.right"
+                : "terminal"
+            Image(systemName: icon)
+                .font(.system(size: 7.5 * scale, weight: .medium))
+                .foregroundStyle(.white.opacity(0.25))
+                .padding(leftSide ? .leading : .trailing, 8 * scale)
+                .padding(.bottom, 4 * scale)
+                .opacity(min(1, Double(proximity - 0.5) / 0.3))
+        }
+    }
+
+    // MARK: - Text content
 
     @ViewBuilder
     private var textContent: some View {
@@ -195,15 +323,15 @@ struct SessionTraitView: View {
             }
 
             VStack(alignment: leftSide ? .trailing : .leading, spacing: 2 * scale) {
-                Text(session.projectName)
-                    .font(.system(size: 11.5 * scale, weight: .semibold, design: .rounded))
+                Text(session.displayName)
+                    .font(.system(size: 11.5 * scale, weight: .semibold, design: fontDesign))
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .truncationMode(.tail)
 
                 Text(stateLabel)
-                    .font(.system(size: 9 * scale, weight: .medium, design: .rounded))
-                    .foregroundStyle(stateColor.opacity(0.85))
+                    .font(.system(size: 9 * scale, weight: .medium, design: fontDesign))
+                    .foregroundStyle(activeColor.opacity(0.85))
             }
             .opacity(textOpacity)
 
@@ -238,7 +366,6 @@ struct SessionTraitView: View {
             return
         }
 
-        // Breathing for accent bar (only .thinking state)
         if session.state == .thinking {
             breathing = false
             withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
@@ -250,7 +377,6 @@ struct SessionTraitView: View {
             }
         }
 
-        // Glow for collapsed capsules
         if isActive {
             glowing = false
             withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {

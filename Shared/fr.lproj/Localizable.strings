@@ -277,6 +277,9 @@
 "settings.watchers.tmux.title" = "Configuration tmux";
 "settings.watchers.tmux.hint" = "Si vous utilisez tmux, ajoutez cette ligne à votre ~/.tmux.conf pour que TokenEater puisse basculer vers le bon pane au clic :";
 "settings.watchers.tmux.copy" = "Copier";
+"settings.watchers.style" = "Style de l'overlay";
+"settings.watchers.style.frost" = "Frost";
+"settings.watchers.style.neon" = "Neon";
 
 /* Onboarding - Agent Watchers */
 "onboarding.watchers.title" = "Agent Watchers";

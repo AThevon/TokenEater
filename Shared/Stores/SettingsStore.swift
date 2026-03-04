@@ -44,6 +44,9 @@ final class SettingsStore: ObservableObject {
     @Published var watchersDetailedMode: Bool {
         didSet { UserDefaults.standard.set(watchersDetailedMode, forKey: "watchersDetailedMode") }
     }
+    @Published var watcherStyle: WatcherStyle {
+        didSet { UserDefaults.standard.set(watcherStyle.rawValue, forKey: "watcherStyle") }
+    }
 
     // Performance
     @Published var particlesEnabled: Bool {
@@ -125,9 +128,12 @@ final class SettingsStore: ObservableObject {
         }()
         self.overlayEnabled = UserDefaults.standard.object(forKey: "overlayEnabled") as? Bool ?? true
         self.overlayDockEffect = UserDefaults.standard.object(forKey: "overlayDockEffect") as? Bool ?? true
-        self.overlayScale = UserDefaults.standard.object(forKey: "overlayScale") as? Double ?? 1.0
+        self.overlayScale = UserDefaults.standard.object(forKey: "overlayScale") as? Double ?? 1.1
         self.overlayLeftSide = UserDefaults.standard.bool(forKey: "overlayLeftSide")
         self.watchersDetailedMode = UserDefaults.standard.object(forKey: "watchersDetailedMode") as? Bool ?? true
+        self.watcherStyle = WatcherStyle(
+            rawValue: UserDefaults.standard.string(forKey: "watcherStyle") ?? "frost"
+        ) ?? .frost
         self.particlesEnabled = UserDefaults.standard.object(forKey: "particlesEnabled") as? Bool ?? true
         self.animatedGradientEnabled = UserDefaults.standard.object(forKey: "animatedGradientEnabled") as? Bool ?? true
         self.watcherAnimationsEnabled = UserDefaults.standard.object(forKey: "watcherAnimationsEnabled") as? Bool ?? true

@@ -28,6 +28,18 @@ struct AgentWatchersSectionView: View {
                 }
             }
 
+            // Overlay style picker
+            glassCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    cardLabel(String(localized: "settings.watchers.style"))
+
+                    HStack(spacing: 12) {
+                        stylePreviewCard(.frost)
+                        stylePreviewCard(.neon)
+                    }
+                }
+            }
+
             // Behavior
             glassCard {
                 VStack(alignment: .leading, spacing: 12) {
@@ -58,10 +70,10 @@ struct AgentWatchersSectionView: View {
                                 .foregroundStyle(.white.opacity(0.3))
                         }
 
-                        if abs(settingsStore.overlayScale - 1.0) > 0.01 {
+                        if abs(settingsStore.overlayScale - 1.1) > 0.01 {
                             Button {
                                 withAnimation(.easeInOut(duration: 0.2)) {
-                                    settingsStore.overlayScale = 1.0
+                                    settingsStore.overlayScale = 1.1
                                 }
                             } label: {
                                 Text("settings.watchers.size.reset")
@@ -168,14 +180,118 @@ struct AgentWatchersSectionView: View {
         }
     }
 
+    // MARK: - Style preview cards
+
+    private func stylePreviewCard(_ style: WatcherStyle) -> some View {
+        let isSelected = settingsStore.watcherStyle == style
+        return Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                settingsStore.watcherStyle = style
+            }
+        } label: {
+            VStack(spacing: 6) {
+                stylePreviewContent(style, isSelected: isSelected)
+                    .frame(width: 56, height: 36)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(isSelected ? Color.white : .clear, lineWidth: 2)
+                    )
+                    .shadow(color: isSelected ? Color.white.opacity(0.3) : .clear, radius: 6)
+
+                Text(style.label)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(isSelected ? 0.9 : 0.5))
+            }
+        }
+        .buttonStyle(.plain)
+        .scaleEffect(isSelected ? 1.05 : 1.0)
+        .animation(.easeInOut(duration: 0.2), value: isSelected)
+    }
+
+    @ViewBuilder
+    private func stylePreviewContent(_ style: WatcherStyle, isSelected: Bool) -> some View {
+        let previewColor = Color(red: 0.95, green: 0.62, blue: 0.22)
+
+        switch style {
+        case .frost:
+            ZStack {
+                // Frosted background
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(.ultraThinMaterial)
+                // Mini accent bar
+                HStack(spacing: 0) {
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(previewColor)
+                        .frame(width: 3)
+                        .padding(.vertical, 8)
+                        .padding(.leading, 6)
+                    Spacer()
+                }
+                // Placeholder lines
+                VStack(alignment: .leading, spacing: 3) {
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(.white.opacity(0.5))
+                        .frame(width: 28, height: 3)
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(previewColor.opacity(0.5))
+                        .frame(width: 20, height: 2)
+                }
+                .padding(.leading, 14)
+            }
+
+        case .neon:
+            let neonPreviewColor = Color(red: 1.0, green: 0.55, blue: 0.1)
+            ZStack {
+                // Dark background
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(.black.opacity(0.85))
+                // Neon border
+                RoundedRectangle(cornerRadius: 6)
+                    .strokeBorder(neonPreviewColor.opacity(0.8), lineWidth: 1.5)
+                // Placeholder lines (monospaced feel)
+                VStack(alignment: .leading, spacing: 3) {
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(.white.opacity(0.5))
+                        .frame(width: 28, height: 3)
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(neonPreviewColor.opacity(0.5))
+                        .frame(width: 20, height: 2)
+                }
+            }
+            .shadow(color: neonPreviewColor.opacity(0.4), radius: 4)
+
+        }
+    }
+
+    // MARK: - Status legend row
+
     private func statusRow(color: Color, label: String) -> some View {
         HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(color)
-                .frame(width: 12, height: 12)
+            statusIndicator(color: color)
             Text(label)
                 .font(.system(size: 13))
                 .foregroundStyle(.white.opacity(0.8))
+        }
+    }
+
+    @ViewBuilder
+    private func statusIndicator(color: Color) -> some View {
+        switch settingsStore.watcherStyle {
+        case .frost:
+            RoundedRectangle(cornerRadius: 2)
+                .fill(color)
+                .frame(width: 12, height: 12)
+        case .neon:
+            let neonVariant = color
+            RoundedRectangle(cornerRadius: 2)
+                .fill(.black.opacity(0.6))
+                .frame(width: 12, height: 12)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 2)
+                        .strokeBorder(neonVariant.opacity(0.8), lineWidth: 1.5)
+                )
+                .shadow(color: neonVariant.opacity(0.4), radius: 3)
         }
     }
 }
