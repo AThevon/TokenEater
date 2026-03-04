@@ -61,15 +61,15 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
             return
         }
 
-        // Step 2: Build a lookup of process cwd → process info
+        // Step 2: Build a lookup of process cwd → process info (supports multiple processes per path)
         // Normalize worktree paths: strip .claude/worktrees/<name> suffix
-        var cwdToProcess: [String: ClaudeProcessInfo] = [:]
+        var cwdToProcesses: [String: [ClaudeProcessInfo]] = [:]
         for proc in processes {
-            cwdToProcess[proc.cwd] = proc
+            cwdToProcesses[proc.cwd, default: []].append(proc)
             // Also register the canonical project path for worktrees
             if let range = proc.cwd.range(of: "/.claude/worktrees/") {
                 let canonical = String(proc.cwd[proc.cwd.startIndex..<range.lowerBound])
-                cwdToProcess[canonical] = proc
+                cwdToProcesses[canonical, default: []].append(proc)
             }
         }
 
@@ -111,7 +111,7 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
                 guard let result = readAndParse(file: file) else { continue }
 
                 // Check if a claude process is running for this project path
-                guard let process = matchProcess(projectPath: result.projectPath, in: cwdToProcess) else { continue }
+                guard let process = matchProcess(projectPath: result.projectPath, in: cwdToProcesses) else { continue }
 
                 let sessionId = file.deletingPathExtension().lastPathComponent
                 let modDate = (try? fm.attributesOfItem(atPath: file.path)[.modificationDate] as? Date) ?? Date()
@@ -137,12 +137,19 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
                 )
                 activeSessions.append(session)
 
-                // Remove ALL entries pointing to this process so it can't double-match
+                // Remove this process from ALL entries so it can't double-match
                 let matchedPid = process.pid
-                cwdToProcess = cwdToProcess.filter { $0.value.pid != matchedPid }
+                for (key, procs) in cwdToProcesses {
+                    let filtered = procs.filter { $0.pid != matchedPid }
+                    if filtered.isEmpty {
+                        cwdToProcesses.removeValue(forKey: key)
+                    } else {
+                        cwdToProcesses[key] = filtered
+                    }
+                }
 
                 // Continue to find other sessions for different processes
-                if cwdToProcess.isEmpty { break }
+                if cwdToProcesses.isEmpty { break }
             }
         }
 
@@ -152,12 +159,13 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
 
     /// Match a JSONL project path to a running Claude process.
     /// Exact match first, then worktree-aware match (CWD is inside projectPath/.claude/worktrees/).
-    private func matchProcess(projectPath: String, in lookup: [String: ClaudeProcessInfo]) -> ClaudeProcessInfo? {
+    private func matchProcess(projectPath: String, in lookup: [String: [ClaudeProcessInfo]]) -> ClaudeProcessInfo? {
         // Exact match on project path
-        if let proc = lookup[projectPath] { return proc }
+        if let proc = lookup[projectPath]?.first { return proc }
 
         // Worktree match: a process CWD like /project/.claude/worktrees/foo should match /project
-        for (cwd, proc) in lookup {
+        for (cwd, procs) in lookup {
+            guard let proc = procs.first else { continue }
             if cwd.hasPrefix(projectPath + "/.claude/worktrees/") {
                 return proc
             }
