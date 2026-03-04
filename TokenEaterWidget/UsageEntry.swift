@@ -14,10 +14,14 @@ struct UsageEntry: TimelineEntry {
         self.isStale = isStale
     }
 
+    private static let iso8601Formatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
     private static func iso8601String(from date: Date) -> String {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.string(from: date)
+        iso8601Formatter.string(from: date)
     }
 
     static var placeholder: UsageEntry {

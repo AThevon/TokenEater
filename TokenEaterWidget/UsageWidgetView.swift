@@ -269,11 +269,15 @@ struct UsageWidgetView: View {
         }
     }
 
+    private static let resetDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEE HH:mm"
+        return f
+    }()
+
     private func formatResetDate(_ date: Date?) -> String {
         guard let date = date else { return "" }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEE HH:mm"
-        return formatter.string(from: date)
+        return Self.resetDateFormatter.string(from: date)
     }
 }
 

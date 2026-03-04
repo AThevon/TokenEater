@@ -2,10 +2,19 @@ import SwiftUI
 
 struct ThemesSectionView: View {
     @EnvironmentObject private var themeStore: ThemeStore
+    @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var usageStore: UsageStore
 
     @State private var showResetAlert = false
-    @State private var warningSlider: Double = 60
-    @State private var criticalSlider: Double = 85
+    @State private var warningSlider: Double
+    @State private var criticalSlider: Double
+    @State private var marginSlider: Double
+
+    init(initialWarning: Int, initialCritical: Int, initialMargin: Int) {
+        _warningSlider = State(initialValue: Double(initialWarning))
+        _criticalSlider = State(initialValue: Double(initialCritical))
+        _marginSlider = State(initialValue: Double(initialMargin))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -58,6 +67,17 @@ struct ThemesSectionView: View {
                 }
             }
 
+            // Pacing margin
+            glassCard {
+                VStack(alignment: .leading, spacing: 8) {
+                    cardLabel(String(localized: "settings.pacing.margin"))
+                    thresholdSlider(label: String(localized: "settings.pacing.margin.value"), value: $marginSlider, range: 1...30)
+                    Text(String(localized: "settings.pacing.margin.hint"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.4))
+                }
+            }
+
             // Reset
             HStack {
                 Spacer()
@@ -80,10 +100,6 @@ struct ThemesSectionView: View {
             Spacer()
         }
         .padding(24)
-        .task {
-            warningSlider = Double(themeStore.warningThreshold)
-            criticalSlider = Double(themeStore.criticalThreshold)
-        }
         .onChange(of: warningSlider) { _, new in
             let int = Int(new)
             if themeStore.warningThreshold != int { themeStore.warningThreshold = int }
@@ -94,11 +110,18 @@ struct ThemesSectionView: View {
             if themeStore.criticalThreshold != int { themeStore.criticalThreshold = int }
             if int <= themeStore.warningThreshold { themeStore.warningThreshold = max(int - 5, 10) }
         }
+        .onChange(of: marginSlider) { _, new in
+            let int = Int(new)
+            if settingsStore.pacingMargin != int { settingsStore.pacingMargin = int }
+        }
         .onChange(of: themeStore.warningThreshold) { _, new in
             let d = Double(new); if warningSlider != d { warningSlider = d }
         }
         .onChange(of: themeStore.criticalThreshold) { _, new in
             let d = Double(new); if criticalSlider != d { criticalSlider = d }
+        }
+        .onChange(of: settingsStore.pacingMargin) { _, new in
+            let d = Double(new); if marginSlider != d { marginSlider = d }
         }
         .onChange(of: themeStore.selectedPreset) { oldValue, newValue in
             if newValue == "custom", let source = ThemeColors.preset(for: oldValue) {

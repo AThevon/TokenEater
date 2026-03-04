@@ -24,7 +24,7 @@
 
 ## What is TokenEater?
 
-A native macOS widget + menu bar app that displays your Claude (Anthropic) usage in real-time:
+A native macOS menu bar app + desktop widget + floating overlay that displays your Claude (Anthropic) usage in real-time:
 
 - **Session (5h)** — Sliding window with countdown to reset
 - **Weekly — All models** — Opus, Sonnet & Haiku combined
@@ -43,6 +43,34 @@ Three widget options:
 Live usage percentages directly in your menu bar — choose which metrics to pin (session, weekly, sonnet, pacing). Click to see a detailed popover with progress bars, pacing delta, and quick actions.
 
 Color-coded: green when you're comfortable, orange when usage climbs, red when approaching the limit.
+
+### Agent Watchers (Floating Overlay)
+
+A transparent floating overlay that shows your active Claude Code sessions in real-time, directly on your screen edge. Each session is displayed as an animated card that morphs from a tiny capsule to a detailed card as you hover closer — dock-style proximity effect.
+
+**6 session states** with distinct colors:
+- **Idle** (green) — Turn finished, waiting for your input
+- **Thinking** (orange) — Claude is generating a response
+- **Executing** (blue) — Running a tool (Bash, MCP, hook)
+- **Waiting** (purple) — Needs your permission or answer
+- **Subagent** (cyan) — A sub-agent is running
+- **Compacting** (gray) — Compressing context
+
+**Features:**
+- Click a card to jump to the corresponding terminal window (supports iTerm2, WezTerm, Terminal.app, Warp, VS Code, and tmux)
+- Drag cards to reposition them vertically
+- Left or right screen edge placement
+- Adjustable card size (60%–160%)
+- Optional simplified mode (2 states: idle / working)
+- Breathing, glow, and nudge animations (all toggleable)
+
+### Performance
+
+All CPU-intensive features can be individually toggled in **Settings > Performance**:
+- Animated particles (dashboard)
+- Animated gradient (dashboard)
+- Watcher animations (overlay)
+- Session detection (disabling this turns off the overlay entirely)
 
 ### Theming
 
@@ -205,20 +233,22 @@ open "/Applications/TokenEater.app"
 ## Architecture
 
 ```
-TokenEaterApp/           App host (settings UI, OAuth auth, menu bar)
+TokenEaterApp/           App host (settings UI, OAuth auth, menu bar, overlay)
 TokenEaterWidget/        Widget Extension (WidgetKit, 15-min refresh)
 Shared/                  Shared code (services, stores, models, pacing, notifications)
-  ├── Models/            Pure Codable structs
-  ├── Services/          Protocol-based I/O (API, Keychain, SharedFile, Notification)
+  ├── Models/            Pure Codable structs (usage, sessions, themes, pacing)
+  ├── Services/          Protocol-based I/O (API, Keychain, SharedFile, Notification, SessionMonitor)
   ├── Repositories/      Orchestration (UsageRepository)
-  ├── Stores/            ObservableObject state containers
-  ├── Helpers/           Pure functions (PacingCalculator, MenuBarRenderer)
+  ├── Stores/            ObservableObject state containers (Usage, Theme, Settings, Session)
+  ├── Helpers/           Pure functions (PacingCalculator, MenuBarRenderer, JSONLParser, ProcessResolver)
   ├── en.lproj/          English strings
   └── fr.lproj/          French strings
 project.yml              XcodeGen configuration
 ```
 
 The host app and widget extension are both sandboxed and communicate through a shared JSON file in `~/Library/Application Support/`. The menu bar app reads the OAuth token from the macOS Keychain (silently, without triggering password dialogs), calls the API, and writes the data to the shared file. The widget reads from this file only — it never touches the Keychain or the network. The menu bar refreshes every 30 seconds. On 401/403, it silently checks the Keychain for a fresh token from Claude Code's auto-refresh and recovers automatically.
+
+The Agent Watchers overlay runs a separate session monitor that scans running Claude Code processes every 2 seconds using macOS system APIs (`sysctl`, `proc_pidpath`, `proc_pidinfo`), then tail-reads their JSONL log files to determine each session's current state. The overlay is rendered as a transparent `NSPanel` with click-through behavior outside the interactive zone.
 
 ## How it works
 

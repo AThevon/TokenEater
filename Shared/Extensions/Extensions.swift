@@ -49,9 +49,13 @@ extension NSColor {
 // MARK: - Date Relative Format
 
 extension Date {
-    var relativeFormatted: String {
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: self, relativeTo: Date())
+        return formatter
+    }()
+
+    var relativeFormatted: String {
+        Self.relativeFormatter.localizedString(for: self, relativeTo: Date())
     }
 }

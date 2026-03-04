@@ -50,16 +50,22 @@ struct UsageBucket: Codable {
         case resetsAt = "resets_at"
     }
 
+    private static let iso8601WithFractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    private static let iso8601WithoutFractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
     var resetsAtDate: Date? {
         guard let resetsAt else { return nil }
-        let withFractional = ISO8601DateFormatter()
-        withFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = withFractional.date(from: resetsAt) {
-            return date
-        }
-        let withoutFractional = ISO8601DateFormatter()
-        withoutFractional.formatOptions = [.withInternetDateTime]
-        return withoutFractional.date(from: resetsAt)
+        return Self.iso8601WithFractional.date(from: resetsAt)
+            ?? Self.iso8601WithoutFractional.date(from: resetsAt)
     }
 }
 

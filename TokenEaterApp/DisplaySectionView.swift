@@ -8,10 +8,17 @@ struct DisplaySectionView: View {
     // Binding to computed properties via $store.computedProp creates
     // unstable LocationProjections that the AttributeGraph can never
     // memoize, causing an infinite re-evaluation loop in Release builds.
-    @State private var showFiveHour = true
-    @State private var showSevenDay = true
-    @State private var showSonnet = false
-    @State private var showPacing = false
+    @State private var showFiveHour: Bool
+    @State private var showSevenDay: Bool
+    @State private var showSonnet: Bool
+    @State private var showPacing: Bool
+
+    init(initialMetrics: Set<MetricID>) {
+        _showFiveHour = State(initialValue: initialMetrics.contains(.fiveHour))
+        _showSevenDay = State(initialValue: initialMetrics.contains(.sevenDay))
+        _showSonnet = State(initialValue: initialMetrics.contains(.sonnet))
+        _showPacing = State(initialValue: initialMetrics.contains(.pacing))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -23,14 +30,6 @@ struct DisplaySectionView: View {
                     cardLabel(String(localized: "settings.menubar.title"))
                     darkToggle(String(localized: "settings.menubar.toggle"), isOn: $settingsStore.showMenuBar)
                     darkToggle(String(localized: "settings.theme.monochrome"), isOn: $themeStore.menuBarMonochrome)
-                }
-            }
-
-            // Session Overlay
-            glassCard {
-                VStack(alignment: .leading, spacing: 8) {
-                    cardLabel(String(localized: "settings.overlay.title"))
-                    darkToggle(String(localized: "settings.overlay.toggle"), isOn: $settingsStore.overlayEnabled)
                 }
             }
 
@@ -52,13 +51,6 @@ struct DisplaySectionView: View {
             Spacer()
         }
         .padding(24)
-        // Initialize local state from stores
-        .task {
-            showFiveHour = settingsStore.pinnedMetrics.contains(.fiveHour)
-            showSevenDay = settingsStore.pinnedMetrics.contains(.sevenDay)
-            showSonnet = settingsStore.pinnedMetrics.contains(.sonnet)
-            showPacing = settingsStore.pinnedMetrics.contains(.pacing)
-        }
         // Sync: local toggle -> store (with at-least-one guard)
         .onChange(of: showFiveHour) { _, new in syncMetric(.fiveHour, on: new, revert: { showFiveHour = true }) }
         .onChange(of: showSevenDay) { _, new in syncMetric(.sevenDay, on: new, revert: { showSevenDay = true }) }
