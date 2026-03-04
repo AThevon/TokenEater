@@ -94,6 +94,7 @@
 /* Connection Test */
 "test.success" = "Connexion OK — Session : %d%%";
 "test.expired" = "Session expirée ou invalide (HTTP %d)";
+"test.ratelimited" = "Connecté — limité temporairement, réessai automatique";
 "test.http" = "Erreur HTTP %d";
 
 /* Pacing */

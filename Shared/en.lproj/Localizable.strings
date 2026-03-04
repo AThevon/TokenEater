@@ -94,6 +94,7 @@
 /* Connection Test */
 "test.success" = "Connected — Session: %d%%";
 "test.expired" = "Session expired or invalid (HTTP %d)";
+"test.ratelimited" = "Connected — rate limited, will retry shortly";
 "test.http" = "HTTP error %d";
 
 /* Pacing */

@@ -82,6 +82,9 @@ final class APIClient: APIClientProtocol, @unchecked Sendable {
                 }
                 let sessionPct = usage.fiveHour?.utilization ?? 0
                 return ConnectionTestResult(success: true, message: String(format: String(localized: "test.success"), Int(sessionPct)))
+            } else if httpResponse.statusCode == 429 {
+                // Rate limited — token is valid, just throttled
+                return ConnectionTestResult(success: true, message: String(localized: "test.ratelimited"))
             } else if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
                 return ConnectionTestResult(success: false, message: String(format: String(localized: "test.expired"), httpResponse.statusCode))
             } else {
