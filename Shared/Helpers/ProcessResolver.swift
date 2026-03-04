@@ -9,7 +9,10 @@ struct ClaudeProcessInfo: Sendable {
 }
 
 enum ProcessResolver {
-    private static let claudeVersionsPath = "/.local/share/claude/versions/"
+    private static let knownClaudePaths = [
+        "/.local/share/claude/versions/",   // npm install
+        "/Caskroom/claude-code/",            // Homebrew Cask (arm64 + x86_64)
+    ]
 
     /// Find all running Claude Code CLI processes with their working directories.
     static func findClaudeProcesses() -> [ClaudeProcessInfo] {
@@ -116,7 +119,7 @@ enum ProcessResolver {
         let ret = proc_pidpath(pid, &pathBuffer, UInt32(MAXPATHLEN))
         guard ret > 0 else { return false }
         let path = String(cString: pathBuffer)
-        return path.contains(claudeVersionsPath)
+        return knownClaudePaths.contains { path.contains($0) }
     }
 
     private static func getProcessCwd(pid: Int32) -> String? {
