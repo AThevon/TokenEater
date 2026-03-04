@@ -28,6 +28,13 @@ final class UsageRepository: UsageRepositoryProtocol {
         }
     }
 
+    /// Credentials file sync — no Keychain access at all.
+    func syncCredentialsFile() {
+        if let token = keychainService.readCredentialsFileToken() {
+            sharedFileService.oauthToken = token
+        }
+    }
+
     var isConfigured: Bool {
         sharedFileService.isConfigured
     }

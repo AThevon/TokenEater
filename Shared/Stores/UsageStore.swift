@@ -53,10 +53,10 @@ final class UsageStore: ObservableObject {
             return
         }
 
-        // Silent keychain read — try to recover token if not configured
+        // Credentials file read — try to recover token if not configured
         // or if the current one already failed (auto-recovery from Claude Code refresh).
         if !repository.isConfigured || lastFailedToken == repository.currentToken {
-            repository.syncKeychainTokenSilently()
+            repository.syncCredentialsFile()
             if let currentToken = repository.currentToken, currentToken != lastFailedToken {
                 lastFailedToken = nil
                 errorState = .none
@@ -91,7 +91,7 @@ final class UsageStore: ObservableObject {
                 lastFailedToken = repository.currentToken
                 errorState = .tokenExpired
             case .keychainLocked:
-                errorState = .keychainLocked
+                errorState = .needsReauth
             case .httpError(429):
                 // Rate limited — silently skip, auto-refresh will retry later
                 break
@@ -111,8 +111,8 @@ final class UsageStore: ObservableObject {
     }
 
     func reloadConfig(thresholds: UsageThresholds = .default) {
-        // Silent keychain read — never triggers macOS password dialog
-        repository.syncKeychainTokenSilently()
+        // Credentials file read — never triggers macOS password dialog
+        repository.syncCredentialsFile()
         lastFailedToken = nil
         errorState = .none
         hasConfig = repository.isConfigured
@@ -145,12 +145,22 @@ final class UsageStore: ObservableObject {
         refreshTask?.cancel()
     }
 
+    func reauthenticate() async {
+        repository.syncKeychainToken()  // interactive — 1 prompt
+        if repository.isConfigured, repository.currentToken != lastFailedToken {
+            lastFailedToken = nil
+            errorState = .none
+            hasConfig = true
+            await refresh(force: true)
+        }
+    }
+
     func testConnection() async -> ConnectionTestResult {
         await repository.testConnection(proxyConfig: proxyConfig)
     }
 
     func connectAutoDetect() async -> ConnectionTestResult {
-        repository.syncKeychainTokenSilently()
+        repository.syncCredentialsFile()
         let result = await repository.testConnection(proxyConfig: proxyConfig)
         if result.success {
             hasConfig = true
