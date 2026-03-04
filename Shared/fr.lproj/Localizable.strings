@@ -277,11 +277,15 @@
 "settings.watchers.tmux.title" = "Configuration tmux";
 "settings.watchers.tmux.hint" = "Si vous utilisez tmux, ajoutez cette ligne à votre ~/.tmux.conf pour que TokenEater puisse basculer vers le bon pane au clic :";
 "settings.watchers.tmux.copy" = "Copier";
+"settings.watchers.kitty.title" = "Configuration Kitty";
+"settings.watchers.kitty.hint" = "Si vous utilisez Kitty, ajoutez cette ligne à votre kitty.conf pour que TokenEater puisse basculer vers le bon onglet au clic :";
+"settings.watchers.kitty.copy" = "Copier";
 
 /* Onboarding - Agent Watchers */
 "onboarding.watchers.title" = "Agent Watchers";
 "onboarding.watchers.description" = "Un overlay flottant qui montre vos sessions Claude Code actives d'un coup d'œil. Survolez pour agrandir, cliquez pour basculer vers une session.";
 "onboarding.watchers.tmux.hint" = "Si vous utilisez tmux, ajoutez cette ligne à votre config pour activer le switch au clic :";
+"onboarding.watchers.kitty.hint" = "Si vous utilisez Kitty, ajoutez à votre kitty.conf :";
 "onboarding.watchers.settings.hint" = "Vous pouvez simplifier l'affichage dans les Réglages.";
 
 /* Performance */

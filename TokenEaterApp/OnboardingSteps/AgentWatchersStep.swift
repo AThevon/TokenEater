@@ -4,8 +4,10 @@ struct AgentWatchersStep: View {
     @ObservedObject var viewModel: OnboardingViewModel
 
     @State private var tmuxCopied = false
+    @State private var kittyCopied = false
 
     private let tmuxLine = "set-option -g update-environment \"TERM_PROGRAM\""
+    private let kittyLine = "allow_remote_control yes"
 
     var body: some View {
         VStack(spacing: 24) {
@@ -80,6 +82,47 @@ struct AgentWatchersStep: View {
                         }
                     } label: {
                         Image(systemName: tmuxCopied ? "checkmark" : "doc.on.doc")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.6))
+                            .frame(width: 28, height: 28)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(.white.opacity(0.08))
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+                .frame(maxWidth: 380)
+            }
+
+            // Kitty hint
+            VStack(spacing: 8) {
+                Text("onboarding.watchers.kitty.hint")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.4))
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 380)
+
+                HStack(spacing: 8) {
+                    Text(kittyLine)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.8))
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(.black.opacity(0.3))
+                        )
+
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(kittyLine, forType: .string)
+                        kittyCopied = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            kittyCopied = false
+                        }
+                    } label: {
+                        Image(systemName: kittyCopied ? "checkmark" : "doc.on.doc")
                             .font(.system(size: 12))
                             .foregroundStyle(.white.opacity(0.6))
                             .frame(width: 28, height: 28)
