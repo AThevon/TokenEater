@@ -2,8 +2,11 @@ import Foundation
 
 enum SessionState: String, Sendable {
     case idle
-    case working
+    case thinking
     case toolExec
+    case waiting
+    case subagent
+    case compacting
 }
 
 struct ClaudeSession: Identifiable, Sendable {
@@ -15,7 +18,8 @@ struct ClaudeSession: Identifiable, Sendable {
     var state: SessionState
     var lastUpdate: Date
     var startedAt: Date
+    var processPid: Int32?
 
     var isStale: Bool { Date().timeIntervalSince(lastUpdate) > 10 }
-    var isDead: Bool { Date().timeIntervalSince(lastUpdate) > 60 }
+    var isDead: Bool { processPid == nil && Date().timeIntervalSince(lastUpdate) > 60 }
 }

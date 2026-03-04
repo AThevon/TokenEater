@@ -93,21 +93,29 @@ enum NotificationBodyFormatter {
         }
     }
 
-    static func formatTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .none
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
-    }
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .none
+        f.timeStyle = .short
+        return f
+    }()
 
-    static func formatDateTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = DateFormatter.dateFormat(
+    private static let dateTimeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = DateFormatter.dateFormat(
             fromTemplate: "EEE MMM d, h:mm a",
             options: 0,
             locale: .current
         )
-        return formatter.string(from: date)
+        return f
+    }()
+
+    static func formatTime(_ date: Date) -> String {
+        timeFormatter.string(from: date)
+    }
+
+    static func formatDateTime(_ date: Date) -> String {
+        dateTimeFormatter.string(from: date)
     }
 
     // MARK: - Fallback

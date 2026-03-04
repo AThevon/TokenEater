@@ -11,7 +11,7 @@ enum PacingCalculator {
         "pacing.hot.1", "pacing.hot.2", "pacing.hot.3",
     ]
 
-    static func calculate(from usage: UsageResponse, now: Date = Date()) -> PacingResult? {
+    static func calculate(from usage: UsageResponse, margin: Double = 10, now: Date = Date()) -> PacingResult? {
         guard let bucket = usage.sevenDay,
               let resetsAt = bucket.resetsAtDate
         else { return nil }
@@ -26,10 +26,10 @@ enum PacingCalculator {
 
         let zone: PacingZone
         let messages: [String]
-        if delta < -10 {
+        if delta < -margin {
             zone = .chill
             messages = chillMessages
-        } else if delta > 10 {
+        } else if delta > margin {
             zone = .hot
             messages = hotMessages
         } else {
