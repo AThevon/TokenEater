@@ -44,7 +44,12 @@ final class UsageStore: ObservableObject {
         self.notificationService = notificationService
     }
 
-    func refresh(thresholds: UsageThresholds = .default) async {
+    func refresh(thresholds: UsageThresholds = .default, force: Bool = false) async {
+        // Throttle: skip if a successful refresh happened less than 10s ago (avoids 429)
+        if !force, let last = lastUpdate, Date().timeIntervalSince(last) < 10 {
+            return
+        }
+
         // Silent keychain read — try to recover token if not configured
         // or if the current one already failed (auto-recovery from Claude Code refresh).
         if !repository.isConfigured || lastFailedToken == repository.currentToken {

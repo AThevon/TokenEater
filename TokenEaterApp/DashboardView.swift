@@ -39,11 +39,7 @@ struct DashboardView: View {
         .task {
             refreshLastUpdateText()
             if settingsStore.hasCompletedOnboarding {
-                // Skip if a recent refresh happened (avoids 429 when switching tabs)
-                let stale = usageStore.lastUpdate.map { Date().timeIntervalSince($0) > 10 } ?? true
-                if stale {
-                    await usageStore.refresh(thresholds: themeStore.thresholds)
-                }
+                await usageStore.refresh(thresholds: themeStore.thresholds)
             }
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(30))
@@ -162,7 +158,7 @@ struct DashboardView: View {
             }
 
             Button {
-                Task { await usageStore.refresh(thresholds: themeStore.thresholds) }
+                Task { await usageStore.refresh(thresholds: themeStore.thresholds, force: true) }
             } label: {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 12))

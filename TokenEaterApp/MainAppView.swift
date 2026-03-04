@@ -51,7 +51,7 @@ struct MainAppView: View {
         }
         .padding(4)
         .task {
-            // Single refresh on appear — auto-refresh lifecycle is owned by StatusBarController
+            // Refresh on appear — throttled by UsageStore (10s debounce)
             await usageStore.refresh(thresholds: themeStore.thresholds)
         }
         .onReceive(NotificationCenter.default.publisher(for: .navigateToSection)) { notification in

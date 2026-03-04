@@ -133,7 +133,7 @@ struct MenuBarPopoverView: View {
                 // Refresh · Quit
                 HStack(spacing: 4) {
                     Button(String(localized: "menubar.refresh")) {
-                        Task { await usageStore.refresh(thresholds: themeStore.thresholds) }
+                        Task { await usageStore.refresh(thresholds: themeStore.thresholds, force: true) }
                     }
                     .buttonStyle(.plain)
                     .font(.system(size: 10, weight: .medium))
