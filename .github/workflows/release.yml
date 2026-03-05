@@ -111,7 +111,10 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/appcast.xml
           git commit -m "chore: update appcast for v${{ steps.version.outputs.version }}"
-          git push origin HEAD:main
+          # Push to the branch the tag was created on (or main for release tags)
+          BRANCH=$(git branch -r --contains "$GITHUB_REF_NAME" | grep -v HEAD | head -1 | sed 's|origin/||;s/^ *//')
+          [ -z "$BRANCH" ] && BRANCH=main
+          git push origin HEAD:"$BRANCH"
 
       # Keep Homebrew cask updated during transition period
       - name: Update Homebrew Cask
