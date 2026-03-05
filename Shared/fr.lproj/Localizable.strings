@@ -242,16 +242,12 @@
 "settings.onboarding.reset" = "Relancer la configuration";
 
 /* Update */
-"update.available" = "Mise à jour disponible";
-"update.releasenotes" = "Nouveautés";
-"update.skip" = "Ignorer cette version";
-"update.later" = "Plus tard";
-"update.now" = "Mettre à jour";
 "update.check" = "Vérifier les mises à jour";
-"update.badge" = "New";
-"update.terminal" = "Ou mettez à jour via Terminal :";
-"update.error.response" = "Impossible de joindre GitHub — réessayez plus tard";
-"update.error.launch" = "Impossible de lancer la mise à jour — commande copiée. Collez-la dans Terminal.";
+
+/* Brew Migration */
+"update.brew.detected" = "Installé via Homebrew";
+"update.brew.hint" = "Les mises à jour sont désormais gérées directement par TokenEater. Lancez cette commande pour nettoyer l'ancienne installation brew :";
+"update.brew.dismiss" = "Ignorer";
 
 /* Session Overlay */
 "settings.overlay.title" = "Overlay de session";
