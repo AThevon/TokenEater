@@ -33,6 +33,7 @@ final class UsageStore: ObservableObject {
     private let repository: UsageRepositoryProtocol
     private let notificationService: NotificationServiceProtocol
     private var refreshTask: Task<Void, Never>?
+    private var autoRefreshTask: Task<Void, Never>?
 
     var proxyConfig: ProxyConfig?
 
@@ -53,10 +54,13 @@ final class UsageStore: ObservableObject {
             return
         }
 
-        // Credentials file read — try to recover token if not configured
-        // or if the current one already failed (auto-recovery from Claude Code refresh).
+        // Token recovery — try credentials file first, then silent Keychain read.
+        // Covers Claude Code versions that only store in Keychain (no .credentials.json).
         if !repository.isConfigured || lastFailedToken == repository.currentToken {
             repository.syncCredentialsFile()
+            if !repository.isConfigured || lastFailedToken == repository.currentToken {
+                repository.syncKeychainTokenSilently()
+            }
             if let currentToken = repository.currentToken, currentToken != lastFailedToken {
                 lastFailedToken = nil
                 errorState = .none
@@ -111,8 +115,11 @@ final class UsageStore: ObservableObject {
     }
 
     func reloadConfig(thresholds: UsageThresholds = .default) {
-        // Credentials file read — never triggers macOS password dialog
+        // Token sync — credentials file first, then silent Keychain fallback
         repository.syncCredentialsFile()
+        if !repository.isConfigured {
+            repository.syncKeychainTokenSilently()
+        }
         lastFailedToken = nil
         errorState = .none
         hasConfig = repository.isConfigured
@@ -129,8 +136,8 @@ final class UsageStore: ObservableObject {
     }
 
     func startAutoRefresh(interval: TimeInterval = 30, thresholds: UsageThresholds = .default) {
-        refreshTask?.cancel()
-        refreshTask = Task { [weak self] in
+        autoRefreshTask?.cancel()
+        autoRefreshTask = Task { [weak self] in
             // Wait first — reloadConfig already triggers an initial refresh
             try? await Task.sleep(for: .seconds(interval))
             while !Task.isCancelled {
@@ -142,7 +149,7 @@ final class UsageStore: ObservableObject {
     }
 
     func stopAutoRefresh() {
-        refreshTask?.cancel()
+        autoRefreshTask?.cancel()
     }
 
     func reauthenticate() async {
@@ -161,6 +168,9 @@ final class UsageStore: ObservableObject {
 
     func connectAutoDetect() async -> ConnectionTestResult {
         repository.syncCredentialsFile()
+        if !repository.isConfigured {
+            repository.syncKeychainTokenSilently()
+        }
         let result = await repository.testConnection(proxyConfig: proxyConfig)
         if result.success {
             hasConfig = true
