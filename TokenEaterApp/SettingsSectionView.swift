@@ -24,9 +24,9 @@ struct SettingsSectionView: View {
                     cardLabel(String(localized: "settings.tab.connection"))
                     HStack(spacing: 8) {
                         Circle()
-                            .fill(usageStore.hasConfig && !usageStore.hasError ? Color.green : Color.red)
+                            .fill(usageStore.hasConfig && !usageStore.isDisconnected ? Color.green : Color.red)
                             .frame(width: 8, height: 8)
-                        Text(usageStore.hasConfig && !usageStore.hasError
+                        Text(usageStore.hasConfig && !usageStore.isDisconnected
                              ? String(localized: "settings.connected")
                              : String(localized: "settings.disconnected"))
                             .font(.system(size: 13))

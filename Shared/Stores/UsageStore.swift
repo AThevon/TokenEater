@@ -25,6 +25,13 @@ final class UsageStore: ObservableObject {
 
     var hasError: Bool { errorState != .none }
 
+    var isDisconnected: Bool {
+        switch errorState {
+        case .tokenExpired, .keychainLocked, .needsReauth: return true
+        default: return false
+        }
+    }
+
     var pacingMargin: Int = 10
 
     /// Token that last received a 401/403. Prevents retrying the API with a known-dead token.
