@@ -13,6 +13,7 @@ struct PacingWidgetView: View {
                 placeholderContent
             }
         }
+        .widgetURL(URL(string: "tokeneater://open"))
         .modifier(WidgetBackgroundModifier())
     }
 

@@ -28,11 +28,17 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.tokeneater.app
         PRODUCT_NAME: TokenEater
         CODE_SIGN_ENTITLEMENTS: TokenEaterApp/TokenEaterApp.entitlements
-        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.utilities
-        INFOPLIST_KEY_CFBundleDisplayName: TokenEater
-        INFOPLIST_KEY_LSUIElement: YES
-        GENERATE_INFOPLIST_FILE: YES
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    info:
+      path: TokenEaterApp/Info.plist
+      properties:
+        LSApplicationCategoryType: public.app-category.utilities
+        CFBundleDisplayName: TokenEater
+        LSUIElement: true
+        CFBundleURLTypes:
+          - CFBundleURLName: com.tokeneater.app
+            CFBundleURLSchemes:
+              - tokeneater
     dependencies:
       - target: TokenEaterWidgetExtension
         embed: true

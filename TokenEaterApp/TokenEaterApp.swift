@@ -16,6 +16,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where url.scheme == "tokeneater" {
+            NotificationCenter.default.post(name: .openDashboard, object: nil)
+            break
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusBarController = StatusBarController(
             usageStore: usageStore,

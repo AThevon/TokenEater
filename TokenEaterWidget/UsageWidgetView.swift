@@ -41,6 +41,7 @@ struct UsageWidgetView: View {
                 placeholderView
             }
         }
+        .widgetURL(URL(string: "tokeneater://open"))
         .modifier(WidgetBackgroundModifier())
     }
 
