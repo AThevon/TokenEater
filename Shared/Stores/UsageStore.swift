@@ -97,8 +97,7 @@ final class UsageStore: ObservableObject {
             case .keychainLocked:
                 errorState = .needsReauth
             case .httpError(429):
-                // Rate limited — silently skip, auto-refresh will retry later
-                break
+                errorState = .apiUnavailable
             default:
                 errorState = .networkError(error.localizedDescription)
             }

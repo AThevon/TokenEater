@@ -93,6 +93,8 @@
 "error.banner.reauth" = "Authorization needed";
 "error.banner.reauth.hint" = "Token expired and automatic recovery failed";
 "error.banner.reauth.button" = "Re-authorize";
+"error.banner.apiunavailable" = "Usage API unavailable";
+"error.banner.apiunavailable.hint" = "Anthropic's usage endpoint is temporarily down — data will refresh automatically when it's back";
 
 /* Connection Test */
 "test.success" = "Connected — Session: %d%%";
@@ -232,6 +234,7 @@
 "onboarding.connection.connecting" = "Connecting…";
 "onboarding.connection.success.title" = "You're all set!";
 "onboarding.connection.widget.hint" = "Add the widget: right-click desktop → Edit Widgets → TokenEater";
+"onboarding.connection.ratelimited.hint" = "Connected, but Anthropic's usage API is temporarily unavailable — your data will appear as soon as it's back";
 "onboarding.connection.start" = "Let's go";
 "onboarding.connection.retry" = "Try again";
 "onboarding.connection.failed.title" = "Something went wrong";
