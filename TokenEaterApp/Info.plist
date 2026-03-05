@@ -17,7 +17,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -30,12 +30,16 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
 	<key>LSMultipleInstancesProhibited</key>
 	<true/>
 	<key>LSUIElement</key>
 	<true/>
+	<key>SUFeedURL</key>
+	<string>https://athevon.github.io/TokenEater/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>7K/7v1Y96LUzTSghUUKPB6uqYdJ/bIU/bFLaw14ptnM=</string>
 </dict>
 </plist>
