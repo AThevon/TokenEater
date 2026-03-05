@@ -37,9 +37,5 @@
 	<true/>
 	<key>LSUIElement</key>
 	<true/>
-	<key>SUFeedURL</key>
-	<string>https://athevon.github.io/TokenEater/appcast.xml</string>
-	<key>SUPublicEDKey</key>
-	<string>7K/7v1Y96LUzTSghUUKPB6uqYdJ/bIU/bFLaw14ptnM=</string>
 </dict>
 </plist>

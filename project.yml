@@ -7,11 +7,6 @@ options:
   groupSortPosition: top
   defaultLocalization: en
 
-packages:
-  Sparkle:
-    url: https://github.com/sparkle-project/Sparkle
-    majorVersion: 2.9.0
-
 settings:
   base:
     SWIFT_VERSION: "5.9"
@@ -37,6 +32,8 @@ targets:
     info:
       path: TokenEaterApp/Info.plist
       properties:
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSApplicationCategoryType: public.app-category.utilities
         CFBundleDisplayName: TokenEater
         LSUIElement: true
@@ -45,12 +42,13 @@ targets:
           - CFBundleURLName: com.tokeneater.app
             CFBundleURLSchemes:
               - tokeneater
-        SUFeedURL: "https://athevon.github.io/TokenEater/appcast.xml"
-        SUPublicEDKey: "7K/7v1Y96LUzTSghUUKPB6uqYdJ/bIU/bFLaw14ptnM="
+    preBuildScripts:
+      - script: |
+          osacompile -o "$BUILT_PRODUCTS_DIR/$PRODUCT_NAME.app/Contents/Resources/TokenEaterInstaller.app" "$SRCROOT/TokenEaterApp/Resources/installer.applescript"
+        name: Compile installer applet
     dependencies:
       - target: TokenEaterWidgetExtension
         embed: true
-      - package: Sparkle
 
   TokenEaterTests:
     type: bundle.unit-test
@@ -58,8 +56,6 @@ targets:
     sources:
       - path: TokenEaterTests
       - path: Shared
-    dependencies:
-      - package: Sparkle
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tokeneater.tests

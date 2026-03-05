@@ -34,15 +34,26 @@ jobs:
             -derivedDataPath build \
             build
 
+      - name: Install create-dmg
+        run: brew install create-dmg
+
       - name: Create DMG
         run: |
-          mkdir -p dmg-staging
-          cp -R "build/Build/Products/Release/TokenEater.app" dmg-staging/
-          ln -s /Applications dmg-staging/Applications
-          hdiutil create -volname "TokenEater" \
-            -srcfolder dmg-staging \
-            -ov -format UDZO \
-            TokenEater.dmg
+          create-dmg \
+            --volname "TokenEater" \
+            --window-pos 200 120 \
+            --window-size 660 400 \
+            --icon-size 128 \
+            --icon "TokenEater.app" 160 190 \
+            --app-drop-link 500 190 \
+            --background "docs/dmg-background.png" \
+            --hide-extension "TokenEater.app" \
+            --no-internet-enable \
+            TokenEater.dmg \
+            "build/Build/Products/Release/TokenEater.app" \
+            || true
+          # create-dmg exits 2 on success when --no-internet-enable is used
+          test -f TokenEater.dmg
 
       - name: Extract version
         id: version

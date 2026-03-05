@@ -1,35 +1,140 @@
 import Foundation
-import Sparkle
 
-final class UpdateService: NSObject, UpdateServiceProtocol {
-    private let updaterController: SPUStandardUpdaterController
+final class UpdateService: NSObject, UpdateServiceProtocol, URLSessionDownloadDelegate {
+    private let feedURL: URL
+    private let currentVersion: String
+    private var progressHandler: (@Sendable (Double) -> Void)?
+    private var downloadContinuation: CheckedContinuation<URL, Error>?
 
-    var updater: SPUUpdater {
-        updaterController.updater
-    }
-
-    override init() {
-        self.updaterController = SPUStandardUpdaterController(
-            startingUpdater: false,
-            updaterDelegate: nil,
-            userDriverDelegate: nil
-        )
+    init(
+        feedURL: URL = URL(string: "https://athevon.github.io/TokenEater/appcast.xml")!,
+        currentVersion: String? = nil
+    ) {
+        self.feedURL = feedURL
+        self.currentVersion = currentVersion
+            ?? (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0")
         super.init()
     }
 
-    func startUpdater() {
-        do {
-            try updater.start()
-        } catch {
-            print("[UpdateService] Failed to start Sparkle: \(error)")
+    // MARK: - UpdateServiceProtocol
+
+    func checkForUpdate() async throws -> AppcastItem? {
+        let (data, _) = try await URLSession.shared.data(from: feedURL)
+        let parser = AppcastXMLParser()
+        parser.parse(data: data)
+        guard let latest = parser.latestItem else { return nil }
+        return VersionComparator.isNewer(latest.version, than: currentVersion) ? latest : nil
+    }
+
+    func downloadUpdate(from url: URL, progress: @escaping @Sendable (Double) -> Void) async throws -> URL {
+        self.progressHandler = progress
+        return try await withCheckedThrowingContinuation { continuation in
+            self.downloadContinuation = continuation
+            let config = URLSessionConfiguration.default
+            let session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
+            session.downloadTask(with: url).resume()
         }
     }
 
-    func checkForUpdates() {
-        updater.checkForUpdates()
+    // MARK: - URLSessionDownloadDelegate
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didFinishDownloadingTo location: URL
+    ) {
+        let dest = FileManager.default.temporaryDirectory.appendingPathComponent("TokenEater.dmg")
+        try? FileManager.default.removeItem(at: dest)
+        do {
+            try FileManager.default.moveItem(at: location, to: dest)
+            downloadContinuation?.resume(returning: dest)
+        } catch {
+            downloadContinuation?.resume(throwing: error)
+        }
+        downloadContinuation = nil
     }
 
-    var canCheckForUpdates: Bool {
-        updater.canCheckForUpdates
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didWriteData bytesWritten: Int64,
+        totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        guard totalBytesExpectedToWrite > 0 else { return }
+        let pct = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+        progressHandler?(pct)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        if let error {
+            downloadContinuation?.resume(throwing: error)
+            downloadContinuation = nil
+        }
+    }
+}
+
+// MARK: - Appcast XML Parser
+
+private final class AppcastXMLParser: NSObject, XMLParserDelegate {
+    private(set) var items: [AppcastItem] = []
+    private var inItem = false
+    private var currentElement = ""
+    private var currentText = ""
+    private var currentVersion: String?
+    private var currentURL: String?
+
+    var latestItem: AppcastItem? {
+        items.max { VersionComparator.compare($0.version, $1.version) == .orderedAscending }
+    }
+
+    func parse(data: Data) {
+        let parser = XMLParser(data: data)
+        parser.delegate = self
+        parser.parse()
+    }
+
+    func parser(
+        _ parser: XMLParser,
+        didStartElement elementName: String,
+        namespaceURI: String?,
+        qualifiedName qName: String?,
+        attributes attributeDict: [String: String] = [:]
+    ) {
+        let name = qName ?? elementName
+        if name == "item" {
+            inItem = true
+            currentVersion = nil
+            currentURL = nil
+        } else if inItem {
+            currentElement = name
+            currentText = ""
+            if name == "enclosure" {
+                currentURL = attributeDict["url"]
+            }
+        }
+    }
+
+    func parser(_ parser: XMLParser, foundCharacters string: String) {
+        if inItem { currentText += string }
+    }
+
+    func parser(
+        _ parser: XMLParser,
+        didEndElement elementName: String,
+        namespaceURI: String?,
+        qualifiedName qName: String?
+    ) {
+        let name = qName ?? elementName
+        if name == "item" {
+            if let version = currentVersion,
+               let urlString = currentURL,
+               let url = URL(string: urlString) {
+                items.append(AppcastItem(version: version, downloadURL: url))
+            }
+            inItem = false
+        } else if inItem && name == "sparkle:version" {
+            currentVersion = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
     }
 }

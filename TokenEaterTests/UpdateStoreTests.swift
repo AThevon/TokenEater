@@ -8,6 +8,8 @@ struct UpdateStoreTests {
         UserDefaults.standard.removeObject(forKey: "brewMigrationDismissed")
     }
 
+    // MARK: - Brew Migration
+
     @Test("shows brew migration when brew install detected")
     func brewMigrationDetected() {
         cleanDefaults()
@@ -61,14 +63,98 @@ struct UpdateStoreTests {
         #expect(store2.brewMigrationState == .dismissed)
     }
 
-    @Test("checkForUpdates delegates to service")
-    func checkForUpdates() {
+    // MARK: - Update Check
+
+    @Test("checkForUpdates sets checking then available when update exists")
+    func checkForUpdatesAvailable() async throws {
         let mockService = MockUpdateService()
+        mockService.checkResult = AppcastItem(
+            version: "9.9.9",
+            downloadURL: URL(string: "https://example.com/test.dmg")!
+        )
         let store = UpdateStore(
             service: mockService,
             brewMigration: MockBrewMigrationService()
         )
         store.checkForUpdates()
-        #expect(mockService.checkForUpdatesCalled)
+
+        // Wait for async task to complete
+        try await Task.sleep(for: .milliseconds(100))
+
+        #expect(mockService.checkForUpdateCalled)
+        if case .available(let version, _) = store.updateState {
+            #expect(version == "9.9.9")
+        } else {
+            Issue.record("Expected .available state, got \(store.updateState)")
+        }
+    }
+
+    @Test("checkForUpdates sets upToDate when no update")
+    func checkForUpdatesUpToDate() async throws {
+        let mockService = MockUpdateService()
+        mockService.checkResult = nil
+        let store = UpdateStore(
+            service: mockService,
+            brewMigration: MockBrewMigrationService()
+        )
+        store.checkForUpdates()
+        try await Task.sleep(for: .milliseconds(100))
+
+        #expect(mockService.checkForUpdateCalled)
+        #expect(store.updateState == .upToDate)
+    }
+
+    @Test("checkForUpdates sets error on failure")
+    func checkForUpdatesError() async throws {
+        let mockService = MockUpdateService()
+        mockService.checkError = URLError(.notConnectedToInternet)
+        let store = UpdateStore(
+            service: mockService,
+            brewMigration: MockBrewMigrationService()
+        )
+        store.checkForUpdates()
+        try await Task.sleep(for: .milliseconds(100))
+
+        if case .error = store.updateState {
+            // OK
+        } else {
+            Issue.record("Expected .error state, got \(store.updateState)")
+        }
+    }
+
+    // MARK: - Version Comparison
+
+    @Test("version comparator: newer patch")
+    func versionNewerPatch() {
+        #expect(VersionComparator.isNewer("4.6.3", than: "4.6.2"))
+        #expect(!VersionComparator.isNewer("4.6.2", than: "4.6.3"))
+    }
+
+    @Test("version comparator: release beats pre-release")
+    func versionReleaseBeatsPre() {
+        #expect(VersionComparator.isNewer("4.6.3", than: "4.6.3-beta.1"))
+        #expect(!VersionComparator.isNewer("4.6.3-beta.1", than: "4.6.3"))
+    }
+
+    @Test("version comparator: pre-release ordering")
+    func versionPreRelease() {
+        #expect(VersionComparator.isNewer("4.6.3-beta.2", than: "4.6.3-beta.1"))
+        #expect(VersionComparator.isNewer("4.6.3-beta.1", than: "4.6.2"))
+    }
+
+    @Test("version comparator: equal versions")
+    func versionEqual() {
+        #expect(!VersionComparator.isNewer("4.6.3", than: "4.6.3"))
+    }
+
+    @Test("dismiss update modal resets state")
+    func dismissModal() {
+        let store = UpdateStore(
+            service: MockUpdateService(),
+            brewMigration: MockBrewMigrationService()
+        )
+        store.updateState = .available(version: "9.9.9", downloadURL: URL(string: "https://example.com")!)
+        store.dismissUpdateModal()
+        #expect(store.updateState == .idle)
     }
 }

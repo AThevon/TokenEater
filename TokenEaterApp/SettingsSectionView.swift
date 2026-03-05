@@ -136,17 +136,33 @@ struct SettingsSectionView: View {
             glassCard {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-                        Text("TokenEater v\(version)")
+                        Text("TokenEater v\(updateStore.currentVersion)")
                             .font(.system(size: 12))
                             .foregroundStyle(.white.opacity(0.5))
                         Spacer()
-                        Button(String(localized: "update.check")) {
-                            updateStore.checkForUpdates()
+                        if case .checking = updateStore.updateState {
+                            ProgressView()
+                                .scaleEffect(0.5)
+                                .frame(width: 16, height: 16)
+                        } else if case .upToDate = updateStore.updateState {
+                            Label(String(localized: "update.uptodate"), systemImage: "checkmark.circle.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.green)
+                        } else if let version = updateStore.updateState.availableVersion {
+                            Button(String(localized: "update.available.badge \(version)")) {
+                                updateStore.downloadUpdate()
+                            }
+                            .font(.system(size: 11, weight: .medium))
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.orange)
+                        } else {
+                            Button(String(localized: "update.check")) {
+                                updateStore.checkForUpdates()
+                            }
+                            .font(.system(size: 11))
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.blue)
                         }
-                        .font(.system(size: 11))
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.blue)
                     }
 
                     if updateStore.brewMigrationState == .detected {

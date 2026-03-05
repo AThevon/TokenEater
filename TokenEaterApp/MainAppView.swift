@@ -49,6 +49,13 @@ struct MainAppView: View {
             .background(RoundedRectangle(cornerRadius: 16).fill(panelBg))
             .clipShape(RoundedRectangle(cornerRadius: 16))
         }
+        .overlay {
+            if updateStore.updateState.isModalVisible {
+                UpdateModalView()
+                    .transition(.opacity)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.9), value: updateStore.updateState.isModalVisible)
+            }
+        }
         .padding(4)
         .task {
             // Refresh on appear — throttled by UsageStore (10s debounce)

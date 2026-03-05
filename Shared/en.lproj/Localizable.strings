@@ -243,6 +243,22 @@
 
 /* Update */
 "update.check" = "Check for updates";
+"update.uptodate" = "Up to date";
+"update.available.title" = "Update available";
+"update.available.subtitle" = "A new version of TokenEater is ready";
+"update.available.badge %@" = "v%@ available";
+"update.download" = "Download";
+"update.later" = "Later";
+"update.downloading" = "Downloading update...";
+"update.downloading.hint" = "This will only take a moment";
+"update.ready.title" = "Ready to install";
+"update.ready.subtitle" = "macOS will ask for your password to install the update.";
+"update.install" = "Install & relaunch";
+"update.install.hint" = "TokenEater will restart automatically";
+"update.installing" = "Installing...";
+"update.installing.hint" = "Enter your password when macOS asks";
+"update.version.current" = "Current";
+"update.version.new" = "New";
 
 /* Brew Migration */
 "update.brew.detected" = "Installed via Homebrew";

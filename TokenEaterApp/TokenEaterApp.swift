@@ -43,9 +43,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settingsStore: settingsStore
         )
 
-        // Start Sparkle updater and check for brew migration
-        updateStore.startUpdater()
         updateStore.checkBrewMigration()
+        updateStore.checkForUpdates()
 
         monitorCancellable = settingsStore.$sessionMonitorEnabled
             .dropFirst()
