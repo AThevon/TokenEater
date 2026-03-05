@@ -7,6 +7,11 @@ options:
   groupSortPosition: top
   defaultLocalization: en
 
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    majorVersion: 2.9.0
+
 settings:
   base:
     SWIFT_VERSION: "5.9"
@@ -40,9 +45,12 @@ targets:
           - CFBundleURLName: com.tokeneater.app
             CFBundleURLSchemes:
               - tokeneater
+        SUFeedURL: "https://athevon.github.io/TokenEater/appcast.xml"
+        SUPublicEDKey: "7K/7v1Y96LUzTSghUUKPB6uqYdJ/bIU/bFLaw14ptnM="
     dependencies:
       - target: TokenEaterWidgetExtension
         embed: true
+      - package: Sparkle
 
   TokenEaterTests:
     type: bundle.unit-test
@@ -50,6 +58,8 @@ targets:
     sources:
       - path: TokenEaterTests
       - path: Shared
+    dependencies:
+      - package: Sparkle
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tokeneater.tests
