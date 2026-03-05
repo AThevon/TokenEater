@@ -95,6 +95,7 @@
 "error.banner.reauth.button" = "Re-authorize";
 "error.banner.apiunavailable" = "Usage API unavailable";
 "error.banner.apiunavailable.hint" = "Anthropic's usage endpoint is temporarily down — data will refresh automatically when it's back";
+"error.banner.apiunavailable.settings" = "Usage API temporarily unavailable on Anthropic's side — will retry automatically";
 
 /* Connection Test */
 "test.success" = "Connected — Session: %d%%";

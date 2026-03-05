@@ -47,6 +47,16 @@ struct SettingsSectionView: View {
                             .font(.system(size: 11))
                             .foregroundStyle(importSuccess ? .green : .orange)
                     }
+                    if usageStore.errorState == .apiUnavailable {
+                        Label {
+                            Text("error.banner.apiunavailable.settings")
+                                .font(.system(size: 11))
+                        } icon: {
+                            Image(systemName: "icloud.slash")
+                                .font(.system(size: 10))
+                        }
+                        .foregroundStyle(.orange.opacity(0.8))
+                    }
                     if let result = testResult {
                         Text(result.message)
                             .font(.system(size: 11))
