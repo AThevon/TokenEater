@@ -29,6 +29,7 @@ final class StatusBarController: NSObject {
         self.updateStore = updateStore
         self.sessionStore = sessionStore
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        self.statusItem.isVisible = settingsStore.showMenuBar
 
         super.init()
 
@@ -88,6 +89,13 @@ final class StatusBarController: NSObject {
             .sink { [weak self] newMargin in
                 self?.usageStore.pacingMargin = newMargin
                 self?.usageStore.recalculatePacing()
+            }
+            .store(in: &cancellables)
+
+        settingsStore.$showMenuBar
+            .removeDuplicates()
+            .sink { [weak self] visible in
+                self?.statusItem.isVisible = visible
             }
             .store(in: &cancellables)
     }
