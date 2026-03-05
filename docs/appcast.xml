@@ -6,6 +6,12 @@
         <description>TokenEater updates</description>
         <language>en</language>
         <item>
+            <title>4.7.0</title>
+            <pubDate>Wed, 05 Mar 2026 22:00:00 +0000</pubDate>
+            <sparkle:version>4.7.0</sparkle:version>
+            <enclosure url="https://github.com/AThevon/TokenEater/releases/download/v4.6.3-beta.1/TokenEater.dmg" length="3505744" type="application/octet-stream" />
+        </item>
+        <item>
             <title>4.6.3-beta.1</title>
             <pubDate>Wed, 05 Mar 2026 20:12:17 +0000</pubDate>
             <sparkle:version>4.6.3-beta.1</sparkle:version>
