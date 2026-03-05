@@ -70,11 +70,50 @@ jobs:
           echo "Verifying asset at: ${ASSET_URL}"
           HTTP_STATUS=$(curl -sL -o /dev/null -w '%{http_code}' "$ASSET_URL")
           if [ "$HTTP_STATUS" != "200" ]; then
-            echo "::error::Release asset not downloadable (HTTP ${HTTP_STATUS}). Aborting Homebrew update."
+            echo "::error::Release asset not downloadable (HTTP ${HTTP_STATUS}). Aborting."
             exit 1
           fi
           echo "Asset verified (HTTP ${HTTP_STATUS})"
 
+      - name: Sign DMG with EdDSA for Sparkle
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          curl -sL "https://github.com/sparkle-project/Sparkle/releases/download/2.9.0/Sparkle-2.9.0.tar.xz" | tar xJ -C /tmp
+          echo "$SPARKLE_PRIVATE_KEY" > /tmp/sparkle_key
+          SIGN_OUTPUT=$(/tmp/bin/sign_update TokenEater.dmg --ed-key-file /tmp/sparkle_key)
+          rm /tmp/sparkle_key
+          echo "sign_output=$SIGN_OUTPUT" >> "$GITHUB_OUTPUT"
+          echo "Sparkle signature: $SIGN_OUTPUT"
+        id: sign
+
+      - name: Update appcast.xml
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          DMG_URL="https://github.com/AThevon/TokenEater/releases/download/v${VERSION}/TokenEater.dmg"
+          DMG_LENGTH=$(stat -f%z TokenEater.dmg)
+          PUB_DATE=$(date -u +"%a, %d %b %Y %H:%M:%S %z")
+
+          # Extract edSignature from sign_output
+          SIGN_OUTPUT="${{ steps.sign.outputs.sign_output }}"
+          ED_SIGNATURE=$(echo "$SIGN_OUTPUT" | sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p')
+
+          ITEM="        <item>\n            <title>${VERSION}</title>\n            <pubDate>${PUB_DATE}</pubDate>\n            <sparkle:version>${VERSION}</sparkle:version>\n            <enclosure url=\"${DMG_URL}\" sparkle:edSignature=\"${ED_SIGNATURE}\" length=\"${DMG_LENGTH}\" type=\"application/octet-stream\" />\n        </item>"
+
+          # Insert before </channel>
+          sed -i '' "s|    </channel>|${ITEM}\n    </channel>|" docs/appcast.xml
+
+      - name: Commit and push appcast
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/appcast.xml
+          git commit -m "chore: update appcast for v${{ steps.version.outputs.version }}"
+          git push origin HEAD:main
+
+      # Keep Homebrew cask updated during transition period
       - name: Update Homebrew Cask
         env:
           TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
