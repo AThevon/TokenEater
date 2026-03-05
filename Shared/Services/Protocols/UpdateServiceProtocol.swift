@@ -1,6 +1,6 @@
 import Foundation
 
-protocol UpdateServiceProtocol: Sendable {
-    func checkForUpdate() async throws -> UpdateInfo?
-    func launchBrewUpdate() throws
+protocol UpdateServiceProtocol: AnyObject {
+    func checkForUpdates()
+    var canCheckForUpdates: Bool { get }
 }
