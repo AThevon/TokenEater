@@ -57,14 +57,25 @@ struct UsageStoreTests {
         #expect(store.isLoading == false)
     }
 
-    @Test("refresh calls syncCredentialsFile when not configured")
-    func refreshCallsSyncCredentialsFileWhenNotConfigured() async {
+    @Test("refresh calls syncCredentialsFile then syncKeychainTokenSilently when not configured")
+    func refreshFallsBackToKeychainWhenNotConfigured() async {
         let (store, repo, _) = makeSUT(isConfigured: false)
 
         await store.refresh()
 
         #expect(repo.syncCredentialsFileCallCount == 1)
+        #expect(repo.syncSilentCallCount == 1)
         #expect(repo.syncCallCount == 0)
+    }
+
+    @Test("refresh skips Keychain fallback when credentials file provides token")
+    func refreshSkipsKeychainWhenCredentialsFileWorks() async {
+        let (store, repo, _) = makeSUT(isConfigured: true)
+
+        await store.refresh()
+
+        #expect(repo.syncCredentialsFileCallCount == 0)
+        #expect(repo.syncSilentCallCount == 0)
     }
 
     @Test("refresh checks notification thresholds on success")
@@ -299,6 +310,16 @@ struct UsageStoreTests {
         #expect(notif.permissionRequested == true)
     }
 
+    @Test("reloadConfig falls back to Keychain when credentials file unavailable")
+    func reloadConfigFallsBackToKeychain() {
+        let (store, repo, _) = makeSUT(isConfigured: false)
+
+        store.reloadConfig()
+
+        #expect(repo.syncCredentialsFileCallCount == 1)
+        #expect(repo.syncSilentCallCount == 1)
+    }
+
     @Test("reloadConfig loads cached data")
     func reloadConfigLoadsCached() {
         let (store, repo, _) = makeSUT()
@@ -348,6 +369,16 @@ struct UsageStoreTests {
         let result = await store.connectAutoDetect()
 
         #expect(result.success == false)
+    }
+
+    @Test("connectAutoDetect falls back to Keychain when credentials file unavailable")
+    func connectAutoDetectFallsBackToKeychain() async {
+        let (store, repo, _) = makeSUT(isConfigured: false)
+
+        _ = await store.connectAutoDetect()
+
+        #expect(repo.syncCredentialsFileCallCount == 1)
+        #expect(repo.syncSilentCallCount == 1)
     }
 
     // MARK: - refresh — new buckets (opus, cowork)
