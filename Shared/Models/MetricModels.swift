@@ -36,5 +36,6 @@ enum AppErrorState: Equatable {
     case tokenExpired
     case keychainLocked
     case needsReauth
+    case apiUnavailable
     case networkError(String)
 }

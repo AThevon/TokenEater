@@ -34,15 +34,26 @@ jobs:
             -derivedDataPath build \
             build
 
+      - name: Install create-dmg
+        run: brew install create-dmg
+
       - name: Create DMG
         run: |
-          mkdir -p dmg-staging
-          cp -R "build/Build/Products/Release/TokenEater.app" dmg-staging/
-          ln -s /Applications dmg-staging/Applications
-          hdiutil create -volname "TokenEater" \
-            -srcfolder dmg-staging \
-            -ov -format UDZO \
-            TokenEater.dmg
+          create-dmg \
+            --volname "TokenEater" \
+            --window-pos 200 120 \
+            --window-size 660 400 \
+            --icon-size 128 \
+            --icon "TokenEater.app" 160 190 \
+            --app-drop-link 500 190 \
+            --background "docs/dmg-background.png" \
+            --hide-extension "TokenEater.app" \
+            --no-internet-enable \
+            TokenEater.dmg \
+            "build/Build/Products/Release/TokenEater.app" \
+            || true
+          # create-dmg exits 2 on success when --no-internet-enable is used
+          test -f TokenEater.dmg
 
       - name: Extract version
         id: version
@@ -70,11 +81,53 @@ jobs:
           echo "Verifying asset at: ${ASSET_URL}"
           HTTP_STATUS=$(curl -sL -o /dev/null -w '%{http_code}' "$ASSET_URL")
           if [ "$HTTP_STATUS" != "200" ]; then
-            echo "::error::Release asset not downloadable (HTTP ${HTTP_STATUS}). Aborting Homebrew update."
+            echo "::error::Release asset not downloadable (HTTP ${HTTP_STATUS}). Aborting."
             exit 1
           fi
           echo "Asset verified (HTTP ${HTTP_STATUS})"
 
+      - name: Sign DMG with EdDSA for Sparkle
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          curl -sL "https://github.com/sparkle-project/Sparkle/releases/download/2.9.0/Sparkle-2.9.0.tar.xz" | tar xJ -C /tmp
+          echo "$SPARKLE_PRIVATE_KEY" > /tmp/sparkle_key
+          SIGN_OUTPUT=$(/tmp/bin/sign_update TokenEater.dmg --ed-key-file /tmp/sparkle_key)
+          rm /tmp/sparkle_key
+          echo "sign_output=$SIGN_OUTPUT" >> "$GITHUB_OUTPUT"
+          echo "Sparkle signature: $SIGN_OUTPUT"
+        id: sign
+
+      - name: Update appcast.xml
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          DMG_URL="https://github.com/AThevon/TokenEater/releases/download/v${VERSION}/TokenEater.dmg"
+          DMG_LENGTH=$(stat -f%z TokenEater.dmg)
+          PUB_DATE=$(date -u +"%a, %d %b %Y %H:%M:%S %z")
+
+          # Extract edSignature from sign_output
+          SIGN_OUTPUT="${{ steps.sign.outputs.sign_output }}"
+          ED_SIGNATURE=$(echo "$SIGN_OUTPUT" | sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p')
+
+          ITEM="        <item>\n            <title>${VERSION}</title>\n            <pubDate>${PUB_DATE}</pubDate>\n            <sparkle:version>${VERSION}</sparkle:version>\n            <enclosure url=\"${DMG_URL}\" sparkle:edSignature=\"${ED_SIGNATURE}\" length=\"${DMG_LENGTH}\" type=\"application/octet-stream\" />\n        </item>"
+
+          # Insert before </channel>
+          sed -i '' "s|    </channel>|${ITEM}\n    </channel>|" docs/appcast.xml
+
+      - name: Commit and push appcast
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/appcast.xml
+          git commit -m "chore: update appcast for v${{ steps.version.outputs.version }}"
+          # Push to the branch the tag was created on (or main for release tags)
+          BRANCH=$(git branch -r --contains "$GITHUB_REF_NAME" | grep -v HEAD | head -1 | sed 's|origin/||;s/^ *//')
+          [ -z "$BRANCH" ] && BRANCH=main
+          git push origin HEAD:"$BRANCH"
+
+      # Keep Homebrew cask updated during transition period
       - name: Update Homebrew Cask
         env:
           TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}

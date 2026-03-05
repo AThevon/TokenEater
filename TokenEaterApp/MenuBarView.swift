@@ -355,6 +355,13 @@ struct MenuBarPopoverView: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 2)
+            case .apiUnavailable:
+                Label(String(localized: "error.banner.apiunavailable"), systemImage: "icloud.slash")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.orange)
+                Text(String(localized: "error.banner.apiunavailable.hint"))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.5))
             case .networkError(let message):
                 Label(message, systemImage: "wifi.slash")
                     .font(.system(size: 11, weight: .semibold))

@@ -19,6 +19,7 @@ enum ConnectionStatus {
     case idle
     case connecting
     case success(UsageResponse)
+    case rateLimited
     case failed(String)
 }
 
@@ -110,6 +111,12 @@ final class OnboardingViewModel: ObservableObject {
             do {
                 let usage = try await repository.refreshUsage(proxyConfig: nil)
                 connectionStatus = .success(usage)
+            } catch let error as APIError {
+                if case .httpError(429) = error {
+                    connectionStatus = .rateLimited
+                } else {
+                    connectionStatus = .failed(error.localizedDescription)
+                }
             } catch {
                 connectionStatus = .failed(error.localizedDescription)
             }

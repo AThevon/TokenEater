@@ -15,6 +15,8 @@ struct ConnectionStep: View {
                 connectingContent
             case .success(let usage):
                 successContent(usage: usage)
+            case .rateLimited:
+                rateLimitedContent
             case .failed(let message):
                 failedContent(message: message)
             }
@@ -131,6 +133,45 @@ struct ConnectionStep: View {
         )
     }
 
+    // MARK: - Rate Limited
+
+    private var rateLimitedContent: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 48))
+                .foregroundStyle(.green)
+
+            GlowText(
+                String(localized: "onboarding.connection.success.title"),
+                font: .system(size: 18, weight: .semibold, design: .rounded),
+                color: .white,
+                glowRadius: 4
+            )
+
+            Label {
+                Text("onboarding.connection.ratelimited.hint")
+                    .font(.system(size: 12))
+            } icon: {
+                Image(systemName: "icloud.slash")
+                    .foregroundStyle(.orange)
+                    .font(.system(size: 11))
+            }
+            .foregroundStyle(.white.opacity(0.5))
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: 380)
+
+            Label {
+                Text("onboarding.connection.widget.hint")
+                    .font(.system(size: 12))
+            } icon: {
+                Image(systemName: "square.grid.2x2")
+                    .foregroundStyle(.blue)
+                    .font(.system(size: 11))
+            }
+            .foregroundStyle(.white.opacity(0.5))
+        }
+    }
+
     // MARK: - Failed
 
     private func failedContent(message: String) -> some View {
@@ -171,7 +212,7 @@ struct ConnectionStep: View {
     @ViewBuilder
     private var bottomBar: some View {
         switch viewModel.connectionStatus {
-        case .success:
+        case .success, .rateLimited:
             darkPrimaryButton("onboarding.connection.start") {
                 viewModel.completeOnboarding()
                 settingsStore.hasCompletedOnboarding = true

@@ -12,7 +12,7 @@ settings:
     SWIFT_VERSION: "5.9"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
     CODE_SIGN_STYLE: Automatic
-    MARKETING_VERSION: "4.6.3"
+    MARKETING_VERSION: "4.7.0"
     CURRENT_PROJECT_VERSION: "1"
     ARCHS: "arm64 x86_64"
 
@@ -32,6 +32,8 @@ targets:
     info:
       path: TokenEaterApp/Info.plist
       properties:
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSApplicationCategoryType: public.app-category.utilities
         CFBundleDisplayName: TokenEater
         LSUIElement: true
@@ -40,6 +42,10 @@ targets:
           - CFBundleURLName: com.tokeneater.app
             CFBundleURLSchemes:
               - tokeneater
+    preBuildScripts:
+      - script: |
+          osacompile -o "$BUILT_PRODUCTS_DIR/$PRODUCT_NAME.app/Contents/Resources/TokenEaterInstaller.app" "$SRCROOT/TokenEaterApp/Resources/installer.applescript"
+        name: Compile installer applet
     dependencies:
       - target: TokenEaterWidgetExtension
         embed: true

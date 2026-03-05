@@ -93,6 +93,9 @@
 "error.banner.reauth" = "Autorisation requise";
 "error.banner.reauth.hint" = "Token expiré et la récupération automatique a échoué";
 "error.banner.reauth.button" = "Ré-autoriser";
+"error.banner.apiunavailable" = "API usage indisponible";
+"error.banner.apiunavailable.hint" = "L'endpoint usage d'Anthropic est temporairement down — les données se mettront à jour automatiquement quand il reviendra";
+"error.banner.apiunavailable.settings" = "API usage temporairement indisponible côté Anthropic — réessai automatique";
 
 /* Connection Test */
 "test.success" = "Connexion OK — Session : %d%%";
@@ -232,6 +235,7 @@
 "onboarding.connection.connecting" = "Connexion…";
 "onboarding.connection.success.title" = "C'est bon, tout roule !";
 "onboarding.connection.widget.hint" = "Ajoutez le widget : clic droit sur le bureau → Modifier les widgets → TokenEater";
+"onboarding.connection.ratelimited.hint" = "Connecté, mais l'API usage d'Anthropic est temporairement indisponible — vos données apparaîtront dès qu'elle reviendra";
 "onboarding.connection.start" = "C'est parti";
 "onboarding.connection.retry" = "Réessayer";
 "onboarding.connection.failed.title" = "Quelque chose a planté";
@@ -242,16 +246,28 @@
 "settings.onboarding.reset" = "Relancer la configuration";
 
 /* Update */
-"update.available" = "Mise à jour disponible";
-"update.releasenotes" = "Nouveautés";
-"update.skip" = "Ignorer cette version";
-"update.later" = "Plus tard";
-"update.now" = "Mettre à jour";
 "update.check" = "Vérifier les mises à jour";
-"update.badge" = "New";
-"update.terminal" = "Ou mettez à jour via Terminal :";
-"update.error.response" = "Impossible de joindre GitHub — réessayez plus tard";
-"update.error.launch" = "Impossible de lancer la mise à jour — commande copiée. Collez-la dans Terminal.";
+"update.uptodate" = "À jour";
+"update.available.title" = "Mise à jour disponible";
+"update.available.subtitle" = "Une nouvelle version de TokenEater est prête";
+"update.available.badge %@" = "v%@ disponible";
+"update.download" = "Télécharger";
+"update.later" = "Plus tard";
+"update.downloading" = "Téléchargement en cours...";
+"update.downloading.hint" = "Ça ne prendra qu'un instant";
+"update.ready.title" = "Prêt à installer";
+"update.ready.subtitle" = "macOS demandera votre mot de passe pour installer la mise à jour.";
+"update.install" = "Installer et relancer";
+"update.install.hint" = "TokenEater redémarrera automatiquement";
+"update.installing" = "Installation en cours...";
+"update.installing.hint" = "Entrez votre mot de passe quand macOS le demande";
+"update.version.current" = "Actuel";
+"update.version.new" = "Nouveau";
+
+/* Brew Migration */
+"update.brew.detected" = "Installé via Homebrew";
+"update.brew.hint" = "Les mises à jour sont désormais gérées directement par TokenEater. Lancez cette commande pour nettoyer l'ancienne installation brew :";
+"update.brew.dismiss" = "Ignorer";
 
 /* Session Overlay */
 "settings.overlay.title" = "Overlay de session";

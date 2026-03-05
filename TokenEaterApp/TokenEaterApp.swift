@@ -43,6 +43,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settingsStore: settingsStore
         )
 
+        updateStore.checkBrewMigration()
+        updateStore.checkForUpdates()
+
         monitorCancellable = settingsStore.$sessionMonitorEnabled
             .dropFirst()
             .sink { [weak self] enabled in

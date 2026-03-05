@@ -12,6 +12,7 @@ struct SettingsSectionView: View {
     @State private var importMessage: String?
     @State private var importSuccess = false
     @State private var notifTestCooldown = false
+    @State private var brewCopied = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -23,9 +24,9 @@ struct SettingsSectionView: View {
                     cardLabel(String(localized: "settings.tab.connection"))
                     HStack(spacing: 8) {
                         Circle()
-                            .fill(usageStore.hasConfig && !usageStore.hasError ? Color.green : Color.red)
+                            .fill(usageStore.hasConfig && !usageStore.isDisconnected ? Color.green : Color.red)
                             .frame(width: 8, height: 8)
-                        Text(usageStore.hasConfig && !usageStore.hasError
+                        Text(usageStore.hasConfig && !usageStore.isDisconnected
                              ? String(localized: "settings.connected")
                              : String(localized: "settings.disconnected"))
                             .font(.system(size: 13))
@@ -45,6 +46,16 @@ struct SettingsSectionView: View {
                         Text(message)
                             .font(.system(size: 11))
                             .foregroundStyle(importSuccess ? .green : .orange)
+                    }
+                    if usageStore.errorState == .apiUnavailable {
+                        Label {
+                            Text("error.banner.apiunavailable.settings")
+                                .font(.system(size: 11))
+                        } icon: {
+                            Image(systemName: "icloud.slash")
+                                .font(.system(size: 10))
+                        }
+                        .foregroundStyle(.orange.opacity(0.8))
                     }
                     if let result = testResult {
                         Text(result.message)
@@ -133,24 +144,40 @@ struct SettingsSectionView: View {
 
             // About
             glassCard {
-                HStack {
-                    let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
-                    Text("TokenEater v\(version)")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.white.opacity(0.5))
-                    Spacer()
-                    if updateStore.updateAvailable {
-                        Text(String(localized: "update.badge"))
-                            .font(.system(size: 10, weight: .bold))
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("TokenEater v\(updateStore.currentVersion)")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.5))
+                        Spacer()
+                        if case .checking = updateStore.updateState {
+                            ProgressView()
+                                .scaleEffect(0.5)
+                                .frame(width: 16, height: 16)
+                        } else if case .upToDate = updateStore.updateState {
+                            Label(String(localized: "update.uptodate"), systemImage: "checkmark.circle.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.green)
+                        } else if let version = updateStore.updateState.availableVersion {
+                            Button(String(localized: "update.available.badge \(version)")) {
+                                updateStore.downloadUpdate()
+                            }
+                            .font(.system(size: 11, weight: .medium))
+                            .buttonStyle(.plain)
                             .foregroundStyle(.orange)
+                        } else {
+                            Button(String(localized: "update.check")) {
+                                updateStore.checkForUpdates()
+                            }
+                            .font(.system(size: 11))
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.blue)
+                        }
                     }
-                    Button(String(localized: "update.check")) {
-                        Task { await updateStore.checkForUpdate(userInitiated: true) }
+
+                    if updateStore.brewMigrationState == .detected {
+                        brewMigrationBanner
                     }
-                    .font(.system(size: 11))
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.blue)
-                    .disabled(updateStore.isChecking)
                 }
             }
 
@@ -160,6 +187,44 @@ struct SettingsSectionView: View {
         .onAppear {
             Task { await settingsStore.refreshNotificationStatus() }
         }
+    }
+
+    private var brewMigrationBanner: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(String(localized: "update.brew.detected"), systemImage: "shippingbox.fill")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.orange)
+            Text(String(localized: "update.brew.hint"))
+                .font(.system(size: 10))
+                .foregroundStyle(.white.opacity(0.5))
+            HStack(spacing: 8) {
+                Text(updateStore.brewUninstallCommand)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .lineLimit(1)
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(updateStore.brewUninstallCommand, forType: .string)
+                    brewCopied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { brewCopied = false }
+                } label: {
+                    Image(systemName: brewCopied ? "checkmark" : "doc.on.doc")
+                        .font(.system(size: 10))
+                        .foregroundStyle(brewCopied ? .green : .white.opacity(0.4))
+                }
+                .buttonStyle(.plain)
+                Spacer()
+                Button(String(localized: "update.brew.dismiss")) {
+                    updateStore.dismissBrewMigration()
+                }
+                .font(.system(size: 10))
+                .buttonStyle(.plain)
+                .foregroundStyle(.white.opacity(0.4))
+            }
+        }
+        .padding(10)
+        .background(Color.orange.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
     private func connectAutoDetect() {

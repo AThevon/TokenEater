@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <channel>
+        <title>TokenEater</title>
+        <link>https://athevon.github.io/TokenEater/appcast.xml</link>
+        <description>TokenEater updates</description>
+        <language>en</language>
+        <item>
+            <title>4.6.3-beta.1</title>
+            <pubDate>Wed, 05 Mar 2026 20:12:17 +0000</pubDate>
+            <sparkle:version>4.6.3-beta.1</sparkle:version>
+            <enclosure url="https://github.com/AThevon/TokenEater/releases/download/v4.6.3-beta.1/TokenEater.dmg" sparkle:edSignature="9Ljqin6r4YUdxjazxhCgiPwE+0a5rU7EfEQAR+xodblRVaiyJD4R5heCMGrMDzNxpQoO6LvamFyElviSP8+VCw==" length="3505744" type="application/octet-stream" />
+        </item>
+    </channel>
+</rss>

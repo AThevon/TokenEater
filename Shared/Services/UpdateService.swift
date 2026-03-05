@@ -1,100 +1,140 @@
 import Foundation
-import AppKit
 
-enum UpdateError: LocalizedError {
-    case invalidResponse
-    case scriptLaunchFailed
+final class UpdateService: NSObject, UpdateServiceProtocol, URLSessionDownloadDelegate {
+    private let feedURL: URL
+    private let currentVersion: String
+    private var progressHandler: (@Sendable (Double) -> Void)?
+    private var downloadContinuation: CheckedContinuation<URL, Error>?
 
-    var errorDescription: String? {
-        switch self {
-        case .invalidResponse: return String(localized: "update.error.response")
-        case .scriptLaunchFailed: return String(localized: "update.error.launch")
+    init(
+        feedURL: URL = URL(string: "https://athevon.github.io/TokenEater/appcast.xml")!,
+        currentVersion: String? = nil
+    ) {
+        self.feedURL = feedURL
+        self.currentVersion = currentVersion
+            ?? (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0")
+        super.init()
+    }
+
+    // MARK: - UpdateServiceProtocol
+
+    func checkForUpdate() async throws -> AppcastItem? {
+        let (data, _) = try await URLSession.shared.data(from: feedURL)
+        let parser = AppcastXMLParser()
+        parser.parse(data: data)
+        guard let latest = parser.latestItem else { return nil }
+        return VersionComparator.isNewer(latest.version, than: currentVersion) ? latest : nil
+    }
+
+    func downloadUpdate(from url: URL, progress: @escaping @Sendable (Double) -> Void) async throws -> URL {
+        self.progressHandler = progress
+        return try await withCheckedThrowingContinuation { continuation in
+            self.downloadContinuation = continuation
+            let config = URLSessionConfiguration.default
+            let session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
+            session.downloadTask(with: url).resume()
+        }
+    }
+
+    // MARK: - URLSessionDownloadDelegate
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didFinishDownloadingTo location: URL
+    ) {
+        let dest = FileManager.default.temporaryDirectory.appendingPathComponent("TokenEater.dmg")
+        try? FileManager.default.removeItem(at: dest)
+        do {
+            try FileManager.default.moveItem(at: location, to: dest)
+            downloadContinuation?.resume(returning: dest)
+        } catch {
+            downloadContinuation?.resume(throwing: error)
+        }
+        downloadContinuation = nil
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didWriteData bytesWritten: Int64,
+        totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        guard totalBytesExpectedToWrite > 0 else { return }
+        let pct = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+        progressHandler?(pct)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        if let error {
+            downloadContinuation?.resume(throwing: error)
+            downloadContinuation = nil
         }
     }
 }
 
-final class UpdateService: UpdateServiceProtocol, @unchecked Sendable {
-    private let repo = "AThevon/TokenEater"
+// MARK: - Appcast XML Parser
 
-    private var currentVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
+private final class AppcastXMLParser: NSObject, XMLParserDelegate {
+    private(set) var items: [AppcastItem] = []
+    private var inItem = false
+    private var currentElement = ""
+    private var currentText = ""
+    private var currentVersion: String?
+    private var currentURL: String?
+
+    var latestItem: AppcastItem? {
+        items.max { VersionComparator.compare($0.version, $1.version) == .orderedAscending }
     }
 
-    // MARK: - Check
-
-    func checkForUpdate() async throws -> UpdateInfo? {
-        let url = URL(string: "https://api.github.com/repos/\(repo)/releases/latest")!
-        var request = URLRequest(url: url)
-        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            throw UpdateError.invalidResponse
-        }
-
-        let release = try JSONDecoder().decode(GitHubRelease.self, from: data)
-        let remoteVersion = release.tagName.hasPrefix("v")
-            ? String(release.tagName.dropFirst())
-            : release.tagName
-
-        guard isNewer(remoteVersion, than: currentVersion) else {
-            return nil
-        }
-
-        guard let releaseURL = URL(string: release.htmlURL) else {
-            throw UpdateError.invalidResponse
-        }
-
-        let dmgAsset = release.assets.first { $0.name.hasSuffix(".dmg") }
-
-        return UpdateInfo(
-            version: remoteVersion,
-            releaseNotes: release.body,
-            downloadURL: dmgAsset.flatMap { URL(string: $0.browserDownloadURL) },
-            releaseURL: releaseURL
-        )
+    func parse(data: Data) {
+        let parser = XMLParser(data: data)
+        parser.delegate = self
+        parser.parse()
     }
 
-    // MARK: - Update
-
-    func launchBrewUpdate() throws {
-        let brewCmd = "BREW=$([ -x /opt/homebrew/bin/brew ] && echo /opt/homebrew/bin/brew || echo /usr/local/bin/brew); $BREW update; $BREW upgrade --cask --greedy tokeneater && sleep 1 && open /Applications/TokenEater.app"
-
-        let source = "tell application \"Terminal\"\nactivate\ndo script \"\(brewCmd)\"\nend tell"
-
-        guard NSAppleScript(source: source) != nil else {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString("brew update && brew upgrade --cask --greedy tokeneater", forType: .string)
-            throw UpdateError.scriptLaunchFailed
-        }
-
-        // Execute off main thread — executeAndReturnError is synchronous
-        // and blocks while waiting for TCC / Terminal response
-        DispatchQueue.global(qos: .userInitiated).async {
-            guard let script = NSAppleScript(source: source) else { return }
-            var errorInfo: NSDictionary?
-            script.executeAndReturnError(&errorInfo)
-            if errorInfo != nil {
-                DispatchQueue.main.async {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString("brew update && brew upgrade --cask --greedy tokeneater", forType: .string)
-                }
+    func parser(
+        _ parser: XMLParser,
+        didStartElement elementName: String,
+        namespaceURI: String?,
+        qualifiedName qName: String?,
+        attributes attributeDict: [String: String] = [:]
+    ) {
+        let name = qName ?? elementName
+        if name == "item" {
+            inItem = true
+            currentVersion = nil
+            currentURL = nil
+        } else if inItem {
+            currentElement = name
+            currentText = ""
+            if name == "enclosure" {
+                currentURL = attributeDict["url"]
             }
         }
     }
 
-    // MARK: - Version comparison
+    func parser(_ parser: XMLParser, foundCharacters string: String) {
+        if inItem { currentText += string }
+    }
 
-    private func isNewer(_ remote: String, than local: String) -> Bool {
-        let r = remote.split(separator: ".").compactMap { Int($0) }
-        let l = local.split(separator: ".").compactMap { Int($0) }
-        for i in 0..<max(r.count, l.count) {
-            let rv = i < r.count ? r[i] : 0
-            let lv = i < l.count ? l[i] : 0
-            if rv > lv { return true }
-            if rv < lv { return false }
+    func parser(
+        _ parser: XMLParser,
+        didEndElement elementName: String,
+        namespaceURI: String?,
+        qualifiedName qName: String?
+    ) {
+        let name = qName ?? elementName
+        if name == "item" {
+            if let version = currentVersion,
+               let urlString = currentURL,
+               let url = URL(string: urlString) {
+                items.append(AppcastItem(version: version, downloadURL: url))
+            }
+            inItem = false
+        } else if inItem && name == "sparkle:version" {
+            currentVersion = currentText.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        return false
     }
 }

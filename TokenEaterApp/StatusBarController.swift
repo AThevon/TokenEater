@@ -106,7 +106,6 @@ final class StatusBarController: NSObject {
         usageStore.reloadConfig(thresholds: themeStore.thresholds)
         usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
         themeStore.syncToSharedFile()
-        updateStore.startAutoCheck()
     }
 
     private func observeOnboardingForRefresh() {
