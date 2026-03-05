@@ -62,9 +62,9 @@ xattr -cr /Applications/TokenEater.app
 
 ## Update
 
-TokenEater checks for updates automatically. When a new version is available, click **Update** in the modal — it runs `brew upgrade` behind the scenes.
+TokenEater checks for updates automatically. When a new version is available, a modal lets you download and install it in-app — macOS will ask for your admin password to replace the app in `/Applications`.
 
-Manual: `brew update && brew upgrade --cask tokeneater`
+If you installed via Homebrew: `brew update && brew upgrade --cask tokeneater`
 
 ## Uninstall
 
