@@ -16,14 +16,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 
-    func application(_ application: NSApplication, open urls: [URL]) {
-        for url in urls where url.scheme == "tokeneater" {
-            NotificationCenter.default.post(name: .openDashboard, object: nil)
-            break
-        }
+    @objc private func handleGetURL(_ event: NSAppleEventDescriptor, withReplyEvent reply: NSAppleEventDescriptor) {
+        NotificationCenter.default.post(name: .openDashboard, object: nil)
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSAppleEventManager.shared().setEventHandler(
+            self,
+            andSelector: #selector(handleGetURL(_:withReplyEvent:)),
+            forEventClass: AEEventClass(kInternetEventClass),
+            andEventID: AEEventID(kAEGetURL)
+        )
+
         statusBarController = StatusBarController(
             usageStore: usageStore,
             themeStore: themeStore,

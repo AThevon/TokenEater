@@ -35,6 +35,7 @@ targets:
         LSApplicationCategoryType: public.app-category.utilities
         CFBundleDisplayName: TokenEater
         LSUIElement: true
+        LSMultipleInstancesProhibited: true
         CFBundleURLTypes:
           - CFBundleURLName: com.tokeneater.app
             CFBundleURLSchemes:
