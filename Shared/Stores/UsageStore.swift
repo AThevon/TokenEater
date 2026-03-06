@@ -44,6 +44,7 @@ final class UsageStore: ObservableObject {
 
     /// Exponential backoff for 429 responses: consecutive count drives the delay.
     private var consecutive429Count: Int = 0
+    private var last429Date: Date?
     private static let backoffBase: TimeInterval = 120
     private static let backoffMax: TimeInterval = 600
 
@@ -63,6 +64,12 @@ final class UsageStore: ObservableObject {
 
         // Throttle: skip if a successful refresh happened less than 55s ago (avoids 429)
         if !force, let last = lastUpdate, Date().timeIntervalSince(last) < 55 {
+            return
+        }
+
+        // Back off: skip non-forced refreshes for 60s after a 429
+        if !force, consecutive429Count > 0, let last = last429Date,
+           Date().timeIntervalSince(last) < 60 {
             return
         }
 
@@ -93,6 +100,7 @@ final class UsageStore: ObservableObject {
             errorState = .none
             lastFailedToken = nil
             consecutive429Count = 0
+            last429Date = nil
             lastUpdate = Date()
             WidgetReloader.scheduleReload()
             notificationService.checkThresholds(
@@ -111,6 +119,7 @@ final class UsageStore: ObservableObject {
                 errorState = .needsReauth
             case .httpError(429):
                 consecutive429Count += 1
+                last429Date = Date()
                 errorState = .apiUnavailable
             default:
                 errorState = .networkError(error.localizedDescription)

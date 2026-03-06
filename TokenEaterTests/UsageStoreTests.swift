@@ -432,10 +432,10 @@ struct UsageStoreTests {
         await store.refresh()
         #expect(store.errorState == .apiUnavailable)
 
-        // Fix repo and retry
+        // Fix repo and retry (force: auto-refresh always retries after backoff delay)
         repo.stubbedError = nil
         repo.stubbedUsage = .fixture(fiveHourUtil: 50)
-        await store.refresh()
+        await store.refresh(force: true)
 
         #expect(store.errorState == .none)
         #expect(store.fiveHourPct == 50)

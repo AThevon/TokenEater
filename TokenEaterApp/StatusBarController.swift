@@ -40,8 +40,9 @@ final class StatusBarController: NSObject {
 
         if settingsStore.hasCompletedOnboarding {
             bootstrapRefresh()
+        } else {
+            observeOnboardingForRefresh()
         }
-        observeOnboardingForRefresh()
 
         DispatchQueue.main.async { [weak self] in
             self?.showDashboard()
