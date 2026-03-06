@@ -149,11 +149,8 @@ final class UsageStore: ObservableObject {
         notificationService.requestPermission()
         WidgetReloader.scheduleReload()
         refreshTask?.cancel()
-        // Sequential: refresh first, then profile after a delay to avoid 429
         refreshTask = Task {
             await refresh(thresholds: thresholds)
-            try? await Task.sleep(for: .seconds(60))
-            await refreshProfile()
         }
     }
 
@@ -162,6 +159,8 @@ final class UsageStore: ObservableObject {
         autoRefreshTask = Task { [weak self] in
             // Wait first — reloadConfig already triggers an initial refresh
             try? await Task.sleep(for: .seconds(interval))
+            // Fetch profile once on first cycle (deferred from startup to save rate limit)
+            if let self { await self.refreshProfile() }
             while !Task.isCancelled {
                 guard let self else { return }
                 await self.refresh(thresholds: thresholds)
