@@ -43,9 +43,15 @@ xcodebuild -project TokenEater.xcodeproj \
 
 ```bash
 cp -R "build/Build/Products/Release/TokenEater.app" /Applications/
-xattr -cr /Applications/TokenEater.app
-open "/Applications/TokenEater.app"
 ```
+
+Then approve the app through macOS Gatekeeper:
+
+1. Double-click **TokenEater.app** in Applications — macOS will block it
+2. Open **System Settings → Privacy & Security** — scroll down to the message about TokenEater
+3. Click **Open Anyway** and confirm
+
+> **Do not** use `xattr -cr` to skip this — it bypasses Gatekeeper approval, which means the widget extension won't be authorized and macOS will flag it as malware in the widget gallery.
 
 ## Configuration
 
@@ -98,4 +104,5 @@ The OAuth token is managed by Claude Code and refreshes automatically.
 | Widget shows error | Reopen the app and check connection in Settings |
 | Widget shows "Open app" | Launch the app and complete onboarding |
 | Build fails | Verify `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` points to Xcode.app |
+| Widget flagged as malware | You likely used `xattr -cr` to install. Reinstall: delete the app, copy it again from the DMG, and approve via System Settings → Privacy & Security → Open Anyway |
 | Widget not visible | Disconnect/reconnect your session or restart |

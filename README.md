@@ -43,10 +43,13 @@ See all features in detail on the [website](https://tokeneater.vercel.app).
 
 **[Download TokenEater.dmg](https://github.com/AThevon/TokenEater/releases/latest/download/TokenEater.dmg)**
 
-Open the DMG, drag TokenEater to Applications, then run:
-```bash
-xattr -cr /Applications/TokenEater.app
-```
+Open the DMG, drag TokenEater to Applications, then:
+
+1. Double-click TokenEater in Applications — macOS will block it
+2. Open **System Settings → Privacy & Security** — scroll down to find the message about TokenEater
+3. Click **Open Anyway** and confirm
+
+> **Important:** Do not use `xattr -cr` to bypass this step — it prevents macOS from approving the widget extension, which will then be flagged as malware in the widget gallery.
 
 ### Homebrew
 
@@ -91,6 +94,7 @@ plutil -insert NSExtension -json '{"NSExtensionPointIdentifier":"com.apple.widge
 xcodebuild -project TokenEater.xcodeproj -scheme TokenEaterApp \
   -configuration Release -derivedDataPath build build
 cp -R "build/Build/Products/Release/TokenEater.app" /Applications/
+# Then approve via System Settings → Privacy & Security → Open Anyway
 ```
 
 ## Architecture
