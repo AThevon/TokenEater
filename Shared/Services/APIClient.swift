@@ -44,6 +44,10 @@ final class APIClient: APIClientProtocol, @unchecked Sendable {
             return try JSONDecoder().decode(UsageResponse.self, from: data)
         case 401, 403:
             throw APIError.tokenExpired
+        case 429:
+            let retryAfter = httpResponse.value(forHTTPHeaderField: "Retry-After")
+                .flatMap(TimeInterval.init)
+            throw APIError.rateLimited(retryAfter: retryAfter)
         default:
             throw APIError.httpError(httpResponse.statusCode)
         }

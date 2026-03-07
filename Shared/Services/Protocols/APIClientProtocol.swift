@@ -6,6 +6,7 @@ enum APIError: LocalizedError {
     case tokenExpired
     case keychainLocked
     case unsupportedPlan
+    case rateLimited(retryAfter: TimeInterval?)
     case httpError(Int)
 
     var errorDescription: String? {
@@ -20,6 +21,8 @@ enum APIError: LocalizedError {
             return String(localized: "error.keychainlocked")
         case .unsupportedPlan:
             return String(localized: "error.unsupportedplan")
+        case .rateLimited:
+            return String(localized: "error.ratelimited")
         case .httpError(let code):
             return String(format: String(localized: "error.http"), code)
         }

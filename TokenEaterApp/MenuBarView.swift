@@ -130,26 +130,12 @@ struct MenuBarPopoverView: View {
                 }
                 .buttonStyle(.plain)
 
-                // Refresh · Quit
-                HStack(spacing: 4) {
-                    Button(String(localized: "menubar.refresh")) {
-                        Task { await usageStore.refresh(thresholds: themeStore.thresholds, force: true) }
-                    }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.4))
-
-                    Text("·")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.white.opacity(0.25))
-
-                    Button(String(localized: "menubar.quit")) {
-                        NSApplication.shared.terminate(nil)
-                    }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.4))
+                Button(String(localized: "menubar.quit")) {
+                    NSApplication.shared.terminate(nil)
                 }
+                .buttonStyle(.plain)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.white.opacity(0.4))
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
@@ -159,10 +145,6 @@ struct MenuBarPopoverView: View {
         .background(Color(nsColor: NSColor(red: 0.08, green: 0.08, blue: 0.09, alpha: 1)))
         .onAppear {
             refreshLastUpdateText()
-            // Single refresh on appear — auto-refresh lifecycle is owned by StatusBarController
-            if settingsStore.hasCompletedOnboarding {
-                Task { await usageStore.refresh(thresholds: themeStore.thresholds) }
-            }
         }
         .onReceive(updateTimer) { _ in
             refreshLastUpdateText()

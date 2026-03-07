@@ -82,6 +82,7 @@
 "error.invalidurl" = "URL invalide";
 "error.invalidresponse" = "Réponse invalide du serveur";
 "error.http" = "Erreur HTTP %d";
+"error.ratelimited" = "Limite de requêtes atteinte";
 "error.network" = "Erreur réseau : %@";
 "error.invalidresponse.short" = "Réponse invalide";
 "error.keychainlocked" = "Keychain verrouillé — nouvelle tentative automatique";

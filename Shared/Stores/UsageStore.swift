@@ -42,9 +42,10 @@ final class UsageStore: ObservableObject {
     private var refreshTask: Task<Void, Never>?
     private var autoRefreshTask: Task<Void, Never>?
 
-    /// Exponential backoff for 429 responses: consecutive count drives the delay.
+    /// Backoff for 429 responses: uses Retry-After header when available, otherwise exponential.
     private var consecutive429Count: Int = 0
     private var last429Date: Date?
+    private var retryAfterInterval: TimeInterval?
     private static let backoffBase: TimeInterval = 120
     private static let backoffMax: TimeInterval = 600
 
@@ -101,6 +102,7 @@ final class UsageStore: ObservableObject {
             lastFailedToken = nil
             consecutive429Count = 0
             last429Date = nil
+            retryAfterInterval = nil
             lastUpdate = Date()
             WidgetReloader.scheduleReload()
             notificationService.checkThresholds(
@@ -117,9 +119,10 @@ final class UsageStore: ObservableObject {
                 errorState = .tokenExpired
             case .keychainLocked:
                 errorState = .needsReauth
-            case .httpError(429):
+            case .rateLimited(let retryAfter):
                 consecutive429Count += 1
                 last429Date = Date()
+                retryAfterInterval = retryAfter
                 errorState = .apiUnavailable
             default:
                 errorState = .networkError(error.localizedDescription)
@@ -170,9 +173,12 @@ final class UsageStore: ObservableObject {
         }
     }
 
-    /// Returns the polling interval: normal when API is healthy, exponential backoff on consecutive 429s.
+    /// Returns the polling interval: normal when API is healthy, Retry-After or exponential backoff on 429s.
     private func currentBackoffInterval(base: TimeInterval) -> TimeInterval {
         guard consecutive429Count > 0 else { return base }
+        if let retryAfter = retryAfterInterval, retryAfter > 0 {
+            return retryAfter
+        }
         let backoff = Self.backoffBase * pow(2.0, Double(consecutive429Count - 1))
         return min(backoff, Self.backoffMax)
     }

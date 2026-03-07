@@ -82,6 +82,7 @@
 "error.invalidurl" = "Invalid URL";
 "error.invalidresponse" = "Invalid server response";
 "error.http" = "HTTP error %d";
+"error.ratelimited" = "Rate limited";
 "error.network" = "Network error: %@";
 "error.invalidresponse.short" = "Invalid response";
 "error.keychainlocked" = "Keychain locked — will retry automatically";

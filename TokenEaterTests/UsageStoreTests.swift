@@ -417,7 +417,7 @@ struct UsageStoreTests {
 
     @Test("refresh sets apiUnavailable and increments backoff on 429")
     func refreshIncrementsBackoffOn429() async {
-        let (store, _, _) = makeSUT(shouldFail: true, failWith: .httpError(429))
+        let (store, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: nil))
 
         await store.refresh()
 
@@ -426,7 +426,7 @@ struct UsageStoreTests {
 
     @Test("refresh resets backoff on success after 429")
     func refreshResetsBackoffOnSuccess() async {
-        let (store, repo, _) = makeSUT(shouldFail: true, failWith: .httpError(429))
+        let (store, repo, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: nil))
 
         // First call: 429
         await store.refresh()
