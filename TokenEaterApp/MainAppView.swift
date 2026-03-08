@@ -57,10 +57,6 @@ struct MainAppView: View {
             }
         }
         .padding(4)
-        .task {
-            // Refresh on appear — throttled by UsageStore (10s debounce)
-            await usageStore.refresh(thresholds: themeStore.thresholds)
-        }
         .onReceive(NotificationCenter.default.publisher(for: .navigateToSection)) { notification in
             if let section = notification.userInfo?["section"] as? String,
                let target = AppSection(rawValue: section) {

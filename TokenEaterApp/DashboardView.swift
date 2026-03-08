@@ -38,9 +38,6 @@ struct DashboardView: View {
         }
         .task {
             refreshLastUpdateText()
-            if settingsStore.hasCompletedOnboarding {
-                await usageStore.refresh(thresholds: themeStore.thresholds)
-            }
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(30))
                 refreshLastUpdateText()
@@ -156,15 +153,6 @@ struct DashboardView: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.3))
             }
-
-            Button {
-                Task { await usageStore.refresh(thresholds: themeStore.thresholds, force: true) }
-            } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.5))
-            }
-            .buttonStyle(.plain)
         }
     }
 
