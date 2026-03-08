@@ -10,12 +10,14 @@ final class MockUsageRepository: UsageRepositoryProtocol {
     var currentTokenValue: String?
 
     var syncCredentialsFileCallCount = 0
+    var syncKeychainSilentlyCallCount = 0
 
     var isConfigured: Bool { isConfiguredValue }
     var cachedUsage: CachedUsage? { cachedValue }
     var currentToken: String? { currentTokenValue }
 
     func syncCredentialsFile() { syncCredentialsFileCallCount += 1 }
+    func syncKeychainSilently() { syncKeychainSilentlyCallCount += 1 }
 
     func refreshUsage(proxyConfig: ProxyConfig?) async throws -> UsageResponse {
         if let error = stubbedError { throw error }

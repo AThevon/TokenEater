@@ -138,6 +138,9 @@ final class UsageStore: ObservableObject {
 
     func reloadConfig(thresholds: UsageThresholds = .default) {
         repository.syncCredentialsFile()
+        if !repository.isConfigured {
+            repository.syncKeychainSilently()
+        }
         lastFailedToken = nil
         errorState = .none
         hasConfig = repository.isConfigured
@@ -182,6 +185,9 @@ final class UsageStore: ObservableObject {
 
     func reauthenticate() async {
         repository.syncCredentialsFile()
+        if !repository.isConfigured {
+            repository.syncKeychainSilently()
+        }
         if repository.isConfigured, repository.currentToken != lastFailedToken {
             lastFailedToken = nil
             errorState = .none
@@ -196,6 +202,9 @@ final class UsageStore: ObservableObject {
 
     func connectAutoDetect() async -> ConnectionTestResult {
         repository.syncCredentialsFile()
+        if !repository.isConfigured {
+            repository.syncKeychainSilently()
+        }
         let result = await repository.testConnection(proxyConfig: proxyConfig)
         if result.success {
             hasConfig = true

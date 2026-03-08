@@ -5,4 +5,5 @@ final class MockKeychainService: KeychainServiceProtocol, @unchecked Sendable {
 
     func readToken() -> String? { storedToken }
     func tokenExists() -> Bool { storedToken != nil }
+    func readKeychainTokenSilently() -> String? { storedToken }
 }

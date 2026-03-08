@@ -307,13 +307,14 @@ struct UsageStoreTests {
         #expect(notif.permissionRequested == true)
     }
 
-    @Test("reloadConfig syncs credentials file")
-    func reloadConfigSyncsCredentialsFile() {
+    @Test("reloadConfig syncs credentials file then Keychain fallback")
+    func reloadConfigSyncsWithKeychainFallback() {
         let (store, repo, _) = makeSUT(isConfigured: false)
 
         store.reloadConfig()
 
         #expect(repo.syncCredentialsFileCallCount == 1)
+        #expect(repo.syncKeychainSilentlyCallCount == 1)
     }
 
     @Test("reloadConfig loads cached data")
@@ -367,13 +368,14 @@ struct UsageStoreTests {
         #expect(result.success == false)
     }
 
-    @Test("connectAutoDetect syncs credentials file")
-    func connectAutoDetectSyncsCredentialsFile() async {
+    @Test("connectAutoDetect syncs credentials file then Keychain fallback")
+    func connectAutoDetectSyncsWithKeychainFallback() async {
         let (store, repo, _) = makeSUT(isConfigured: false)
 
         _ = await store.connectAutoDetect()
 
         #expect(repo.syncCredentialsFileCallCount == 1)
+        #expect(repo.syncKeychainSilentlyCallCount == 1)
     }
 
     // MARK: - refresh — new buckets (opus, cowork)

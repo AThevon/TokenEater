@@ -44,6 +44,27 @@ struct UsageRepositoryTests {
         #expect(sharedFile._oauthToken == nil)
     }
 
+    // MARK: - syncKeychainSilently
+
+    @Test("syncKeychainSilently copies token to shared file")
+    func syncKeychainSilentlyCopiesToSharedFile() {
+        let (repo, _, keychain, sharedFile) = makeSUT()
+        keychain.storedToken = "kc-tok"
+
+        repo.syncKeychainSilently()
+
+        #expect(sharedFile._oauthToken == "kc-tok")
+    }
+
+    @Test("syncKeychainSilently does nothing when no token")
+    func syncKeychainSilentlyDoesNothingWhenNoToken() {
+        let (repo, _, _, sharedFile) = makeSUT()
+
+        repo.syncKeychainSilently()
+
+        #expect(sharedFile._oauthToken == nil)
+    }
+
     // MARK: - currentToken
 
     @Test("currentToken delegates to shared file oauthToken")

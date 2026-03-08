@@ -91,9 +91,12 @@ final class OnboardingViewModel: ObservableObject {
 
     func connect() {
         connectionStatus = .connecting
-        // Check stored token, then credentials file (~/.claude/.credentials.json)
+        // Credentials file first, then silent Keychain fallback
         if !repository.isConfigured {
             repository.syncCredentialsFile()
+        }
+        if !repository.isConfigured {
+            repository.syncKeychainSilently()
         }
         guard repository.isConfigured else {
             connectionStatus = .failed(String(localized: "onboarding.connection.failed.notoken"))
