@@ -230,7 +230,7 @@ struct SettingsSectionView: View {
     private func connectAutoDetect() {
         isImporting = true
         importMessage = nil
-        guard settingsStore.keychainTokenExists() else {
+        guard settingsStore.credentialsTokenExists() else {
             isImporting = false
             importMessage = String(localized: "connect.noclaudecode")
             importSuccess = false

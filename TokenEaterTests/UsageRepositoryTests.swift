@@ -23,48 +23,6 @@ struct UsageRepositoryTests {
         return (repo, api, keychain, sharedFile)
     }
 
-    // MARK: - syncKeychainToken (interactive)
-
-    @Test("syncKeychainToken copies token to shared file")
-    func syncKeychainTokenCopiesToSharedFile() {
-        let (repo, _, keychain, sharedFile) = makeSUT()
-        keychain.storedToken = "tok"
-
-        repo.syncKeychainToken()
-
-        #expect(sharedFile._oauthToken == "tok")
-    }
-
-    @Test("syncKeychainToken does nothing when no token")
-    func syncKeychainTokenDoesNothingWhenNoToken() {
-        let (repo, _, _, sharedFile) = makeSUT()
-
-        repo.syncKeychainToken()
-
-        #expect(sharedFile._oauthToken == nil)
-    }
-
-    // MARK: - syncKeychainTokenSilently
-
-    @Test("syncKeychainTokenSilently copies token to shared file")
-    func syncKeychainTokenSilentlyCopiesToSharedFile() {
-        let (repo, _, keychain, sharedFile) = makeSUT()
-        keychain.storedToken = "silent-tok"
-
-        repo.syncKeychainTokenSilently()
-
-        #expect(sharedFile._oauthToken == "silent-tok")
-    }
-
-    @Test("syncKeychainTokenSilently does nothing when no token")
-    func syncKeychainTokenSilentlyDoesNothingWhenNoToken() {
-        let (repo, _, _, sharedFile) = makeSUT()
-
-        repo.syncKeychainTokenSilently()
-
-        #expect(sharedFile._oauthToken == nil)
-    }
-
     // MARK: - syncCredentialsFile
 
     @Test("syncCredentialsFile copies credentials file token to shared file")
@@ -173,14 +131,12 @@ struct UsageRepositoryTests {
 
     // MARK: - refreshUsage — token recovery
 
-    @Test("refreshUsage retries with new token when tokenExpired and keychain has fresh token")
+    @Test("refreshUsage retries with new token when tokenExpired and credentials file has fresh token")
     func refreshUsageRetriesWithNewToken() async throws {
         let (_, _, keychain, sharedFile) = makeSUT()
         sharedFile._oauthToken = "old-token"
         keychain.storedToken = "fresh-token"
 
-        // The API will throw tokenExpired on the first call with "old-token",
-        // then succeed on the second call with "fresh-token".
         let smartAPI = TokenRecoveryMockAPIClient()
         smartAPI.failToken = "old-token"
         smartAPI.successUsage = .fixture(fiveHourUtil: 99)
@@ -198,11 +154,11 @@ struct UsageRepositoryTests {
         #expect(smartAPI.callCount == 2)
     }
 
-    @Test("refreshUsage throws keychainLocked when keychain inaccessible during recovery")
+    @Test("refreshUsage throws keychainLocked when credentials file unavailable during recovery")
     func refreshUsageThrowsKeychainLockedOnRecovery() async {
         let (_, _, keychain, sharedFile) = makeSUT()
         sharedFile._oauthToken = "old-token"
-        keychain.storedToken = nil // Keychain inaccessible
+        keychain.storedToken = nil // Credentials file unavailable
 
         let failingAPI = MockAPIClient()
         failingAPI.stubbedError = APIError.tokenExpired
@@ -226,7 +182,7 @@ struct UsageRepositoryTests {
         }
     }
 
-    @Test("refreshUsage throws tokenExpired when keychain has same token during recovery")
+    @Test("refreshUsage throws tokenExpired when credentials file has same token during recovery")
     func refreshUsageThrowsTokenExpiredWhenSameToken() async {
         let (_, _, keychain, sharedFile) = makeSUT()
         sharedFile._oauthToken = "same-token"

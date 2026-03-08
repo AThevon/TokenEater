@@ -185,13 +185,9 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    // MARK: - Keychain
+    // MARK: - Credentials
 
-    func keychainTokenExists() -> Bool {
+    func credentialsTokenExists() -> Bool {
         keychainService.tokenExists()
-    }
-
-    func readKeychainToken() -> String? {
-        keychainService.readOAuthToken()
     }
 }

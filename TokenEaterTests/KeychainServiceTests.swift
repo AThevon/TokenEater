@@ -1,64 +1,26 @@
 import Testing
 import Foundation
 
-@Suite("KeychainService – file-first strategy")
+@Suite("KeychainService – credentials file reader")
 struct KeychainServiceTests {
 
-    // MARK: - readOAuthToken
-
-    @Test("readOAuthToken returns file token when available")
-    func readOAuthTokenReturnsFileToken() {
+    @Test("readToken returns file token when available")
+    func readTokenReturnsFileToken() {
         let fileReader = MockCredentialsFileReader()
         fileReader.storedToken = "file-token"
         let sut = KeychainService(credentialsFileReader: fileReader)
 
-        #expect(sut.readOAuthToken() == "file-token")
+        #expect(sut.readToken() == "file-token")
     }
 
-    @Test("readOAuthToken prefers file token over keychain")
-    func readOAuthTokenPrefersFileOverKeychain() {
-        let fileReader = MockCredentialsFileReader()
-        fileReader.storedToken = "file-wins"
-        let sut = KeychainService(credentialsFileReader: fileReader)
-
-        // Even if keychain has a real token, file token takes priority
-        #expect(sut.readOAuthToken() == "file-wins")
-    }
-
-    @Test("readOAuthToken consults keychain when file has no token")
-    func readOAuthTokenConsultsKeychain() {
+    @Test("readToken returns nil when no file token")
+    func readTokenReturnsNilWhenNoFileToken() {
         let fileReader = MockCredentialsFileReader()
         fileReader.storedToken = nil
         let sut = KeychainService(credentialsFileReader: fileReader)
 
-        // Result is environment-dependent (nil in CI, real token on dev machine)
-        // Verify fallback path executes without error
-        let result = sut.readOAuthToken()
-        if let result { #expect(!result.isEmpty) }
+        #expect(sut.readToken() == nil)
     }
-
-    // MARK: - readOAuthTokenSilently
-
-    @Test("readOAuthTokenSilently returns file token when available")
-    func readOAuthTokenSilentlyReturnsFileToken() {
-        let fileReader = MockCredentialsFileReader()
-        fileReader.storedToken = "silent-file-token"
-        let sut = KeychainService(credentialsFileReader: fileReader)
-
-        #expect(sut.readOAuthTokenSilently() == "silent-file-token")
-    }
-
-    @Test("readOAuthTokenSilently consults keychain when file has no token")
-    func readOAuthTokenSilentlyConsultsKeychain() {
-        let fileReader = MockCredentialsFileReader()
-        fileReader.storedToken = nil
-        let sut = KeychainService(credentialsFileReader: fileReader)
-
-        let result = sut.readOAuthTokenSilently()
-        if let result { #expect(!result.isEmpty) }
-    }
-
-    // MARK: - tokenExists
 
     @Test("tokenExists returns true when credentials file exists")
     func tokenExistsReturnsTrueWhenFileExists() {
@@ -69,13 +31,12 @@ struct KeychainServiceTests {
         #expect(sut.tokenExists() == true)
     }
 
-    @Test("tokenExists consults keychain when file does not exist")
-    func tokenExistsConsultsKeychain() {
+    @Test("tokenExists returns false when credentials file does not exist")
+    func tokenExistsReturnsFalseWhenNoFile() {
         let fileReader = MockCredentialsFileReader()
         fileReader.fileExists = false
         let sut = KeychainService(credentialsFileReader: fileReader)
 
-        // Environment-dependent: true if dev machine has keychain token, false in CI
-        _ = sut.tokenExists()
+        #expect(sut.tokenExists() == false)
     }
 }

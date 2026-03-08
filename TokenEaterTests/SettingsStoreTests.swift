@@ -99,31 +99,22 @@ struct SettingsStoreTests {
         #expect(!store.pinnedMetrics.contains(.pacing))
     }
 
-    // MARK: - Keychain delegation
+    // MARK: - Credentials delegation
 
-    @Test("keychainTokenExists delegates to service")
-    func keychainTokenExistsDelegates() {
+    @Test("credentialsTokenExists delegates to service")
+    func credentialsTokenExistsDelegates() {
         let keychain = MockKeychainService()
         keychain.storedToken = "some-token"
         let (store, _, _) = makeStore(keychain: keychain)
 
-        #expect(store.keychainTokenExists() == true)
+        #expect(store.credentialsTokenExists() == true)
     }
 
-    @Test("keychainTokenExists returns false when no token")
-    func keychainTokenExistsFalseWhenNoToken() {
+    @Test("credentialsTokenExists returns false when no token")
+    func credentialsTokenExistsFalseWhenNoToken() {
         let (store, _, _) = makeStore()
 
-        #expect(store.keychainTokenExists() == false)
-    }
-
-    @Test("readKeychainToken delegates to service")
-    func readKeychainTokenDelegates() {
-        let keychain = MockKeychainService()
-        keychain.storedToken = "abc"
-        let (store, _, _) = makeStore(keychain: keychain)
-
-        #expect(store.readKeychainToken() == "abc")
+        #expect(store.credentialsTokenExists() == false)
     }
 
     // MARK: - Notification delegation

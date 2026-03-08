@@ -4,11 +4,7 @@ protocol UsageRepositoryProtocol {
     func refreshUsage(proxyConfig: ProxyConfig?) async throws -> UsageResponse
     func fetchProfile(proxyConfig: ProxyConfig?) async throws -> ProfileResponse
     func testConnection(proxyConfig: ProxyConfig?) async -> ConnectionTestResult
-    /// Interactive keychain read — may trigger macOS dialog.
-    func syncKeychainToken()
-    /// Silent keychain read — never triggers dialog.
-    func syncKeychainTokenSilently()
-    /// Credentials file sync — no Keychain access at all.
+    /// Sync token from ~/.claude/.credentials.json into shared file.
     func syncCredentialsFile()
     var isConfigured: Bool { get }
     var cachedUsage: CachedUsage? { get }

@@ -57,7 +57,6 @@ final class OnboardingViewModel: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self else { return }
             let hasToken = self.repository.isConfigured
-                || self.keychainService.readCredentialsFileToken() != nil
                 || self.keychainService.tokenExists()
             self.claudeCodeStatus = hasToken ? .detected : .notFound
         }
@@ -92,14 +91,9 @@ final class OnboardingViewModel: ObservableObject {
 
     func connect() {
         connectionStatus = .connecting
-        // 1. Check stored token (survives DMG upgrades)
+        // Check stored token, then credentials file (~/.claude/.credentials.json)
         if !repository.isConfigured {
-            // 2. Check credentials file (~/.claude/.credentials.json)
             repository.syncCredentialsFile()
-        }
-        if !repository.isConfigured {
-            // 3. Last resort: interactive Keychain read (1 prompt max)
-            repository.syncKeychainToken()
         }
         guard repository.isConfigured else {
             connectionStatus = .failed(String(localized: "onboarding.connection.failed.notoken"))

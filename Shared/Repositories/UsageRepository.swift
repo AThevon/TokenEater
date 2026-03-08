@@ -15,22 +15,9 @@ final class UsageRepository: UsageRepositoryProtocol {
         self.sharedFileService = sharedFileService
     }
 
-    func syncKeychainToken() {
-        if let token = keychainService.readOAuthToken(), token != sharedFileService.oauthToken {
-            sharedFileService.oauthToken = token
-        }
-    }
-
-    /// Silent keychain sync — never triggers macOS dialog.
-    func syncKeychainTokenSilently() {
-        if let token = keychainService.readOAuthTokenSilently(), token != sharedFileService.oauthToken {
-            sharedFileService.oauthToken = token
-        }
-    }
-
-    /// Credentials file sync — no Keychain access at all.
+    /// Sync token from ~/.claude/.credentials.json into shared file.
     func syncCredentialsFile() {
-        if let token = keychainService.readCredentialsFileToken(), token != sharedFileService.oauthToken {
+        if let token = keychainService.readToken(), token != sharedFileService.oauthToken {
             sharedFileService.oauthToken = token
         }
     }
@@ -48,7 +35,7 @@ final class UsageRepository: UsageRepositoryProtocol {
     }
 
     /// Fetch usage with automatic token recovery on 401/403.
-    /// Silent keychain read → different token? update + retry once. Otherwise rethrow.
+    /// Reads credentials file to check if Claude Code refreshed the token, then retries once.
     func refreshUsage(proxyConfig: ProxyConfig?) async throws -> UsageResponse {
         guard let token = sharedFileService.oauthToken else {
             throw APIError.noToken
@@ -62,7 +49,7 @@ final class UsageRepository: UsageRepositoryProtocol {
             )
             return usage
         } catch APIError.tokenExpired {
-            return try await attemptSilentTokenRecovery(proxyConfig: proxyConfig)
+            return try await attemptTokenRecovery(proxyConfig: proxyConfig)
         }
     }
 
@@ -82,16 +69,16 @@ final class UsageRepository: UsageRepositoryProtocol {
 
     // MARK: - Private
 
-    private func attemptSilentTokenRecovery(proxyConfig: ProxyConfig?) async throws -> UsageResponse {
+    private func attemptTokenRecovery(proxyConfig: ProxyConfig?) async throws -> UsageResponse {
         let currentToken = sharedFileService.oauthToken
 
-        guard let freshToken = keychainService.readOAuthTokenSilently() else {
-            // Keychain inaccessible (locked or needs auth). Keep current token, retry next cycle.
+        guard let freshToken = keychainService.readToken() else {
+            // Credentials file unavailable. Keep current token, retry next cycle.
             throw APIError.keychainLocked
         }
 
         guard freshToken != currentToken else {
-            // Same token in keychain — Claude Code hasn't refreshed yet.
+            // Same token in credentials file — Claude Code hasn't refreshed yet.
             throw APIError.tokenExpired
         }
 
