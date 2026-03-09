@@ -8,6 +8,7 @@ struct MenuBarPopoverView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
 
     @State private var lastUpdateText = ""
+    @State private var showRefreshed = false
 
     private let updateTimer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
@@ -29,11 +30,33 @@ struct MenuBarPopoverView: View {
                     ProgressView()
                         .scaleEffect(0.5)
                         .frame(width: 16, height: 16)
+                } else if showRefreshed {
+                    Text(String(localized: "widget.refreshed"))
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.green.opacity(0.8))
+                } else {
+                    Button {
+                        Task { await usageStore.refresh(force: true) }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.4))
+                    }
+                    .buttonStyle(.plain)
+                    .help(Text(String(localized: "menubar.refresh")))
                 }
             }
             .padding(.horizontal, 16)
             .padding(.top, 12)
             .padding(.bottom, 14)
+            .onChange(of: usageStore.lastUpdate) { _, _ in
+                guard !usageStore.hasError else { return }
+                showRefreshed = true
+                Task {
+                    try? await Task.sleep(for: .seconds(3))
+                    showRefreshed = false
+                }
+            }
 
             // Error banner
             if usageStore.hasError {
