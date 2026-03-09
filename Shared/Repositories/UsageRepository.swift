@@ -35,6 +35,10 @@ final class UsageRepository: UsageRepositoryProtocol {
         }
     }
 
+    func updateRefreshError(_ error: String) {
+        sharedFileService.updateAfterError(error)
+    }
+
     var isConfigured: Bool {
         sharedFileService.isConfigured
     }

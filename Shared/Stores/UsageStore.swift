@@ -124,11 +124,14 @@ final class UsageStore: ObservableObject {
                 last429Date = Date()
                 retryAfterInterval = retryAfter
                 errorState = .apiUnavailable
+                repository.updateRefreshError(String(localized: "error.ratelimited"))
             default:
                 errorState = .networkError(error.localizedDescription)
+                repository.updateRefreshError(error.localizedDescription)
             }
         } catch {
             errorState = .networkError(error.localizedDescription)
+            repository.updateRefreshError(error.localizedDescription)
         }
     }
 

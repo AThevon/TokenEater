@@ -4,9 +4,11 @@ final class MockSharedFileService: SharedFileServiceProtocol, @unchecked Sendabl
     var _oauthToken: String?
     var _cachedUsage: CachedUsage?
     var _lastSyncDate: Date?
+    var _lastRefreshError: String?
     var _theme: ThemeColors = .default
     var _thresholds: UsageThresholds = .default
     var updateAfterSyncCallCount = 0
+    var updateAfterErrorCallCount = 0
     var updateThemeCallCount = 0
 
     var isConfigured: Bool { _oauthToken != nil }
@@ -18,6 +20,7 @@ final class MockSharedFileService: SharedFileServiceProtocol, @unchecked Sendabl
 
     var cachedUsage: CachedUsage? { _cachedUsage }
     var lastSyncDate: Date? { _lastSyncDate }
+    var lastRefreshError: String? { _lastRefreshError }
     var theme: ThemeColors { _theme }
     var thresholds: UsageThresholds { _thresholds }
 
@@ -25,6 +28,12 @@ final class MockSharedFileService: SharedFileServiceProtocol, @unchecked Sendabl
         updateAfterSyncCallCount += 1
         _cachedUsage = usage
         _lastSyncDate = syncDate
+        _lastRefreshError = nil
+    }
+
+    func updateAfterError(_ error: String) {
+        updateAfterErrorCallCount += 1
+        _lastRefreshError = error
     }
 
     func updateTheme(_ theme: ThemeColors, thresholds: UsageThresholds) {
@@ -37,5 +46,6 @@ final class MockSharedFileService: SharedFileServiceProtocol, @unchecked Sendabl
         _oauthToken = nil
         _cachedUsage = nil
         _lastSyncDate = nil
+        _lastRefreshError = nil
     }
 }

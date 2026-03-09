@@ -55,6 +55,7 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         var oauthToken: String?
         var cachedUsage: CachedUsage?
         var lastSyncDate: Date?
+        var lastRefreshError: String?
         var theme: ThemeColors?
         var thresholds: UsageThresholds?
     }
@@ -93,6 +94,10 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         load().lastSyncDate
     }
 
+    var lastRefreshError: String? {
+        load().lastRefreshError
+    }
+
     var theme: ThemeColors {
         load().theme ?? .default
     }
@@ -105,6 +110,13 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         var data = load()
         data.cachedUsage = usage
         data.lastSyncDate = syncDate
+        data.lastRefreshError = nil
+        save(data)
+    }
+
+    func updateAfterError(_ error: String) {
+        var data = load()
+        data.lastRefreshError = error
         save(data)
     }
 

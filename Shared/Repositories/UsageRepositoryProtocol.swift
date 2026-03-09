@@ -10,6 +10,7 @@ protocol UsageRepositoryProtocol {
     func syncKeychainTokenSilently()
     /// Credentials file sync — no Keychain access at all.
     func syncCredentialsFile()
+    func updateRefreshError(_ error: String)
     var isConfigured: Bool { get }
     var cachedUsage: CachedUsage? { get }
     var currentToken: String? { get }

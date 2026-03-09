@@ -17,7 +17,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func handleGetURL(_ event: NSAppleEventDescriptor, withReplyEvent reply: NSAppleEventDescriptor) {
-        NotificationCenter.default.post(name: .openDashboard, object: nil)
+        let urlString = event.paramDescriptor(forKeyword: keyDirectObject)?.stringValue ?? ""
+        if urlString.hasPrefix("tokeneater://refresh") {
+            Task { await usageStore.refresh(force: true) }
+        } else {
+            NotificationCenter.default.post(name: .openDashboard, object: nil)
+        }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {

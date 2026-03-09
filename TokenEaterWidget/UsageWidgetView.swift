@@ -65,6 +65,12 @@ struct UsageWidgetView: View {
                         .font(.system(size: 8))
                         .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
                 }
+                Link(destination: URL(string: "tokeneater://refresh")!) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
+                }
+                .buttonStyle(.plain)
             }
             .padding(.bottom, 16)
 
@@ -93,9 +99,20 @@ struct UsageWidgetView: View {
 
             // Footer
             HStack {
-                Text(String(format: String(localized: "widget.updated"), entry.date.relativeFormatted))
-                    .font(.system(size: 8, design: .rounded))
-                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
+                if entry.wasJustRefreshed {
+                    Text(String(localized: "widget.refreshed"))
+                        .font(.system(size: 8, design: .rounded))
+                        .foregroundStyle(.green.opacity(0.7))
+                } else if let error = entry.error {
+                    Text(error)
+                        .font(.system(size: 8, design: .rounded))
+                        .foregroundStyle(.orange.opacity(0.8))
+                        .lineLimit(1)
+                } else {
+                    Text(String(format: String(localized: "widget.updated"), entry.date.relativeFormatted))
+                        .font(.system(size: 8, design: .rounded))
+                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
+                }
                 Spacer()
                 if entry.isStale {
                     Image(systemName: "wifi.slash")
@@ -130,6 +147,12 @@ struct UsageWidgetView: View {
                     }
                     .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
                 }
+                Link(destination: URL(string: "tokeneater://refresh")!) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.35))
+                }
+                .buttonStyle(.plain)
             }
             .padding(.bottom, 8)
 
@@ -193,9 +216,20 @@ struct UsageWidgetView: View {
                 .padding(.bottom, 4)
 
             HStack {
-                Text(String(format: String(localized: "widget.updated"), entry.date.relativeFormatted))
-                    .font(.system(size: 9, design: .rounded))
-                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
+                if entry.wasJustRefreshed {
+                    Text(String(localized: "widget.refreshed"))
+                        .font(.system(size: 9, design: .rounded))
+                        .foregroundStyle(.green.opacity(0.7))
+                } else if let error = entry.error {
+                    Text(error)
+                        .font(.system(size: 9, design: .rounded))
+                        .foregroundStyle(.orange.opacity(0.8))
+                        .lineLimit(1)
+                } else {
+                    Text(String(format: String(localized: "widget.updated"), entry.date.relativeFormatted))
+                        .font(.system(size: 9, design: .rounded))
+                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
+                }
                 Spacer()
                 if entry.isStale {
                     HStack(spacing: 3) {
@@ -205,7 +239,7 @@ struct UsageWidgetView: View {
                             .font(.system(size: 9, design: .rounded))
                     }
                     .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
-                } else {
+                } else if !entry.wasJustRefreshed && entry.error == nil {
                     HStack(spacing: 3) {
                         Circle()
                             .fill(.green.opacity(0.6))
