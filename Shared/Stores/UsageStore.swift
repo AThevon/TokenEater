@@ -46,7 +46,7 @@ final class UsageStore: ObservableObject {
     private var consecutive429Count: Int = 0
     private var last429Date: Date?
     private var retryAfterInterval: TimeInterval?
-    private static let backoffBase: TimeInterval = 120
+    private static let normalInterval: TimeInterval = 300
     private static let backoffMax: TimeInterval = 600
 
     var proxyConfig: ProxyConfig?
@@ -68,9 +68,9 @@ final class UsageStore: ObservableObject {
             return
         }
 
-        // Back off: skip non-forced refreshes for 60s after a 429
+        // Back off: skip non-forced refreshes while in 429 backoff window
         if !force, consecutive429Count > 0, let last = last429Date,
-           Date().timeIntervalSince(last) < 60 {
+           Date().timeIntervalSince(last) < currentBackoff {
             return
         }
 
@@ -167,20 +167,20 @@ final class UsageStore: ObservableObject {
             while !Task.isCancelled {
                 guard let self else { return }
                 await self.refresh(thresholds: thresholds)
-                let delay = self.currentBackoffInterval(base: interval)
+                let delay = self.currentBackoff
                 try? await Task.sleep(for: .seconds(delay))
             }
         }
     }
 
-    /// Returns the polling interval: normal when API is healthy, Retry-After or exponential backoff on 429s.
-    private func currentBackoffInterval(base: TimeInterval) -> TimeInterval {
-        guard consecutive429Count > 0 else { return base }
+    /// Current backoff duration based on 429 state. Always >= normalInterval to never retry faster than normal.
+    private var currentBackoff: TimeInterval {
+        guard consecutive429Count > 0 else { return Self.normalInterval }
         if let retryAfter = retryAfterInterval, retryAfter > 0 {
-            return retryAfter
+            return max(retryAfter, Self.normalInterval)
         }
-        let backoff = Self.backoffBase * pow(2.0, Double(consecutive429Count - 1))
-        return min(backoff, Self.backoffMax)
+        let exponential = Self.normalInterval * pow(2.0, Double(consecutive429Count - 1))
+        return min(exponential, Self.backoffMax)
     }
 
     func stopAutoRefresh() {
