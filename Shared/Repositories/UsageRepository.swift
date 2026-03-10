@@ -16,21 +16,21 @@ final class UsageRepository: UsageRepositoryProtocol {
     }
 
     func syncKeychainToken() {
-        if let token = keychainService.readOAuthToken() {
+        if let token = keychainService.readOAuthToken(), token != sharedFileService.oauthToken {
             sharedFileService.oauthToken = token
         }
     }
 
     /// Silent keychain sync — never triggers macOS dialog.
     func syncKeychainTokenSilently() {
-        if let token = keychainService.readOAuthTokenSilently() {
+        if let token = keychainService.readOAuthTokenSilently(), token != sharedFileService.oauthToken {
             sharedFileService.oauthToken = token
         }
     }
 
     /// Credentials file sync — no Keychain access at all.
     func syncCredentialsFile() {
-        if let token = keychainService.readCredentialsFileToken() {
+        if let token = keychainService.readCredentialsFileToken(), token != sharedFileService.oauthToken {
             sharedFileService.oauthToken = token
         }
     }
