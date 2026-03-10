@@ -133,12 +133,21 @@ enum ProcessResolver {
     }
 
     /// Install the tmux watcher script (polling loop, started via tmux.conf).
+    /// Re-installs automatically when the embedded version changes.
     static func installTmuxWatcherIfNeeded() {
         let scriptPath = "\(sharedDir)/tmux-watcher.sh"
-        guard !FileManager.default.fileExists(atPath: scriptPath) else { return }
+        let version = "# tokeneater-v2"
+
+        // Skip if already up-to-date
+        if FileManager.default.fileExists(atPath: scriptPath),
+           let content = try? String(contentsOfFile: scriptPath, encoding: .utf8),
+           content.contains(version) {
+            return
+        }
 
         let script = """
         #!/bin/bash
+        \(version)
         # TokenEater tmux pane switcher — started by tmux via run-shell.
         # Polls for a trigger file written by the app and switches to the target pane.
         export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
@@ -149,7 +158,13 @@ enum ProcessResolver {
                 rm -f "$TRIGGER"
                 if [ -n "$TARGET_PID" ]; then
                     PANE_ID=$(tmux list-panes -a -F "#{pane_pid} #{pane_id}" | awk -v pid="$TARGET_PID" '$1 == pid {print $2}')
-                    [ -n "$PANE_ID" ] && tmux select-window -t "$PANE_ID" && tmux select-pane -t "$PANE_ID"
+                    if [ -n "$PANE_ID" ]; then
+                        # Cross-session: switch the most recently active client to the target session
+                        LAST_CLIENT=$(tmux list-clients -F "#{client_activity} #{client_name}" 2>/dev/null | sort -rn | head -1 | awk '{print $2}')
+                        [ -n "$LAST_CLIENT" ] && tmux switch-client -c "$LAST_CLIENT" -t "$PANE_ID" 2>/dev/null
+                        tmux select-window -t "$PANE_ID"
+                        tmux select-pane -t "$PANE_ID"
+                    fi
                 fi
             fi
             sleep 0.3
