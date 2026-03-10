@@ -79,8 +79,13 @@ final class UsageRepository: UsageRepositoryProtocol {
     private func attemptTokenRecovery(proxyConfig: ProxyConfig?) async throws -> UsageResponse {
         let currentToken = sharedFileService.oauthToken
 
-        guard let freshToken = keychainService.readToken() else {
-            // Credentials file unavailable. Keep current token, retry next cycle.
+        // Try credentials file first, then silent Keychain fallback
+        let freshToken: String
+        if let fileToken = keychainService.readToken() {
+            freshToken = fileToken
+        } else if let keychainToken = keychainService.readKeychainTokenSilently() {
+            freshToken = keychainToken
+        } else {
             throw APIError.keychainLocked
         }
 
