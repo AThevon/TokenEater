@@ -59,17 +59,25 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         var thresholds: UsageThresholds?
     }
 
+    /// In-memory cache — avoids redundant disk reads within the same process.
+    /// Each process (app, widget) has its own SharedFileService instance, so no cross-process staleness.
+    private var cachedData: SharedData?
+
     private func load() -> SharedData {
+        if let cached = cachedData { return cached }
         guard let data = try? Data(contentsOf: sharedFileURL) else {
             return SharedData()
         }
-        return (try? JSONDecoder().decode(SharedData.self, from: data)) ?? SharedData()
+        let result = (try? JSONDecoder().decode(SharedData.self, from: data)) ?? SharedData()
+        cachedData = result
+        return result
     }
 
     private func save(_ shared: SharedData) {
         let dir = sharedFileURL.deletingLastPathComponent()
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try? JSONEncoder().encode(shared).write(to: sharedFileURL, options: .atomic)
+        cachedData = shared
     }
 
     // MARK: - SharedFileServiceProtocol
@@ -116,6 +124,7 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
     }
 
     func clear() {
-        save(SharedData())
+        let empty = SharedData()
+        save(empty)
     }
 }
