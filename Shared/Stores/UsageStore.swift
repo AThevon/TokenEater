@@ -74,10 +74,13 @@ final class UsageStore: ObservableObject {
             return
         }
 
-        // Token recovery — credentials file only (no Keychain access).
-        // Avoids macOS Keychain popups after sleep. Keychain is only read at boot/onboarding.
+        // Token recovery — credentials file first, then silent Keychain fallback.
+        // Covers all Claude Code install methods (some only write to Keychain, not credentials file).
         if !repository.isConfigured || lastFailedToken == repository.currentToken {
             repository.syncCredentialsFile()
+            if !repository.isConfigured || lastFailedToken == repository.currentToken {
+                repository.syncKeychainSilently()
+            }
             if let currentToken = repository.currentToken, currentToken != lastFailedToken {
                 lastFailedToken = nil
                 errorState = .none
