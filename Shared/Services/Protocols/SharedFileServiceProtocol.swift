@@ -8,6 +8,7 @@ protocol SharedFileServiceProtocol: Sendable {
     var theme: ThemeColors { get }
     var thresholds: UsageThresholds { get }
 
+    func invalidateCache()
     func updateAfterSync(usage: CachedUsage, syncDate: Date)
     func updateTheme(_ theme: ThemeColors, thresholds: UsageThresholds)
     func clear()

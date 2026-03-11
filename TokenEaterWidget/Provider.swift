@@ -23,6 +23,7 @@ struct Provider: TimelineProvider {
     }
 
     private func fetchEntry() -> UsageEntry {
+        sharedFile.invalidateCache()
         guard sharedFile.isConfigured else {
             return .unconfigured
         }
