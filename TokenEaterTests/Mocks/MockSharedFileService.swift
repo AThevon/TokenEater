@@ -33,6 +33,8 @@ final class MockSharedFileService: SharedFileServiceProtocol, @unchecked Sendabl
         _thresholds = thresholds
     }
 
+    func invalidateCache() {}
+
     func clear() {
         _oauthToken = nil
         _cachedUsage = nil

@@ -82,6 +82,10 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
 
     // MARK: - SharedFileServiceProtocol
 
+    func invalidateCache() {
+        cachedData = nil
+    }
+
     var isConfigured: Bool { oauthToken != nil }
 
     var oauthToken: String? {
