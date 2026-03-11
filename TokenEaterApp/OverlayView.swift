@@ -32,7 +32,7 @@ struct OverlayView: View {
         .offset(y: contentOffset + dragDelta)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: leftSide ? .leading : .trailing)
         .contentShape(Rectangle())
-        .gesture(
+        .simultaneousGesture(
             DragGesture(minimumDistance: 10)
                 .updating($dragDelta) { value, state, _ in
                     state = value.translation.height
