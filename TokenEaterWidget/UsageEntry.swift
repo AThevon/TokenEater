@@ -6,12 +6,14 @@ struct UsageEntry: TimelineEntry {
     let usage: UsageResponse?
     let error: String?
     let isStale: Bool
+    let lastSync: Date?
 
-    init(date: Date, usage: UsageResponse?, error: String? = nil, isStale: Bool = false) {
+    init(date: Date, usage: UsageResponse?, error: String? = nil, isStale: Bool = false, lastSync: Date? = nil) {
         self.date = date
         self.usage = usage
         self.error = error
         self.isStale = isStale
+        self.lastSync = lastSync
     }
 
     private static let iso8601Formatter: ISO8601DateFormatter = {

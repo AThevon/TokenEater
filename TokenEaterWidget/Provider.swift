@@ -1,25 +1,26 @@
 import WidgetKit
+import AppIntents
 import Foundation
 
-struct Provider: TimelineProvider {
+struct Provider: AppIntentTimelineProvider {
     private let sharedFile = SharedFileService()
 
     func placeholder(in context: Context) -> UsageEntry {
         .placeholder
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (UsageEntry) -> Void) {
+    func snapshot(for configuration: RefreshWidgetIntent, in context: Context) async -> UsageEntry {
         if context.isPreview {
-            completion(.placeholder)
-            return
+            return .placeholder
         }
-        completion(fetchEntry())
+        return fetchEntry()
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<UsageEntry>) -> Void) {
+    func timeline(for configuration: RefreshWidgetIntent, in context: Context) async -> Timeline<UsageEntry> {
         let entry = fetchEntry()
-        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 5, to: Date()) ?? Date().addingTimeInterval(300)
-        completion(Timeline(entries: [entry], policy: .after(nextUpdate)))
+        // .atEnd tells WidgetKit to call timeline() again as soon as the current entry expires.
+        // More aggressive than .after(date) — ensures frequent re-reads of the shared file.
+        return Timeline(entries: [entry], policy: .atEnd)
     }
 
     private func fetchEntry() -> UsageEntry {
@@ -29,8 +30,9 @@ struct Provider: TimelineProvider {
         }
 
         if let cached = sharedFile.cachedUsage {
+            let lastSync = sharedFile.lastSyncDate
             let isStale: Bool
-            if let lastSync = sharedFile.lastSyncDate {
+            if let lastSync {
                 isStale = Date().timeIntervalSince(lastSync) > 120
             } else {
                 isStale = true
@@ -38,7 +40,8 @@ struct Provider: TimelineProvider {
             return UsageEntry(
                 date: Date(),
                 usage: cached.usage,
-                isStale: isStale
+                isStale: isStale,
+                lastSync: lastSync
             )
         }
 
