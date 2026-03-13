@@ -1,10 +1,19 @@
 import SwiftUI
 import WidgetKit
 
+/// Single SharedFileService instance shared across all widget views in a render pass.
+/// Avoids creating 6+ instances (each calling migrateIfNeeded + disk read) per widget render.
+enum WidgetTheme {
+    private static let shared = SharedFileService()
+
+    static var theme: ThemeColors { shared.theme }
+    static var thresholds: UsageThresholds { shared.thresholds }
+}
+
 // MARK: - Widget Background (macOS 13 compat)
 
 struct WidgetBackgroundModifier: ViewModifier {
-    var backgroundColor: Color = Color(hex: SharedFileService().theme.widgetBackground).opacity(0.85)
+    var backgroundColor: Color = Color(hex: WidgetTheme.theme.widgetBackground).opacity(0.85)
 
     func body(content: Content) -> some View {
         if #available(macOS 14.0, *) {
@@ -23,8 +32,8 @@ struct UsageWidgetView: View {
     let entry: UsageEntry
 
     @Environment(\.widgetFamily) var family
-    private var theme: ThemeColors { SharedFileService().theme }
-    private var thresholds: UsageThresholds { SharedFileService().thresholds }
+    private var theme: ThemeColors { WidgetTheme.theme }
+    private var thresholds: UsageThresholds { WidgetTheme.thresholds }
 
     var body: some View {
         Group {
@@ -288,8 +297,8 @@ struct CircularUsageView: View {
     let label: String
     let resetInfo: String
     let utilization: Double
-    var theme: ThemeColors = SharedFileService().theme
-    var thresholds: UsageThresholds = SharedFileService().thresholds
+    var theme: ThemeColors = WidgetTheme.theme
+    var thresholds: UsageThresholds = WidgetTheme.thresholds
 
     private var ringGradient: LinearGradient {
         theme.gaugeGradient(for: utilization, thresholds: thresholds)
@@ -331,7 +340,7 @@ struct CircularUsageView: View {
 
 struct CircularPacingView: View {
     let pacing: PacingResult
-    var theme: ThemeColors = SharedFileService().theme
+    var theme: ThemeColors = WidgetTheme.theme
 
     private var ringColor: Color {
         theme.pacingColor(for: pacing.zone)
@@ -392,8 +401,8 @@ struct LargeUsageBarView: View {
     let utilization: Double
     var colorOverride: Color? = nil
     var displayText: String? = nil
-    var theme: ThemeColors = SharedFileService().theme
-    var thresholds: UsageThresholds = SharedFileService().thresholds
+    var theme: ThemeColors = WidgetTheme.theme
+    var thresholds: UsageThresholds = WidgetTheme.thresholds
 
     private var barGradient: LinearGradient {
         if let color = colorOverride {
