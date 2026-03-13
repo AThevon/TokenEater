@@ -102,9 +102,15 @@ struct UsageWidgetView: View {
 
             // Footer
             HStack {
-                Text(String(format: String(localized: "widget.updated"), entry.date.relativeFormatted))
-                    .font(.system(size: 8, design: .rounded))
-                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
+                if let lastSync = entry.lastSync {
+                    Text(String(format: String(localized: "widget.updated"), lastSync.relativeFormatted))
+                        .font(.system(size: 8, design: .rounded))
+                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
+                } else {
+                    Text(String(format: String(localized: "widget.updated"), entry.date.relativeFormatted))
+                        .font(.system(size: 8, design: .rounded))
+                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
+                }
                 Spacer()
                 if entry.isStale {
                     Image(systemName: "wifi.slash")
@@ -202,9 +208,15 @@ struct UsageWidgetView: View {
                 .padding(.bottom, 4)
 
             HStack {
-                Text(String(format: String(localized: "widget.updated"), entry.date.relativeFormatted))
-                    .font(.system(size: 9, design: .rounded))
-                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
+                if let lastSync = entry.lastSync {
+                    Text(String(format: String(localized: "widget.updated"), lastSync.relativeFormatted))
+                        .font(.system(size: 9, design: .rounded))
+                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
+                } else {
+                    Text(String(format: String(localized: "widget.updated"), entry.date.relativeFormatted))
+                        .font(.system(size: 9, design: .rounded))
+                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
+                }
                 Spacer()
                 if entry.isStale {
                     HStack(spacing: 3) {
