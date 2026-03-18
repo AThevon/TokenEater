@@ -333,6 +333,12 @@ final class StatusBarController: NSObject {
 extension StatusBarController: NSWindowDelegate {
     nonisolated func windowShouldClose(_ sender: NSWindow) -> Bool {
         MainActor.assumeIsolated {
+            if !self.settingsStore.hasCompletedOnboarding {
+                // User closed during onboarding — quit the app so they're not stuck
+                // (LSUIElement app has no Dock icon, no Force Quit entry)
+                NSApp.terminate(nil)
+                return
+            }
             sender.contentViewController = nil
             sender.orderOut(nil)
             self.dashboardWindow = nil
