@@ -1,31 +1,36 @@
 import WidgetKit
-import AppIntents
 import Foundation
+import os.log
 
-struct Provider: AppIntentTimelineProvider {
+private let logger = Logger(subsystem: "com.tokeneater.app.widget", category: "Provider")
+
+struct StaticProvider: TimelineProvider {
     private let sharedFile = SharedFileService()
 
     func placeholder(in context: Context) -> UsageEntry {
         .placeholder
     }
 
-    func snapshot(for configuration: RefreshWidgetIntent, in context: Context) async -> UsageEntry {
+    func getSnapshot(in context: Context, completion: @escaping (UsageEntry) -> Void) {
         if context.isPreview {
-            return .placeholder
+            completion(.placeholder)
+        } else {
+            completion(fetchEntry())
         }
-        return fetchEntry()
     }
 
-    func timeline(for configuration: RefreshWidgetIntent, in context: Context) async -> Timeline<UsageEntry> {
+    func getTimeline(in context: Context, completion: @escaping (Timeline<UsageEntry>) -> Void) {
         let entry = fetchEntry()
-        // .atEnd tells WidgetKit to call timeline() again as soon as the current entry expires.
-        // More aggressive than .after(date) — ensures frequent re-reads of the shared file.
-        return Timeline(entries: [entry], policy: .atEnd)
+        // Re-request timeline after 5 minutes — WidgetKit will call getTimeline again
+        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 5, to: Date()) ?? Date()
+        completion(Timeline(entries: [entry], policy: .after(nextUpdate)))
     }
 
     private func fetchEntry() -> UsageEntry {
         sharedFile.invalidateCache()
+        logger.info("fetchEntry: fileURL=\(self.sharedFile.fileURL.path, privacy: .public), isConfigured=\(self.sharedFile.isConfigured)")
         guard sharedFile.isConfigured else {
+            logger.error("Widget: not configured")
             return .unconfigured
         }
 

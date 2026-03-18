@@ -5,7 +5,7 @@ struct TokenEaterWidget: Widget {
     let kind: String = "TokenEaterWidget"
 
     var body: some WidgetConfiguration {
-        AppIntentConfiguration(kind: kind, intent: RefreshWidgetIntent.self, provider: Provider()) { entry in
+        StaticConfiguration(kind: kind, provider: StaticProvider()) { entry in
             UsageWidgetView(entry: entry)
         }
         .configurationDisplayName("TokenEater")
@@ -18,7 +18,7 @@ struct PacingWidget: Widget {
     let kind: String = "PacingWidget"
 
     var body: some WidgetConfiguration {
-        AppIntentConfiguration(kind: kind, intent: RefreshWidgetIntent.self, provider: Provider()) { entry in
+        StaticConfiguration(kind: kind, provider: StaticProvider()) { entry in
             PacingWidgetView(entry: entry)
         }
         .configurationDisplayName("TokenEater Pacing")
