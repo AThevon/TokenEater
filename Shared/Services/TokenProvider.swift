@@ -17,6 +17,14 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
 
     var isBootstrapped: Bool { decryptionService.hasEncryptionKey }
 
+    func hasTokenSource() -> Bool {
+        // Check if credentials file has a token (no Keychain needed)
+        if credentialsFileReader.readToken() != nil { return true }
+        // Check if config.json has an encrypted token (doesn't need decryption key yet)
+        if configReader.readEncryptedToken() != nil { return true }
+        return false
+    }
+
     func currentToken() -> String? {
         // Source 1: credentials file (future-proof for macOS)
         if let token = credentialsFileReader.readToken() { return token }

@@ -3,6 +3,7 @@ import Foundation
 final class MockTokenProvider: TokenProviderProtocol, @unchecked Sendable {
     var token: String?
     var _isBootstrapped: Bool = true
+    var _hasTokenSource: Bool = true
     var bootstrapError: Error?
     var bootstrapCallCount = 0
     var currentTokenCallCount = 0
@@ -12,6 +13,10 @@ final class MockTokenProvider: TokenProviderProtocol, @unchecked Sendable {
     func currentToken() -> String? {
         currentTokenCallCount += 1
         return token
+    }
+
+    func hasTokenSource() -> Bool {
+        _hasTokenSource
     }
 
     func bootstrap() throws {

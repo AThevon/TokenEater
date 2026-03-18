@@ -59,8 +59,10 @@ final class OnboardingViewModel: ObservableObject {
         claudeCodeStatus = .checking
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self else { return }
-            let hasToken = self.tokenProvider.currentToken() != nil
-            self.claudeCodeStatus = hasToken ? .detected : .notFound
+            // Check if a token source EXISTS (config.json or credentials file)
+            // This doesn't require the decryption key — bootstrap happens in connect()
+            let hasSource = self.tokenProvider.hasTokenSource()
+            self.claudeCodeStatus = hasSource ? .detected : .notFound
         }
     }
 
