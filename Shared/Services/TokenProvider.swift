@@ -10,6 +10,10 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     private let decryptionService: ElectronDecryptionServiceProtocol
     private let keychainReader: KeychainTokenReader
 
+    /// In-memory token cache — avoids hitting the Keychain on every refresh.
+    /// Only cleared on 401 (token expired) via `invalidateToken()`.
+    private var cachedToken: String?
+
     /// Closure type for reading from the Keychain. `silent` = use kSecUseAuthenticationUISkip.
     typealias KeychainTokenReader = (_ silent: Bool) -> String?
 
@@ -25,66 +29,69 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
         self.keychainReader = keychainReader ?? Self.defaultKeychainReader
     }
 
-    var isBootstrapped: Bool { true } // No bootstrap needed anymore — we read Keychain silently
+    var isBootstrapped: Bool { true }
 
     func hasTokenSource() -> Bool {
+        if cachedToken != nil { return true }
         if credentialsFileReader.readToken() != nil { return true }
-        if readKeychainTokenSilently() != nil { return true }
+        if keychainReader(true) != nil { return true }
         if configReader.readEncryptedToken() != nil { return true }
         return false
     }
 
+    /// Returns the current token, using the in-memory cache if available.
+    /// The Keychain is only read when the cache is empty (app start, or after `invalidateToken()`).
     func currentToken() -> String? {
-        // Source 1: credentials file (future-proof, when Anthropic writes it on macOS)
-        if let token = credentialsFileReader.readToken() { return token }
+        // Fast path: cached token from a previous successful read
+        if let token = cachedToken { return token }
 
-        // Source 2: Keychain "Claude Code-credentials" — silent read, no UI prompt
-        // This is the authoritative source. kSecUseAuthenticationUISkip means:
-        // - If macOS grants access → we get the token (no dialog)
-        // - If macOS denies → returns nil silently (no dialog)
-        // The "Always Allow" may or may not persist (Claude Code recreates the entry ~8h),
-        // but we NEVER trigger a dialog from here.
-        if let token = readKeychainTokenSilently() { return token }
+        // Source 1: credentials file (future-proof)
+        if let token = credentialsFileReader.readToken() {
+            cachedToken = token
+            return token
+        }
 
-        // Source 3: decrypt config.json (may contain stale token, but better than nothing)
+        // Source 2: Keychain — silent read, ONE time (then cached)
+        if let token = keychainReader(true) {
+            cachedToken = token
+            logger.info("Token read from Keychain and cached in memory")
+            return token
+        }
+
+        // Source 3: decrypt config.json (may be stale but better than nothing)
         if decryptionService.hasEncryptionKey,
-           let encrypted = configReader.readEncryptedToken() {
-            if let token = decryptFromConfigJSON(encrypted) { return token }
+           let encrypted = configReader.readEncryptedToken(),
+           let token = decryptFromConfigJSON(encrypted) {
+            cachedToken = token
+            return token
         }
 
         return nil
     }
 
+    /// Call this after a 401 — clears the in-memory cache so the next `currentToken()`
+    /// re-reads from Keychain/file to pick up a refreshed token.
+    func invalidateToken() {
+        cachedToken = nil
+        logger.info("Token cache invalidated — next read will check Keychain")
+    }
+
     func bootstrap() throws {
-        // Interactive Keychain read for "Claude Code-credentials"
-        // This triggers the macOS "Allow TokenEater to access..." dialog
-        let token = try readKeychainTokenInteractive()
-        if token != nil {
+        // Interactive Keychain read — triggers macOS "Allow" dialog
+        if let token = keychainReader(false) {
+            cachedToken = token
             logger.info("Bootstrap succeeded via interactive Keychain read")
         }
 
-        // Also bootstrap the decryption key for config.json fallback
+        // Also bootstrap decryption key for config.json fallback
         do {
             try decryptionService.bootstrapEncryptionKey()
-            logger.info("Decryption key bootstrapped for config.json fallback")
         } catch {
-            // Non-fatal — config.json is just a fallback
             logger.info("Decryption key bootstrap skipped: \(error)")
         }
     }
 
-    // MARK: - Keychain
-
-    private func readKeychainTokenSilently() -> String? {
-        keychainReader(true)
-    }
-
-    private func readKeychainTokenInteractive() throws -> String? {
-        guard let token = keychainReader(false) else {
-            throw ElectronDecryptionError.keychainReadFailed(-1)
-        }
-        return token
-    }
+    // MARK: - Keychain (static, no instance state)
 
     private static func defaultKeychainReader(silent: Bool) -> String? {
         var query: [String: Any] = [
@@ -118,7 +125,6 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
             let data = try decryptionService.decrypt(encrypted)
             return Self.extractToken(from: data)
         } catch {
-            logger.error("Config.json decryption failed: \(error)")
             return nil
         }
     }
@@ -127,12 +133,10 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return nil
         }
-        // Format 1: claudeAiOauth.accessToken
         if let oauth = json["claudeAiOauth"] as? [String: Any],
            let token = oauth["accessToken"] as? String, !token.isEmpty {
             return token
         }
-        // Format 2: UUID-based key with "token" field
         for (_, value) in json {
             if let entry = value as? [String: Any],
                let token = entry["token"] as? String,
