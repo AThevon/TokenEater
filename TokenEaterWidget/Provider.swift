@@ -38,7 +38,7 @@ struct StaticProvider: TimelineProvider {
             let lastSync = sharedFile.lastSyncDate
             let isStale: Bool
             if let lastSync {
-                isStale = Date().timeIntervalSince(lastSync) > 120
+                isStale = Date().timeIntervalSince(lastSync) > 900 // 15min — only stale if truly old
             } else {
                 isStale = true
             }

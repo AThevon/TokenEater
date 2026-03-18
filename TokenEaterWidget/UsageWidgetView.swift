@@ -69,17 +69,6 @@ struct UsageWidgetView: View {
                     .tracking(0.3)
                     .foregroundStyle(Color(hex: theme.widgetText).opacity(0.5))
                 Spacer()
-                if entry.isStale {
-                    HStack(spacing: 2) {
-                        Image(systemName: "wifi.slash")
-                            .font(.system(size: 8))
-                        if let lastSync = entry.lastSync {
-                            Text(String(format: String(localized: "widget.updated"), lastSync.relativeFormatted))
-                                .font(.system(size: 8, design: .rounded))
-                        }
-                    }
-                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
-                }
             }
             .padding(.bottom, 16)
 
@@ -119,9 +108,9 @@ struct UsageWidgetView: View {
                 }
                 Spacer()
                 if entry.isStale {
-                    Image(systemName: "wifi.slash")
+                    Image(systemName: "clock.arrow.circlepath")
                         .font(.system(size: 8))
-                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
+                        .foregroundStyle(.orange.opacity(0.6))
                 }
             }
         }
@@ -142,15 +131,6 @@ struct UsageWidgetView: View {
                     .font(.system(size: 16, weight: .bold, design: .rounded))
                     .foregroundStyle(Color(hex: theme.widgetText).opacity(0.95))
                 Spacer()
-                if entry.isStale {
-                    HStack(spacing: 3) {
-                        Image(systemName: "wifi.slash")
-                            .font(.system(size: 9))
-                        Text("widget.offline")
-                            .font(.system(size: 9, design: .rounded))
-                    }
-                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
-                }
             }
             .padding(.bottom, 8)
 
@@ -226,12 +206,10 @@ struct UsageWidgetView: View {
                 Spacer()
                 if entry.isStale {
                     HStack(spacing: 3) {
-                        Image(systemName: "wifi.slash")
+                        Image(systemName: "clock.arrow.circlepath")
                             .font(.system(size: 9))
-                        Text("widget.offline")
-                            .font(.system(size: 9, design: .rounded))
                     }
-                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
+                    .foregroundStyle(.orange.opacity(0.6))
                 } else {
                     HStack(spacing: 3) {
                         Circle()
