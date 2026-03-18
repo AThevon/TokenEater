@@ -35,6 +35,7 @@ final class UsageStore: ObservableObject {
     private var lastFailedToken: String?
 
     private let repository: UsageRepositoryProtocol
+    private let keychainService: KeychainServiceProtocol
     private let notificationService: NotificationServiceProtocol
     private var refreshTask: Task<Void, Never>?
     private var autoRefreshTask: Task<Void, Never>?
@@ -48,11 +49,36 @@ final class UsageStore: ObservableObject {
 
     var proxyConfig: ProxyConfig?
 
+    // MARK: - Temporary token management (will be replaced by TokenProvider in Task 7)
+
+    private var _currentToken: String?
+
+    var isConfigured: Bool { _currentToken != nil }
+    var currentToken: String? { _currentToken }
+
+    func syncCredentialsFile() {
+        if let token = keychainService.readToken(), token != _currentToken {
+            _currentToken = token
+        }
+    }
+
+    func syncKeychainSilently() {
+        if let token = keychainService.readKeychainTokenSilently(), token != _currentToken {
+            _currentToken = token
+        }
+    }
+
+    var cachedUsage: CachedUsage? {
+        SharedFileService().cachedUsage
+    }
+
     init(
         repository: UsageRepositoryProtocol = UsageRepository(),
+        keychainService: KeychainServiceProtocol = KeychainService(),
         notificationService: NotificationServiceProtocol = NotificationService()
     ) {
         self.repository = repository
+        self.keychainService = keychainService
         self.notificationService = notificationService
     }
 
@@ -72,20 +98,20 @@ final class UsageStore: ObservableObject {
         }
 
         // Token recovery — credentials file first, then silent Keychain fallback.
-        // Covers all Claude Code install methods (some only write to Keychain, not credentials file).
-        if !repository.isConfigured || lastFailedToken == repository.currentToken {
-            repository.syncCredentialsFile()
-            if !repository.isConfigured || lastFailedToken == repository.currentToken {
-                repository.syncKeychainSilently()
+        if !isConfigured || lastFailedToken == _currentToken {
+            syncCredentialsFile()
+            if !isConfigured || lastFailedToken == _currentToken {
+                syncKeychainSilently()
             }
-            if let currentToken = repository.currentToken, currentToken != lastFailedToken {
+            if let currentToken = _currentToken, currentToken != lastFailedToken {
                 lastFailedToken = nil
                 errorState = .none
             }
         }
 
-        guard repository.isConfigured,
-              repository.currentToken != lastFailedToken else {
+        guard isConfigured,
+              let token = _currentToken,
+              token != lastFailedToken else {
             hasConfig = lastFailedToken != nil
             return
         }
@@ -93,7 +119,7 @@ final class UsageStore: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         do {
-            let usage = try await repository.refreshUsage(proxyConfig: proxyConfig)
+            let usage = try await repository.refreshUsage(token: token, proxyConfig: proxyConfig)
             update(from: usage)
             errorState = .none
             lastFailedToken = nil
@@ -112,7 +138,7 @@ final class UsageStore: ObservableObject {
         } catch let error as APIError {
             switch error {
             case .tokenExpired, .noToken:
-                lastFailedToken = repository.currentToken
+                lastFailedToken = _currentToken
                 errorState = .tokenUnavailable
             case .rateLimited(let retryAfter):
                 consecutive429Count += 1
@@ -128,20 +154,20 @@ final class UsageStore: ObservableObject {
     }
 
     func loadCached() {
-        if let cached = repository.cachedUsage {
+        if let cached = cachedUsage {
             update(from: cached.usage)
             lastUpdate = cached.fetchDate
         }
     }
 
     func reloadConfig(thresholds: UsageThresholds = .default) {
-        repository.syncCredentialsFile()
-        if !repository.isConfigured {
-            repository.syncKeychainSilently()
+        syncCredentialsFile()
+        if !isConfigured {
+            syncKeychainSilently()
         }
         lastFailedToken = nil
         errorState = .none
-        hasConfig = repository.isConfigured
+        hasConfig = isConfigured
         loadCached()
         notificationService.requestPermission()
         WidgetReloader.scheduleReload()
@@ -182,11 +208,11 @@ final class UsageStore: ObservableObject {
     }
 
     func reauthenticate() async {
-        repository.syncCredentialsFile()
-        if !repository.isConfigured {
-            repository.syncKeychainSilently()
+        syncCredentialsFile()
+        if !isConfigured {
+            syncKeychainSilently()
         }
-        if repository.isConfigured, repository.currentToken != lastFailedToken {
+        if isConfigured, _currentToken != lastFailedToken {
             lastFailedToken = nil
             errorState = .none
             hasConfig = true
@@ -195,15 +221,31 @@ final class UsageStore: ObservableObject {
     }
 
     func testConnection() async -> ConnectionTestResult {
-        await repository.testConnection(proxyConfig: proxyConfig)
+        guard let token = _currentToken else {
+            return ConnectionTestResult(success: false, message: String(localized: "error.notoken"))
+        }
+        return await apiClient_testConnection(token: token, proxyConfig: proxyConfig)
+    }
+
+    /// Temporary wrapper — will be removed in Task 7 when UsageStore is rewritten
+    private func apiClient_testConnection(token: String, proxyConfig: ProxyConfig?) async -> ConnectionTestResult {
+        do {
+            _ = try await repository.testConnection(token: token, proxyConfig: proxyConfig)
+            return ConnectionTestResult(success: true, message: "OK")
+        } catch {
+            return ConnectionTestResult(success: false, message: error.localizedDescription)
+        }
     }
 
     func connectAutoDetect() async -> ConnectionTestResult {
-        repository.syncCredentialsFile()
-        if !repository.isConfigured {
-            repository.syncKeychainSilently()
+        syncCredentialsFile()
+        if !isConfigured {
+            syncKeychainSilently()
         }
-        let result = await repository.testConnection(proxyConfig: proxyConfig)
+        guard let token = _currentToken else {
+            return ConnectionTestResult(success: false, message: String(localized: "error.notoken"))
+        }
+        let result = await apiClient_testConnection(token: token, proxyConfig: proxyConfig)
         if result.success {
             hasConfig = true
         }
@@ -213,11 +255,11 @@ final class UsageStore: ObservableObject {
     private var lastProfileFetch: Date?
 
     func refreshProfile() async {
-        guard repository.isConfigured else { return }
+        guard let token = _currentToken else { return }
         // Throttle: profile rarely changes, skip if fetched less than 5min ago
         if let last = lastProfileFetch, Date().timeIntervalSince(last) < 300 { return }
         do {
-            let profile = try await repository.fetchProfile(proxyConfig: proxyConfig)
+            let profile = try await repository.fetchProfile(token: token, proxyConfig: proxyConfig)
             planType = PlanType(from: profile.account, organization: profile.organization)
             rateLimitTier = profile.organization?.rateLimitTier
             organizationName = profile.organization?.name

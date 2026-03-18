@@ -56,8 +56,7 @@ final class OnboardingViewModel: ObservableObject {
         claudeCodeStatus = .checking
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self else { return }
-            let hasToken = self.repository.isConfigured
-                || self.keychainService.tokenExists()
+            let hasToken = self.keychainService.tokenExists()
             self.claudeCodeStatus = hasToken ? .detected : .notFound
         }
     }
@@ -91,14 +90,11 @@ final class OnboardingViewModel: ObservableObject {
 
     func connect() {
         connectionStatus = .connecting
-        // Credentials file first, then silent Keychain fallback
-        if !repository.isConfigured {
-            repository.syncCredentialsFile()
-        }
-        if !repository.isConfigured {
-            repository.syncKeychainSilently()
-        }
-        guard repository.isConfigured else {
+
+        // Try to get a token from credentials file, then silent Keychain fallback
+        let token: String? = keychainService.readToken() ?? keychainService.readKeychainTokenSilently()
+
+        guard let token else {
             connectionStatus = .failed(String(localized: "onboarding.connection.failed.notoken"))
             NSApp.activate(ignoringOtherApps: true)
             return
@@ -106,7 +102,7 @@ final class OnboardingViewModel: ObservableObject {
 
         Task {
             do {
-                let usage = try await repository.refreshUsage(proxyConfig: nil)
+                let usage = try await repository.testConnection(token: token, proxyConfig: nil)
                 connectionStatus = .success(usage)
             } catch let error as APIError {
                 if case .httpError(429) = error {
