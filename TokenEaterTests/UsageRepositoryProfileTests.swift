@@ -23,8 +23,9 @@ struct UsageRepositoryProfileTests {
 
     @Test("fetchProfile returns profile when token exists")
     func fetchProfileSuccess() async throws {
-        let (repo, api, _, sharedFile) = makeSUT()
-        sharedFile._oauthToken = "valid-token"
+        let (repo, api, keychain, _) = makeSUT()
+        keychain.storedToken = "valid-token"
+        repo.syncCredentialsFile()
         let expected = ProfileResponse.fixture(fullName: "Alice")
         api.stubbedProfile = expected
 

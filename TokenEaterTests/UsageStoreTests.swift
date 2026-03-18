@@ -108,23 +108,14 @@ struct UsageStoreTests {
 
     // MARK: - refresh — error states
 
-    @Test("refresh sets tokenExpired error on 401")
-    func refreshSetsTokenExpiredError() async {
+    @Test("refresh sets tokenUnavailable error on 401")
+    func refreshSetsTokenUnavailableError() async {
         let (store, _, _) = makeSUT(shouldFail: true, failWith: .tokenExpired)
 
         await store.refresh()
 
-        #expect(store.errorState == .tokenExpired)
+        #expect(store.errorState == .tokenUnavailable)
         #expect(store.hasError == true)
-    }
-
-    @Test("refresh sets needsReauth error on keychainLocked")
-    func refreshSetsNeedsReauthError() async {
-        let (store, _, _) = makeSUT(shouldFail: true, failWith: .keychainLocked)
-
-        await store.refresh()
-
-        #expect(store.errorState == .needsReauth)
     }
 
     @Test("refresh sets networkError on generic API error")
@@ -133,11 +124,7 @@ struct UsageStoreTests {
 
         await store.refresh()
 
-        if case .networkError = store.errorState {
-            // correct
-        } else {
-            Issue.record("Expected .networkError, got \(store.errorState)")
-        }
+        #expect(store.errorState == .networkError)
     }
 
     @Test("refresh clears error state on success after previous failure")
@@ -164,7 +151,7 @@ struct UsageStoreTests {
 
         // First call: token fails → lastFailedToken = "dead-token"
         await store.refresh()
-        #expect(store.errorState == .tokenExpired)
+        #expect(store.errorState == .tokenUnavailable)
 
         // Second call: syncSilently still returns "dead-token" → guard returns early, no new API call
         repo.stubbedError = nil
@@ -181,7 +168,7 @@ struct UsageStoreTests {
 
         // First call: token fails
         await store.refresh()
-        #expect(store.errorState == .tokenExpired)
+        #expect(store.errorState == .tokenUnavailable)
 
         // Simulate keychain now has a fresh token
         repo.currentTokenValue = "fresh-token"
@@ -412,13 +399,13 @@ struct UsageStoreTests {
 
     // MARK: - 429 backoff
 
-    @Test("refresh sets apiUnavailable and increments backoff on 429")
+    @Test("refresh sets rateLimited and increments backoff on 429")
     func refreshIncrementsBackoffOn429() async {
         let (store, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: nil))
 
         await store.refresh()
 
-        #expect(store.errorState == .apiUnavailable)
+        #expect(store.errorState == .rateLimited)
     }
 
     @Test("refresh resets backoff on success after 429")
@@ -427,7 +414,7 @@ struct UsageStoreTests {
 
         // First call: 429
         await store.refresh()
-        #expect(store.errorState == .apiUnavailable)
+        #expect(store.errorState == .rateLimited)
 
         // Fix repo and retry (force: auto-refresh always retries after backoff delay)
         repo.stubbedError = nil

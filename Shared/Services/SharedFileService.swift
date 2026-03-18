@@ -52,7 +52,6 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
     // MARK: - SharedData (same JSON format as SharedContainer for backward compat)
 
     private struct SharedData: Codable {
-        var oauthToken: String?
         var cachedUsage: CachedUsage?
         var lastSyncDate: Date?
         var theme: ThemeColors?
@@ -99,16 +98,7 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         cachedData = nil
     }
 
-    var isConfigured: Bool { oauthToken != nil }
-
-    var oauthToken: String? {
-        get { load().oauthToken }
-        set {
-            var data = load()
-            data.oauthToken = newValue
-            save(data)
-        }
-    }
+    var isConfigured: Bool { cachedUsage != nil }
 
     var cachedUsage: CachedUsage? {
         load().cachedUsage

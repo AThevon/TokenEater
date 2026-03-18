@@ -23,59 +23,73 @@ struct UsageRepositoryTests {
         return (repo, api, keychain, sharedFile)
     }
 
+    /// Helper: configure the repo with a token via syncCredentialsFile.
+    private func makeSUTWithToken(_ token: String) -> (
+        repo: UsageRepository,
+        api: MockAPIClient,
+        keychain: MockKeychainService,
+        sharedFile: MockSharedFileService
+    ) {
+        let (repo, api, keychain, sharedFile) = makeSUT()
+        keychain.storedToken = token
+        repo.syncCredentialsFile()
+        return (repo, api, keychain, sharedFile)
+    }
+
     // MARK: - syncCredentialsFile
 
-    @Test("syncCredentialsFile copies credentials file token to shared file")
-    func syncCredentialsFileCopiesToSharedFile() {
-        let (repo, _, keychain, sharedFile) = makeSUT()
+    @Test("syncCredentialsFile copies credentials file token to in-memory cache")
+    func syncCredentialsFileCopiesToMemory() {
+        let (repo, _, keychain, _) = makeSUT()
         keychain.storedToken = "cred-tok"
 
         repo.syncCredentialsFile()
 
-        #expect(sharedFile._oauthToken == "cred-tok")
+        #expect(repo.currentToken == "cred-tok")
     }
 
     @Test("syncCredentialsFile does nothing when no credentials file token")
     func syncCredentialsFileDoesNothingWhenNoToken() {
-        let (repo, _, _, sharedFile) = makeSUT()
+        let (repo, _, _, _) = makeSUT()
 
         repo.syncCredentialsFile()
 
-        #expect(sharedFile._oauthToken == nil)
+        #expect(repo.currentToken == nil)
     }
 
     // MARK: - syncKeychainSilently
 
-    @Test("syncKeychainSilently copies token to shared file")
-    func syncKeychainSilentlyCopiesToSharedFile() {
-        let (repo, _, keychain, sharedFile) = makeSUT()
+    @Test("syncKeychainSilently copies token to in-memory cache")
+    func syncKeychainSilentlyCopiesToMemory() {
+        let (repo, _, keychain, _) = makeSUT()
         keychain.storedToken = "kc-tok"
 
         repo.syncKeychainSilently()
 
-        #expect(sharedFile._oauthToken == "kc-tok")
+        #expect(repo.currentToken == "kc-tok")
     }
 
     @Test("syncKeychainSilently does nothing when no token")
     func syncKeychainSilentlyDoesNothingWhenNoToken() {
-        let (repo, _, _, sharedFile) = makeSUT()
+        let (repo, _, _, _) = makeSUT()
 
         repo.syncKeychainSilently()
 
-        #expect(sharedFile._oauthToken == nil)
+        #expect(repo.currentToken == nil)
     }
 
     // MARK: - currentToken
 
-    @Test("currentToken delegates to shared file oauthToken")
-    func currentTokenDelegatesToSharedFile() {
-        let (repo, _, _, sharedFile) = makeSUT()
-        sharedFile._oauthToken = "my-token"
+    @Test("currentToken returns token after sync")
+    func currentTokenReturnsTokenAfterSync() {
+        let (repo, _, keychain, _) = makeSUT()
+        keychain.storedToken = "my-token"
+        repo.syncCredentialsFile()
 
         #expect(repo.currentToken == "my-token")
     }
 
-    @Test("currentToken is nil when shared file has no token")
+    @Test("currentToken is nil when no sync performed")
     func currentTokenIsNilWhenNoToken() {
         let (repo, _, _, _) = makeSUT()
 
@@ -86,8 +100,9 @@ struct UsageRepositoryTests {
 
     @Test("isConfigured true when token set")
     func isConfiguredTrueWhenTokenSet() {
-        let (repo, _, _, sharedFile) = makeSUT()
-        sharedFile._oauthToken = "x"
+        let (repo, _, keychain, _) = makeSUT()
+        keychain.storedToken = "x"
+        repo.syncCredentialsFile()
 
         #expect(repo.isConfigured == true)
     }
@@ -103,8 +118,7 @@ struct UsageRepositoryTests {
 
     @Test("refreshUsage fetches from API and writes to shared file")
     func refreshUsageFetchesAndWrites() async throws {
-        let (repo, api, _, sharedFile) = makeSUT()
-        sharedFile._oauthToken = "tok"
+        let (repo, api, _, sharedFile) = makeSUTWithToken("tok")
         api.stubbedUsage = .fixture(fiveHourUtil: 10, sevenDayUtil: 20, sonnetUtil: 30)
 
         let response = try await repo.refreshUsage(proxyConfig: nil)
@@ -133,8 +147,7 @@ struct UsageRepositoryTests {
 
     @Test("refreshUsage propagates non-tokenExpired API errors")
     func refreshUsagePropagatesAPIErrors() async {
-        let (repo, api, _, sharedFile) = makeSUT()
-        sharedFile._oauthToken = "tok"
+        let (repo, api, _, _) = makeSUTWithToken("tok")
         api.stubbedError = APIError.invalidResponse
 
         do {
@@ -154,9 +167,9 @@ struct UsageRepositoryTests {
 
     @Test("refreshUsage retries with new token when tokenExpired and credentials file has fresh token")
     func refreshUsageRetriesWithNewToken() async throws {
-        let (_, _, keychain, sharedFile) = makeSUT()
-        sharedFile._oauthToken = "old-token"
-        keychain.storedToken = "fresh-token"
+        let keychain = MockKeychainService()
+        let sharedFile = MockSharedFileService()
+        keychain.storedToken = "old-token"
 
         let smartAPI = TokenRecoveryMockAPIClient()
         smartAPI.failToken = "old-token"
@@ -167,19 +180,23 @@ struct UsageRepositoryTests {
             keychainService: keychain,
             sharedFileService: sharedFile
         )
+        smartRepo.syncCredentialsFile()
+
+        // Now switch the keychain to have the fresh token for recovery
+        keychain.storedToken = "fresh-token"
 
         let response = try await smartRepo.refreshUsage(proxyConfig: nil)
 
         #expect(response.fiveHour?.utilization == 99)
-        #expect(sharedFile._oauthToken == "fresh-token")
+        #expect(smartRepo.currentToken == "fresh-token")
         #expect(smartAPI.callCount == 2)
     }
 
-    @Test("refreshUsage throws keychainLocked when credentials file unavailable during recovery")
-    func refreshUsageThrowsKeychainLockedOnRecovery() async {
-        let (_, _, keychain, sharedFile) = makeSUT()
-        sharedFile._oauthToken = "old-token"
-        keychain.storedToken = nil // Credentials file unavailable
+    @Test("refreshUsage throws tokenExpired when no fresh token available during recovery")
+    func refreshUsageThrowsTokenExpiredOnRecovery() async {
+        let keychain = MockKeychainService()
+        let sharedFile = MockSharedFileService()
+        keychain.storedToken = "old-token"
 
         let failingAPI = MockAPIClient()
         failingAPI.stubbedError = APIError.tokenExpired
@@ -189,13 +206,17 @@ struct UsageRepositoryTests {
             keychainService: keychain,
             sharedFileService: sharedFile
         )
+        repo.syncCredentialsFile()
+
+        // No fresh token available — credentials file returns nil
+        keychain.storedToken = nil
 
         do {
             _ = try await repo.refreshUsage(proxyConfig: nil)
-            Issue.record("Expected APIError.keychainLocked")
+            Issue.record("Expected APIError.tokenExpired")
         } catch let error as APIError {
-            guard case .keychainLocked = error else {
-                Issue.record("Expected .keychainLocked, got \(error)")
+            guard case .tokenExpired = error else {
+                Issue.record("Expected .tokenExpired, got \(error)")
                 return
             }
         } catch {
@@ -205,8 +226,8 @@ struct UsageRepositoryTests {
 
     @Test("refreshUsage throws tokenExpired when credentials file has same token during recovery")
     func refreshUsageThrowsTokenExpiredWhenSameToken() async {
-        let (_, _, keychain, sharedFile) = makeSUT()
-        sharedFile._oauthToken = "same-token"
+        let keychain = MockKeychainService()
+        let sharedFile = MockSharedFileService()
         keychain.storedToken = "same-token"
 
         let failingAPI = MockAPIClient()
@@ -217,6 +238,7 @@ struct UsageRepositoryTests {
             keychainService: keychain,
             sharedFileService: sharedFile
         )
+        repo.syncCredentialsFile()
 
         do {
             _ = try await repo.refreshUsage(proxyConfig: nil)
@@ -244,8 +266,7 @@ struct UsageRepositoryTests {
 
     @Test("testConnection delegates to API when token exists")
     func testConnectionDelegatesToAPI() async {
-        let (repo, api, _, sharedFile) = makeSUT()
-        sharedFile._oauthToken = "tok"
+        let (repo, api, _, _) = makeSUTWithToken("tok")
         api.stubbedConnectionResult = ConnectionTestResult(success: true, message: "Connected")
 
         let result = await repo.testConnection(proxyConfig: nil)

@@ -26,10 +26,7 @@ final class UsageStore: ObservableObject {
     var hasError: Bool { errorState != .none }
 
     var isDisconnected: Bool {
-        switch errorState {
-        case .tokenExpired, .keychainLocked, .needsReauth: return true
-        default: return false
-        }
+        errorState == .tokenUnavailable
     }
 
     var pacingMargin: Int = 10
@@ -114,21 +111,19 @@ final class UsageStore: ObservableObject {
             )
         } catch let error as APIError {
             switch error {
-            case .tokenExpired:
+            case .tokenExpired, .noToken:
                 lastFailedToken = repository.currentToken
-                errorState = .tokenExpired
-            case .keychainLocked:
-                errorState = .needsReauth
+                errorState = .tokenUnavailable
             case .rateLimited(let retryAfter):
                 consecutive429Count += 1
                 last429Date = Date()
                 retryAfterInterval = retryAfter
-                errorState = .apiUnavailable
+                errorState = .rateLimited
             default:
-                errorState = .networkError(error.localizedDescription)
+                errorState = .networkError
             }
         } catch {
-            errorState = .networkError(error.localizedDescription)
+            errorState = .networkError
         }
     }
 

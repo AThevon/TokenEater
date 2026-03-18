@@ -47,7 +47,7 @@ struct SettingsSectionView: View {
                             .font(.system(size: 11))
                             .foregroundStyle(importSuccess ? .green : .orange)
                     }
-                    if usageStore.errorState == .apiUnavailable {
+                    if usageStore.errorState == .rateLimited {
                         Label {
                             Text("error.banner.apiunavailable.settings")
                                 .font(.system(size: 11))
