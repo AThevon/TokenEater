@@ -1,5 +1,8 @@
 import SwiftUI
 import UserNotifications
+import os.log
+
+private let logger = Logger(subsystem: "com.tokeneater.app", category: "Onboarding")
 
 enum OnboardingStep: Int, CaseIterable {
     case welcome = 0
@@ -52,8 +55,8 @@ final class OnboardingViewModel: ObservableObject {
         self.notificationService = notificationService
     }
 
-    /// Whether the one-time Keychain bootstrap has been done
-    var needsBootstrap: Bool { !tokenProvider.isBootstrapped }
+    /// Whether the user might see a Keychain dialog (first connection attempt)
+    var needsBootstrap: Bool { tokenProvider.currentToken() == nil }
 
     func checkClaudeCode() {
         claudeCodeStatus = .checking
@@ -98,16 +101,22 @@ final class OnboardingViewModel: ObservableObject {
 
         // Bootstrap encryption key if needed (triggers one-time Keychain modal)
         if !tokenProvider.isBootstrapped {
+            logger.info("Bootstrap needed — reading Claude Safe Storage from Keychain")
             do {
                 try tokenProvider.bootstrap()
+                logger.info("Bootstrap succeeded, isBootstrapped=\(self.tokenProvider.isBootstrapped)")
             } catch {
+                logger.error("Bootstrap failed: \(error)")
                 connectionStatus = .failed(String(localized: "onboarding.connection.failed.notoken"))
                 NSApp.activate(ignoringOtherApps: true)
                 return
             }
         }
 
-        guard let token = tokenProvider.currentToken() else {
+        let token = tokenProvider.currentToken()
+        logger.info("currentToken result: \(token != nil ? "got token (\(token!.prefix(10))...)" : "nil")")
+        guard let token else {
+            logger.error("No token after bootstrap — hasTokenSource=\(self.tokenProvider.hasTokenSource()), isBootstrapped=\(self.tokenProvider.isBootstrapped)")
             connectionStatus = .failed(String(localized: "onboarding.connection.failed.notoken"))
             NSApp.activate(ignoringOtherApps: true)
             return
