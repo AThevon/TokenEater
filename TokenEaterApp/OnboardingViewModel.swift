@@ -38,25 +38,28 @@ final class OnboardingViewModel: ObservableObject {
     @Published var connectionStatus: ConnectionStatus = .idle
     @Published var notificationStatus: NotificationStatus = .unknown
 
-    private let keychainService: KeychainServiceProtocol
+    private let tokenProvider: TokenProviderProtocol
     private let repository: UsageRepositoryProtocol
     private let notificationService: NotificationServiceProtocol
 
     init(
-        keychainService: KeychainServiceProtocol = KeychainService(),
+        tokenProvider: TokenProviderProtocol = TokenProvider(),
         repository: UsageRepositoryProtocol = UsageRepository(),
         notificationService: NotificationServiceProtocol = NotificationService()
     ) {
-        self.keychainService = keychainService
+        self.tokenProvider = tokenProvider
         self.repository = repository
         self.notificationService = notificationService
     }
+
+    /// Whether the one-time Keychain bootstrap has been done
+    var needsBootstrap: Bool { !tokenProvider.isBootstrapped }
 
     func checkClaudeCode() {
         claudeCodeStatus = .checking
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self else { return }
-            let hasToken = self.keychainService.tokenExists()
+            let hasToken = self.tokenProvider.currentToken() != nil
             self.claudeCodeStatus = hasToken ? .detected : .notFound
         }
     }
@@ -91,10 +94,18 @@ final class OnboardingViewModel: ObservableObject {
     func connect() {
         connectionStatus = .connecting
 
-        // Try to get a token from credentials file, then silent Keychain fallback
-        let token: String? = keychainService.readToken() ?? keychainService.readKeychainTokenSilently()
+        // Bootstrap encryption key if needed (triggers one-time Keychain modal)
+        if !tokenProvider.isBootstrapped {
+            do {
+                try tokenProvider.bootstrap()
+            } catch {
+                connectionStatus = .failed(String(localized: "onboarding.connection.failed.notoken"))
+                NSApp.activate(ignoringOtherApps: true)
+                return
+            }
+        }
 
-        guard let token else {
+        guard let token = tokenProvider.currentToken() else {
             connectionStatus = .failed(String(localized: "onboarding.connection.failed.notoken"))
             NSApp.activate(ignoringOtherApps: true)
             return

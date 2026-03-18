@@ -15,19 +15,22 @@ final class StatusBarController: NSObject {
     private let settingsStore: SettingsStore
     private let updateStore: UpdateStore
     private let sessionStore: SessionStore
+    private let tokenFileMonitor: TokenFileMonitorProtocol
 
     init(
         usageStore: UsageStore,
         themeStore: ThemeStore,
         settingsStore: SettingsStore,
         updateStore: UpdateStore,
-        sessionStore: SessionStore
+        sessionStore: SessionStore,
+        tokenFileMonitor: TokenFileMonitorProtocol = TokenFileMonitor()
     ) {
         self.usageStore = usageStore
         self.themeStore = themeStore
         self.settingsStore = settingsStore
         self.updateStore = updateStore
         self.sessionStore = sessionStore
+        self.tokenFileMonitor = tokenFileMonitor
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.statusItem.isVisible = settingsStore.showMenuBar
 
@@ -108,6 +111,29 @@ final class StatusBarController: NSObject {
         usageStore.reloadConfig(thresholds: themeStore.thresholds)
         usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
         themeStore.syncToSharedFile()
+
+        // Monitor token files (credentials + config.json) for changes
+        tokenFileMonitor.startMonitoring()
+        tokenFileMonitor.tokenChanged
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in
+                guard let self else { return }
+                self.usageStore.switchToFastMode()
+                Task { await self.usageStore.refresh(force: true) }
+            }
+            .store(in: &cancellables)
+
+        // Refresh after wake from sleep
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.screensDidWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                await self.usageStore.refreshIfStale()
+            }
+        }
     }
 
     private func observeOnboardingForRefresh() {

@@ -109,14 +109,14 @@ final class SettingsStore: ObservableObject {
     @Published var notificationStatus: UNAuthorizationStatus = .notDetermined
 
     private let notificationService: NotificationServiceProtocol
-    private let keychainService: KeychainServiceProtocol
+    private let tokenProvider: TokenProviderProtocol
 
     init(
         notificationService: NotificationServiceProtocol = NotificationService(),
-        keychainService: KeychainServiceProtocol = KeychainService()
+        tokenProvider: TokenProviderProtocol = TokenProvider()
     ) {
         self.notificationService = notificationService
-        self.keychainService = keychainService
+        self.tokenProvider = tokenProvider
 
         self.showMenuBar = UserDefaults.standard.object(forKey: "showMenuBar") as? Bool ?? true
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
@@ -188,6 +188,6 @@ final class SettingsStore: ObservableObject {
     // MARK: - Credentials
 
     func credentialsTokenExists() -> Bool {
-        keychainService.tokenExists()
+        tokenProvider.currentToken() != nil
     }
 }

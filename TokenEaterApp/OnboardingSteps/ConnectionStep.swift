@@ -48,6 +48,20 @@ struct ConnectionStep: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 380)
 
+            if viewModel.needsBootstrap {
+                Label {
+                    Text("onboarding.connection.keychain.hint")
+                        .font(.system(size: 12))
+                } icon: {
+                    Image(systemName: "lock.shield")
+                        .foregroundStyle(.orange)
+                        .font(.system(size: 11))
+                }
+                .foregroundStyle(.white.opacity(0.5))
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 380)
+            }
+
             darkPrimaryButton("onboarding.connection.authorize") { viewModel.connect() }
                 .padding(.top, 8)
         }

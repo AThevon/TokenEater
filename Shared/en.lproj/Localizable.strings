@@ -242,6 +242,7 @@
 "onboarding.connection.failed.title" = "Something went wrong";
 "onboarding.connection.failed.notoken" = "Couldn't read the token. Make sure Claude Code is installed and you're signed in.";
 "onboarding.connection.failed.tip" = "Try running /login in Claude Code even if you're already signed in — it can fix stale sessions.";
+"onboarding.connection.keychain.hint" = "TokenEater needs one-time access to read Claude Code's encryption key. Click 'Always Allow' when macOS asks.";
 
 /* Settings - Onboarding reset */
 "settings.onboarding.reset" = "Run setup again";
