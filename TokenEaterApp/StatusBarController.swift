@@ -15,19 +15,22 @@ final class StatusBarController: NSObject {
     private let settingsStore: SettingsStore
     private let updateStore: UpdateStore
     private let sessionStore: SessionStore
+    private let tokenFileMonitor: TokenFileMonitorProtocol
 
     init(
         usageStore: UsageStore,
         themeStore: ThemeStore,
         settingsStore: SettingsStore,
         updateStore: UpdateStore,
-        sessionStore: SessionStore
+        sessionStore: SessionStore,
+        tokenFileMonitor: TokenFileMonitorProtocol = TokenFileMonitor()
     ) {
         self.usageStore = usageStore
         self.themeStore = themeStore
         self.settingsStore = settingsStore
         self.updateStore = updateStore
         self.sessionStore = sessionStore
+        self.tokenFileMonitor = tokenFileMonitor
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.statusItem.isVisible = settingsStore.showMenuBar
 
@@ -37,6 +40,7 @@ final class StatusBarController: NSObject {
         setupPopover()
         observeStoreChanges()
         observeDashboardRequest()
+        observeAppActivation()
 
         if settingsStore.hasCompletedOnboarding {
             bootstrapRefresh()
@@ -93,6 +97,13 @@ final class StatusBarController: NSObject {
             }
             .store(in: &cancellables)
 
+        settingsStore.$refreshInterval
+            .removeDuplicates()
+            .sink { [weak self] newInterval in
+                self?.usageStore.refreshIntervalSeconds = TimeInterval(newInterval)
+            }
+            .store(in: &cancellables)
+
         settingsStore.$showMenuBar
             .removeDuplicates()
             .sink { [weak self] visible in
@@ -104,9 +115,33 @@ final class StatusBarController: NSObject {
     private func bootstrapRefresh() {
         usageStore.proxyConfig = settingsStore.proxyConfig
         usageStore.pacingMargin = settingsStore.pacingMargin
+        usageStore.refreshIntervalSeconds = TimeInterval(settingsStore.refreshInterval)
         usageStore.reloadConfig(thresholds: themeStore.thresholds)
         usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
         themeStore.syncToSharedFile()
+
+        // Monitor token files (credentials + config.json) for changes
+        tokenFileMonitor.startMonitoring()
+        tokenFileMonitor.tokenChanged
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in
+                guard let self else { return }
+                self.usageStore.switchToFastMode()
+                Task { await self.usageStore.refresh(force: true) }
+            }
+            .store(in: &cancellables)
+
+        // Refresh after wake from sleep
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.screensDidWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                await self.usageStore.refreshIfStale()
+            }
+        }
     }
 
     private func observeOnboardingForRefresh() {
@@ -128,6 +163,21 @@ final class StatusBarController: NSObject {
             name: .openDashboard,
             object: nil
         )
+    }
+
+    private func observeAppActivation() {
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(appDidActivate),
+            name: NSWorkspace.didActivateApplicationNotification,
+            object: nil
+        )
+    }
+
+    @objc private func appDidActivate(_ notification: Notification) {
+        guard let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+              app.bundleIdentifier == Bundle.main.bundleIdentifier else { return }
+        WidgetReloader.scheduleReload(delay: 0.1)
     }
 
     @objc private func handleDashboardRequest(_ notification: Notification) {

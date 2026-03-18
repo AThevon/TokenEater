@@ -3,33 +3,33 @@ import Foundation
 final class MockUsageRepository: UsageRepositoryProtocol {
     var stubbedUsage: UsageResponse?
     var stubbedProfile: ProfileResponse?
-    var stubbedProfileError: APIError?
-    var stubbedError: APIError?
-    var isConfiguredValue = false
-    var cachedValue: CachedUsage?
-    var currentTokenValue: String?
+    var stubbedProfileError: Error?
+    var stubbedError: Error?
+    var stubbedTestError: Error?
 
-    var syncCredentialsFileCallCount = 0
-    var syncKeychainSilentlyCallCount = 0
+    var refreshCallCount = 0
+    var fetchProfileCallCount = 0
+    var testConnectionCallCount = 0
+    var lastToken: String?
 
-    var isConfigured: Bool { isConfiguredValue }
-    var cachedUsage: CachedUsage? { cachedValue }
-    var currentToken: String? { currentTokenValue }
-
-    func syncCredentialsFile() { syncCredentialsFileCallCount += 1 }
-    func syncKeychainSilently() { syncKeychainSilentlyCallCount += 1 }
-
-    func refreshUsage(proxyConfig: ProxyConfig?) async throws -> UsageResponse {
+    func refreshUsage(token: String, proxyConfig: ProxyConfig?) async throws -> UsageResponse {
+        refreshCallCount += 1
+        lastToken = token
         if let error = stubbedError { throw error }
         return stubbedUsage ?? UsageResponse()
     }
 
-    func fetchProfile(proxyConfig: ProxyConfig?) async throws -> ProfileResponse {
+    func fetchProfile(token: String, proxyConfig: ProxyConfig?) async throws -> ProfileResponse {
+        fetchProfileCallCount += 1
+        lastToken = token
         if let error = stubbedProfileError { throw error }
         return stubbedProfile ?? .fixture()
     }
 
-    func testConnection(proxyConfig: ProxyConfig?) async -> ConnectionTestResult {
-        ConnectionTestResult(success: isConfiguredValue, message: isConfiguredValue ? "OK" : "No token")
+    func testConnection(token: String, proxyConfig: ProxyConfig?) async throws -> UsageResponse {
+        testConnectionCallCount += 1
+        lastToken = token
+        if let error = stubbedTestError { throw error }
+        return stubbedUsage ?? UsageResponse()
     }
 }

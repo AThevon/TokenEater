@@ -4,7 +4,6 @@ enum APIError: LocalizedError {
     case noToken
     case invalidResponse
     case tokenExpired
-    case keychainLocked
     case unsupportedPlan
     case rateLimited(retryAfter: TimeInterval?)
     case httpError(Int)
@@ -17,8 +16,6 @@ enum APIError: LocalizedError {
             return String(localized: "error.invalidresponse")
         case .tokenExpired:
             return String(localized: "error.tokenexpired")
-        case .keychainLocked:
-            return String(localized: "error.keychainlocked")
         case .unsupportedPlan:
             return String(localized: "error.unsupportedplan")
         case .rateLimited:

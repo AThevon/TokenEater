@@ -1,7 +1,8 @@
 import Foundation
 
 final class MockSharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
-    var _oauthToken: String?
+    var fileURL: URL { URL(fileURLWithPath: "/tmp/mock-shared.json") }
+
     var _cachedUsage: CachedUsage?
     var _lastSyncDate: Date?
     var _theme: ThemeColors = .default
@@ -9,12 +10,7 @@ final class MockSharedFileService: SharedFileServiceProtocol, @unchecked Sendabl
     var updateAfterSyncCallCount = 0
     var updateThemeCallCount = 0
 
-    var isConfigured: Bool { _oauthToken != nil }
-
-    var oauthToken: String? {
-        get { _oauthToken }
-        set { _oauthToken = newValue }
-    }
+    var isConfigured: Bool { _cachedUsage != nil }
 
     var cachedUsage: CachedUsage? { _cachedUsage }
     var lastSyncDate: Date? { _lastSyncDate }
@@ -36,7 +32,6 @@ final class MockSharedFileService: SharedFileServiceProtocol, @unchecked Sendabl
     func invalidateCache() {}
 
     func clear() {
-        _oauthToken = nil
         _cachedUsage = nil
         _lastSyncDate = nil
     }

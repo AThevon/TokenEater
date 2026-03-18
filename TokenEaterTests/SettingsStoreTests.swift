@@ -21,12 +21,12 @@ struct SettingsStoreTests {
     // MARK: - Helpers
 
     private func makeStore(
-        keychain: MockKeychainService = MockKeychainService()
-    ) -> (SettingsStore, MockNotificationService, MockKeychainService) {
+        tokenProvider: MockTokenProvider = MockTokenProvider()
+    ) -> (SettingsStore, MockNotificationService, MockTokenProvider) {
         cleanDefaults()
         let notif = MockNotificationService()
-        let store = SettingsStore(notificationService: notif, keychainService: keychain)
-        return (store, notif, keychain)
+        let store = SettingsStore(notificationService: notif, tokenProvider: tokenProvider)
+        return (store, notif, tokenProvider)
     }
 
     // MARK: - Proxy Config
@@ -101,11 +101,11 @@ struct SettingsStoreTests {
 
     // MARK: - Credentials delegation
 
-    @Test("credentialsTokenExists delegates to service")
+    @Test("credentialsTokenExists delegates to token provider")
     func credentialsTokenExistsDelegates() {
-        let keychain = MockKeychainService()
-        keychain.storedToken = "some-token"
-        let (store, _, _) = makeStore(keychain: keychain)
+        let tp = MockTokenProvider()
+        tp.token = "some-token"
+        let (store, _, _) = makeStore(tokenProvider: tp)
 
         #expect(store.credentialsTokenExists() == true)
     }
@@ -203,7 +203,7 @@ struct SettingsStoreTests {
         cleanDefaults()
         UserDefaults.standard.set("neon", forKey: "watcherStyle")
         let notif = MockNotificationService()
-        let store = SettingsStore(notificationService: notif, keychainService: MockKeychainService())
+        let store = SettingsStore(notificationService: notif, tokenProvider: MockTokenProvider())
         #expect(store.watcherStyle == .neon)
     }
 
@@ -212,7 +212,7 @@ struct SettingsStoreTests {
         cleanDefaults()
         UserDefaults.standard.set("cyberpunk", forKey: "watcherStyle")
         let notif = MockNotificationService()
-        let store = SettingsStore(notificationService: notif, keychainService: MockKeychainService())
+        let store = SettingsStore(notificationService: notif, tokenProvider: MockTokenProvider())
         #expect(store.watcherStyle == .frost)
     }
 

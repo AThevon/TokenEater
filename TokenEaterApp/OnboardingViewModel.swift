@@ -1,5 +1,8 @@
 import SwiftUI
 import UserNotifications
+import os.log
+
+private let logger = Logger(subsystem: "com.tokeneater.app", category: "Onboarding")
 
 enum OnboardingStep: Int, CaseIterable {
     case welcome = 0
@@ -38,27 +41,31 @@ final class OnboardingViewModel: ObservableObject {
     @Published var connectionStatus: ConnectionStatus = .idle
     @Published var notificationStatus: NotificationStatus = .unknown
 
-    private let keychainService: KeychainServiceProtocol
+    private let tokenProvider: TokenProviderProtocol
     private let repository: UsageRepositoryProtocol
     private let notificationService: NotificationServiceProtocol
 
     init(
-        keychainService: KeychainServiceProtocol = KeychainService(),
+        tokenProvider: TokenProviderProtocol = TokenProvider(),
         repository: UsageRepositoryProtocol = UsageRepository(),
         notificationService: NotificationServiceProtocol = NotificationService()
     ) {
-        self.keychainService = keychainService
+        self.tokenProvider = tokenProvider
         self.repository = repository
         self.notificationService = notificationService
     }
+
+    /// Whether the user might see a Keychain dialog (first connection attempt)
+    var needsBootstrap: Bool { tokenProvider.currentToken() == nil }
 
     func checkClaudeCode() {
         claudeCodeStatus = .checking
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self else { return }
-            let hasToken = self.repository.isConfigured
-                || self.keychainService.tokenExists()
-            self.claudeCodeStatus = hasToken ? .detected : .notFound
+            // Check if a token source EXISTS (config.json or credentials file)
+            // This doesn't require the decryption key — bootstrap happens in connect()
+            let hasSource = self.tokenProvider.hasTokenSource()
+            self.claudeCodeStatus = hasSource ? .detected : .notFound
         }
     }
 
@@ -91,14 +98,25 @@ final class OnboardingViewModel: ObservableObject {
 
     func connect() {
         connectionStatus = .connecting
-        // Credentials file first, then silent Keychain fallback
-        if !repository.isConfigured {
-            repository.syncCredentialsFile()
+
+        // Bootstrap encryption key if needed (triggers one-time Keychain modal)
+        if !tokenProvider.isBootstrapped {
+            logger.info("Bootstrap needed — reading Claude Safe Storage from Keychain")
+            do {
+                try tokenProvider.bootstrap()
+                logger.info("Bootstrap succeeded, isBootstrapped=\(self.tokenProvider.isBootstrapped)")
+            } catch {
+                logger.error("Bootstrap failed: \(error)")
+                connectionStatus = .failed(String(localized: "onboarding.connection.failed.notoken"))
+                NSApp.activate(ignoringOtherApps: true)
+                return
+            }
         }
-        if !repository.isConfigured {
-            repository.syncKeychainSilently()
-        }
-        guard repository.isConfigured else {
+
+        let token = tokenProvider.currentToken()
+        logger.info("currentToken result: \(token != nil ? "got token (\(token!.prefix(10))...)" : "nil")")
+        guard let token else {
+            logger.error("No token after bootstrap — hasTokenSource=\(self.tokenProvider.hasTokenSource()), isBootstrapped=\(self.tokenProvider.isBootstrapped)")
             connectionStatus = .failed(String(localized: "onboarding.connection.failed.notoken"))
             NSApp.activate(ignoringOtherApps: true)
             return
@@ -106,7 +124,7 @@ final class OnboardingViewModel: ObservableObject {
 
         Task {
             do {
-                let usage = try await repository.refreshUsage(proxyConfig: nil)
+                let usage = try await repository.testConnection(token: token, proxyConfig: nil)
                 connectionStatus = .success(usage)
             } catch let error as APIError {
                 if case .httpError(429) = error {

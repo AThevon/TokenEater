@@ -67,6 +67,11 @@ final class SettingsStore: ObservableObject {
         didSet { UserDefaults.standard.set(pacingMargin, forKey: "pacingMargin") }
     }
 
+    // Refresh interval (seconds) — minimum 180 (3min), default 300 (5min)
+    @Published var refreshInterval: Int {
+        didSet { UserDefaults.standard.set(refreshInterval, forKey: "refreshInterval") }
+    }
+
     var proxyConfig: ProxyConfig {
         ProxyConfig(enabled: proxyEnabled, host: proxyHost, port: proxyPort)
     }
@@ -109,14 +114,14 @@ final class SettingsStore: ObservableObject {
     @Published var notificationStatus: UNAuthorizationStatus = .notDetermined
 
     private let notificationService: NotificationServiceProtocol
-    private let keychainService: KeychainServiceProtocol
+    private let tokenProvider: TokenProviderProtocol
 
     init(
         notificationService: NotificationServiceProtocol = NotificationService(),
-        keychainService: KeychainServiceProtocol = KeychainService()
+        tokenProvider: TokenProviderProtocol = TokenProvider()
     ) {
         self.notificationService = notificationService
-        self.keychainService = keychainService
+        self.tokenProvider = tokenProvider
 
         self.showMenuBar = UserDefaults.standard.object(forKey: "showMenuBar") as? Bool ?? true
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
@@ -141,6 +146,10 @@ final class SettingsStore: ObservableObject {
         self.pacingMargin = {
             let val = UserDefaults.standard.integer(forKey: "pacingMargin")
             return val > 0 ? val : 10
+        }()
+        self.refreshInterval = {
+            let val = UserDefaults.standard.integer(forKey: "refreshInterval")
+            return val >= 180 ? val : 300
         }()
         self.pacingDisplayMode = PacingDisplayMode(
             rawValue: UserDefaults.standard.string(forKey: "pacingDisplayMode") ?? "dotDelta"
@@ -188,6 +197,6 @@ final class SettingsStore: ObservableObject {
     // MARK: - Credentials
 
     func credentialsTokenExists() -> Bool {
-        keychainService.tokenExists()
+        tokenProvider.currentToken() != nil
     }
 }

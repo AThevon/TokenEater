@@ -33,9 +33,7 @@ enum PacingDisplayMode: String, CaseIterable {
 
 enum AppErrorState: Equatable {
     case none
-    case tokenExpired
-    case keychainLocked
-    case needsReauth
-    case apiUnavailable
-    case networkError(String)
+    case tokenUnavailable
+    case rateLimited
+    case networkError
 }

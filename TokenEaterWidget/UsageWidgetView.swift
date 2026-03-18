@@ -1,10 +1,19 @@
 import SwiftUI
 import WidgetKit
 
+/// Single SharedFileService instance shared across all widget views in a render pass.
+/// Avoids creating 6+ instances (each calling migrateIfNeeded + disk read) per widget render.
+enum WidgetTheme {
+    private static let shared = SharedFileService()
+
+    static var theme: ThemeColors { shared.theme }
+    static var thresholds: UsageThresholds { shared.thresholds }
+}
+
 // MARK: - Widget Background (macOS 13 compat)
 
 struct WidgetBackgroundModifier: ViewModifier {
-    var backgroundColor: Color = Color(hex: SharedFileService().theme.widgetBackground).opacity(0.85)
+    var backgroundColor: Color = Color(hex: WidgetTheme.theme.widgetBackground).opacity(0.85)
 
     func body(content: Content) -> some View {
         if #available(macOS 14.0, *) {
@@ -23,8 +32,8 @@ struct UsageWidgetView: View {
     let entry: UsageEntry
 
     @Environment(\.widgetFamily) var family
-    private var theme: ThemeColors { SharedFileService().theme }
-    private var thresholds: UsageThresholds { SharedFileService().thresholds }
+    private var theme: ThemeColors { WidgetTheme.theme }
+    private var thresholds: UsageThresholds { WidgetTheme.thresholds }
 
     var body: some View {
         Group {
@@ -60,11 +69,6 @@ struct UsageWidgetView: View {
                     .tracking(0.3)
                     .foregroundStyle(Color(hex: theme.widgetText).opacity(0.5))
                 Spacer()
-                if entry.isStale {
-                    Image(systemName: "wifi.slash")
-                        .font(.system(size: 8))
-                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
-                }
             }
             .padding(.bottom, 16)
 
@@ -93,14 +97,20 @@ struct UsageWidgetView: View {
 
             // Footer
             HStack {
-                Text(String(format: String(localized: "widget.updated"), entry.date.relativeFormatted))
-                    .font(.system(size: 8, design: .rounded))
-                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
+                if let lastSync = entry.lastSync {
+                    Text(String(format: String(localized: "widget.updated"), lastSync.relativeFormatted))
+                        .font(.system(size: 8, design: .rounded))
+                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
+                } else {
+                    Text(String(format: String(localized: "widget.updated"), entry.date.relativeFormatted))
+                        .font(.system(size: 8, design: .rounded))
+                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
+                }
                 Spacer()
                 if entry.isStale {
-                    Image(systemName: "wifi.slash")
+                    Image(systemName: "clock.arrow.circlepath")
                         .font(.system(size: 8))
-                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
+                        .foregroundStyle(.orange.opacity(0.6))
                 }
             }
         }
@@ -121,15 +131,6 @@ struct UsageWidgetView: View {
                     .font(.system(size: 16, weight: .bold, design: .rounded))
                     .foregroundStyle(Color(hex: theme.widgetText).opacity(0.95))
                 Spacer()
-                if entry.isStale {
-                    HStack(spacing: 3) {
-                        Image(systemName: "wifi.slash")
-                            .font(.system(size: 9))
-                        Text("widget.offline")
-                            .font(.system(size: 9, design: .rounded))
-                    }
-                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
-                }
             }
             .padding(.bottom, 8)
 
@@ -193,18 +194,22 @@ struct UsageWidgetView: View {
                 .padding(.bottom, 4)
 
             HStack {
-                Text(String(format: String(localized: "widget.updated"), entry.date.relativeFormatted))
-                    .font(.system(size: 9, design: .rounded))
-                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
+                if let lastSync = entry.lastSync {
+                    Text(String(format: String(localized: "widget.updated"), lastSync.relativeFormatted))
+                        .font(.system(size: 9, design: .rounded))
+                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
+                } else {
+                    Text(String(format: String(localized: "widget.updated"), entry.date.relativeFormatted))
+                        .font(.system(size: 9, design: .rounded))
+                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
+                }
                 Spacer()
                 if entry.isStale {
                     HStack(spacing: 3) {
-                        Image(systemName: "wifi.slash")
+                        Image(systemName: "clock.arrow.circlepath")
                             .font(.system(size: 9))
-                        Text("widget.offline")
-                            .font(.system(size: 9, design: .rounded))
                     }
-                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
+                    .foregroundStyle(.orange.opacity(0.6))
                 } else {
                     HStack(spacing: 3) {
                         Circle()
@@ -288,8 +293,8 @@ struct CircularUsageView: View {
     let label: String
     let resetInfo: String
     let utilization: Double
-    var theme: ThemeColors = SharedFileService().theme
-    var thresholds: UsageThresholds = SharedFileService().thresholds
+    var theme: ThemeColors = WidgetTheme.theme
+    var thresholds: UsageThresholds = WidgetTheme.thresholds
 
     private var ringGradient: LinearGradient {
         theme.gaugeGradient(for: utilization, thresholds: thresholds)
@@ -331,7 +336,7 @@ struct CircularUsageView: View {
 
 struct CircularPacingView: View {
     let pacing: PacingResult
-    var theme: ThemeColors = SharedFileService().theme
+    var theme: ThemeColors = WidgetTheme.theme
 
     private var ringColor: Color {
         theme.pacingColor(for: pacing.zone)
@@ -392,8 +397,8 @@ struct LargeUsageBarView: View {
     let utilization: Double
     var colorOverride: Color? = nil
     var displayText: String? = nil
-    var theme: ThemeColors = SharedFileService().theme
-    var thresholds: UsageThresholds = SharedFileService().thresholds
+    var theme: ThemeColors = WidgetTheme.theme
+    var thresholds: UsageThresholds = WidgetTheme.thresholds
 
     private var barGradient: LinearGradient {
         if let color = colorOverride {

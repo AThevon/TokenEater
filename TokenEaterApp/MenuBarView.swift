@@ -303,25 +303,11 @@ struct MenuBarPopoverView: View {
     private var errorBanner: some View {
         VStack(alignment: .leading, spacing: 4) {
             switch usageStore.errorState {
-            case .tokenExpired:
+            case .tokenUnavailable:
                 Label(String(localized: "error.banner.expired"), systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.red)
                 Text(String(localized: "error.banner.expired.hint"))
-                    .font(.system(size: 10))
-                    .foregroundStyle(.white.opacity(0.5))
-            case .keychainLocked:
-                Label(String(localized: "error.banner.keychain"), systemImage: "lock.fill")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.orange)
-                Text(String(localized: "error.banner.keychain.hint"))
-                    .font(.system(size: 10))
-                    .foregroundStyle(.white.opacity(0.5))
-            case .needsReauth:
-                Label(String(localized: "error.banner.reauth"), systemImage: "key.fill")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.orange)
-                Text(String(localized: "error.banner.reauth.hint"))
                     .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.5))
                 Button {
@@ -337,15 +323,15 @@ struct MenuBarPopoverView: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 2)
-            case .apiUnavailable:
+            case .rateLimited:
                 Label(String(localized: "error.banner.apiunavailable"), systemImage: "icloud.slash")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.orange)
                 Text(String(localized: "error.banner.apiunavailable.hint"))
                     .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.5))
-            case .networkError(let message):
-                Label(message, systemImage: "wifi.slash")
+            case .networkError:
+                Label(String(localized: "error.network.generic"), systemImage: "wifi.slash")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.orange)
             case .none:

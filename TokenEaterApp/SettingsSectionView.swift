@@ -47,7 +47,7 @@ struct SettingsSectionView: View {
                             .font(.system(size: 11))
                             .foregroundStyle(importSuccess ? .green : .orange)
                     }
-                    if usageStore.errorState == .apiUnavailable {
+                    if usageStore.errorState == .rateLimited {
                         Label {
                             Text("error.banner.apiunavailable.settings")
                                 .font(.system(size: 11))
@@ -90,6 +90,40 @@ struct SettingsSectionView: View {
                                     .frame(width: 80)
                             }
                         }
+                    }
+                }
+            }
+
+            // Refresh interval
+            glassCard {
+                VStack(alignment: .leading, spacing: 8) {
+                    cardLabel(String(localized: "settings.refresh.title"))
+                    HStack {
+                        Text(String(localized: "settings.refresh.interval"))
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.7))
+                        Spacer()
+                        Text(formatInterval(settingsStore.refreshInterval))
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.9))
+                    }
+                    Slider(
+                        value: Binding(
+                            get: { Double(settingsStore.refreshInterval) },
+                            set: { settingsStore.refreshInterval = Int($0) }
+                        ),
+                        in: 180...900,
+                        step: 60
+                    )
+                    if settingsStore.refreshInterval < 300 {
+                        Label {
+                            Text(String(localized: "settings.refresh.warning"))
+                                .font(.system(size: 10))
+                        } icon: {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 9))
+                        }
+                        .foregroundStyle(.orange.opacity(0.8))
                     }
                 }
             }
@@ -225,6 +259,11 @@ struct SettingsSectionView: View {
         .padding(10)
         .background(Color.orange.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func formatInterval(_ seconds: Int) -> String {
+        let minutes = seconds / 60
+        return "\(minutes) min"
     }
 
     private func connectAutoDetect() {

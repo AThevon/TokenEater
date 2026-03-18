@@ -1,7 +1,10 @@
 import WidgetKit
 import Foundation
+import os.log
 
-struct Provider: TimelineProvider {
+private let logger = Logger(subsystem: "com.tokeneater.app.widget", category: "Provider")
+
+struct StaticProvider: TimelineProvider {
     private let sharedFile = SharedFileService()
 
     func placeholder(in context: Context) -> UsageEntry {
@@ -11,34 +14,39 @@ struct Provider: TimelineProvider {
     func getSnapshot(in context: Context, completion: @escaping (UsageEntry) -> Void) {
         if context.isPreview {
             completion(.placeholder)
-            return
+        } else {
+            completion(fetchEntry())
         }
-        completion(fetchEntry())
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<UsageEntry>) -> Void) {
         let entry = fetchEntry()
-        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 5, to: Date()) ?? Date().addingTimeInterval(300)
+        // Re-request timeline after 5 minutes — WidgetKit will call getTimeline again
+        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 5, to: Date()) ?? Date()
         completion(Timeline(entries: [entry], policy: .after(nextUpdate)))
     }
 
     private func fetchEntry() -> UsageEntry {
         sharedFile.invalidateCache()
+        logger.info("fetchEntry: fileURL=\(self.sharedFile.fileURL.path, privacy: .public), isConfigured=\(self.sharedFile.isConfigured)")
         guard sharedFile.isConfigured else {
+            logger.error("Widget: not configured")
             return .unconfigured
         }
 
         if let cached = sharedFile.cachedUsage {
+            let lastSync = sharedFile.lastSyncDate
             let isStale: Bool
-            if let lastSync = sharedFile.lastSyncDate {
-                isStale = Date().timeIntervalSince(lastSync) > 120
+            if let lastSync {
+                isStale = Date().timeIntervalSince(lastSync) > 900 // 15min — only stale if truly old
             } else {
                 isStale = true
             }
             return UsageEntry(
                 date: Date(),
                 usage: cached.usage,
-                isStale: isStale
+                isStale: isStale,
+                lastSync: lastSync
             )
         }
 

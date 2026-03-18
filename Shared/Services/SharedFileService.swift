@@ -52,7 +52,6 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
     // MARK: - SharedData (same JSON format as SharedContainer for backward compat)
 
     private struct SharedData: Codable {
-        var oauthToken: String?
         var cachedUsage: CachedUsage?
         var lastSyncDate: Date?
         var theme: ThemeColors?
@@ -65,10 +64,16 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
 
     private func load() -> SharedData {
         if let cached = cachedData { return cached }
-        guard let data = try? Data(contentsOf: sharedFileURL) else {
-            return SharedData()
+
+        var result = SharedData()
+        let coordinator = NSFileCoordinator()
+        var error: NSError?
+        coordinator.coordinate(readingItemAt: sharedFileURL, options: [], error: &error) { url in
+            guard let data = try? Data(contentsOf: url) else { return }
+            if let decoded = try? JSONDecoder().decode(SharedData.self, from: data) {
+                result = decoded
+            }
         }
-        let result = (try? JSONDecoder().decode(SharedData.self, from: data)) ?? SharedData()
         cachedData = result
         return result
     }
@@ -76,26 +81,24 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
     private func save(_ shared: SharedData) {
         let dir = sharedFileURL.deletingLastPathComponent()
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        try? JSONEncoder().encode(shared).write(to: sharedFileURL, options: .atomic)
+
+        let coordinator = NSFileCoordinator()
+        var error: NSError?
+        coordinator.coordinate(writingItemAt: sharedFileURL, options: .forReplacing, error: &error) { url in
+            try? JSONEncoder().encode(shared).write(to: url, options: .atomic)
+        }
         cachedData = shared
     }
 
     // MARK: - SharedFileServiceProtocol
 
+    var fileURL: URL { sharedFileURL }
+
     func invalidateCache() {
         cachedData = nil
     }
 
-    var isConfigured: Bool { oauthToken != nil }
-
-    var oauthToken: String? {
-        get { load().oauthToken }
-        set {
-            var data = load()
-            data.oauthToken = newValue
-            save(data)
-        }
-    }
+    var isConfigured: Bool { cachedUsage != nil }
 
     var cachedUsage: CachedUsage? {
         load().cachedUsage
