@@ -34,6 +34,9 @@
 "settings.subtitle" = "Surveillez votre consommation Claude";
 "settings.test" = "Tester";
 "settings.refresh" = "Rafraîchir";
+"settings.refresh.title" = "Rafraîchissement";
+"settings.refresh.interval" = "Intervalle de polling";
+"settings.refresh.warning" = "En dessous de 5 min, risque d'erreurs 429 (rate limit API)";
 "settings.guide" = "Guide";
 "settings.testing" = "Test en cours...";
 "settings.clickbehavior" = "Clic barre de menu";

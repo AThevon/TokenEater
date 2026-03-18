@@ -34,6 +34,9 @@
 "settings.subtitle" = "Monitor your Claude usage";
 "settings.test" = "Test";
 "settings.refresh" = "Refresh";
+"settings.refresh.title" = "Refresh";
+"settings.refresh.interval" = "Polling interval";
+"settings.refresh.warning" = "Below 5 min may trigger API rate limits (429)";
 "settings.guide" = "Guide";
 "settings.testing" = "Testing...";
 "settings.clickbehavior" = "Menu Bar Click";

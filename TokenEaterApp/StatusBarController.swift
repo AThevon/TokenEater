@@ -97,6 +97,13 @@ final class StatusBarController: NSObject {
             }
             .store(in: &cancellables)
 
+        settingsStore.$refreshInterval
+            .removeDuplicates()
+            .sink { [weak self] newInterval in
+                self?.usageStore.refreshIntervalSeconds = TimeInterval(newInterval)
+            }
+            .store(in: &cancellables)
+
         settingsStore.$showMenuBar
             .removeDuplicates()
             .sink { [weak self] visible in
@@ -108,6 +115,7 @@ final class StatusBarController: NSObject {
     private func bootstrapRefresh() {
         usageStore.proxyConfig = settingsStore.proxyConfig
         usageStore.pacingMargin = settingsStore.pacingMargin
+        usageStore.refreshIntervalSeconds = TimeInterval(settingsStore.refreshInterval)
         usageStore.reloadConfig(thresholds: themeStore.thresholds)
         usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
         themeStore.syncToSharedFile()

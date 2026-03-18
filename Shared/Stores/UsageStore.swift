@@ -2,8 +2,8 @@ import SwiftUI
 
 enum RefreshSpeed: TimeInterval {
     case fast = 120      // After FSEvents token change — 2min
-    case normal = 600    // Steady state — 10min
-    case slow = 1200     // After 429 — 20min
+    case normal = 300    // Steady state — configurable via settings (default 5min)
+    case slow = 1200     // After 429 — 2x normal or 20min minimum
 }
 
 @MainActor
@@ -36,6 +36,8 @@ final class UsageStore: ObservableObject {
     }
 
     var pacingMargin: Int = 10
+    /// Base refresh interval in seconds (from settings, default 300)
+    var refreshIntervalSeconds: TimeInterval = 300
 
     private let repository: UsageRepositoryProtocol
     private let tokenProvider: TokenProviderProtocol
@@ -52,6 +54,15 @@ final class UsageStore: ObservableObject {
 
     /// Retry-After date from last 429 response
     private(set) var retryAfterDate: Date?
+
+    /// Effective interval based on current speed + user setting
+    var effectiveInterval: TimeInterval {
+        switch currentSpeed {
+        case .fast: return min(120, refreshIntervalSeconds)
+        case .normal: return refreshIntervalSeconds
+        case .slow: return max(refreshIntervalSeconds * 2, 1200)
+        }
+    }
 
     var proxyConfig: ProxyConfig?
 
@@ -92,7 +103,7 @@ final class UsageStore: ObservableObject {
 
         // Interval check using currentSpeed
         if !force, let last = lastUpdate,
-           Date().timeIntervalSince(last) < currentSpeed.rawValue {
+           Date().timeIntervalSince(last) < effectiveInterval {
             return
         }
 
@@ -201,7 +212,7 @@ final class UsageStore: ObservableObject {
             while !Task.isCancelled {
                 guard let self else { return }
                 await self.refresh(thresholds: thresholds)
-                let delay = self.currentSpeed.rawValue
+                let delay = self.effectiveInterval
                 try? await Task.sleep(for: .seconds(delay))
             }
         }
