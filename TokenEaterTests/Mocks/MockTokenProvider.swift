@@ -7,6 +7,7 @@ final class MockTokenProvider: TokenProviderProtocol, @unchecked Sendable {
     var bootstrapError: Error?
     var bootstrapCallCount = 0
     var currentTokenCallCount = 0
+    var invalidateCallCount = 0
 
     var isBootstrapped: Bool { _isBootstrapped }
 
@@ -17,6 +18,10 @@ final class MockTokenProvider: TokenProviderProtocol, @unchecked Sendable {
 
     func hasTokenSource() -> Bool {
         _hasTokenSource
+    }
+
+    func invalidateToken() {
+        invalidateCallCount += 1
     }
 
     func bootstrap() throws {

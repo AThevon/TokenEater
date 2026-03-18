@@ -131,6 +131,8 @@ final class UsageStore: ObservableObject {
         } catch let error as APIError {
             switch error {
             case .tokenExpired, .noToken:
+                // Invalidate cached token so next read re-checks Keychain for a fresh one
+                tokenProvider.invalidateToken()
                 // Retry once with a fresh token
                 if let freshToken = tokenProvider.currentToken(), freshToken != token {
                     do {
