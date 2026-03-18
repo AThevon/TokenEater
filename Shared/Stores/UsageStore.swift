@@ -1,5 +1,11 @@
 import SwiftUI
 
+enum RefreshSpeed: TimeInterval {
+    case fast = 120      // After FSEvents token change — 2min
+    case normal = 600    // Steady state — 10min
+    case slow = 1200     // After 429 — 20min
+}
+
 @MainActor
 final class UsageStore: ObservableObject {
     @Published var fiveHourPct: Int = 0
@@ -31,102 +37,78 @@ final class UsageStore: ObservableObject {
 
     var pacingMargin: Int = 10
 
-    /// Token that last received a 401/403. Prevents retrying the API with a known-dead token.
-    private var lastFailedToken: String?
-
     private let repository: UsageRepositoryProtocol
-    private let keychainService: KeychainServiceProtocol
+    private let tokenProvider: TokenProviderProtocol
+    private let sharedFileService: SharedFileServiceProtocol
     private let notificationService: NotificationServiceProtocol
     private var refreshTask: Task<Void, Never>?
     private var autoRefreshTask: Task<Void, Never>?
 
-    /// Backoff for 429 responses: uses Retry-After header when available, otherwise exponential.
-    private var consecutive429Count: Int = 0
-    private var last429Date: Date?
-    private var retryAfterInterval: TimeInterval?
-    private static let normalInterval: TimeInterval = 300
-    private static let backoffMax: TimeInterval = 600
+    /// Current adaptive speed for rate limiting
+    private(set) var currentSpeed: RefreshSpeed = .normal
+
+    /// When fast mode was activated (resets to normal after 10 minutes)
+    private var fastModeStart: Date?
+
+    /// Retry-After date from last 429 response
+    private(set) var retryAfterDate: Date?
 
     var proxyConfig: ProxyConfig?
 
-    // MARK: - Temporary token management (will be replaced by TokenProvider in Task 7)
-
-    private var _currentToken: String?
-
-    var isConfigured: Bool { _currentToken != nil }
-    var currentToken: String? { _currentToken }
-
-    func syncCredentialsFile() {
-        if let token = keychainService.readToken(), token != _currentToken {
-            _currentToken = token
-        }
-    }
-
-    func syncKeychainSilently() {
-        if let token = keychainService.readKeychainTokenSilently(), token != _currentToken {
-            _currentToken = token
-        }
-    }
-
     var cachedUsage: CachedUsage? {
-        SharedFileService().cachedUsage
+        sharedFileService.cachedUsage
     }
 
     init(
         repository: UsageRepositoryProtocol = UsageRepository(),
-        keychainService: KeychainServiceProtocol = KeychainService(),
+        tokenProvider: TokenProviderProtocol = TokenProvider(),
+        sharedFileService: SharedFileServiceProtocol = SharedFileService(),
         notificationService: NotificationServiceProtocol = NotificationService()
     ) {
         self.repository = repository
-        self.keychainService = keychainService
+        self.tokenProvider = tokenProvider
+        self.sharedFileService = sharedFileService
         self.notificationService = notificationService
     }
 
     func refresh(thresholds: UsageThresholds = .default, force: Bool = false) async {
-        // Prevent concurrent refreshes — multiple .task/.onAppear can race
+        // Prevent concurrent refreshes
         guard !isLoading else { return }
 
-        // Throttle: skip if a successful refresh happened less than 55s ago (avoids 429)
-        if !force, let last = lastUpdate, Date().timeIntervalSince(last) < 55 {
-            return
-        }
-
-        // Back off: skip non-forced refreshes while in 429 backoff window
-        if !force, consecutive429Count > 0, let last = last429Date,
-           Date().timeIntervalSince(last) < currentBackoff {
-            return
-        }
-
-        // Token recovery — credentials file first, then silent Keychain fallback.
-        if !isConfigured || lastFailedToken == _currentToken {
-            syncCredentialsFile()
-            if !isConfigured || lastFailedToken == _currentToken {
-                syncKeychainSilently()
-            }
-            if let currentToken = _currentToken, currentToken != lastFailedToken {
-                lastFailedToken = nil
-                errorState = .none
-            }
-        }
-
-        guard isConfigured,
-              let token = _currentToken,
-              token != lastFailedToken else {
-            hasConfig = lastFailedToken != nil
+        // Resolve token
+        guard let token = tokenProvider.currentToken() else {
+            hasConfig = false
+            errorState = .tokenUnavailable
             return
         }
         hasConfig = true
+
+        // Decay fast mode after 10 minutes
+        if currentSpeed == .fast, let start = fastModeStart,
+           Date().timeIntervalSince(start) > 600 {
+            currentSpeed = .normal
+            fastModeStart = nil
+        }
+
+        // Interval check using currentSpeed
+        if !force, let last = lastUpdate,
+           Date().timeIntervalSince(last) < currentSpeed.rawValue {
+            return
+        }
+
         isLoading = true
         defer { isLoading = false }
+
         do {
             let usage = try await repository.refreshUsage(token: token, proxyConfig: proxyConfig)
-            update(from: usage)
+            updateUI(from: usage)
             errorState = .none
-            lastFailedToken = nil
-            consecutive429Count = 0
-            last429Date = nil
-            retryAfterInterval = nil
             lastUpdate = Date()
+            // Reset slow speed on success
+            if currentSpeed == .slow {
+                currentSpeed = .normal
+            }
+            retryAfterDate = nil
             WidgetReloader.scheduleReload()
             notificationService.checkThresholds(
                 fiveHour: MetricSnapshot(pct: fiveHourPct, resetsAt: usage.fiveHour?.resetsAtDate),
@@ -138,12 +120,36 @@ final class UsageStore: ObservableObject {
         } catch let error as APIError {
             switch error {
             case .tokenExpired, .noToken:
-                lastFailedToken = _currentToken
+                // Retry once with a fresh token
+                if let freshToken = tokenProvider.currentToken(), freshToken != token {
+                    do {
+                        let usage = try await repository.refreshUsage(token: freshToken, proxyConfig: proxyConfig)
+                        updateUI(from: usage)
+                        errorState = .none
+                        lastUpdate = Date()
+                        if currentSpeed == .slow {
+                            currentSpeed = .normal
+                        }
+                        retryAfterDate = nil
+                        WidgetReloader.scheduleReload()
+                        notificationService.checkThresholds(
+                            fiveHour: MetricSnapshot(pct: fiveHourPct, resetsAt: usage.fiveHour?.resetsAtDate),
+                            sevenDay: MetricSnapshot(pct: sevenDayPct, resetsAt: usage.sevenDay?.resetsAtDate),
+                            sonnet: MetricSnapshot(pct: sonnetPct, resetsAt: usage.sevenDaySonnet?.resetsAtDate),
+                            pacingZone: pacingZone,
+                            thresholds: thresholds
+                        )
+                        return
+                    } catch {
+                        // Retry also failed — fall through to set error
+                    }
+                }
                 errorState = .tokenUnavailable
             case .rateLimited(let retryAfter):
-                consecutive429Count += 1
-                last429Date = Date()
-                retryAfterInterval = retryAfter
+                currentSpeed = .slow
+                if let retryAfter {
+                    retryAfterDate = Date().addingTimeInterval(retryAfter)
+                }
                 errorState = .rateLimited
             default:
                 errorState = .networkError
@@ -153,31 +159,39 @@ final class UsageStore: ObservableObject {
         }
     }
 
+    /// Only refreshes if lastUpdate is older than 120 seconds (for wake handler)
+    func refreshIfStale(thresholds: UsageThresholds = .default) async {
+        guard lastUpdate == nil || Date().timeIntervalSince(lastUpdate!) > 120 else { return }
+        await refresh(thresholds: thresholds, force: true)
+    }
+
+    /// Switch to fast mode for FSEvents token changes
+    func switchToFastMode() {
+        currentSpeed = .fast
+        fastModeStart = Date()
+    }
+
     func loadCached() {
         if let cached = cachedUsage {
-            update(from: cached.usage)
+            updateUI(from: cached.usage)
             lastUpdate = cached.fetchDate
         }
     }
 
     func reloadConfig(thresholds: UsageThresholds = .default) {
-        syncCredentialsFile()
-        if !isConfigured {
-            syncKeychainSilently()
-        }
-        lastFailedToken = nil
-        errorState = .none
-        hasConfig = isConfigured
+        let token = tokenProvider.currentToken()
+        hasConfig = token != nil
+        errorState = token != nil ? .none : .tokenUnavailable
         loadCached()
         notificationService.requestPermission()
         WidgetReloader.scheduleReload()
         refreshTask?.cancel()
         refreshTask = Task {
-            await refresh(thresholds: thresholds)
+            await refresh(thresholds: thresholds, force: true)
         }
     }
 
-    func startAutoRefresh(interval: TimeInterval = 300, thresholds: UsageThresholds = .default) {
+    func startAutoRefresh(interval: TimeInterval = 600, thresholds: UsageThresholds = .default) {
         autoRefreshTask?.cancel()
         autoRefreshTask = Task { [weak self] in
             // Wait first — reloadConfig already triggers an initial refresh
@@ -187,20 +201,10 @@ final class UsageStore: ObservableObject {
             while !Task.isCancelled {
                 guard let self else { return }
                 await self.refresh(thresholds: thresholds)
-                let delay = self.currentBackoff
+                let delay = self.currentSpeed.rawValue
                 try? await Task.sleep(for: .seconds(delay))
             }
         }
-    }
-
-    /// Current backoff duration based on 429 state. Always >= normalInterval to never retry faster than normal.
-    private var currentBackoff: TimeInterval {
-        guard consecutive429Count > 0 else { return Self.normalInterval }
-        if let retryAfter = retryAfterInterval, retryAfter > 0 {
-            return max(retryAfter, Self.normalInterval)
-        }
-        let exponential = Self.normalInterval * pow(2.0, Double(consecutive429Count - 1))
-        return min(exponential, Self.backoffMax)
     }
 
     func stopAutoRefresh() {
@@ -208,27 +212,13 @@ final class UsageStore: ObservableObject {
     }
 
     func reauthenticate() async {
-        syncCredentialsFile()
-        if !isConfigured {
-            syncKeychainSilently()
-        }
-        if isConfigured, _currentToken != lastFailedToken {
-            lastFailedToken = nil
-            errorState = .none
-            hasConfig = true
-            await refresh(force: true)
-        }
+        await refresh(force: true)
     }
 
     func testConnection() async -> ConnectionTestResult {
-        guard let token = _currentToken else {
+        guard let token = tokenProvider.currentToken() else {
             return ConnectionTestResult(success: false, message: String(localized: "error.notoken"))
         }
-        return await apiClient_testConnection(token: token, proxyConfig: proxyConfig)
-    }
-
-    /// Temporary wrapper — will be removed in Task 7 when UsageStore is rewritten
-    private func apiClient_testConnection(token: String, proxyConfig: ProxyConfig?) async -> ConnectionTestResult {
         do {
             _ = try await repository.testConnection(token: token, proxyConfig: proxyConfig)
             return ConnectionTestResult(success: true, message: "OK")
@@ -238,24 +228,22 @@ final class UsageStore: ObservableObject {
     }
 
     func connectAutoDetect() async -> ConnectionTestResult {
-        syncCredentialsFile()
-        if !isConfigured {
-            syncKeychainSilently()
-        }
-        guard let token = _currentToken else {
+        guard let token = tokenProvider.currentToken() else {
             return ConnectionTestResult(success: false, message: String(localized: "error.notoken"))
         }
-        let result = await apiClient_testConnection(token: token, proxyConfig: proxyConfig)
-        if result.success {
+        do {
+            _ = try await repository.testConnection(token: token, proxyConfig: proxyConfig)
             hasConfig = true
+            return ConnectionTestResult(success: true, message: "OK")
+        } catch {
+            return ConnectionTestResult(success: false, message: error.localizedDescription)
         }
-        return result
     }
 
     private var lastProfileFetch: Date?
 
     func refreshProfile() async {
-        guard let token = _currentToken else { return }
+        guard let token = tokenProvider.currentToken() else { return }
         // Throttle: profile rarely changes, skip if fetched less than 5min ago
         if let last = lastProfileFetch, Date().timeIntervalSince(last) < 300 { return }
         do {
@@ -271,7 +259,7 @@ final class UsageStore: ObservableObject {
 
     // MARK: - Private
 
-    private func update(from usage: UsageResponse) {
+    func updateUI(from usage: UsageResponse) {
         lastUsage = usage
         fiveHourPct = Int(usage.fiveHour?.utilization ?? 0)
         sevenDayPct = Int(usage.sevenDay?.utilization ?? 0)
