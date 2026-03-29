@@ -30,7 +30,7 @@ A native macOS menu bar app + desktop widgets + floating overlay that tracks you
 
 - **Menu bar** — Live percentages, color-coded thresholds, detailed popover dashboard
 - **Widgets** — Native WidgetKit widgets (usage gauges, progress bars, pacing) with reactive refresh
-- **Agent Watchers** — Floating overlay showing active Claude Code sessions with dock-like hover effect. Click to jump to the right terminal.
+- **Agent Watchers** — Floating overlay showing active Claude Code sessions with dock-like hover effect. Click to jump to the right terminal (Terminal.app, iTerm2, tmux, Kitty, WezTerm).
 - **Smart pacing** — Are you burning through tokens or cruising? Three zones: chill, on track, hot.
 - **Themes** — 4 presets + full custom colors. Configurable warning/critical thresholds.
 - **Notifications** — Alerts at warning, critical, and reset.
