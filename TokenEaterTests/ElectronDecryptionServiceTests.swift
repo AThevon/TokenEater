@@ -175,6 +175,26 @@ struct ElectronDecryptionServiceTests {
         #expect(sut.hasEncryptionKey == result)
     }
 
+    @Test("migrateKeyFromKeychainToFile: saves and loads correctly via file round-trip")
+    func migrateKeyFromKeychainToFile() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let keyFile = tempDir.appendingPathComponent("decryption.key")
+        let key = ElectronDecryptionService.deriveKey(from: "migrate-test")
+
+        // File doesn't exist yet
+        #expect(ElectronDecryptionService.loadKeyFromFile(at: keyFile) == nil)
+
+        // Simulate migration: save to file
+        ElectronDecryptionService.saveKeyToFile(key, at: keyFile)
+
+        // File now has the key
+        #expect(ElectronDecryptionService.loadKeyFromFile(at: keyFile) == key)
+    }
+
     @Test("file-based key cache: returns nil when file too short")
     func fileCacheRejectsTooShort() throws {
         let tempDir = FileManager.default.temporaryDirectory

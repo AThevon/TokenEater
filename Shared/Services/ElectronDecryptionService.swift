@@ -54,7 +54,19 @@ final class ElectronDecryptionService: ElectronDecryptionServiceProtocol, @unche
     var hasEncryptionKey: Bool { derivedKey != nil }
 
     init() {
-        derivedKey = Self.loadKeyFromFile()
+        // Try file first (new path)
+        if let key = Self.loadKeyFromFile() {
+            derivedKey = key
+            return
+        }
+
+        // Migrate from Keychain (old path) — one-time, silent
+        if let key = Self.loadCachedKeyFromKeychain() {
+            Self.saveKeyToFile(key)
+            Self.deleteCachedKeyFromKeychain()
+            derivedKey = key
+            return
+        }
     }
 
     func decrypt(_ encryptedBase64: String) throws -> Data {
