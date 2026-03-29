@@ -20,6 +20,7 @@ struct SessionTraitView: View {
 
     private var isDetailed: Bool { settingsStore.watchersDetailedMode }
     private var style: WatcherStyle { settingsStore.watcherStyle }
+    private var displayMode: WatcherDisplayMode { settingsStore.watcherDisplayMode }
 
     private var needsAttention: Bool {
         session.state == .idle || session.state == .waiting
@@ -323,15 +324,43 @@ struct SessionTraitView: View {
             }
 
             VStack(alignment: leftSide ? .trailing : .leading, spacing: 2 * scale) {
-                Text(session.displayName)
-                    .font(.system(size: 11.5 * scale, weight: .semibold, design: fontDesign))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                switch displayMode {
+                case .branchPriority:
+                    Text(session.displayName)
+                        .font(.system(size: 11.5 * scale, weight: .semibold, design: fontDesign))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
 
-                Text(stateLabel)
-                    .font(.system(size: 9 * scale, weight: .medium, design: fontDesign))
-                    .foregroundStyle(activeColor.opacity(0.85))
+                    Text(stateLabel)
+                        .font(.system(size: 9 * scale, weight: .medium, design: fontDesign))
+                        .foregroundStyle(activeColor.opacity(0.85))
+
+                case .projectAndBranch:
+                    Text(session.projectName)
+                        .font(.system(size: 11.5 * scale, weight: .semibold, design: fontDesign))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+
+                    HStack(spacing: 4 * scale) {
+                        Text(stateLabel)
+                            .font(.system(size: 9 * scale, weight: .medium, design: fontDesign))
+                            .foregroundStyle(activeColor.opacity(0.85))
+                            .layoutPriority(1)
+
+                        if let branch = session.visibleBranch {
+                            Text("·")
+                                .font(.system(size: 9 * scale, weight: .bold, design: fontDesign))
+                                .foregroundStyle(.white.opacity(0.3))
+                            Text(branch)
+                                .font(.system(size: 9 * scale, weight: .regular, design: fontDesign))
+                                .foregroundStyle(.white.opacity(0.5))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        }
+                    }
+                }
             }
             .opacity(textOpacity)
 

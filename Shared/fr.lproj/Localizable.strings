@@ -307,6 +307,11 @@
 "settings.watchers.style" = "Style de l'overlay";
 "settings.watchers.style.frost" = "Frost";
 "settings.watchers.style.neon" = "Neon";
+"settings.watchers.display" = "Mode d'affichage";
+"settings.watchers.display.branchPriority" = "Branche prioritaire";
+"settings.watchers.display.projectAndBranch" = "Projet + Branche";
+"settings.watchers.display.branchPriority.hint" = "Affiche la branche git en titre quand elle n'est pas par défaut, sinon le nom du projet.";
+"settings.watchers.display.projectAndBranch.hint" = "Affiche toujours le nom du projet en titre, avec la branche à côté du statut.";
 
 /* Onboarding - Agent Watchers */
 "onboarding.watchers.title" = "Agent Watchers";
