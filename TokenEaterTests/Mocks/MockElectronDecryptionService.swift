@@ -25,4 +25,13 @@ final class MockElectronDecryptionService: ElectronDecryptionServiceProtocol, @u
     func clearCachedKey() {
         _hasEncryptionKey = false
     }
+
+    var silentRebootstrapResult: Bool = false
+    var silentRebootstrapCallCount = 0
+
+    func trySilentRebootstrap() -> Bool {
+        silentRebootstrapCallCount += 1
+        if silentRebootstrapResult { _hasEncryptionKey = true }
+        return silentRebootstrapResult
+    }
 }

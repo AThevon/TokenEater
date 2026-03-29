@@ -43,10 +43,10 @@ struct ElectronDecryptionServiceTests {
         }
     }
 
-    @Test("hasEncryptionKey is false before bootstrap")
-    func hasEncryptionKeyFalseBeforeBootstrap() {
+    @Test("hasEncryptionKey is false after clearCachedKey")
+    func hasEncryptionKeyFalseAfterClear() {
         let sut = ElectronDecryptionService()
-        // No key set, no cached keychain key expected in test environment
+        sut.clearCachedKey()
         #expect(sut.hasEncryptionKey == false)
     }
 
@@ -119,5 +119,93 @@ struct ElectronDecryptionServiceTests {
         #expect(throws: ElectronDecryptionError.keyDerivationFailed) {
             try sut.decrypt(base64)
         }
+    }
+
+    @Test("file-based key cache: save then load round trip")
+    func fileCacheRoundTrip() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let keyFile = tempDir.appendingPathComponent("decryption.key")
+        let key = ElectronDecryptionService.deriveKey(from: "test-password")
+
+        ElectronDecryptionService.saveKeyToFile(key, at: keyFile)
+        let loaded = ElectronDecryptionService.loadKeyFromFile(at: keyFile)
+
+        #expect(loaded == key)
+    }
+
+    @Test("file-based key cache: returns nil when file missing")
+    func fileCacheReturnsNilWhenMissing() {
+        let bogus = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nonexistent-\(UUID().uuidString)")
+            .appendingPathComponent("decryption.key")
+        let loaded = ElectronDecryptionService.loadKeyFromFile(at: bogus)
+        #expect(loaded == nil)
+    }
+
+    @Test("file-based key cache: returns nil when file has wrong version byte")
+    func fileCacheRejectsWrongVersion() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let keyFile = tempDir.appendingPathComponent("decryption.key")
+        var badPayload = Data([0xFF]) // wrong version
+        badPayload.append(Data(repeating: 0xAA, count: 16))
+        try badPayload.write(to: keyFile)
+
+        let loaded = ElectronDecryptionService.loadKeyFromFile(at: keyFile)
+        #expect(loaded == nil)
+    }
+
+    @Test("trySilentRebootstrap returns a Bool and updates hasEncryptionKey accordingly")
+    func trySilentRebootstrapReturnsConsistentState() {
+        let sut = ElectronDecryptionService()
+        sut.clearCachedKey()
+        #expect(sut.hasEncryptionKey == false)
+
+        let result = sut.trySilentRebootstrap()
+        // Result depends on whether "Claude Safe Storage" keychain item exists.
+        // On CI: false (no Electron keychain). On dev machine with Claude: true.
+        // Either way, hasEncryptionKey must match the return value.
+        #expect(sut.hasEncryptionKey == result)
+    }
+
+    @Test("migrateKeyFromKeychainToFile: saves and loads correctly via file round-trip")
+    func migrateKeyFromKeychainToFile() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let keyFile = tempDir.appendingPathComponent("decryption.key")
+        let key = ElectronDecryptionService.deriveKey(from: "migrate-test")
+
+        // File doesn't exist yet
+        #expect(ElectronDecryptionService.loadKeyFromFile(at: keyFile) == nil)
+
+        // Simulate migration: save to file
+        ElectronDecryptionService.saveKeyToFile(key, at: keyFile)
+
+        // File now has the key
+        #expect(ElectronDecryptionService.loadKeyFromFile(at: keyFile) == key)
+    }
+
+    @Test("file-based key cache: returns nil when file too short")
+    func fileCacheRejectsTooShort() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let keyFile = tempDir.appendingPathComponent("decryption.key")
+        try Data([0x01, 0xAA]).write(to: keyFile) // version + only 1 byte
+
+        let loaded = ElectronDecryptionService.loadKeyFromFile(at: keyFile)
+        #expect(loaded == nil)
     }
 }
