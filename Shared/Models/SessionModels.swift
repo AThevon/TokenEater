@@ -28,6 +28,11 @@ struct ClaudeSession: Identifiable, Sendable {
               branch != "main", branch != "master", branch != "HEAD" else { return nil }
         return branch
     }
+
+    /// Title for branch-priority mode: shows branch when non-default, otherwise project name
+    var displayName: String {
+        visibleBranch ?? projectName
+    }
     var model: String?
     var state: SessionState
     var lastUpdate: Date

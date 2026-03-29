@@ -50,6 +50,29 @@ struct AgentWatchersSectionView: View {
                 }
             }
 
+            // Display mode picker
+            glassCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    cardLabel(String(localized: "settings.watchers.display"))
+
+                    Picker("", selection: $settingsStore.watcherDisplayMode) {
+                        ForEach(WatcherDisplayMode.allCases, id: \.self) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+
+                    Text(settingsStore.watcherDisplayMode == .branchPriority
+                        ? "settings.watchers.display.branchPriority.hint"
+                        : "settings.watchers.display.projectAndBranch.hint"
+                    )
+                    .font(.system(size: 12))
+                    .foregroundStyle(.white.opacity(0.5))
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             // Behavior
             glassCard {
                 VStack(alignment: .leading, spacing: 12) {
