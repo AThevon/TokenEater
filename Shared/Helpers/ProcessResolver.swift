@@ -103,6 +103,11 @@ enum ProcessResolver {
         case "net.kovidgoyal.kitty":
             focusKittyTab(pid: process.parentPid)
             handled = true
+        case "com.github.wez.wezterm", "io.wezfurlong.wezterm":
+            if let tty {
+                switchWezTermPane(tty: tty)
+                handled = true
+            }
         default:
             break
         }
@@ -421,6 +426,73 @@ enum ProcessResolver {
         process.executableURL = URL(fileURLWithPath: kittenPath)
         process.arguments = ["@", "focus-tab", "--match", "pid:\(pid)"]
         try? process.run()
+    }
+
+    // MARK: - WezTerm trigger file
+
+    /// Write a trigger file with the target TTY so the WezTerm watcher script can
+    /// activate the correct tab/pane. Same approach as tmux — the app sandbox blocks
+    /// direct unix socket access, so a watcher script running outside the sandbox
+    /// (started via wezterm.lua) polls for trigger files and runs wezterm cli.
+    private static func switchWezTermPane(tty: String) {
+        installWezTermWatcherIfNeeded()
+        let triggerPath = "\(sharedDir)/wezterm-switch.trigger"
+        try? FileManager.default.createDirectory(atPath: sharedDir, withIntermediateDirectories: true)
+        try? tty.write(toFile: triggerPath, atomically: true, encoding: .utf8)
+    }
+
+    /// Install the WezTerm watcher script (polling loop, started via wezterm.lua).
+    /// Re-installs automatically when the embedded version changes.
+    static func installWezTermWatcherIfNeeded() {
+        let scriptPath = "\(sharedDir)/wezterm-watcher.sh"
+        let version = "# tokeneater-wezterm-v1"
+
+        if FileManager.default.fileExists(atPath: scriptPath),
+           let content = try? String(contentsOfFile: scriptPath, encoding: .utf8),
+           content.contains(version) {
+            return
+        }
+
+        let script = """
+        #!/bin/bash
+        \(version)
+        # TokenEater WezTerm pane switcher — started by WezTerm via wezterm.lua.
+        # Polls for a trigger file written by the app and switches to the target pane.
+        export PATH="/opt/homebrew/bin:/usr/local/bin:/Applications/WezTerm.app/Contents/MacOS:$PATH"
+        TRIGGER="$HOME/Library/Application Support/com.tokeneater.shared/wezterm-switch.trigger"
+        WEZTERM_BIN=$(command -v wezterm 2>/dev/null)
+        [ -z "$WEZTERM_BIN" ] && exit 1
+
+        while true; do
+            if [ -f "$TRIGGER" ]; then
+                TARGET_TTY=$(cat "$TRIGGER" 2>/dev/null)
+                rm -f "$TRIGGER"
+                if [ -n "$TARGET_TTY" ]; then
+                    PANE_INFO=$("$WEZTERM_BIN" cli list --format json 2>/dev/null | \\
+                        python3 -c "
+        import json, sys
+        try:
+            panes = json.load(sys.stdin)
+            for p in panes:
+                if p.get('tty_name') == '$TARGET_TTY':
+                    print(f'{p[\"pane_id\"]} {p[\"tab_id\"]}')
+                    break
+        except: pass
+        " 2>/dev/null)
+                    if [ -n "$PANE_INFO" ]; then
+                        PANE_ID=$(echo "$PANE_INFO" | awk '{print $1}')
+                        TAB_ID=$(echo "$PANE_INFO" | awk '{print $2}')
+                        [ -n "$TAB_ID" ] && "$WEZTERM_BIN" cli activate-tab --tab-id "$TAB_ID" 2>/dev/null
+                        [ -n "$PANE_ID" ] && "$WEZTERM_BIN" cli activate-pane --pane-id "$PANE_ID" 2>/dev/null
+                    fi
+                fi
+            fi
+            sleep 0.3
+        done
+        """
+
+        try? FileManager.default.createDirectory(atPath: sharedDir, withIntermediateDirectories: true)
+        try? script.write(toFile: scriptPath, atomically: true, encoding: .utf8)
     }
 
     /// Activate via LaunchServices — reliably switches spaces/fullscreen.

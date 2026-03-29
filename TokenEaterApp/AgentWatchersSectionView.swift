@@ -6,11 +6,19 @@ struct AgentWatchersSectionView: View {
 
     @State private var tmuxCopied = false
     @State private var kittyCopied = false
+    @State private var weztermCopied = false
 
     private let tmuxLine = """
     set-option -g update-environment "TERM_PROGRAM"
     """
     private let kittyLine = "allow_remote_control yes"
+    private let weztermLine = """
+    wezterm.on('gui-startup', function()
+      local script = os.getenv('HOME') .. '/Library/Application Support/com.tokeneater.shared/wezterm-watcher.sh'
+      local f = io.open(script, 'r')
+      if f then f:close(); io.popen('nohup bash "' .. script .. '" >/dev/null 2>&1 &') end
+    end)
+    """
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -173,6 +181,51 @@ struct AgentWatchersSectionView: View {
                         }
                         .buttonStyle(.plain)
                         .help(String(localized: "settings.watchers.tmux.copy"))
+                    }
+                }
+            }
+
+            // WezTerm setup
+            glassCard {
+                VStack(alignment: .leading, spacing: 8) {
+                    cardLabel(String(localized: "settings.watchers.wezterm.title"))
+
+                    Text("settings.watchers.wezterm.hint")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.5))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    HStack {
+                        Text(weztermLine)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.8))
+                            .padding(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(.black.opacity(0.3))
+                            )
+                            .lineLimit(3)
+
+                        Button {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(weztermLine, forType: .string)
+                            weztermCopied = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                weztermCopied = false
+                            }
+                        } label: {
+                            Image(systemName: weztermCopied ? "checkmark" : "doc.on.doc")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.white.opacity(0.6))
+                                .frame(width: 28, height: 28)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(.white.opacity(0.08))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .help(String(localized: "settings.watchers.wezterm.copy"))
                     }
                 }
             }
