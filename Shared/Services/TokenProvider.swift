@@ -34,8 +34,8 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     func hasTokenSource() -> Bool {
         if cachedToken != nil { return true }
         if credentialsFileReader.readToken() != nil { return true }
-        if keychainReader(true) != nil { return true }
         if configReader.readEncryptedToken() != nil { return true }
+        if keychainReader(true) != nil { return true }
         return false
     }
 
@@ -45,24 +45,42 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
         // Fast path: cached token from a previous successful read
         if let token = cachedToken { return token }
 
-        // Source 1: credentials file (future-proof)
+        // Source 1: credentials file (no keychain, no popup)
         if let token = credentialsFileReader.readToken() {
             cachedToken = token
             return token
         }
 
-        // Source 2: Keychain — silent read, ONE time (then cached)
-        if let token = keychainReader(true) {
+        // Source 2: decrypt config.json (no keychain if key file exists)
+        if let token = tokenFromConfigJSON() {
             cachedToken = token
-            logger.info("Token read from Keychain and cached in memory")
             return token
         }
 
-        // Source 3: decrypt config.json (may be stale but better than nothing)
-        if decryptionService.hasEncryptionKey,
-           let encrypted = configReader.readEncryptedToken(),
-           let token = decryptFromConfigJSON(encrypted) {
+        // Source 3: Keychain — silent read, last resort
+        if let token = keychainReader(true) {
             cachedToken = token
+            logger.info("Token read from Keychain (silent) and cached in memory")
+            return token
+        }
+
+        return nil
+    }
+
+    /// Try to decrypt config.json. If key is missing, attempt silent re-bootstrap.
+    private func tokenFromConfigJSON() -> String? {
+        guard let encrypted = configReader.readEncryptedToken() else { return nil }
+
+        // Try with existing key
+        if decryptionService.hasEncryptionKey,
+           let token = decryptFromConfigJSON(encrypted) {
+            return token
+        }
+
+        // Key missing or stale — try silent re-bootstrap (no popup)
+        if decryptionService.trySilentRebootstrap(),
+           let token = decryptFromConfigJSON(encrypted) {
+            logger.info("Token recovered via silent re-bootstrap of decryption key")
             return token
         }
 

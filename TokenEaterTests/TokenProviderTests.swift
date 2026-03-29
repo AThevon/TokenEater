@@ -131,4 +131,91 @@ struct TokenProviderTests {
         let (provider, _, _, _) = makeSUT()
         #expect(provider.hasTokenSource() == false)
     }
+
+    @Test("config.json decryption is tried before Keychain")
+    func configJsonBeforeKeychain() {
+        let oauthJSON: [String: Any] = [
+            "claudeAiOauth": ["accessToken": "config-token"]
+        ]
+        let jsonData = try! JSONSerialization.data(withJSONObject: oauthJSON)
+
+        var keychainWasCalled = false
+        let credentials = MockCredentialsFileReader()
+        credentials.storedToken = nil
+
+        let configReader = MockClaudeConfigReader()
+        configReader.encryptedToken = "encrypted-blob"
+
+        let decryption = MockElectronDecryptionService()
+        decryption._hasEncryptionKey = true
+        decryption.decryptedData = jsonData
+
+        let keychainReader: TokenProvider.KeychainTokenReader = { _ in
+            keychainWasCalled = true
+            return "keychain-token"
+        }
+
+        let provider = TokenProvider(
+            credentialsFileReader: credentials,
+            configReader: configReader,
+            decryptionService: decryption,
+            keychainReader: keychainReader
+        )
+
+        let token = provider.currentToken()
+
+        #expect(token == "config-token")
+        #expect(keychainWasCalled == false)
+    }
+
+    @Test("silent re-bootstrap recovers when decryption key is stale")
+    func silentRebootstrapRecovery() {
+        let oauthJSON: [String: Any] = [
+            "claudeAiOauth": ["accessToken": "recovered-token"]
+        ]
+        let jsonData = try! JSONSerialization.data(withJSONObject: oauthJSON)
+
+        let credentials = MockCredentialsFileReader()
+        let configReader = MockClaudeConfigReader()
+        configReader.encryptedToken = "encrypted-blob"
+
+        let decryption = MockElectronDecryptionService()
+        decryption._hasEncryptionKey = false // key not loaded initially
+        decryption.silentRebootstrapResult = true // but silent re-bootstrap works
+        decryption.decryptedData = jsonData
+
+        let provider = TokenProvider(
+            credentialsFileReader: credentials,
+            configReader: configReader,
+            decryptionService: decryption,
+            keychainReader: { _ in nil }
+        )
+
+        let token = provider.currentToken()
+
+        #expect(token == "recovered-token")
+        #expect(decryption.silentRebootstrapCallCount == 1)
+        #expect(decryption.decryptCallCount == 1)
+    }
+
+    @Test("falls back to Keychain when config.json unavailable and re-bootstrap fails")
+    func fallbackToKeychainWhenConfigUnavailable() {
+        let credentials = MockCredentialsFileReader()
+        let configReader = MockClaudeConfigReader()
+        configReader.encryptedToken = nil // no config.json
+
+        let decryption = MockElectronDecryptionService()
+        decryption._hasEncryptionKey = false
+
+        let provider = TokenProvider(
+            credentialsFileReader: credentials,
+            configReader: configReader,
+            decryptionService: decryption,
+            keychainReader: { _ in "keychain-fallback" }
+        )
+
+        let token = provider.currentToken()
+
+        #expect(token == "keychain-fallback")
+    }
 }
