@@ -154,7 +154,12 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
             }
         }
 
-        activeSessions.sort { $0.startedAt < $1.startedAt }
+        // Stable sort: by startedAt, then by session id as tiebreaker
+        // to prevent watchers from jumping around on each scan cycle.
+        activeSessions.sort {
+            if $0.startedAt != $1.startedAt { return $0.startedAt < $1.startedAt }
+            return $0.id < $1.id
+        }
         sessionsSubject.send(activeSessions)
     }
 

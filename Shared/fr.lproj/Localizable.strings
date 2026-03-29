@@ -301,6 +301,9 @@
 "settings.watchers.kitty.title" = "Configuration Kitty";
 "settings.watchers.kitty.hint" = "Si vous utilisez Kitty, ajoutez cette ligne à votre kitty.conf pour que TokenEater puisse basculer vers le bon onglet au clic :";
 "settings.watchers.kitty.copy" = "Copier";
+"settings.watchers.wezterm.title" = "Configuration WezTerm";
+"settings.watchers.wezterm.hint" = "Si vous utilisez WezTerm, ajoutez cette ligne à votre ~/.wezterm.lua pour que TokenEater puisse basculer vers le bon pane au clic :";
+"settings.watchers.wezterm.copy" = "Copier";
 "settings.watchers.style" = "Style de l'overlay";
 "settings.watchers.style.frost" = "Frost";
 "settings.watchers.style.neon" = "Neon";
