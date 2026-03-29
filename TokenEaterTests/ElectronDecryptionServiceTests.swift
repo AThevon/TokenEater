@@ -43,10 +43,10 @@ struct ElectronDecryptionServiceTests {
         }
     }
 
-    @Test("hasEncryptionKey is false before bootstrap")
-    func hasEncryptionKeyFalseBeforeBootstrap() {
+    @Test("hasEncryptionKey is false after clearCachedKey")
+    func hasEncryptionKeyFalseAfterClear() {
         let sut = ElectronDecryptionService()
-        // No key set, no cached keychain key expected in test environment
+        sut.clearCachedKey()
         #expect(sut.hasEncryptionKey == false)
     }
 
