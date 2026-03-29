@@ -54,7 +54,7 @@ final class ElectronDecryptionService: ElectronDecryptionServiceProtocol, @unche
     var hasEncryptionKey: Bool { derivedKey != nil }
 
     init() {
-        derivedKey = Self.loadCachedKeyFromKeychain()
+        derivedKey = Self.loadKeyFromFile()
     }
 
     func decrypt(_ encryptedBase64: String) throws -> Data {
@@ -83,13 +83,13 @@ final class ElectronDecryptionService: ElectronDecryptionServiceProtocol, @unche
         // Interactive Keychain read — prompts user for permission
         let password = try Self.readElectronPassword(silent: false)
         let key = Self.deriveKey(from: password)
-        try Self.saveCachedKeyToKeychain(key)
+        Self.saveKeyToFile(key)
         derivedKey = key
     }
 
     func clearCachedKey() {
         derivedKey = nil
-        Self.deleteCachedKeyFromKeychain()
+        Self.deleteKeyFile()
     }
 
     // MARK: - Key Derivation (internal for testing)
@@ -200,7 +200,57 @@ final class ElectronDecryptionService: ElectronDecryptionServiceProtocol, @unche
         return password
     }
 
-    // MARK: - TokenEater Cached Key Keychain
+    // MARK: - File-Based Key Cache
+
+    private static let keyFileName = "decryption.key"
+
+    private static var keyFileURL: URL {
+        let home: String
+        if let pw = getpwuid(getuid()) {
+            home = String(cString: pw.pointee.pw_dir)
+        } else {
+            home = NSHomeDirectory()
+        }
+        return URL(fileURLWithPath: home)
+            .appendingPathComponent("Library/Application Support")
+            .appendingPathComponent("com.tokeneater.shared")
+            .appendingPathComponent(keyFileName)
+    }
+
+    static func loadKeyFromFile(at url: URL? = nil) -> Data? {
+        let fileURL = url ?? keyFileURL
+        guard let data = try? Data(contentsOf: fileURL),
+              data.count > 1,
+              data.first == cacheVersionByte else {
+            return nil
+        }
+        let key = data.dropFirst()
+        guard key.count == keyLength else { return nil }
+        return Data(key)
+    }
+
+    static func saveKeyToFile(_ key: Data, at url: URL? = nil) {
+        let fileURL = url ?? keyFileURL
+        let dir = fileURL.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+        var payload = Data([cacheVersionByte])
+        payload.append(key)
+        try? payload.write(to: fileURL, options: [.atomic, .completeFileProtection])
+
+        // Set file permissions to 0600 (owner read-write only)
+        try? FileManager.default.setAttributes(
+            [.posixPermissions: 0o600],
+            ofItemAtPath: fileURL.path
+        )
+    }
+
+    static func deleteKeyFile(at url: URL? = nil) {
+        let fileURL = url ?? keyFileURL
+        try? FileManager.default.removeItem(at: fileURL)
+    }
+
+    // MARK: - Migration (Keychain → File, remove after v5.x)
 
     private static func loadCachedKeyFromKeychain() -> Data? {
         let query: [String: Any] = [
@@ -223,27 +273,6 @@ final class ElectronDecryptionService: ElectronDecryptionServiceProtocol, @unche
         }
 
         return data.dropFirst() // strip version byte
-    }
-
-    private static func saveCachedKeyToKeychain(_ key: Data) throws {
-        // Prepend version byte
-        var payload = Data([cacheVersionByte])
-        payload.append(key)
-
-        // Delete existing entry first
-        deleteCachedKeyFromKeychain()
-
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: cacheService,
-            kSecAttrAccount as String: cacheAccount,
-            kSecValueData as String: payload,
-        ]
-
-        let status = SecItemAdd(query as CFDictionary, nil)
-        guard status == errSecSuccess else {
-            throw ElectronDecryptionError.keychainWriteFailed(status)
-        }
     }
 
     private static func deleteCachedKeyFromKeychain() {
