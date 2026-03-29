@@ -92,6 +92,16 @@ final class ElectronDecryptionService: ElectronDecryptionServiceProtocol, @unche
         Self.deleteKeyFile()
     }
 
+    func trySilentRebootstrap() -> Bool {
+        guard let password = try? Self.readElectronPassword(silent: true) else {
+            return false
+        }
+        let key = Self.deriveKey(from: password)
+        Self.saveKeyToFile(key)
+        derivedKey = key
+        return true
+    }
+
     // MARK: - Key Derivation (internal for testing)
 
     static func deriveKey(from password: String) -> Data {

@@ -162,6 +162,19 @@ struct ElectronDecryptionServiceTests {
         #expect(loaded == nil)
     }
 
+    @Test("trySilentRebootstrap returns a Bool and updates hasEncryptionKey accordingly")
+    func trySilentRebootstrapReturnsConsistentState() {
+        let sut = ElectronDecryptionService()
+        sut.clearCachedKey()
+        #expect(sut.hasEncryptionKey == false)
+
+        let result = sut.trySilentRebootstrap()
+        // Result depends on whether "Claude Safe Storage" keychain item exists.
+        // On CI: false (no Electron keychain). On dev machine with Claude: true.
+        // Either way, hasEncryptionKey must match the return value.
+        #expect(sut.hasEncryptionKey == result)
+    }
+
     @Test("file-based key cache: returns nil when file too short")
     func fileCacheRejectsTooShort() throws {
         let tempDir = FileManager.default.temporaryDirectory
