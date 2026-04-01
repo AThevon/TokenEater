@@ -122,6 +122,20 @@ anthropic-beta: oauth-2025-04-20
 
 Returns `utilization` (0–100) and `resets_at` for each limit bucket.
 
+## Security & Privacy
+
+TokenEater reads an **OAuth access token** from the Claude Code keychain entry — the same standard token that Claude Code itself uses. At first launch, macOS will prompt you to allow this access; this is normal macOS behavior for any app reading a keychain item it didn't create.
+
+**What the app does with the token:**
+- Calls `GET /api/oauth/usage` (your current usage stats)
+- Calls `GET /api/oauth/profile` (your plan info)
+
+**What the app cannot do:** send messages, read conversations, modify your account, or access anything beyond read-only usage data.
+
+The token never leaves your machine except for these two API calls to `api.anthropic.com`. The widget reads a local JSON file and has no network or keychain access at all.
+
+Anthropic does not currently offer a third-party OAuth flow or scoped API tokens — reading the existing token from the keychain is the only option. If scoped tokens become available, TokenEater will adopt them immediately. The entire codebase is open source and auditable: keychain access is in [`KeychainService.swift`](Shared/Services/KeychainService.swift), API calls in [`APIClient.swift`](Shared/Services/APIClient.swift).
+
 ## Support
 
 If TokenEater saves you from hitting your limits blindly, consider [buying me a coffee](https://buymeacoffee.com/athevon) ☕
