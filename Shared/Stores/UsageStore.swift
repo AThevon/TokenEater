@@ -165,9 +165,12 @@ final class UsageStore: ObservableObject {
                 errorState = .tokenUnavailable
             case .rateLimited(let retryAfter):
                 currentSpeed = .slow
-                if let retryAfter {
-                    retryAfterDate = Date().addingTimeInterval(retryAfter)
-                }
+                // /api/oauth/usage returns retry-after: 0 when the token has hit its per-token
+                // request limit (not a transient throttle). A value of 0 or a missing header
+                // both signal the same "token exhausted" state — default to 6 hours so we stop
+                // hammering the endpoint every 20 minutes.
+                let backoff: TimeInterval = (retryAfter != nil && retryAfter! > 0) ? retryAfter! : 6 * 3600
+                retryAfterDate = Date().addingTimeInterval(backoff)
                 errorState = .rateLimited
             default:
                 errorState = .networkError

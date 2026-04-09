@@ -166,6 +166,28 @@ struct UsageStoreTests {
         #expect(store.retryAfterDate != nil)
     }
 
+    @Test("retry-after: 0 defaults to 6-hour backoff")
+    func rateLimitedWithZeroRetryAfterDefaultsToSixHours() async {
+        let (store, _, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: 0))
+
+        await store.refresh()
+
+        #expect(store.retryAfterDate != nil)
+        let backoff = store.retryAfterDate!.timeIntervalSinceNow
+        #expect(backoff > 6 * 3600 - 5) // ~6h, allow 5s tolerance
+    }
+
+    @Test("absent retry-after header defaults to 6-hour backoff")
+    func rateLimitedWithNilRetryAfterDefaultsToSixHours() async {
+        let (store, _, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: nil))
+
+        await store.refresh()
+
+        #expect(store.retryAfterDate != nil)
+        let backoff = store.retryAfterDate!.timeIntervalSinceNow
+        #expect(backoff > 6 * 3600 - 5) // ~6h, allow 5s tolerance
+    }
+
     @Test("refresh skips API call while Retry-After window is active")
     func refreshRespectsRetryAfterDate() async {
         let (store, repo, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: 3600))
