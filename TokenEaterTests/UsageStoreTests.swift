@@ -172,9 +172,11 @@ struct UsageStoreTests {
 
         await store.refresh()
 
-        #expect(store.retryAfterDate != nil)
-        let backoff = store.retryAfterDate!.timeIntervalSinceNow
-        #expect(backoff > 6 * 3600 - 5) // ~6h, allow 5s tolerance
+        if let retryAfterDate = store.retryAfterDate {
+            #expect(retryAfterDate.timeIntervalSinceNow > 6 * 3600 - 5) // ~6h, allow 5s tolerance
+        } else {
+            Issue.record("retryAfterDate should not be nil after retry-after: 0")
+        }
     }
 
     @Test("absent retry-after header defaults to 6-hour backoff")
@@ -183,9 +185,11 @@ struct UsageStoreTests {
 
         await store.refresh()
 
-        #expect(store.retryAfterDate != nil)
-        let backoff = store.retryAfterDate!.timeIntervalSinceNow
-        #expect(backoff > 6 * 3600 - 5) // ~6h, allow 5s tolerance
+        if let retryAfterDate = store.retryAfterDate {
+            #expect(retryAfterDate.timeIntervalSinceNow > 6 * 3600 - 5) // ~6h, allow 5s tolerance
+        } else {
+            Issue.record("retryAfterDate should not be nil when Retry-After header is absent")
+        }
     }
 
     @Test("refresh skips API call while Retry-After window is active")
