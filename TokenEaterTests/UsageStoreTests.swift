@@ -166,6 +166,25 @@ struct UsageStoreTests {
         #expect(store.retryAfterDate != nil)
     }
 
+    @Test("refresh skips API call while Retry-After window is active")
+    func refreshRespectsRetryAfterDate() async {
+        let (store, repo, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: 3600))
+
+        // First call: 429 with Retry-After 1 hour → sets retryAfterDate
+        await store.refresh()
+        #expect(store.errorState == .rateLimited)
+        #expect(store.retryAfterDate != nil)
+        let callCountAfterFirst = repo.refreshCallCount
+
+        // Second call (non-forced): should be skipped — still inside retry window
+        await store.refresh()
+        #expect(repo.refreshCallCount == callCountAfterFirst)
+
+        // Forced call: should bypass retryAfterDate and reach the API
+        await store.refresh(force: true)
+        #expect(repo.refreshCallCount == callCountAfterFirst + 1)
+    }
+
     @Test("refresh sets networkError on generic API error")
     func refreshSetsNetworkError() async {
         let (store, _, _, _, _) = makeSUT(shouldFail: true, failWith: .invalidResponse)

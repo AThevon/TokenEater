@@ -107,6 +107,11 @@ final class UsageStore: ObservableObject {
             return
         }
 
+        // Respect Retry-After from previous 429 response
+        if !force, let retryAfter = retryAfterDate, Date() < retryAfter {
+            return
+        }
+
         isLoading = true
         defer { isLoading = false }
 
