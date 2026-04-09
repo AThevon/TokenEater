@@ -142,8 +142,7 @@ Anthropic does not currently offer a third-party OAuth flow or scoped API tokens
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| "Rate limited" or "API unavailable" | Your OAuth token has hit its per-token request limit | Run `claude /login` in your terminal for a fresh token - TokenEater picks it up automatically |
-| Error persists for hours | The app backs off for ~6h after token exhaustion | Click **Retry now** in the menu bar popover after running `claude /login` |
+| "Rate limited" or "API unavailable" | Your OAuth token has hit its per-token request limit | Run `claude /login` in your terminal for a fresh token - TokenEater detects the change and recovers automatically within seconds |
 | Keychain popup every few hours | macOS re-validates app signatures after updates | Click **Always Allow** - if it persists, run a clean reset |
 | Widget stuck / not updating | macOS caches widget extensions aggressively | Remove the widget, run a clean reset, re-add the widget |
 | App flagged as malware in widget gallery | `xattr -cr` was used instead of System Settings approval | Run a clean reset, reinstall, and approve via **System Settings > Privacy & Security > Open Anyway** |

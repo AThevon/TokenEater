@@ -192,6 +192,15 @@ final class UsageStore: ObservableObject {
         fastModeStart = Date()
     }
 
+    /// Called when the token file changes on disk or the user taps "Retry now".
+    /// Invalidates the cached token so the next refresh reads a fresh one,
+    /// and clears the rate-limit backoff so the refresh actually fires.
+    func handleTokenChange() {
+        tokenProvider.invalidateToken()
+        retryAfterDate = nil
+        switchToFastMode()
+    }
+
     func loadCached() {
         if let cached = cachedUsage {
             updateUI(from: cached.usage)
