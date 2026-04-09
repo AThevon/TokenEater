@@ -141,7 +141,7 @@ enum ProcessResolver {
     /// Re-installs automatically when the embedded version changes.
     static func installTmuxWatcherIfNeeded() {
         let scriptPath = "\(sharedDir)/tmux-watcher.sh"
-        let version = "# tokeneater-v2"
+        let version = "# tokeneater-v3"
 
         // Skip if already up-to-date
         if FileManager.default.fileExists(atPath: scriptPath),
@@ -155,6 +155,12 @@ enum ProcessResolver {
         \(version)
         # TokenEater tmux pane switcher — started by tmux via run-shell.
         # Polls for a trigger file written by the app and switches to the target pane.
+        PIDFILE="$HOME/Library/Application Support/com.tokeneater.shared/tmux-watcher.pid"
+        if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
+            exit 0
+        fi
+        echo $$ > "$PIDFILE"
+        trap 'rm -f "$PIDFILE"' EXIT
         export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
         TRIGGER="$HOME/Library/Application Support/com.tokeneater.shared/switch-pane.trigger"
         while true; do
@@ -445,7 +451,7 @@ enum ProcessResolver {
     /// Re-installs automatically when the embedded version changes.
     static func installWezTermWatcherIfNeeded() {
         let scriptPath = "\(sharedDir)/wezterm-watcher.sh"
-        let version = "# tokeneater-wezterm-v1"
+        let version = "# tokeneater-wezterm-v2"
 
         if FileManager.default.fileExists(atPath: scriptPath),
            let content = try? String(contentsOfFile: scriptPath, encoding: .utf8),
@@ -458,6 +464,12 @@ enum ProcessResolver {
         \(version)
         # TokenEater WezTerm pane switcher — started by WezTerm via wezterm.lua.
         # Polls for a trigger file written by the app and switches to the target pane.
+        PIDFILE="$HOME/Library/Application Support/com.tokeneater.shared/wezterm-watcher.pid"
+        if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
+            exit 0
+        fi
+        echo $$ > "$PIDFILE"
+        trap 'rm -f "$PIDFILE"' EXIT
         export PATH="/opt/homebrew/bin:/usr/local/bin:/Applications/WezTerm.app/Contents/MacOS:$PATH"
         TRIGGER="$HOME/Library/Application Support/com.tokeneater.shared/wezterm-switch.trigger"
         WEZTERM_BIN=$(command -v wezterm 2>/dev/null)

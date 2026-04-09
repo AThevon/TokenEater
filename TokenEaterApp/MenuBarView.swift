@@ -330,6 +330,20 @@ struct MenuBarPopoverView: View {
                 Text(String(localized: "error.banner.apiunavailable.hint"))
                     .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.5))
+                Button {
+                    Task { await usageStore.refresh(force: true) }
+                } label: {
+                    Text(String(localized: "error.banner.retry.button"))
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(.orange.opacity(0.3))
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(usageStore.isLoading)
+                .padding(.top, 2)
             case .networkError:
                 Label(String(localized: "error.network.generic"), systemImage: "wifi.slash")
                     .font(.system(size: 11, weight: .semibold))

@@ -124,7 +124,7 @@ Returns `utilization` (0–100) and `resets_at` for each limit bucket.
 
 ## Security & Privacy
 
-TokenEater reads an **OAuth access token** from the Claude Code keychain entry — the same standard token that Claude Code itself uses. At first launch, macOS will prompt you to allow this access; this is normal macOS behavior for any app reading a keychain item it didn't create.
+TokenEater reads an **OAuth access token** from the Claude Code keychain entry - the same standard token that Claude Code itself uses. At first launch, macOS will prompt you to allow this access; this is normal macOS behavior for any app reading a keychain item it didn't create.
 
 **What the app does with the token:**
 - Calls `GET /api/oauth/usage` (your current usage stats)
@@ -134,7 +134,63 @@ TokenEater reads an **OAuth access token** from the Claude Code keychain entry �
 
 The token never leaves your machine except for these two API calls to `api.anthropic.com`. The widget reads a local JSON file and has no network or keychain access at all.
 
-Anthropic does not currently offer a third-party OAuth flow or scoped API tokens — reading the existing token from the keychain is the only option. If scoped tokens become available, TokenEater will adopt them immediately. The entire codebase is open source and auditable: keychain access is in [`KeychainService.swift`](Shared/Services/KeychainService.swift), API calls in [`APIClient.swift`](Shared/Services/APIClient.swift).
+Anthropic does not currently offer a third-party OAuth flow or scoped API tokens - reading the existing token from the keychain is the only option. If scoped tokens become available, TokenEater will adopt them immediately. The entire codebase is open source and auditable: keychain access is in [`KeychainService.swift`](Shared/Services/KeychainService.swift), API calls in [`APIClient.swift`](Shared/Services/APIClient.swift).
+
+## Troubleshooting
+
+### Common issues
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| "Rate limited" or "API unavailable" | Your OAuth token has hit its per-token request limit | Run `claude /login` in your terminal for a fresh token - TokenEater picks it up automatically |
+| Error persists for hours | The app backs off for ~6h after token exhaustion | Click **Retry now** in the menu bar popover after running `claude /login` |
+| Keychain popup every few hours | macOS re-validates app signatures after updates | Click **Always Allow** - if it persists, run a clean reset |
+| Widget stuck / not updating | macOS caches widget extensions aggressively | Remove the widget, run a clean reset, re-add the widget |
+| App flagged as malware in widget gallery | `xattr -cr` was used instead of System Settings approval | Run a clean reset, reinstall, and approve via **System Settings > Privacy & Security > Open Anyway** |
+
+### Clean reset
+
+If something is broken and you want to start fresh, run this in your terminal. It kills all related processes, wipes caches, preferences, and containers, then removes the app:
+
+```bash
+# 1. Kill processes
+killall TokenEater NotificationCenter chronod cfprefsd 2>/dev/null; sleep 1
+
+# 2. Wipe preferences
+defaults delete com.tokeneater.app 2>/dev/null
+defaults delete com.claudeusagewidget.app 2>/dev/null
+rm -f ~/Library/Preferences/com.tokeneater.app.plist
+rm -f ~/Library/Preferences/com.claudeusagewidget.app.plist
+
+# 3. Wipe sandbox containers
+for c in com.tokeneater.app com.tokeneater.app.widget com.claudeusagewidget.app com.claudeusagewidget.app.widget; do
+    d="$HOME/Library/Containers/$c/Data"
+    [ -d "$d" ] && rm -rf "$d/Library/Preferences/"* "$d/Library/Caches/"* "$d/Library/Application Support/"* "$d/tmp/"* 2>/dev/null
+done
+
+# 4. Wipe shared data and caches
+rm -rf ~/Library/Application\ Support/com.tokeneater.shared
+rm -rf ~/Library/Application\ Support/com.claudeusagewidget.shared
+rm -rf ~/Library/Caches/com.tokeneater.app
+rm -rf ~/Library/Group\ Containers/group.com.claudeusagewidget.shared
+
+# 5. Wipe WidgetKit caches (critical - macOS keeps old widget binaries here)
+TMPBASE=$(getconf DARWIN_USER_TEMP_DIR)
+CACHEBASE=$(getconf DARWIN_USER_CACHE_DIR)
+rm -rf "${TMPBASE}com.apple.chrono" "${CACHEBASE}com.apple.chrono" 2>/dev/null
+rm -rf "${CACHEBASE}com.tokeneater.app" "${CACHEBASE}com.claudeusagewidget.app" 2>/dev/null
+
+# 6. Unregister widget plugins
+pluginkit -r -i com.tokeneater.app.widget 2>/dev/null
+pluginkit -r -i com.claudeusagewidget.app.widget 2>/dev/null
+
+# 7. Remove the app
+rm -rf /Applications/TokenEater.app
+```
+
+> Some `Operation not permitted` errors on container metadata files are normal - macOS protects those, but the actual data is cleaned.
+
+After this, reinstall from the [latest release](https://github.com/AThevon/TokenEater/releases/latest/download/TokenEater.dmg) or via Homebrew, then **remove old widgets from your desktop and add them again** (right-click > Edit Widgets > TokenEater).
 
 ## Support
 

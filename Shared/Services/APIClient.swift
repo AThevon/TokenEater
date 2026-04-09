@@ -3,6 +3,7 @@ import Foundation
 final class APIClient: APIClientProtocol, @unchecked Sendable {
     private let oauthURL = URL(string: "https://api.anthropic.com/api/oauth/usage")!
     private let profileURL = URL(string: "https://api.anthropic.com/api/oauth/profile")!
+    private let userAgent = "claude-code/\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0")"
 
     private func session(proxyConfig: ProxyConfig?) -> URLSession {
         guard let proxy = proxyConfig, proxy.enabled else { return .shared }
@@ -20,6 +21,7 @@ final class APIClient: APIClientProtocol, @unchecked Sendable {
         request.httpMethod = "GET"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         return request
     }
 
@@ -28,6 +30,7 @@ final class APIClient: APIClientProtocol, @unchecked Sendable {
         request.httpMethod = "GET"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         return request
     }
 
