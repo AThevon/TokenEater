@@ -331,6 +331,7 @@ struct MenuBarPopoverView: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.5))
                 Button {
+                    usageStore.handleTokenChange()
                     Task { await usageStore.refresh(force: true) }
                 } label: {
                     Text(String(localized: "error.banner.retry.button"))

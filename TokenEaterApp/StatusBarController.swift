@@ -126,7 +126,7 @@ final class StatusBarController: NSObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] in
                 guard let self else { return }
-                self.usageStore.switchToFastMode()
+                self.usageStore.handleTokenChange()
                 Task { await self.usageStore.refresh(force: true) }
             }
             .store(in: &cancellables)

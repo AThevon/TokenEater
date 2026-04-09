@@ -481,4 +481,65 @@ struct UsageStoreTests {
 
         #expect(store.currentSpeed == .fast)
     }
+
+    // MARK: - handleTokenChange
+
+    @Test("handleTokenChange invalidates token cache")
+    func handleTokenChangeInvalidatesCache() {
+        let (store, _, tokenProvider, _, _) = makeSUT()
+
+        store.handleTokenChange()
+
+        #expect(tokenProvider.invalidateCallCount == 1)
+    }
+
+    @Test("handleTokenChange clears retryAfterDate")
+    func handleTokenChangeClearsRetryAfter() async {
+        let (store, _, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: 3600))
+
+        // Put store in rate-limited state
+        await store.refresh()
+        #expect(store.retryAfterDate != nil)
+
+        store.handleTokenChange()
+
+        #expect(store.retryAfterDate == nil)
+    }
+
+    @Test("handleTokenChange sets fast mode")
+    func handleTokenChangeSetsSpeedToFast() {
+        let (store, _, _, _, _) = makeSUT()
+
+        store.handleTokenChange()
+
+        #expect(store.currentSpeed == .fast)
+    }
+
+    @Test("refresh after handleTokenChange uses fresh token when rate-limited")
+    func refreshAfterTokenChangeUsesFreshToken() async {
+        let (store, repo, tokenProvider, _, _) = makeSUT(
+            token: "exhausted-token",
+            shouldFail: true,
+            failWith: .rateLimited(retryAfter: nil)
+        )
+
+        // Step 1: get rate-limited with the old token
+        await store.refresh()
+        #expect(store.errorState == .rateLimited)
+        #expect(store.retryAfterDate != nil)
+
+        // Step 2: simulate token file change — new token available
+        tokenProvider.token = "fresh-token"
+        repo.stubbedError = nil
+        repo.stubbedUsage = .fixture(fiveHourUtil: 42)
+
+        // Step 3: handleTokenChange + forced refresh (what StatusBarController does)
+        store.handleTokenChange()
+        await store.refresh(force: true)
+
+        // The store should have recovered
+        #expect(store.errorState == .none)
+        #expect(store.fiveHourPct == 42)
+        #expect(tokenProvider.invalidateCallCount == 1)
+    }
 }
