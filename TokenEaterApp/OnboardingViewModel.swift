@@ -127,7 +127,7 @@ final class OnboardingViewModel: ObservableObject {
                 let usage = try await repository.testConnection(token: token, proxyConfig: nil)
                 connectionStatus = .success(usage)
             } catch let error as APIError {
-                if case .httpError(429) = error {
+                if case .rateLimited = error {
                     connectionStatus = .rateLimited
                 } else {
                     connectionStatus = .failed(error.localizedDescription)

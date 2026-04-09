@@ -166,6 +166,51 @@ struct UsageStoreTests {
         #expect(store.retryAfterDate != nil)
     }
 
+    @Test("retry-after: 0 defaults to 6-hour backoff")
+    func rateLimitedWithZeroRetryAfterDefaultsToSixHours() async {
+        let (store, _, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: 0))
+
+        await store.refresh()
+
+        if let retryAfterDate = store.retryAfterDate {
+            #expect(retryAfterDate.timeIntervalSinceNow > 6 * 3600 - 5) // ~6h, allow 5s tolerance
+        } else {
+            Issue.record("retryAfterDate should not be nil after retry-after: 0")
+        }
+    }
+
+    @Test("absent retry-after header defaults to 6-hour backoff")
+    func rateLimitedWithNilRetryAfterDefaultsToSixHours() async {
+        let (store, _, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: nil))
+
+        await store.refresh()
+
+        if let retryAfterDate = store.retryAfterDate {
+            #expect(retryAfterDate.timeIntervalSinceNow > 6 * 3600 - 5) // ~6h, allow 5s tolerance
+        } else {
+            Issue.record("retryAfterDate should not be nil when Retry-After header is absent")
+        }
+    }
+
+    @Test("refresh skips API call while Retry-After window is active")
+    func refreshRespectsRetryAfterDate() async {
+        let (store, repo, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: 3600))
+
+        // First call: 429 with Retry-After 1 hour → sets retryAfterDate
+        await store.refresh()
+        #expect(store.errorState == .rateLimited)
+        #expect(store.retryAfterDate != nil)
+        let callCountAfterFirst = repo.refreshCallCount
+
+        // Second call (non-forced): should be skipped — still inside retry window
+        await store.refresh()
+        #expect(repo.refreshCallCount == callCountAfterFirst)
+
+        // Forced call: should bypass retryAfterDate and reach the API
+        await store.refresh(force: true)
+        #expect(repo.refreshCallCount == callCountAfterFirst + 1)
+    }
+
     @Test("refresh sets networkError on generic API error")
     func refreshSetsNetworkError() async {
         let (store, _, _, _, _) = makeSUT(shouldFail: true, failWith: .invalidResponse)

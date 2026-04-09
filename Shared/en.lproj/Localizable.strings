@@ -98,8 +98,8 @@
 "error.banner.reauth.hint" = "Token expired and automatic recovery failed";
 "error.banner.reauth.button" = "Re-authorize";
 "error.banner.apiunavailable" = "Usage API unavailable";
-"error.banner.apiunavailable.hint" = "Anthropic's usage endpoint is temporarily down — data will refresh automatically when it's back";
-"error.banner.apiunavailable.settings" = "Usage API temporarily unavailable on Anthropic's side — will retry automatically";
+"error.banner.apiunavailable.hint" = "Your Claude Code OAuth token has hit its API request limit. Will retry in ~6h — or run \"claude /login\" in Claude Code for a fresh token.";
+"error.banner.apiunavailable.settings" = "Usage API rate limited — will retry in ~6h, or run \"claude /login\" in Claude Code for a fresh token";
 
 /* Connection Test */
 "test.success" = "Connected — Session: %d%%";
