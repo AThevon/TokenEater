@@ -224,6 +224,7 @@ final class StatusBarController: NSObject {
             guard let button = statusItem.button else { return }
             installPopoverContent()
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            NSApp.activate(ignoringOtherApps: true)
             startEventMonitor()
         }
     }

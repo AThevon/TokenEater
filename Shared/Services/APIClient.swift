@@ -3,7 +3,10 @@ import Foundation
 final class APIClient: APIClientProtocol, @unchecked Sendable {
     private let oauthURL = URL(string: "https://api.anthropic.com/api/oauth/usage")!
     private let profileURL = URL(string: "https://api.anthropic.com/api/oauth/profile")!
-    private let userAgent = "claude-code/\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0")"
+    private let userAgent: String = {
+        let version = ProcessResolver.detectClaudeCodeVersion() ?? "0.0.0"
+        return "claude-code/\(version)"
+    }()
 
     private func session(proxyConfig: ProxyConfig?) -> URLSession {
         guard let proxy = proxyConfig, proxy.enabled else { return .shared }

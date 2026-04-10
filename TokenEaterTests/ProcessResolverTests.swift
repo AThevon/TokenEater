@@ -26,6 +26,28 @@ struct ProcessResolverTests {
         #expect(ProcessResolver.isClaudePath(path))
     }
 
+    // MARK: - Homebrew Cask @latest
+
+    @Test("detects Homebrew Cask @latest Claude (arm64)")
+    func detectsCaskLatestArm64() {
+        let path = "/opt/homebrew/Caskroom/claude-code@latest/2.1.100/claude"
+        #expect(ProcessResolver.isClaudePath(path))
+    }
+
+    @Test("detects Homebrew Cask @latest Claude (x86_64)")
+    func detectsCaskLatestX86() {
+        let path = "/usr/local/Caskroom/claude-code@latest/2.1.100/claude"
+        #expect(ProcessResolver.isClaudePath(path))
+    }
+
+    // MARK: - Claude Desktop embedded CLI
+
+    @Test("detects Claude Desktop embedded CLI")
+    func detectsClaudeDesktopCLI() {
+        let path = "/Users/simon/Library/Application Support/Claude/claude-code/2.1.64/claude"
+        #expect(ProcessResolver.isClaudePath(path))
+    }
+
     // MARK: - Non-Claude paths
 
     @Test("rejects unrelated process")
@@ -53,6 +75,18 @@ struct ProcessResolverTests {
     @Test("getProcessTTY returns nil for invalid PID")
     func ttyForInvalidPid() {
         #expect(ProcessResolver.getProcessTTY(pid: -1) == nil)
+    }
+
+    // MARK: - Claude Code version detection
+
+    @Test("detects Claude Code version from local install")
+    func detectsClaudeCodeVersion() {
+        let version = ProcessResolver.detectClaudeCodeVersion()
+        // On dev machines Claude Code should be installed; in CI it might not be
+        if let version {
+            #expect(version.contains("."))
+            #expect(version.first?.isNumber == true)
+        }
     }
 
     // MARK: - Electron helper detection
