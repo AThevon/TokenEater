@@ -200,6 +200,13 @@
 "settings.theme.preview.normal" = "Normal";
 "settings.theme.preview.warning" = "Warning";
 "settings.theme.preview.critical" = "Critical";
+/* Gauge Color Mode */
+"settings.gauge.colormode" = "Session color mode";
+"settings.gauge.colormode.static" = "Thresholds";
+"settings.gauge.colormode.smart" = "Smart";
+"settings.gauge.colormode.static.hint" = "Color changes at fixed usage thresholds (warning / critical).";
+"settings.gauge.colormode.smart.hint" = "Color factors in time remaining - high usage near reset stays green.";
+
 "settings.theme.reset" = "Reset to Defaults";
 "settings.theme.reset.confirm" = "Reset all theming settings?";
 "settings.theme.reset.cancel" = "Cancel";

@@ -39,6 +39,13 @@ final class ThemeStore: ObservableObject {
         }
     }
 
+    @Published var gaugeColorMode: GaugeColorMode {
+        didSet {
+            UserDefaults.standard.set(gaugeColorMode.rawValue, forKey: "gaugeColorMode")
+            scheduleSync()
+        }
+    }
+
     private let sharedFileService: SharedFileServiceProtocol
 
     init(sharedFileService: SharedFileServiceProtocol = SharedFileService()) {
@@ -54,6 +61,9 @@ final class ThemeStore: ObservableObject {
             return val > 0 ? val : 85
         }()
         self.menuBarMonochrome = UserDefaults.standard.bool(forKey: "menuBarMonochrome")
+        self.gaugeColorMode = GaugeColorMode(
+            rawValue: UserDefaults.standard.string(forKey: "gaugeColorMode") ?? "static"
+        ) ?? .static
 
         if let json = UserDefaults.standard.string(forKey: "customThemeJSON"),
            let data = json.data(using: .utf8),
@@ -95,6 +105,7 @@ final class ThemeStore: ObservableObject {
         warningThreshold = 60
         criticalThreshold = 85
         menuBarMonochrome = false
+        gaugeColorMode = .static
         syncToSharedFile()
     }
 
@@ -112,7 +123,7 @@ final class ThemeStore: ObservableObject {
     }
 
     func syncToSharedFile() {
-        sharedFileService.updateTheme(current, thresholds: thresholds)
+        sharedFileService.updateTheme(current, thresholds: thresholds, gaugeColorMode: gaugeColorMode)
         WidgetReloader.scheduleReload()
     }
 }

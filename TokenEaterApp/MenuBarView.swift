@@ -166,9 +166,9 @@ struct MenuBarPopoverView: View {
                 ZStack {
                     RingGauge(
                         percentage: pct,
-                        gradient: gradientForPct(pct),
+                        gradient: fiveHourGradient(),
                         size: 100,
-                        glowColor: colorForPct(pct),
+                        glowColor: fiveHourColor(),
                         glowRadius: 6
                     )
 
@@ -176,7 +176,7 @@ struct MenuBarPopoverView: View {
                         GlowText(
                             "\(pct)%",
                             font: .system(size: 24, weight: .black, design: .rounded),
-                            color: colorForPct(pct),
+                            color: fiveHourColor(),
                             glowRadius: 4
                         )
                         Text(String(localized: "metric.session"))
@@ -188,7 +188,7 @@ struct MenuBarPopoverView: View {
                 HStack(spacing: 3) {
                     Image(systemName: isPinned ? "pin.fill" : "pin")
                         .font(.system(size: 7))
-                        .foregroundStyle(isPinned ? colorForPct(pct) : .white.opacity(0.2))
+                        .foregroundStyle(isPinned ? fiveHourColor() : .white.opacity(0.2))
                         .rotationEffect(.degrees(isPinned ? 0 : 45))
                     if !usageStore.fiveHourReset.isEmpty {
                         Text(String(format: String(localized: "metric.reset"), usageStore.fiveHourReset))
@@ -512,5 +512,27 @@ struct MenuBarPopoverView: View {
 
     private func gradientForPct(_ pct: Int) -> LinearGradient {
         themeStore.current.gaugeGradient(for: Double(pct), thresholds: themeStore.thresholds, startPoint: .leading, endPoint: .trailing)
+    }
+
+    private func fiveHourColor() -> Color {
+        guard themeStore.gaugeColorMode == .smart else {
+            return colorForPct(usageStore.fiveHourPct)
+        }
+        return themeStore.current.smartGaugeColor(
+            utilization: Double(usageStore.fiveHourPct),
+            resetDate: usageStore.lastUsage?.fiveHour?.resetsAtDate
+        )
+    }
+
+    private func fiveHourGradient() -> LinearGradient {
+        guard themeStore.gaugeColorMode == .smart else {
+            return gradientForPct(usageStore.fiveHourPct)
+        }
+        return themeStore.current.smartGaugeGradient(
+            utilization: Double(usageStore.fiveHourPct),
+            resetDate: usageStore.lastUsage?.fiveHour?.resetsAtDate,
+            startPoint: .leading,
+            endPoint: .trailing
+        )
     }
 }

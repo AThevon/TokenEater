@@ -200,6 +200,13 @@
 "settings.theme.preview.normal" = "Normal";
 "settings.theme.preview.warning" = "Attention";
 "settings.theme.preview.critical" = "Critique";
+/* Mode couleur jauge */
+"settings.gauge.colormode" = "Couleur session";
+"settings.gauge.colormode.static" = "Seuils";
+"settings.gauge.colormode.smart" = "Smart";
+"settings.gauge.colormode.static.hint" = "La couleur change à des seuils d'usage fixes (attention / critique).";
+"settings.gauge.colormode.smart.hint" = "La couleur tient compte du temps restant - un usage élevé proche du reset reste vert.";
+
 "settings.theme.reset" = "Réinitialiser";
 "settings.theme.reset.confirm" = "Réinitialiser tous les réglages d'apparence ?";
 "settings.theme.reset.cancel" = "Annuler";

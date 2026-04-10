@@ -56,6 +56,7 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         var lastSyncDate: Date?
         var theme: ThemeColors?
         var thresholds: UsageThresholds?
+        var gaugeColorMode: String?
     }
 
     /// In-memory cache — avoids redundant disk reads within the same process.
@@ -116,6 +117,10 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         load().thresholds ?? .default
     }
 
+    var gaugeColorMode: GaugeColorMode {
+        GaugeColorMode(rawValue: load().gaugeColorMode ?? "static") ?? .static
+    }
+
     func updateAfterSync(usage: CachedUsage, syncDate: Date) {
         var data = load()
         data.cachedUsage = usage
@@ -123,10 +128,11 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         save(data)
     }
 
-    func updateTheme(_ theme: ThemeColors, thresholds: UsageThresholds) {
+    func updateTheme(_ theme: ThemeColors, thresholds: UsageThresholds, gaugeColorMode: GaugeColorMode) {
         var data = load()
         data.theme = theme
         data.thresholds = thresholds
+        data.gaugeColorMode = gaugeColorMode.rawValue
         save(data)
     }
 

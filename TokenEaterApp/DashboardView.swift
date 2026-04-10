@@ -58,10 +58,7 @@ struct DashboardView: View {
 
     private var backgroundColors: [Color] {
         let base = Color(red: 0.10, green: 0.10, blue: 0.12)
-        let stateColor = themeStore.current.gaugeColor(
-            for: Double(usageStore.fiveHourPct),
-            thresholds: themeStore.thresholds
-        )
+        let stateColor = fiveHourColor()
         let tinted = blend(stateColor, into: base, amount: 0.15)
         return [base, tinted]
     }
@@ -183,7 +180,7 @@ struct DashboardView: View {
                 ParticleField(
                     particleCount: 25,
                     speed: Double(usageStore.fiveHourPct) / 100.0,
-                    color: gaugeColor(for: usageStore.fiveHourPct),
+                    color: fiveHourColor(),
                     radius: 130,
                     isActive: isVisible
                 )
@@ -192,9 +189,9 @@ struct DashboardView: View {
 
             RingGauge(
                 percentage: usageStore.fiveHourPct,
-                gradient: gaugeGradient(for: usageStore.fiveHourPct),
+                gradient: fiveHourGradient(),
                 size: 200,
-                glowColor: gaugeColor(for: usageStore.fiveHourPct),
+                glowColor: fiveHourColor(),
                 glowRadius: 8
             )
             .overlay {
@@ -202,7 +199,7 @@ struct DashboardView: View {
                     GlowText(
                         "\(usageStore.fiveHourPct)%",
                         font: .system(size: 42, weight: .black, design: .rounded),
-                        color: gaugeColor(for: usageStore.fiveHourPct),
+                        color: fiveHourColor(),
                         glowRadius: 6
                     )
                     Text(String(localized: "metric.session"))
@@ -347,5 +344,27 @@ struct DashboardView: View {
 
     private func gaugeGradient(for pct: Int) -> LinearGradient {
         themeStore.current.gaugeGradient(for: Double(pct), thresholds: themeStore.thresholds, startPoint: .leading, endPoint: .trailing)
+    }
+
+    private func fiveHourColor() -> Color {
+        guard themeStore.gaugeColorMode == .smart else {
+            return gaugeColor(for: usageStore.fiveHourPct)
+        }
+        return themeStore.current.smartGaugeColor(
+            utilization: Double(usageStore.fiveHourPct),
+            resetDate: usageStore.lastUsage?.fiveHour?.resetsAtDate
+        )
+    }
+
+    private func fiveHourGradient() -> LinearGradient {
+        guard themeStore.gaugeColorMode == .smart else {
+            return gaugeGradient(for: usageStore.fiveHourPct)
+        }
+        return themeStore.current.smartGaugeGradient(
+            utilization: Double(usageStore.fiveHourPct),
+            resetDate: usageStore.lastUsage?.fiveHour?.resetsAtDate,
+            startPoint: .leading,
+            endPoint: .trailing
+        )
     }
 }

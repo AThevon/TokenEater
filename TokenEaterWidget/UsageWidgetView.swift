@@ -8,6 +8,7 @@ enum WidgetTheme {
 
     static var theme: ThemeColors { shared.theme }
     static var thresholds: UsageThresholds { shared.thresholds }
+    static var gaugeColorMode: GaugeColorMode { shared.gaugeColorMode }
 }
 
 // MARK: - Widget Background (macOS 13 compat)
@@ -78,7 +79,8 @@ struct UsageWidgetView: View {
                     CircularUsageView(
                         label: String(localized: "widget.session"),
                         resetInfo: formatResetTime(fiveHour.resetsAtDate),
-                        utilization: fiveHour.utilization
+                        utilization: fiveHour.utilization,
+                        resetDate: fiveHour.resetsAtDate
                     )
                 }
                 if let sevenDay = usage.sevenDay {
@@ -141,7 +143,8 @@ struct UsageWidgetView: View {
                     label: String(localized: "widget.session"),
                     subtitle: String(localized: "widget.session.subtitle"),
                     resetInfo: formatResetTime(fiveHour.resetsAtDate),
-                    utilization: fiveHour.utilization
+                    utilization: fiveHour.utilization,
+                    resetDate: fiveHour.resetsAtDate
                 )
             }
 
@@ -293,11 +296,16 @@ struct CircularUsageView: View {
     let label: String
     let resetInfo: String
     let utilization: Double
+    var resetDate: Date? = nil
     var theme: ThemeColors = WidgetTheme.theme
     var thresholds: UsageThresholds = WidgetTheme.thresholds
+    var gaugeColorMode: GaugeColorMode = WidgetTheme.gaugeColorMode
 
     private var ringGradient: LinearGradient {
-        theme.gaugeGradient(for: utilization, thresholds: thresholds)
+        guard gaugeColorMode == .smart, resetDate != nil else {
+            return theme.gaugeGradient(for: utilization, thresholds: thresholds)
+        }
+        return theme.smartGaugeGradient(utilization: utilization, resetDate: resetDate)
     }
 
     var body: some View {
@@ -397,18 +405,26 @@ struct LargeUsageBarView: View {
     let utilization: Double
     var colorOverride: Color? = nil
     var displayText: String? = nil
+    var resetDate: Date? = nil
     var theme: ThemeColors = WidgetTheme.theme
     var thresholds: UsageThresholds = WidgetTheme.thresholds
+    var gaugeColorMode: GaugeColorMode = WidgetTheme.gaugeColorMode
 
     private var barGradient: LinearGradient {
         if let color = colorOverride {
             return LinearGradient(colors: [color, color.opacity(0.8)], startPoint: .leading, endPoint: .trailing)
+        }
+        if gaugeColorMode == .smart, resetDate != nil {
+            return theme.smartGaugeGradient(utilization: utilization, resetDate: resetDate, startPoint: .leading, endPoint: .trailing)
         }
         return theme.gaugeGradient(for: utilization, thresholds: thresholds, startPoint: .leading, endPoint: .trailing)
     }
 
     private var accentColor: Color {
         if let color = colorOverride { return color }
+        if gaugeColorMode == .smart, resetDate != nil {
+            return theme.smartGaugeColor(utilization: utilization, resetDate: resetDate)
+        }
         return theme.gaugeColor(for: utilization, thresholds: thresholds)
     }
 

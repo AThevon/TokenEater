@@ -52,18 +52,43 @@ struct ThemesSectionView: View {
             glassCard {
                 VStack(alignment: .leading, spacing: 8) {
                     cardLabel(String(localized: "settings.theme.thresholds"))
-                    thresholdSlider(label: String(localized: "settings.theme.warning"), value: $warningSlider, range: 10...90)
-                    thresholdSlider(label: String(localized: "settings.theme.critical"), value: $criticalSlider, range: 15...95)
 
-                    // Preview gauges
-                    HStack(spacing: 24) {
+                    // Gauge color mode picker
+                    HStack {
+                        Text(String(localized: "settings.gauge.colormode"))
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.7))
                         Spacer()
-                        themePreviewGauge(pct: Double(max(themeStore.warningThreshold - 15, 5)), label: "Normal")
-                        themePreviewGauge(pct: Double(themeStore.warningThreshold + themeStore.criticalThreshold) / 2.0, label: "Warning")
-                        themePreviewGauge(pct: Double(min(themeStore.criticalThreshold + 5, 100)), label: "Critical")
-                        Spacer()
+                        Picker("", selection: $themeStore.gaugeColorMode) {
+                            Text(String(localized: "settings.gauge.colormode.static"))
+                                .tag(GaugeColorMode.static)
+                            Text(String(localized: "settings.gauge.colormode.smart"))
+                                .tag(GaugeColorMode.smart)
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 180)
                     }
-                    .padding(.top, 8)
+
+                    Text(themeStore.gaugeColorMode == .smart
+                        ? String(localized: "settings.gauge.colormode.smart.hint")
+                        : String(localized: "settings.gauge.colormode.static.hint"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.4))
+
+                    if themeStore.gaugeColorMode == .static {
+                        thresholdSlider(label: String(localized: "settings.theme.warning"), value: $warningSlider, range: 10...90)
+                        thresholdSlider(label: String(localized: "settings.theme.critical"), value: $criticalSlider, range: 15...95)
+
+                        // Preview gauges
+                        HStack(spacing: 24) {
+                            Spacer()
+                            themePreviewGauge(pct: Double(max(themeStore.warningThreshold - 15, 5)), label: "Normal")
+                            themePreviewGauge(pct: Double(themeStore.warningThreshold + themeStore.criticalThreshold) / 2.0, label: "Warning")
+                            themePreviewGauge(pct: Double(min(themeStore.criticalThreshold + 5, 100)), label: "Critical")
+                            Spacer()
+                        }
+                        .padding(.top, 8)
+                    }
                 }
             }
 

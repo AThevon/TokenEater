@@ -101,6 +101,37 @@ struct ThemeColors: Codable, Equatable {
         return NSColor(hex: gaugeNormal)
     }
 
+    // MARK: - Smart Gauge Color (risk-based for 5h window)
+
+    /// Risk score = utilization × remaining_minutes / 100.
+    /// Maps to: green (< 70), orange (70-100), red (> 100).
+    private func riskScore(utilization: Double, resetDate: Date, now: Date) -> Double {
+        let remainingSeconds = max(resetDate.timeIntervalSince(now), 0)
+        let remainingMinutes = remainingSeconds / 60
+        return utilization * remainingMinutes / 100
+    }
+
+    func smartGaugeColor(utilization: Double, resetDate: Date?, now: Date = Date()) -> Color {
+        guard let resetDate else { return Color(hex: gaugeNormal) }
+        let risk = riskScore(utilization: utilization, resetDate: resetDate, now: now)
+        if risk > 100 { return Color(hex: gaugeCritical) }
+        if risk > 70 { return Color(hex: gaugeWarning) }
+        return Color(hex: gaugeNormal)
+    }
+
+    func smartGaugeGradient(utilization: Double, resetDate: Date?, now: Date = Date(), startPoint: UnitPoint = .topLeading, endPoint: UnitPoint = .bottomTrailing) -> LinearGradient {
+        let base = smartGaugeColor(utilization: utilization, resetDate: resetDate, now: now)
+        return LinearGradient(colors: [base, base.lighter()], startPoint: startPoint, endPoint: endPoint)
+    }
+
+    func smartGaugeNSColor(utilization: Double, resetDate: Date?, now: Date = Date()) -> NSColor {
+        guard let resetDate else { return NSColor(hex: gaugeNormal) }
+        let risk = riskScore(utilization: utilization, resetDate: resetDate, now: now)
+        if risk > 100 { return NSColor(hex: gaugeCritical) }
+        if risk > 70 { return NSColor(hex: gaugeWarning) }
+        return NSColor(hex: gaugeNormal)
+    }
+
     func pacingNSColor(for zone: PacingZone) -> NSColor {
         switch zone {
         case .chill: return NSColor(hex: pacingChill)

@@ -221,7 +221,9 @@ final class StatusBarController: NSObject {
             thresholds: themeStore.thresholds,
             menuBarMonochrome: themeStore.menuBarMonochrome,
             fiveHourReset: usageStore.fiveHourReset,
-            showSessionReset: settingsStore.showSessionReset
+            showSessionReset: settingsStore.showSessionReset,
+            gaugeColorMode: themeStore.gaugeColorMode,
+            fiveHourResetDate: usageStore.lastUsage?.fiveHour?.resetsAtDate
         ))
         statusItem.button?.image = image
     }

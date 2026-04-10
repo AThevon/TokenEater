@@ -37,6 +37,11 @@ enum PacingDisplayMode: String, CaseIterable {
     case delta
 }
 
+enum GaugeColorMode: String, CaseIterable {
+    case `static`
+    case smart
+}
+
 enum AppErrorState: Equatable {
     case none
     case tokenUnavailable

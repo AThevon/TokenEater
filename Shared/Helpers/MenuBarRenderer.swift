@@ -24,6 +24,8 @@ enum MenuBarRenderer {
         let menuBarMonochrome: Bool
         let fiveHourReset: String
         let showSessionReset: Bool
+        let gaugeColorMode: GaugeColorMode
+        let fiveHourResetDate: Date?
     }
 
     private static var cachedImage: NSImage?
@@ -51,6 +53,17 @@ enum MenuBarRenderer {
     private static func colorForPct(_ pct: Int, data: RenderData) -> NSColor {
         if data.menuBarMonochrome { return .labelColor }
         return data.themeColors.gaugeNSColor(for: Double(pct), thresholds: data.thresholds)
+    }
+
+    private static func colorForFiveHour(_ data: RenderData) -> NSColor {
+        if data.menuBarMonochrome { return .labelColor }
+        guard data.gaugeColorMode == .smart else {
+            return data.themeColors.gaugeNSColor(for: Double(data.fiveHourPct), thresholds: data.thresholds)
+        }
+        return data.themeColors.smartGaugeNSColor(
+            utilization: Double(data.fiveHourPct),
+            resetDate: data.fiveHourResetDate
+        )
     }
 
     private static func colorForZone(_ zone: PacingZone, data: RenderData) -> NSColor {
@@ -133,9 +146,15 @@ enum MenuBarRenderer {
                     str.append(NSAttributedString(string: "  ", attributes: labelAttrs))
                 }
                 str.append(NSAttributedString(string: "\(metric.shortLabel) ", attributes: labelAttrs))
+                let color: NSColor
+                if metric == .fiveHour {
+                    color = colorForFiveHour(data)
+                } else {
+                    color = colorForPct(value, data: data)
+                }
                 let pctAttrs: [NSAttributedString.Key: Any] = [
                     .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .bold),
-                    .foregroundColor: colorForPct(value, data: data),
+                    .foregroundColor: color,
                 ]
                 str.append(NSAttributedString(string: "\(value)%", attributes: pctAttrs))
             }

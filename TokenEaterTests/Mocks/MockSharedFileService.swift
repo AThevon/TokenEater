@@ -7,6 +7,7 @@ final class MockSharedFileService: SharedFileServiceProtocol, @unchecked Sendabl
     var _lastSyncDate: Date?
     var _theme: ThemeColors = .default
     var _thresholds: UsageThresholds = .default
+    var _gaugeColorMode: GaugeColorMode = .static
     var updateAfterSyncCallCount = 0
     var updateThemeCallCount = 0
 
@@ -16,6 +17,7 @@ final class MockSharedFileService: SharedFileServiceProtocol, @unchecked Sendabl
     var lastSyncDate: Date? { _lastSyncDate }
     var theme: ThemeColors { _theme }
     var thresholds: UsageThresholds { _thresholds }
+    var gaugeColorMode: GaugeColorMode { _gaugeColorMode }
 
     func updateAfterSync(usage: CachedUsage, syncDate: Date) {
         updateAfterSyncCallCount += 1
@@ -23,10 +25,11 @@ final class MockSharedFileService: SharedFileServiceProtocol, @unchecked Sendabl
         _lastSyncDate = syncDate
     }
 
-    func updateTheme(_ theme: ThemeColors, thresholds: UsageThresholds) {
+    func updateTheme(_ theme: ThemeColors, thresholds: UsageThresholds, gaugeColorMode: GaugeColorMode) {
         updateThemeCallCount += 1
         _theme = theme
         _thresholds = thresholds
+        _gaugeColorMode = gaugeColorMode
     }
 
     func invalidateCache() {}
