@@ -106,9 +106,15 @@ struct DashboardView: View {
                 profileCard
             }
 
-            // Pacing card
+            // Pacing cards
+            if let pacing = usageStore.fiveHourPacing {
+                pacingCard(pacing: pacing, label: PacingBucket.fiveHour.metricID.label)
+            }
             if let pacing = usageStore.pacingResult {
-                pacingCard(pacing: pacing)
+                pacingCard(pacing: pacing, label: PacingBucket.sevenDay.metricID.label)
+            }
+            if let pacing = usageStore.sonnetPacing {
+                pacingCard(pacing: pacing, label: PacingBucket.sonnet.metricID.label)
             }
 
             Spacer()
@@ -271,10 +277,10 @@ struct DashboardView: View {
 
     // MARK: - Pacing Card
 
-    private func pacingCard(pacing: PacingResult) -> some View {
+    private func pacingCard(pacing: PacingResult, label: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text(String(localized: "pacing.label"))
+                Text("\(String(localized: "pacing.label")) · \(label)")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.7))
                 Spacer()
