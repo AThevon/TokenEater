@@ -92,13 +92,12 @@ enum MenuBarRenderer {
                     let sign = data.sessionPacingDelta >= 0 ? "+" : ""
                     switch data.pacingDisplayMode {
                     case .dot:
-                        str.append(NSAttributedString(string: "5h\u{25CF}", attributes: dotAttrs))
+                        str.append(NSAttributedString(string: "\u{25CF}", attributes: dotAttrs))
                     case .dotDelta:
-                        str.append(NSAttributedString(string: "5h\u{25CF}", attributes: dotAttrs))
+                        str.append(NSAttributedString(string: "\u{25CF}", attributes: dotAttrs))
                         str.append(NSAttributedString(string: " \(sign)\(data.sessionPacingDelta)%", attributes: deltaAttrs))
                     case .delta:
-                        str.append(NSAttributedString(string: "5h", attributes: labelAttrs))
-                        str.append(NSAttributedString(string: " \(sign)\(data.sessionPacingDelta)%", attributes: deltaAttrs))
+                        str.append(NSAttributedString(string: "\(sign)\(data.sessionPacingDelta)%", attributes: deltaAttrs))
                     }
             } else if metric == .pacing {
                 let dotColor = colorForZone(data.pacingZone, data: data)
@@ -129,11 +128,16 @@ enum MenuBarRenderer {
                 case .pacing, .sessionPacing: value = 0
                 }
                 if metric == .fiveHour && data.showSessionReset && !data.fiveHourReset.isEmpty {
-                    let resetAttrs: [NSAttributedString.Key: Any] = [
+                    let resetLabelAttrs: [NSAttributedString.Key: Any] = [
+                        .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium),
+                        .foregroundColor: NSColor.tertiaryLabelColor,
+                    ]
+                    let resetValueAttrs: [NSAttributedString.Key: Any] = [
                         .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .bold),
                         .foregroundColor: NSColor.labelColor,
                     ]
-                    str.append(NSAttributedString(string: data.fiveHourReset, attributes: resetAttrs))
+                    str.append(NSAttributedString(string: "5h ", attributes: resetLabelAttrs))
+                    str.append(NSAttributedString(string: data.fiveHourReset, attributes: resetValueAttrs))
                     str.append(NSAttributedString(string: "  ", attributes: labelAttrs))
                 }
                 str.append(NSAttributedString(string: "\(metric.shortLabel) ", attributes: labelAttrs))
