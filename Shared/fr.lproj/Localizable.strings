@@ -46,6 +46,8 @@
 "settings.menubar.title" = "Barre de menu";
 "settings.tab.connection" = "Connexion";
 "settings.tab.display" = "Affichage";
+"settings.session.reset" = "Afficher le compte à rebours";
+"pacing.session.label" = "Rythme session";
 "settings.metrics.pinned" = "Métriques épinglées";
 "settings.metrics.pinned.footer" = "Choisissez les métriques affichées dans la barre de menu.";
 "settings.pacing.display" = "Affichage rythme";

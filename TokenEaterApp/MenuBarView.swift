@@ -52,46 +52,25 @@ struct MenuBarPopoverView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 14)
 
-            // Pacing section
-            if let pacing = usageStore.pacingResult {
+            // Session pacing
+            if let pacing = usageStore.fiveHourPacing {
                 VStack(alignment: .leading, spacing: 6) {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            settingsStore.toggleMetric(.pacing)
-                        }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: settingsStore.pinnedMetrics.contains(.pacing) ? "pin.fill" : "pin")
-                                .font(.system(size: 7))
-                                .foregroundStyle(settingsStore.pinnedMetrics.contains(.pacing) ? colorForZone(pacing.zone) : .white.opacity(0.2))
-                                .rotationEffect(.degrees(settingsStore.pinnedMetrics.contains(.pacing) ? 0 : 45))
-                            Text(String(localized: "pacing.label"))
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.5))
-                            Spacer()
-                            let sign = pacing.delta >= 0 ? "+" : ""
-                            GlowText(
-                                "\(sign)\(Int(pacing.delta))%",
-                                font: .system(size: 13, weight: .black, design: .rounded),
-                                color: colorForZone(pacing.zone),
-                                glowRadius: 3
-                            )
-                        }
+                    pacingPinHeader(metric: .sessionPacing, label: String(localized: "pacing.session.label"), zone: pacing.zone)
+                    pacingRow(pacing: pacing, label: PacingBucket.fiveHour.metricID.label)
+                }
+                .padding(.horizontal, 16)
+            }
+
+            // Weekly + Sonnet pacing
+            if usageStore.pacingResult != nil || usageStore.sonnetPacing != nil {
+                VStack(alignment: .leading, spacing: 6) {
+                    pacingPinHeader(metric: .pacing, label: String(localized: "pacing.label"), zone: usageStore.pacingResult?.zone ?? .onTrack)
+                    if let pacing = usageStore.pacingResult {
+                        pacingRow(pacing: pacing, label: PacingBucket.sevenDay.metricID.label)
                     }
-                    .buttonStyle(.plain)
-                    .help(settingsStore.pinnedMetrics.contains(.pacing) ? Text(String(localized: "menubar.hide")) : Text(String(localized: "menubar.show")))
-
-                    PacingBar(
-                        actual: pacing.actualUsage,
-                        expected: pacing.expectedUsage,
-                        zone: pacing.zone,
-                        gradient: gradientForZone(pacing.zone),
-                        compact: true
-                    )
-
-                    Text(pacing.message)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(colorForZone(pacing.zone).opacity(0.8))
+                    if let pacing = usageStore.sonnetPacing {
+                        pacingRow(pacing: pacing, label: PacingBucket.sonnet.metricID.label)
+                    }
                 }
                 .padding(.horizontal, 16)
             }
@@ -357,6 +336,54 @@ struct MenuBarPopoverView: View {
         .padding(10)
         .background(Color.white.opacity(0.04))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func pacingPinHeader(metric: MetricID, label: String, zone: PacingZone) -> some View {
+        let isPinned = settingsStore.pinnedMetrics.contains(metric)
+        return Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                settingsStore.toggleMetric(metric)
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: isPinned ? "pin.fill" : "pin")
+                    .font(.system(size: 7))
+                    .foregroundStyle(isPinned ? colorForZone(zone) : .white.opacity(0.2))
+                    .rotationEffect(.degrees(isPinned ? 0 : 45))
+                Text(label)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.5))
+                Spacer()
+            }
+        }
+        .buttonStyle(.plain)
+        .help(isPinned ? Text(String(localized: "menubar.hide")) : Text(String(localized: "menubar.show")))
+    }
+
+    private func pacingRow(pacing: PacingResult, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Text(label)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.4))
+                Spacer()
+                let sign = pacing.delta >= 0 ? "+" : ""
+                GlowText(
+                    "\(sign)\(Int(pacing.delta))%",
+                    font: .system(size: 13, weight: .black, design: .rounded),
+                    color: colorForZone(pacing.zone),
+                    glowRadius: 3
+                )
+            }
+
+            PacingBar(
+                actual: pacing.actualUsage,
+                expected: pacing.expectedUsage,
+                zone: pacing.zone,
+                gradient: gradientForZone(pacing.zone),
+                compact: true
+            )
+        }
     }
 
     private func colorForZone(_ zone: PacingZone) -> Color {

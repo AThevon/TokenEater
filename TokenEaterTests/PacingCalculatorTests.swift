@@ -11,9 +11,8 @@ struct PacingCalculatorTests {
         Date(timeIntervalSince1970: floor(Date().timeIntervalSince1970))
     }
 
-    private func makeResetsAt(elapsedFraction: Double, now: Date) -> String {
-        let totalDuration: TimeInterval = 7 * 24 * 3600
-        let resetsAt = now.addingTimeInterval((1 - elapsedFraction) * totalDuration)
+    private func makeResetsAt(elapsedFraction: Double, now: Date, duration: TimeInterval = 7 * 24 * 3600) -> String {
+        let resetsAt = now.addingTimeInterval((1 - elapsedFraction) * duration)
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.string(from: resetsAt)
@@ -299,5 +298,67 @@ struct PacingCalculatorTests {
         let explicit = PacingCalculator.calculate(from: usage, margin: 10, now: now)
         #expect(implicit?.zone == explicit?.zone)
         #expect(implicit?.zone == .onTrack)
+    }
+
+    // MARK: - Per-bucket pacing
+
+    @Test("fiveHour bucket uses 5h period duration")
+    func fiveHourBucketUses5hPeriod() {
+        let now = Self.stableNow()
+        // 50% elapsed in a 5h window, utilization = 80 → delta = +30 → hot
+        let usage = UsageResponse(
+            fiveHour: .fixture(utilization: 80, resetsAt: makeResetsAt(elapsedFraction: 0.5, now: now, duration: 5 * 3600))
+        )
+        let result = PacingCalculator.calculate(from: usage, bucket: .fiveHour, now: now)
+        #expect(result != nil)
+        #expect(result?.zone == .hot)
+        #expect(abs((result?.delta ?? 0) - 30) < 1)
+    }
+
+    @Test("sonnet bucket uses 7d period duration")
+    func sonnetBucketUses7dPeriod() {
+        let now = Self.stableNow()
+        let usage = UsageResponse(
+            sevenDaySonnet: .fixture(utilization: 20, resetsAt: makeResetsAt(elapsedFraction: 0.5, now: now))
+        )
+        let result = PacingCalculator.calculate(from: usage, bucket: .sonnet, now: now)
+        #expect(result != nil)
+        #expect(result?.zone == .chill)
+    }
+
+    @Test("calculateAll returns results for all available buckets")
+    func calculateAllReturnsAllBuckets() {
+        let now = Self.stableNow()
+        let usage = UsageResponse.fixture(
+            fiveHourUtil: 80,
+            sevenDayUtil: 50,
+            sonnetUtil: 20,
+            fiveHourResetsAt: makeResetsAt(elapsedFraction: 0.5, now: now, duration: 5 * 3600),
+            sevenDayResetsAt: makeResetsAt(elapsedFraction: 0.5, now: now),
+            sonnetResetsAt: makeResetsAt(elapsedFraction: 0.5, now: now)
+        )
+        let results = PacingCalculator.calculateAll(from: usage, now: now)
+        #expect(results.count == 3)
+        #expect(results[.fiveHour]?.zone == .hot)
+        #expect(results[.sevenDay]?.zone == .onTrack)
+        #expect(results[.sonnet]?.zone == .chill)
+    }
+
+    @Test("calculateAll skips buckets without reset dates")
+    func calculateAllSkipsMissingBuckets() {
+        let now = Self.stableNow()
+        let usage = UsageResponse.fixture(
+            sevenDayResetsAt: makeResetsAt(elapsedFraction: 0.5, now: now)
+        )
+        let results = PacingCalculator.calculateAll(from: usage, now: now)
+        #expect(results.count == 1)
+        #expect(results[.sevenDay] != nil)
+    }
+
+    @Test("per-bucket calculate returns nil when bucket is missing")
+    func perBucketReturnsNilWhenMissing() {
+        let usage = UsageResponse()
+        #expect(PacingCalculator.calculate(from: usage, bucket: .fiveHour) == nil)
+        #expect(PacingCalculator.calculate(from: usage, bucket: .sonnet) == nil)
     }
 }

@@ -89,6 +89,13 @@ final class StatusBarController: NSObject {
         }
         .store(in: &cancellables)
 
+        Timer.publish(every: 60, on: .main, in: .common).autoconnect()
+            .sink { [weak self] _ in
+                guard let self, self.settingsStore.showSessionReset else { return }
+                self.usageStore.refreshResetCountdown()
+            }
+            .store(in: &cancellables)
+
         settingsStore.$pacingMargin
             .removeDuplicates()
             .sink { [weak self] newMargin in
@@ -204,7 +211,12 @@ final class StatusBarController: NSObject {
             hasError: usageStore.hasError,
             themeColors: themeStore.current,
             thresholds: themeStore.thresholds,
-            menuBarMonochrome: themeStore.menuBarMonochrome
+            menuBarMonochrome: themeStore.menuBarMonochrome,
+            fiveHourReset: usageStore.fiveHourReset,
+            showSessionReset: settingsStore.showSessionReset,
+            sessionPacingDelta: Int(usageStore.fiveHourPacing?.delta ?? 0),
+            sessionPacingZone: usageStore.fiveHourPacing?.zone ?? .onTrack,
+            hasSessionPacing: usageStore.fiveHourPacing != nil
         ))
         statusItem.button?.image = image
     }

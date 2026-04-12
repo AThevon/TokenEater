@@ -12,13 +12,34 @@ enum PacingCalculator {
     ]
 
     static func calculate(from usage: UsageResponse, margin: Double = 10, now: Date = Date()) -> PacingResult? {
-        guard let bucket = usage.sevenDay,
-              let resetsAt = bucket.resetsAtDate
-        else { return nil }
+        calculateForBucket(usage.sevenDay, duration: PacingBucket.sevenDay.periodDuration, margin: margin, now: now)
+    }
 
-        let totalDuration: TimeInterval = 7 * 24 * 3600
-        let startOfPeriod = resetsAt.addingTimeInterval(-totalDuration)
-        let elapsed = now.timeIntervalSince(startOfPeriod) / totalDuration
+    static func calculate(from usage: UsageResponse, bucket: PacingBucket, margin: Double = 10, now: Date = Date()) -> PacingResult? {
+        let usageBucket: UsageBucket?
+        switch bucket {
+        case .fiveHour: usageBucket = usage.fiveHour
+        case .sevenDay: usageBucket = usage.sevenDay
+        case .sonnet: usageBucket = usage.sevenDaySonnet
+        }
+        return calculateForBucket(usageBucket, duration: bucket.periodDuration, margin: margin, now: now)
+    }
+
+    static func calculateAll(from usage: UsageResponse, margin: Double = 10, now: Date = Date()) -> [PacingBucket: PacingResult] {
+        var results: [PacingBucket: PacingResult] = [:]
+        for bucket in PacingBucket.allCases {
+            if let result = calculate(from: usage, bucket: bucket, margin: margin, now: now) {
+                results[bucket] = result
+            }
+        }
+        return results
+    }
+
+    private static func calculateForBucket(_ bucket: UsageBucket?, duration: TimeInterval, margin: Double = 10, now: Date = Date()) -> PacingResult? {
+        guard let bucket, let resetsAt = bucket.resetsAtDate else { return nil }
+
+        let startOfPeriod = resetsAt.addingTimeInterval(-duration)
+        let elapsed = now.timeIntervalSince(startOfPeriod) / duration
         let clampedElapsed = min(max(elapsed, 0), 1)
 
         let expectedUsage = clampedElapsed * 100
@@ -37,7 +58,8 @@ enum PacingCalculator {
             messages = onTrackMessages
         }
 
-        let messageKey = messages.randomElement() ?? messages[0]
+        let index = abs(Int(delta)) % messages.count
+        let messageKey = messages[index]
         let message = String(localized: String.LocalizationValue(messageKey))
 
         return PacingResult(
