@@ -15,6 +15,11 @@ enum MenuBarRenderer {
         let themeColors: ThemeColors
         let thresholds: UsageThresholds
         let menuBarMonochrome: Bool
+        let fiveHourReset: String
+        let showSessionReset: Bool
+        let sessionPacingDelta: Int
+        let sessionPacingZone: PacingZone
+        let hasSessionPacing: Bool
     }
 
     // FIX 1: Static cache — returns same NSImage when data unchanged
@@ -65,12 +70,36 @@ enum MenuBarRenderer {
             .foregroundColor: NSColor.tertiaryLabelColor,
         ]
 
-        let ordered: [MetricID] = [.fiveHour, .sevenDay, .sonnet, .pacing].filter { data.pinnedMetrics.contains($0) }
+        let ordered: [MetricID] = [.fiveHour, .sessionPacing, .sevenDay, .sonnet, .pacing].filter {
+            guard data.pinnedMetrics.contains($0) else { return false }
+            if $0 == .sessionPacing { return data.hasSessionPacing }
+            return true
+        }
         for (i, metric) in ordered.enumerated() {
             if i > 0 {
                 str.append(NSAttributedString(string: "  ", attributes: sepAttrs))
             }
-            if metric == .pacing {
+            if metric == .sessionPacing {
+                let dotColor = colorForZone(data.sessionPacingZone, data: data)
+                    let dotAttrs: [NSAttributedString.Key: Any] = [
+                        .font: NSFont.systemFont(ofSize: 11, weight: .bold),
+                        .foregroundColor: dotColor,
+                    ]
+                    let deltaAttrs: [NSAttributedString.Key: Any] = [
+                        .font: NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .bold),
+                        .foregroundColor: dotColor,
+                    ]
+                    let sign = data.sessionPacingDelta >= 0 ? "+" : ""
+                    switch data.pacingDisplayMode {
+                    case .dot:
+                        str.append(NSAttributedString(string: "\u{25CF}", attributes: dotAttrs))
+                    case .dotDelta:
+                        str.append(NSAttributedString(string: "\u{25CF}", attributes: dotAttrs))
+                        str.append(NSAttributedString(string: " \(sign)\(data.sessionPacingDelta)%", attributes: deltaAttrs))
+                    case .delta:
+                        str.append(NSAttributedString(string: "\(sign)\(data.sessionPacingDelta)%", attributes: deltaAttrs))
+                    }
+            } else if metric == .pacing {
                 let dotColor = colorForZone(data.pacingZone, data: data)
                 let dotAttrs: [NSAttributedString.Key: Any] = [
                     .font: NSFont.systemFont(ofSize: 11, weight: .bold),
@@ -96,7 +125,20 @@ enum MenuBarRenderer {
                 case .fiveHour: value = data.fiveHourPct
                 case .sevenDay: value = data.sevenDayPct
                 case .sonnet: value = data.sonnetPct
-                case .pacing: value = 0
+                case .pacing, .sessionPacing: value = 0
+                }
+                if metric == .fiveHour && data.showSessionReset && !data.fiveHourReset.isEmpty {
+                    let resetLabelAttrs: [NSAttributedString.Key: Any] = [
+                        .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium),
+                        .foregroundColor: NSColor.tertiaryLabelColor,
+                    ]
+                    let resetValueAttrs: [NSAttributedString.Key: Any] = [
+                        .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .bold),
+                        .foregroundColor: NSColor.labelColor,
+                    ]
+                    str.append(NSAttributedString(string: "5h ", attributes: resetLabelAttrs))
+                    str.append(NSAttributedString(string: data.fiveHourReset, attributes: resetValueAttrs))
+                    str.append(NSAttributedString(string: "  ", attributes: labelAttrs))
                 }
                 str.append(NSAttributedString(string: "\(metric.shortLabel) ", attributes: labelAttrs))
                 let pctAttrs: [NSAttributedString.Key: Any] = [

@@ -15,6 +15,8 @@ final class UsageStore: ObservableObject {
     @Published var pacingDelta: Int = 0
     @Published var pacingZone: PacingZone = .onTrack
     @Published var pacingResult: PacingResult?
+    @Published var fiveHourPacing: PacingResult?
+    @Published var sonnetPacing: PacingResult?
     @Published var lastUpdate: Date?
     @Published var isLoading = false
     @Published var errorState: AppErrorState = .none
@@ -300,32 +302,42 @@ final class UsageStore: ObservableObject {
         hasOpus = usage.sevenDayOpus != nil
         hasCowork = usage.sevenDayCowork != nil
 
-        if let reset = usage.fiveHour?.resetsAtDate {
-            let diff = reset.timeIntervalSinceNow
-            if diff > 0 {
-                let h = Int(diff) / 3600
-                let m = (Int(diff) % 3600) / 60
-                fiveHourReset = h > 0 ? "\(h)h \(m)min" : "\(m)min"
-            } else {
-                fiveHourReset = String(localized: "relative.now")
-            }
-        } else {
-            fiveHourReset = ""
-        }
+        refreshResetCountdown()
 
-        if let pacing = PacingCalculator.calculate(from: usage, margin: Double(pacingMargin)) {
-            pacingDelta = Int(pacing.delta)
-            pacingZone = pacing.zone
-            pacingResult = pacing
+        applyPacing(PacingCalculator.calculateAll(from: usage, margin: Double(pacingMargin)))
+    }
+
+    func refreshResetCountdown() {
+        guard let reset = lastUsage?.fiveHour?.resetsAtDate else {
+            fiveHourReset = ""
+            return
+        }
+        let diff = reset.timeIntervalSinceNow
+        if diff > 0 {
+            let h = Int(diff) / 3600
+            let m = (Int(diff) % 3600) / 60
+            fiveHourReset = h > 0 ? "\(h)h \(m)min" : "\(m)min"
+        } else {
+            fiveHourReset = String(localized: "relative.now")
         }
     }
 
     func recalculatePacing() {
         guard let usage = lastUsage else { return }
-        if let pacing = PacingCalculator.calculate(from: usage, margin: Double(pacingMargin)) {
+        applyPacing(PacingCalculator.calculateAll(from: usage, margin: Double(pacingMargin)))
+    }
+
+    private func applyPacing(_ allPacing: [PacingBucket: PacingResult]) {
+        if let pacing = allPacing[.sevenDay] {
             pacingDelta = Int(pacing.delta)
             pacingZone = pacing.zone
             pacingResult = pacing
+        } else {
+            pacingDelta = 0
+            pacingZone = .onTrack
+            pacingResult = nil
         }
+        fiveHourPacing = allPacing[.fiveHour]
+        sonnetPacing = allPacing[.sonnet]
     }
 }

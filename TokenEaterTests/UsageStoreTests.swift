@@ -371,6 +371,80 @@ struct UsageStoreTests {
         #expect(store.pacingDelta > 0)
     }
 
+    // MARK: - refreshResetCountdown
+
+    @Test("refreshResetCountdown updates fiveHourReset from cached data")
+    func refreshResetCountdownUpdates() async {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        let resetsAt = Date().addingTimeInterval(3700) // ~1h 1min from now
+        let usage = UsageResponse.fixture(
+            fiveHourResetsAt: formatter.string(from: resetsAt)
+        )
+        let (store, _, _, _, _) = makeSUT(usage: usage)
+
+        await store.refresh()
+        let initialReset = store.fiveHourReset
+        #expect(!initialReset.isEmpty)
+
+        // Simulate time passing — refreshResetCountdown recalculates from the cached date
+        store.refreshResetCountdown()
+        #expect(!store.fiveHourReset.isEmpty)
+        #expect(store.fiveHourReset.contains("h") || store.fiveHourReset.contains("min"))
+    }
+
+    @Test("refreshResetCountdown clears when no cached usage")
+    func refreshResetCountdownClearsWhenNoCachedData() {
+        let (store, _, _, _, _) = makeSUT()
+        store.refreshResetCountdown()
+        #expect(store.fiveHourReset == "")
+    }
+
+    @Test("refreshResetCountdown shows relative.now when reset is past")
+    func refreshResetCountdownShowsNowWhenPast() async {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        let resetsAt = Date().addingTimeInterval(-60) // 1min in the past
+        let usage = UsageResponse.fixture(
+            fiveHourResetsAt: formatter.string(from: resetsAt)
+        )
+        let (store, _, _, _, _) = makeSUT(usage: usage)
+
+        await store.refresh()
+        store.refreshResetCountdown()
+        // Should show the "now" localized string, not an empty string
+        #expect(!store.fiveHourReset.isEmpty)
+        #expect(!store.fiveHourReset.contains("min"))
+    }
+
+    // MARK: - per-bucket pacing in store
+
+    @Test("refresh populates fiveHourPacing and sonnetPacing")
+    func refreshPopulatesPerBucketPacing() async {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        let fiveHourReset = Date().addingTimeInterval(2.5 * 3600) // mid-period
+        let sevenDayReset = Date().addingTimeInterval(3.5 * 24 * 3600)
+        let sonnetReset = Date().addingTimeInterval(3.5 * 24 * 3600)
+        let usage = UsageResponse.fixture(
+            fiveHourUtil: 80,
+            sevenDayUtil: 50,
+            sonnetUtil: 20,
+            fiveHourResetsAt: formatter.string(from: fiveHourReset),
+            sevenDayResetsAt: formatter.string(from: sevenDayReset),
+            sonnetResetsAt: formatter.string(from: sonnetReset)
+        )
+        let (store, _, _, _, _) = makeSUT(usage: usage)
+
+        await store.refresh()
+
+        #expect(store.fiveHourPacing != nil)
+        #expect(store.sonnetPacing != nil)
+        #expect(store.pacingResult != nil)
+        #expect(store.fiveHourPacing?.zone == .hot)
+        #expect(store.sonnetPacing?.zone == .chill)
+    }
+
     // MARK: - new buckets (opus, cowork)
 
     @Test("refresh extracts opus and cowork percentages")

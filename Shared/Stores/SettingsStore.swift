@@ -13,6 +13,9 @@ final class SettingsStore: ObservableObject {
     @Published var pacingDisplayMode: PacingDisplayMode {
         didSet { UserDefaults.standard.set(pacingDisplayMode.rawValue, forKey: "pacingDisplayMode") }
     }
+    @Published var showSessionReset: Bool {
+        didSet { UserDefaults.standard.set(showSessionReset, forKey: "showSessionReset") }
+    }
     @Published var hasCompletedOnboarding: Bool {
         didSet { UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding") }
     }
@@ -105,6 +108,14 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    var showSessionPacing: Bool {
+        get { pinnedMetrics.contains(.sessionPacing) }
+        set {
+            if newValue { pinnedMetrics.insert(.sessionPacing) }
+            else if pinnedMetrics.count > 1 { pinnedMetrics.remove(.sessionPacing) }
+        }
+    }
+
     var showPacing: Bool {
         get { pinnedMetrics.contains(.pacing) }
         set {
@@ -160,6 +171,7 @@ final class SettingsStore: ObservableObject {
         self.pacingDisplayMode = PacingDisplayMode(
             rawValue: UserDefaults.standard.string(forKey: "pacingDisplayMode") ?? "dotDelta"
         ) ?? .dotDelta
+        self.showSessionReset = UserDefaults.standard.bool(forKey: "showSessionReset")
         if let saved = UserDefaults.standard.stringArray(forKey: "pinnedMetrics") {
             self.pinnedMetrics = Set(saved.compactMap { MetricID(rawValue: $0) })
         } else {

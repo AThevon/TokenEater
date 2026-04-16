@@ -46,6 +46,8 @@
 "settings.menubar.title" = "Menu bar";
 "settings.tab.connection" = "Connection";
 "settings.tab.display" = "Display";
+"settings.session.reset" = "Show reset countdown";
+"pacing.session.label" = "Session pacing";
 "settings.metrics.pinned" = "Pinned metrics";
 "settings.metrics.pinned.footer" = "Choose which metrics appear in the menu bar.";
 "settings.pacing.display" = "Pacing display";
