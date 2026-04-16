@@ -73,6 +73,9 @@ final class SettingsStore: ObservableObject {
     @Published var overlayLeftSide: Bool {
         didSet { UserDefaults.standard.set(overlayLeftSide, forKey: "overlayLeftSide") }
     }
+    @Published var overlayTriggerZone: OverlayTriggerZone {
+        didSet { UserDefaults.standard.set(overlayTriggerZone.rawValue, forKey: "overlayTriggerZone") }
+    }
     @Published var watchersDetailedMode: Bool {
         didSet { UserDefaults.standard.set(watchersDetailedMode, forKey: "watchersDetailedMode") }
     }
@@ -189,6 +192,9 @@ final class SettingsStore: ObservableObject {
         self.overlayDockEffect = UserDefaults.standard.object(forKey: "overlayDockEffect") as? Bool ?? true
         self.overlayScale = UserDefaults.standard.object(forKey: "overlayScale") as? Double ?? 1.1
         self.overlayLeftSide = UserDefaults.standard.bool(forKey: "overlayLeftSide")
+        self.overlayTriggerZone = OverlayTriggerZone(
+            rawValue: UserDefaults.standard.string(forKey: "overlayTriggerZone") ?? "medium"
+        ) ?? .medium
         self.watchersDetailedMode = UserDefaults.standard.object(forKey: "watchersDetailedMode") as? Bool ?? true
         self.watcherStyle = WatcherStyle(
             rawValue: UserDefaults.standard.string(forKey: "watcherStyle") ?? "frost"

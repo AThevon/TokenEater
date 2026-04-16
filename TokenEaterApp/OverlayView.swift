@@ -64,8 +64,12 @@ struct OverlayView: View {
         let vDistToGroup = abs(groupCenterY - cursor.y)
         guard vDistToGroup < totalHeight / 2 + 80 else { return 0 }
 
-        // Horizontal factor: steep curve — max reached within ~60px of travel
-        let hActivationZone: CGFloat = 180
+        // Horizontal factor: visual expansion is tied to the controller's
+        // active hover zone. While inactive the user needs to reach the
+        // (possibly tiny) enter strip to trigger expansion; once active the
+        // expansion persists across the larger exit zone so the user can
+        // pin a session without pixel-hunting.
+        let hActivationZone = max(overlayState.activationZone, 20)
         let hDistance = leftSide ? cursor.x : (wWidth - cursor.x)
         guard hDistance < hActivationZone else { return 0 }
         let rawH = 1 - (hDistance / hActivationZone)

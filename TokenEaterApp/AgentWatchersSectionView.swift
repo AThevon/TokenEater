@@ -82,6 +82,27 @@ struct AgentWatchersSectionView: View {
 
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
+                            Text(String(localized: "settings.watchers.trigger"))
+                                .font(.system(size: 13))
+                                .foregroundStyle(.white.opacity(0.8))
+                            Spacer()
+                            Picker("", selection: $settingsStore.overlayTriggerZone) {
+                                ForEach(OverlayTriggerZone.allCases) { zone in
+                                    Text(zone.localizedLabel).tag(zone)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                            .frame(maxWidth: 220)
+                        }
+                        Text(String(localized: "settings.watchers.trigger.hint"))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.white.opacity(0.45))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
                             Text(String(localized: "settings.watchers.size"))
                                 .font(.system(size: 13))
                                 .foregroundStyle(.white.opacity(0.8))
