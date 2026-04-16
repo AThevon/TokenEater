@@ -25,28 +25,29 @@ struct MainAppView: View {
         HStack(spacing: 4) {
             AppSidebar(selection: $selectedSection)
 
-            ScrollView(.vertical, showsIndicators: true) {
-                Group {
-                    switch selectedSection {
-                    case .dashboard:
-                        DashboardView()
-                    case .display:
-                        DisplaySectionView(initialMetrics: settingsStore.pinnedMetrics)
-                    case .themes:
+            Group {
+                switch selectedSection {
+                case .dashboard:
+                    // Dashboard expects to fill the viewport (uses maxHeight: .infinity
+                    // internally). Wrapping it in a ScrollView collapses that layout.
+                    DashboardView()
+                case .display:
+                    scrollingSection { DisplaySectionView(initialMetrics: settingsStore.pinnedMetrics) }
+                case .themes:
+                    scrollingSection {
                         ThemesSectionView(
                             initialWarning: themeStore.warningThreshold,
                             initialCritical: themeStore.criticalThreshold,
                             initialMargin: settingsStore.pacingMargin
                         )
-                    case .agentWatchers:
-                        AgentWatchersSectionView()
-                    case .performance:
-                        PerformanceSectionView()
-                    case .settings:
-                        SettingsSectionView()
                     }
+                case .agentWatchers:
+                    scrollingSection { AgentWatchersSectionView() }
+                case .performance:
+                    scrollingSection { PerformanceSectionView() }
+                case .settings:
+                    scrollingSection { SettingsSectionView() }
                 }
-                .frame(maxWidth: .infinity, alignment: .top)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(RoundedRectangle(cornerRadius: 16).fill(panelBg))
@@ -65,6 +66,14 @@ struct MainAppView: View {
                let target = AppSection(rawValue: section) {
                 selectedSection = target
             }
+        }
+    }
+
+    @ViewBuilder
+    private func scrollingSection<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            content()
+                .frame(maxWidth: .infinity, alignment: .top)
         }
     }
 
