@@ -269,6 +269,10 @@
 "update.installing.hint" = "Enter your password when macOS asks";
 "update.version.current" = "Current";
 "update.version.new" = "New";
+"update.error.signatureInvalid" = "Signature verification failed. Aborting install.";
+"update.error.signatureMissing" = "Update is missing a signature. Aborting install.";
+"update.error.sizeMismatch" = "Update file size does not match the appcast. Aborting install.";
+"update.error.verifyReadFailed" = "Could not read update files for verification. Aborting install.";
 
 /* Brew Migration */
 "update.brew.detected" = "Installed via Homebrew";

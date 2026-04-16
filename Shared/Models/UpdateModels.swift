@@ -9,14 +9,28 @@ enum BrewMigrationState: Equatable {
 struct AppcastItem: Equatable {
     let version: String
     let downloadURL: URL
+    let edSignature: String?
+    let expectedLength: Int64?
+
+    init(
+        version: String,
+        downloadURL: URL,
+        edSignature: String? = nil,
+        expectedLength: Int64? = nil
+    ) {
+        self.version = version
+        self.downloadURL = downloadURL
+        self.edSignature = edSignature
+        self.expectedLength = expectedLength
+    }
 }
 
 enum UpdateState: Equatable {
     case idle
     case checking
-    case available(version: String, downloadURL: URL)
+    case available(version: String, downloadURL: URL, signature: String?, expectedLength: Int64?)
     case downloading(progress: Double)
-    case downloaded(fileURL: URL)
+    case downloaded(fileURL: URL, signature: String?, expectedLength: Int64?)
     case installing
     case upToDate
     case error(String)
@@ -31,7 +45,7 @@ enum UpdateState: Equatable {
     }
 
     var availableVersion: String? {
-        if case .available(let version, _) = self { return version }
+        if case .available(let version, _, _, _) = self { return version }
         return nil
     }
 }

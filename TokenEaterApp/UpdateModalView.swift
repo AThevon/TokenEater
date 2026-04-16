@@ -21,7 +21,7 @@ struct UpdateModalView: View {
             // Modal card
             VStack(spacing: 0) {
                 switch updateStore.updateState {
-                case .available(let version, _):
+                case .available(let version, _, _, _):
                     availableContent(newVersion: version)
                 case .downloading(let progress):
                     downloadingContent(progress: progress)

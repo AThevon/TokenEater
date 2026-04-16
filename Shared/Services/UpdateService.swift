@@ -76,13 +76,15 @@ final class UpdateService: NSObject, UpdateServiceProtocol, URLSessionDownloadDe
 
 // MARK: - Appcast XML Parser
 
-private final class AppcastXMLParser: NSObject, XMLParserDelegate {
+final class AppcastXMLParser: NSObject, XMLParserDelegate {
     private(set) var items: [AppcastItem] = []
     private var inItem = false
     private var currentElement = ""
     private var currentText = ""
     private var currentVersion: String?
     private var currentURL: String?
+    private var currentSignature: String?
+    private var currentLength: Int64?
 
     var latestItem: AppcastItem? {
         items.max { VersionComparator.compare($0.version, $1.version) == .orderedAscending }
@@ -106,11 +108,15 @@ private final class AppcastXMLParser: NSObject, XMLParserDelegate {
             inItem = true
             currentVersion = nil
             currentURL = nil
+            currentSignature = nil
+            currentLength = nil
         } else if inItem {
             currentElement = name
             currentText = ""
             if name == "enclosure" {
                 currentURL = attributeDict["url"]
+                currentSignature = attributeDict["sparkle:edSignature"]
+                currentLength = attributeDict["length"].flatMap(Int64.init)
             }
         }
     }
@@ -130,7 +136,14 @@ private final class AppcastXMLParser: NSObject, XMLParserDelegate {
             if let version = currentVersion,
                let urlString = currentURL,
                let url = URL(string: urlString) {
-                items.append(AppcastItem(version: version, downloadURL: url))
+                items.append(
+                    AppcastItem(
+                        version: version,
+                        downloadURL: url,
+                        edSignature: currentSignature,
+                        expectedLength: currentLength
+                    )
+                )
             }
             inItem = false
         } else if inItem && name == "sparkle:version" {
