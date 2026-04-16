@@ -10,8 +10,12 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
     private var timer: DispatchSourceTimer?
     private let queue = DispatchQueue(label: "com.tokeneater.session-monitor", qos: .utility)
     private let scanInterval: TimeInterval
+    private let projectDirFreshness: TimeInterval
+    private let claudeProjectsDirOverride: URL?
+    private let processProvider: @Sendable () -> [ClaudeProcessInfo]
 
     private var claudeProjectsDir: URL {
+        if let override = claudeProjectsDirOverride { return override }
         let home: String
         if let pw = getpwuid(getuid()) {
             home = String(cString: pw.pointee.pw_dir)
@@ -21,12 +25,19 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
         return URL(fileURLWithPath: home).appendingPathComponent(".claude/projects")
     }
 
-    init(scanInterval: TimeInterval = 2.0) {
+    init(
+        scanInterval: TimeInterval = 2.0,
+        projectDirFreshness: TimeInterval = 30 * 60,
+        claudeProjectsDirOverride: URL? = nil,
+        processProvider: @escaping @Sendable () -> [ClaudeProcessInfo] = { ProcessResolver.findClaudeProcesses() }
+    ) {
         self.scanInterval = scanInterval
+        self.projectDirFreshness = projectDirFreshness
+        self.claudeProjectsDirOverride = claudeProjectsDirOverride
+        self.processProvider = processProvider
     }
 
     func startMonitoring() {
-        // Cancel any existing timer to prevent double-scheduling
         timer?.cancel()
         timer = nil
 
@@ -45,9 +56,9 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
         sessionsSubject.send([])
     }
 
-    private func scan() {
-        // Step 1: Find running claude processes and their cwds
-        let processes = ProcessResolver.findClaudeProcesses()
+    /// Internal for perf tests. Must stay safe to call synchronously off the timer queue.
+    func scan() {
+        let processes = processProvider()
         guard !processes.isEmpty else {
             sessionsSubject.send([])
             return
@@ -61,22 +72,18 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
             return
         }
 
-        // Step 2: Build a lookup of process cwd → process info (supports multiple processes per path)
-        // Normalize worktree paths: strip .claude/worktrees/<name> suffix
         var cwdToProcesses: [String: [ClaudeProcessInfo]] = [:]
         for proc in processes {
             cwdToProcesses[proc.cwd, default: []].append(proc)
-            // Also register the canonical project path for worktrees
             if let range = proc.cwd.range(of: "/.claude/worktrees/") {
                 let canonical = String(proc.cwd[proc.cwd.startIndex..<range.lowerBound])
                 cwdToProcesses[canonical, default: []].append(proc)
             }
         }
 
-        // Step 3: For each running process, find the most recent JSONL
         guard let projectDirs = try? fm.contentsOfDirectory(
             at: projectsDir,
-            includingPropertiesForKeys: nil,
+            includingPropertiesForKeys: [.contentModificationDateKey, .isDirectoryKey],
             options: .skipsHiddenFiles
         ) else {
             sessionsSubject.send([])
@@ -85,37 +92,50 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
 
         var activeSessions: [ClaudeSession] = []
 
-        // Process longer paths first so worktree-specific dirs match before parent project dirs.
-        // E.g. -project--claude-worktrees-foo is processed before -project, preventing stale
-        // main-project JONLs from stealing worktree processes via the canonical path key.
+        // Skip directories that haven't been touched recently. Claude Code appends to JSONL
+        // files (and touches the parent dir) on every message, so a dir with an mtime older
+        // than `projectDirFreshness` cannot host an active session and does not need to be
+        // walked. This cuts the filesystem walk from "all dirs, all files" to "recent dirs".
+        let freshnessCutoff = Date().addingTimeInterval(-projectDirFreshness)
         let sortedDirs = projectDirs
             .filter { $0.hasDirectoryPath }
+            .filter { dir in
+                let mtime = (try? dir.resourceValues(forKeys: [.contentModificationDateKey])
+                    .contentModificationDate) ?? .distantPast
+                return mtime >= freshnessCutoff
+            }
+            // Process longer paths first so worktree-specific dirs match before parent project dirs.
             .sorted { $0.lastPathComponent.count > $1.lastPathComponent.count }
 
         for dir in sortedDirs {
-
-            let jsonlFiles: [URL]
+            // Decorate-sort-undecorate: read each JSONL's mtime exactly once via the cached
+            // URLResourceValues populated by `includingPropertiesForKeys`. The previous
+            // implementation called `attributesOfItem(atPath:)` inside the sort comparator,
+            // which ran 2 * O(N log N) syscalls per dir and dominated CPU at steady state.
+            let jsonlFiles: [(url: URL, mtime: Date)]
             do {
-                jsonlFiles = try fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey])
-                    .filter { $0.pathExtension == "jsonl" }
+                let urls = try fm.contentsOfDirectory(
+                    at: dir,
+                    includingPropertiesForKeys: [.contentModificationDateKey],
+                    options: [.skipsHiddenFiles]
+                ).filter { $0.pathExtension == "jsonl" }
+
+                jsonlFiles = urls.map { url in
+                    let mtime = (try? url.resourceValues(forKeys: [.contentModificationDateKey])
+                        .contentModificationDate) ?? .distantPast
+                    return (url, mtime)
+                }
             } catch { continue }
 
-            // Sort by modification date (most recent first)
-            let sorted = jsonlFiles.sorted { a, b in
-                let aDate = (try? fm.attributesOfItem(atPath: a.path)[.modificationDate] as? Date) ?? .distantPast
-                let bDate = (try? fm.attributesOfItem(atPath: b.path)[.modificationDate] as? Date) ?? .distantPast
-                return aDate > bDate
-            }
+            let sortedFiles = jsonlFiles.sorted { $0.mtime > $1.mtime }
 
-            for file in sorted {
+            for (file, mtime) in sortedFiles {
                 guard let result = readAndParse(file: file) else { continue }
 
-                // Check if a claude process is running for this project path
                 guard let process = matchProcess(projectPath: result.projectPath, in: cwdToProcesses) else { continue }
 
                 let sessionId = file.deletingPathExtension().lastPathComponent
-                let modDate = (try? fm.attributesOfItem(atPath: file.path)[.modificationDate] as? Date) ?? Date()
-                let startedAt = readFirstTimestamp(of: file) ?? modDate
+                let startedAt = readFirstTimestamp(of: file) ?? mtime
 
                 let resolvedState: SessionState
                 if result.state == .thinking,
@@ -131,14 +151,13 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
                     gitBranch: result.gitBranch,
                     model: result.model,
                     state: resolvedState,
-                    lastUpdate: modDate,
+                    lastUpdate: mtime,
                     startedAt: startedAt,
                     processPid: process.pid,
                     sourceKind: process.sourceKind
                 )
                 activeSessions.append(session)
 
-                // Remove this process from ALL entries so it can't double-match
                 let matchedPid = process.pid
                 for (key, procs) in cwdToProcesses {
                     let filtered = procs.filter { $0.pid != matchedPid }
@@ -149,13 +168,10 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
                     }
                 }
 
-                // Continue to find other sessions for different processes
                 if cwdToProcesses.isEmpty { break }
             }
         }
 
-        // Stable sort: by startedAt, then by session id as tiebreaker
-        // to prevent watchers from jumping around on each scan cycle.
         activeSessions.sort {
             if $0.startedAt != $1.startedAt { return $0.startedAt < $1.startedAt }
             return $0.id < $1.id
@@ -166,16 +182,13 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
     /// Match a JSONL project path to a running Claude process.
     /// Exact match first, then worktree-aware match (CWD is inside projectPath/.claude/worktrees/).
     private func matchProcess(projectPath: String, in lookup: [String: [ClaudeProcessInfo]]) -> ClaudeProcessInfo? {
-        // Exact match on project path
         if let proc = lookup[projectPath]?.first { return proc }
 
-        // Worktree match: a process CWD like /project/.claude/worktrees/foo should match /project
         for (cwd, procs) in lookup {
             guard let proc = procs.first else { continue }
             if cwd.hasPrefix(projectPath + "/.claude/worktrees/") {
                 return proc
             }
-            // Reverse: projectPath is a worktree path of a process CWD
             if projectPath.hasPrefix(cwd + "/.claude/worktrees/") {
                 return proc
             }
