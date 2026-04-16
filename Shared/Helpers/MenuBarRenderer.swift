@@ -10,20 +10,23 @@ enum MenuBarRenderer {
         let weeklyPacingDelta: Int
         let weeklyPacingZone: PacingZone
         let hasWeeklyPacing: Bool
-        let sonnetPacingDelta: Int
-        let sonnetPacingZone: PacingZone
-        let hasSonnetPacing: Bool
         let sessionPacingDelta: Int
         let sessionPacingZone: PacingZone
         let hasSessionPacing: Bool
-        let pacingDisplayMode: PacingDisplayMode
+        let sessionPacingDisplayMode: PacingDisplayMode
+        let weeklyPacingDisplayMode: PacingDisplayMode
         let hasConfig: Bool
         let hasError: Bool
         let themeColors: ThemeColors
         let thresholds: UsageThresholds
         let menuBarMonochrome: Bool
         let fiveHourReset: String
-        let showSessionReset: Bool
+        let fiveHourResetAbsolute: String
+        let fiveHourResetDate: Date?
+        let resetDisplayFormat: ResetDisplayFormat
+        let resetTextColorHex: String
+        let sessionPeriodColorHex: String
+        let smartResetColor: Bool
     }
 
     private static var cachedImage: NSImage?
@@ -34,16 +37,20 @@ enum MenuBarRenderer {
             return cached
         }
 
-        let image: NSImage
-        if !data.hasConfig || data.hasError {
-            image = renderLogoTemplate()
-        } else {
-            image = renderPinnedMetrics(data)
-        }
-
+        let image = renderUncached(data)
         cachedImage = image
         cachedData = data
         return image
+    }
+
+    /// Same rendering pipeline as `render(_:)` but never touches or updates
+    /// the static cache. Useful for live previews that may differ from the
+    /// status bar's current state and shouldn't poison it.
+    static func renderUncached(_ data: RenderData) -> NSImage {
+        if !data.hasConfig || data.hasError {
+            return renderLogoTemplate()
+        }
+        return renderPinnedMetrics(data)
     }
 
     // MARK: - Color helpers
@@ -58,30 +65,71 @@ enum MenuBarRenderer {
         return data.themeColors.pacingNSColor(for: zone)
     }
 
+    private static func periodColor(_ data: RenderData) -> NSColor {
+        data.menuBarMonochrome
+            ? NSColor.tertiaryLabelColor
+            : MenuBarTextColorResolver.resolve(
+                hex: data.sessionPeriodColorHex,
+                fallback: .tertiaryLabelColor
+            )
+    }
+
+    /// Reset countdown text color. Honors the Themes setting priority:
+    ///   1. monochrome: always system label;
+    ///   2. smart mode: risk-based (green/orange/red) using the same 3
+    ///      gauge colors so it visually agrees with the session ring;
+    ///   3. static: user-picked hex, falling back to the system label.
+    private static func resetValueColor(_ data: RenderData) -> NSColor {
+        if data.menuBarMonochrome { return NSColor.labelColor }
+        if data.smartResetColor, let reset = data.fiveHourResetDate {
+            return smartResetNSColor(
+                utilization: Double(data.fiveHourPct),
+                resetDate: reset,
+                themeColors: data.themeColors
+            )
+        }
+        return MenuBarTextColorResolver.resolve(
+            hex: data.resetTextColorHex,
+            fallback: .labelColor
+        )
+    }
+
+    /// Risk = utilization * remaining_minutes / 100. Thresholds mirror the
+    /// static gauge boundaries so the reset color lines up visually with the
+    /// 5-hour gauge elsewhere in the app.
+    private static func smartResetNSColor(
+        utilization: Double,
+        resetDate: Date,
+        themeColors: ThemeColors,
+        now: Date = Date()
+    ) -> NSColor {
+        let remainingMinutes = max(resetDate.timeIntervalSince(now), 0) / 60
+        let risk = utilization * remainingMinutes / 100
+        if risk > 100 { return themeColors.gaugeNSColor(for: 100, thresholds: .default) }
+        if risk > 70 { return themeColors.gaugeNSColor(for: 75, thresholds: .default) }
+        return themeColors.gaugeNSColor(for: 10, thresholds: .default)
+    }
+
     // MARK: - Rendering
 
     private static func renderPinnedMetrics(_ data: RenderData) -> NSImage {
         let height: CGFloat = 22
         let str = NSMutableAttributedString()
 
-        let labelAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 9, weight: .medium),
-            .foregroundColor: NSColor.tertiaryLabelColor,
-        ]
         let sepAttrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 10, weight: .regular),
             .foregroundColor: NSColor.tertiaryLabelColor,
         ]
 
         let ordered: [MetricID] = [
-            .fiveHour, .sessionPacing, .sevenDay, .weeklyPacing, .sonnet, .sonnetPacing
+            .sessionReset, .fiveHour, .sessionPacing, .sevenDay, .weeklyPacing, .sonnet
         ].filter {
             guard data.pinnedMetrics.contains($0) else { return false }
-            if !data.displaySonnet && ($0 == .sonnet || $0 == .sonnetPacing) { return false }
+            if !data.displaySonnet && $0 == .sonnet { return false }
             switch $0 {
+            case .sessionReset: return !data.fiveHourReset.isEmpty || !data.fiveHourResetAbsolute.isEmpty
             case .sessionPacing: return data.hasSessionPacing
             case .weeklyPacing: return data.hasWeeklyPacing
-            case .sonnetPacing: return data.hasSonnetPacing
             default: return true
             }
         }
@@ -90,11 +138,14 @@ enum MenuBarRenderer {
                 str.append(NSAttributedString(string: "  ", attributes: sepAttrs))
             }
             switch metric {
+            case .sessionReset:
+                appendSessionReset(to: str, data: data)
             case .sessionPacing:
                 appendPacing(
                     to: str,
                     delta: data.sessionPacingDelta,
                     zone: data.sessionPacingZone,
+                    mode: data.sessionPacingDisplayMode,
                     data: data
                 )
             case .weeklyPacing:
@@ -102,13 +153,7 @@ enum MenuBarRenderer {
                     to: str,
                     delta: data.weeklyPacingDelta,
                     zone: data.weeklyPacingZone,
-                    data: data
-                )
-            case .sonnetPacing:
-                appendPacing(
-                    to: str,
-                    delta: data.sonnetPacingDelta,
-                    zone: data.sonnetPacingZone,
+                    mode: data.weeklyPacingDisplayMode,
                     data: data
                 )
             case .fiveHour, .sevenDay, .sonnet:
@@ -119,20 +164,11 @@ enum MenuBarRenderer {
                 case .sonnet: value = data.sonnetPct
                 default: value = 0
                 }
-                if metric == .fiveHour && data.showSessionReset && !data.fiveHourReset.isEmpty {
-                    let resetLabelAttrs: [NSAttributedString.Key: Any] = [
-                        .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium),
-                        .foregroundColor: NSColor.tertiaryLabelColor,
-                    ]
-                    let resetValueAttrs: [NSAttributedString.Key: Any] = [
-                        .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .bold),
-                        .foregroundColor: NSColor.labelColor,
-                    ]
-                    str.append(NSAttributedString(string: "5h ", attributes: resetLabelAttrs))
-                    str.append(NSAttributedString(string: data.fiveHourReset, attributes: resetValueAttrs))
-                    str.append(NSAttributedString(string: "  ", attributes: labelAttrs))
-                }
-                str.append(NSAttributedString(string: "\(metric.shortLabel) ", attributes: labelAttrs))
+                let periodLabelAttrs: [NSAttributedString.Key: Any] = [
+                    .font: NSFont.systemFont(ofSize: 9, weight: .medium),
+                    .foregroundColor: periodColor(data),
+                ]
+                str.append(NSAttributedString(string: "\(metric.shortLabel) ", attributes: periodLabelAttrs))
                 let pctAttrs: [NSAttributedString.Key: Any] = [
                     .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .bold),
                     .foregroundColor: colorForPct(value, data: data),
@@ -151,10 +187,36 @@ enum MenuBarRenderer {
         return img
     }
 
+    private static func appendSessionReset(to str: NSMutableAttributedString, data: RenderData) {
+        let text = resetDisplayText(data: data)
+        guard !text.isEmpty else { return }
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .bold),
+            .foregroundColor: resetValueColor(data),
+        ]
+        str.append(NSAttributedString(string: text, attributes: attrs))
+    }
+
+    private static func resetDisplayText(data: RenderData) -> String {
+        let relative = data.fiveHourReset
+        let absolute = data.fiveHourResetAbsolute
+        switch data.resetDisplayFormat {
+        case .relative:
+            return relative
+        case .absolute:
+            return absolute
+        case .both:
+            if relative.isEmpty { return absolute }
+            if absolute.isEmpty { return relative }
+            return "\(relative) - \(absolute)"
+        }
+    }
+
     private static func appendPacing(
         to str: NSMutableAttributedString,
         delta: Int,
         zone: PacingZone,
+        mode: PacingDisplayMode,
         data: RenderData
     ) {
         let dotColor = colorForZone(zone, data: data)
@@ -167,7 +229,7 @@ enum MenuBarRenderer {
             .foregroundColor: dotColor,
         ]
         let sign = delta >= 0 ? "+" : ""
-        switch data.pacingDisplayMode {
+        switch mode {
         case .dot:
             str.append(NSAttributedString(string: "\u{25CF}", attributes: dotAttrs))
         case .dotDelta:

@@ -326,8 +326,10 @@ struct UsageStoreTests {
 
         await store.refresh()
 
+        // With hours the format is clock-style "2h29" (no "min" suffix, 2-digit minute padding).
         #expect(store.fiveHourReset.contains("h"))
-        #expect(store.fiveHourReset.contains("min"))
+        #expect(!store.fiveHourReset.contains("min"))
+        #expect(store.fiveHourReset.count == 4)
     }
 
     @Test("refresh formats fiveHourReset as minutes only when < 1h")

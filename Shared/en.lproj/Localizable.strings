@@ -8,6 +8,11 @@
 
 /* Metrics */
 "metric.session" = "Session 5h";
+"metric.sessionReset" = "Session reset countdown";
+"settings.pacing.style" = "Pacing style";
+"settings.group.session" = "Session (5h)";
+"settings.group.weekly" = "Weekly";
+"settings.group.sonnet" = "Sonnet";
 "metric.weekly" = "Weekly";
 "metric.sonnet" = "Sonnet";
 "metric.reset" = "reset %@";
@@ -272,6 +277,19 @@
 
 /* Settings - Onboarding reset */
 "settings.onboarding.reset" = "Run setup again";
+
+/* Reset time display + menu-bar colors */
+"settings.reset.format" = "Reset display";
+"settings.reset.format.relative" = "Relative (1h39)";
+"settings.reset.format.absolute" = "Absolute (20:30)";
+"settings.reset.format.both" = "Both";
+"settings.reset.color" = "Reset countdown";
+"settings.session.periodcolor" = "Period label (5h / 7d)";
+"settings.theme.menubar" = "Menu bar text";
+"settings.theme.menubar.hint" = "Customize the color of the reset countdown and period labels in the menu bar. Leave on system defaults if you want TokenEater to match your menu bar styling.";
+"settings.theme.menubar.resetColor" = "Revert to system default";
+"settings.theme.smartreset" = "Smart color for reset countdown";
+"settings.theme.smartreset.hint" = "Colour the reset countdown based on urgency (gauge colors): green when you have headroom, orange / red when usage is high relative to time remaining. Overrides the manual color above while on.";
 
 /* Update */
 "update.check" = "Check for updates";

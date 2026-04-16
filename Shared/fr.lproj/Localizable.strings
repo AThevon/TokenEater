@@ -8,6 +8,11 @@
 
 /* Metrics */
 "metric.session" = "Session 5h";
+"metric.sessionReset" = "Compte à rebours de session";
+"settings.pacing.style" = "Style du pacing";
+"settings.group.session" = "Session (5h)";
+"settings.group.weekly" = "Weekly";
+"settings.group.sonnet" = "Sonnet";
 "metric.weekly" = "Hebdo";
 "metric.sonnet" = "Sonnet";
 "metric.reset" = "reset %@";
@@ -272,6 +277,19 @@
 
 /* Settings - Onboarding reset */
 "settings.onboarding.reset" = "Relancer la configuration";
+
+/* Affichage du reset + couleurs menu bar */
+"settings.reset.format" = "Affichage du reset";
+"settings.reset.format.relative" = "Relatif (1h39)";
+"settings.reset.format.absolute" = "Absolu (20:30)";
+"settings.reset.format.both" = "Les deux";
+"settings.reset.color" = "Compte à rebours";
+"settings.session.periodcolor" = "Libellé de période (5h / 7d)";
+"settings.theme.menubar" = "Texte de la barre de menu";
+"settings.theme.menubar.hint" = "Personnalisez la couleur du compte à rebours et des libellés de période. Laissez vide pour que TokenEater utilise les couleurs par défaut du système.";
+"settings.theme.menubar.resetColor" = "Rétablir la valeur par défaut";
+"settings.theme.smartreset" = "Couleur intelligente du reset";
+"settings.theme.smartreset.hint" = "Colorise le compte à rebours selon l'urgence (couleurs du gauge) : vert quand tu as de la marge, orange / rouge quand l'usage est élevé vs le temps restant. Override la couleur manuelle ci-dessus quand activé.";
 
 /* Update */
 "update.check" = "Vérifier les mises à jour";
