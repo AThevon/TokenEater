@@ -4,16 +4,18 @@ enum MetricID: String, CaseIterable {
     case fiveHour = "fiveHour"
     case sevenDay = "sevenDay"
     case sonnet = "sonnet"
-    case pacing = "pacing"
     case sessionPacing = "sessionPacing"
+    case weeklyPacing = "weeklyPacing"
+    case sonnetPacing = "sonnetPacing"
 
     var label: String {
         switch self {
         case .fiveHour: return String(localized: "metric.session")
         case .sevenDay: return String(localized: "metric.weekly")
         case .sonnet: return String(localized: "metric.sonnet")
-        case .pacing: return String(localized: "pacing.label")
         case .sessionPacing: return String(localized: "pacing.session.label")
+        case .weeklyPacing: return String(localized: "pacing.weekly.label")
+        case .sonnetPacing: return String(localized: "pacing.sonnet.label")
         }
     }
 
@@ -22,8 +24,9 @@ enum MetricID: String, CaseIterable {
         case .fiveHour: return "5h"
         case .sevenDay: return "7d"
         case .sonnet: return "S"
-        case .pacing: return "P"
         case .sessionPacing: return "5hP"
+        case .weeklyPacing: return "7dP"
+        case .sonnetPacing: return "SP"
         }
     }
 }

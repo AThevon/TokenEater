@@ -106,15 +106,28 @@ struct DashboardView: View {
                 profileCard
             }
 
-            // Pacing cards
+            // Pacing cards - the status catchphrase only renders on the weekly
+            // card to avoid three near-identical messages stacking up.
             if let pacing = usageStore.fiveHourPacing {
-                pacingCard(pacing: pacing, label: PacingBucket.fiveHour.metricID.label)
+                pacingCard(
+                    pacing: pacing,
+                    label: PacingBucket.fiveHour.metricID.label,
+                    showMessage: false
+                )
             }
             if let pacing = usageStore.pacingResult {
-                pacingCard(pacing: pacing, label: PacingBucket.sevenDay.metricID.label)
+                pacingCard(
+                    pacing: pacing,
+                    label: PacingBucket.sevenDay.metricID.label,
+                    showMessage: true
+                )
             }
-            if let pacing = usageStore.sonnetPacing {
-                pacingCard(pacing: pacing, label: PacingBucket.sonnet.metricID.label)
+            if settingsStore.displaySonnet, let pacing = usageStore.sonnetPacing {
+                pacingCard(
+                    pacing: pacing,
+                    label: PacingBucket.sonnet.metricID.label,
+                    showMessage: false
+                )
             }
 
             Spacer()
@@ -277,7 +290,7 @@ struct DashboardView: View {
 
     // MARK: - Pacing Card
 
-    private func pacingCard(pacing: PacingResult, label: String) -> some View {
+    private func pacingCard(pacing: PacingResult, label: String, showMessage: Bool) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text("\(String(localized: "pacing.label")) · \(label)")
@@ -300,9 +313,11 @@ struct DashboardView: View {
                 gradient: themeStore.current.pacingGradient(for: pacing.zone, startPoint: .leading, endPoint: .trailing)
             )
 
-            Text(pacing.message)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(themeStore.current.pacingColor(for: pacing.zone).opacity(0.8))
+            if showMessage {
+                Text(pacing.message)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(themeStore.current.pacingColor(for: pacing.zone).opacity(0.8))
+            }
 
             if let resetDate = pacing.resetDate {
                 let diff = resetDate.timeIntervalSinceNow

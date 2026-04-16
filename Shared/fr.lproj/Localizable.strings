@@ -48,6 +48,9 @@
 "settings.tab.display" = "Affichage";
 "settings.session.reset" = "Afficher le compte à rebours";
 "pacing.session.label" = "Rythme session";
+"pacing.weekly.label" = "Rythme hebdomadaire";
+"pacing.sonnet.label" = "Rythme Sonnet";
+"settings.display.sonnet" = "Afficher Sonnet";
 "settings.metrics.pinned" = "Métriques épinglées";
 "settings.metrics.pinned.footer" = "Choisissez les métriques affichées dans la barre de menu.";
 "settings.pacing.display" = "Affichage rythme";

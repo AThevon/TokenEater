@@ -16,6 +16,16 @@ final class SettingsStore: ObservableObject {
     @Published var showSessionReset: Bool {
         didSet { UserDefaults.standard.set(showSessionReset, forKey: "showSessionReset") }
     }
+    @Published var displaySonnet: Bool {
+        didSet {
+            UserDefaults.standard.set(displaySonnet, forKey: "displaySonnet")
+            if !displaySonnet {
+                // Drop any sonnet-related pins so the menu bar does not keep
+                // a stale reference to a hidden metric.
+                pinnedMetrics.subtract([.sonnet, .sonnetPacing])
+            }
+        }
+    }
     @Published var hasCompletedOnboarding: Bool {
         didSet { UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding") }
     }
@@ -116,11 +126,19 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    var showPacing: Bool {
-        get { pinnedMetrics.contains(.pacing) }
+    var showWeeklyPacing: Bool {
+        get { pinnedMetrics.contains(.weeklyPacing) }
         set {
-            if newValue { pinnedMetrics.insert(.pacing) }
-            else if pinnedMetrics.count > 1 { pinnedMetrics.remove(.pacing) }
+            if newValue { pinnedMetrics.insert(.weeklyPacing) }
+            else if pinnedMetrics.count > 1 { pinnedMetrics.remove(.weeklyPacing) }
+        }
+    }
+
+    var showSonnetPacing: Bool {
+        get { pinnedMetrics.contains(.sonnetPacing) }
+        set {
+            if newValue { pinnedMetrics.insert(.sonnetPacing) }
+            else if pinnedMetrics.count > 1 { pinnedMetrics.remove(.sonnetPacing) }
         }
     }
 
@@ -172,10 +190,23 @@ final class SettingsStore: ObservableObject {
             rawValue: UserDefaults.standard.string(forKey: "pacingDisplayMode") ?? "dotDelta"
         ) ?? .dotDelta
         self.showSessionReset = UserDefaults.standard.bool(forKey: "showSessionReset")
+        let legacyPinned: Set<MetricID>
         if let saved = UserDefaults.standard.stringArray(forKey: "pinnedMetrics") {
-            self.pinnedMetrics = Set(saved.compactMap { MetricID(rawValue: $0) })
+            // Migrate legacy "pacing" (covered weekly only) to the explicit weeklyPacing id.
+            let normalized = saved.map { $0 == "pacing" ? "weeklyPacing" : $0 }
+            legacyPinned = Set(normalized.compactMap { MetricID(rawValue: $0) })
         } else {
-            self.pinnedMetrics = [.fiveHour, .sevenDay]
+            legacyPinned = [.fiveHour, .sevenDay]
+        }
+        self.pinnedMetrics = legacyPinned
+
+        // displaySonnet defaults to false for new installs. Legacy users who
+        // had .sonnet pinned keep it on by default so their setup does not
+        // silently lose the ring after upgrade.
+        if UserDefaults.standard.object(forKey: "displaySonnet") != nil {
+            self.displaySonnet = UserDefaults.standard.bool(forKey: "displaySonnet")
+        } else {
+            self.displaySonnet = legacyPinned.contains(.sonnet)
         }
     }
 

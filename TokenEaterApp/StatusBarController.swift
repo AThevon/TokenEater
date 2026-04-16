@@ -201,11 +201,19 @@ final class StatusBarController: NSObject {
     private func updateMenuBarIcon() {
         let image = MenuBarRenderer.render(MenuBarRenderer.RenderData(
             pinnedMetrics: settingsStore.pinnedMetrics,
+            displaySonnet: settingsStore.displaySonnet,
             fiveHourPct: usageStore.fiveHourPct,
             sevenDayPct: usageStore.sevenDayPct,
             sonnetPct: usageStore.sonnetPct,
-            pacingDelta: usageStore.pacingDelta,
-            pacingZone: usageStore.pacingZone,
+            weeklyPacingDelta: Int(usageStore.pacingResult?.delta ?? 0),
+            weeklyPacingZone: usageStore.pacingResult?.zone ?? .onTrack,
+            hasWeeklyPacing: usageStore.pacingResult != nil,
+            sonnetPacingDelta: Int(usageStore.sonnetPacing?.delta ?? 0),
+            sonnetPacingZone: usageStore.sonnetPacing?.zone ?? .onTrack,
+            hasSonnetPacing: usageStore.sonnetPacing != nil,
+            sessionPacingDelta: Int(usageStore.fiveHourPacing?.delta ?? 0),
+            sessionPacingZone: usageStore.fiveHourPacing?.zone ?? .onTrack,
+            hasSessionPacing: usageStore.fiveHourPacing != nil,
             pacingDisplayMode: settingsStore.pacingDisplayMode,
             hasConfig: usageStore.hasConfig,
             hasError: usageStore.hasError,
@@ -213,10 +221,7 @@ final class StatusBarController: NSObject {
             thresholds: themeStore.thresholds,
             menuBarMonochrome: themeStore.menuBarMonochrome,
             fiveHourReset: usageStore.fiveHourReset,
-            showSessionReset: settingsStore.showSessionReset,
-            sessionPacingDelta: Int(usageStore.fiveHourPacing?.delta ?? 0),
-            sessionPacingZone: usageStore.fiveHourPacing?.zone ?? .onTrack,
-            hasSessionPacing: usageStore.fiveHourPacing != nil
+            showSessionReset: settingsStore.showSessionReset
         ))
         statusItem.button?.image = image
     }
