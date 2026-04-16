@@ -25,25 +25,28 @@ struct MainAppView: View {
         HStack(spacing: 4) {
             AppSidebar(selection: $selectedSection)
 
-            Group {
-                switch selectedSection {
-                case .dashboard:
-                    DashboardView()
-                case .display:
-                    DisplaySectionView(initialMetrics: settingsStore.pinnedMetrics)
-                case .themes:
-                    ThemesSectionView(
-                        initialWarning: themeStore.warningThreshold,
-                        initialCritical: themeStore.criticalThreshold,
-                        initialMargin: settingsStore.pacingMargin
-                    )
-                case .agentWatchers:
-                    AgentWatchersSectionView()
-                case .performance:
-                    PerformanceSectionView()
-                case .settings:
-                    SettingsSectionView()
+            ScrollView(.vertical, showsIndicators: true) {
+                Group {
+                    switch selectedSection {
+                    case .dashboard:
+                        DashboardView()
+                    case .display:
+                        DisplaySectionView(initialMetrics: settingsStore.pinnedMetrics)
+                    case .themes:
+                        ThemesSectionView(
+                            initialWarning: themeStore.warningThreshold,
+                            initialCritical: themeStore.criticalThreshold,
+                            initialMargin: settingsStore.pacingMargin
+                        )
+                    case .agentWatchers:
+                        AgentWatchersSectionView()
+                    case .performance:
+                        PerformanceSectionView()
+                    case .settings:
+                        SettingsSectionView()
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .top)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(RoundedRectangle(cornerRadius: 16).fill(panelBg))

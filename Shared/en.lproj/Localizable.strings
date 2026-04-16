@@ -126,6 +126,23 @@
 "pacing.label" = "Pacing";
 "pacing.reset" = "reset %@";
 
+/* Keychain helper */
+"credentials.helper.title" = "Keychain helper";
+"credentials.helper.description" = "Claude Code 2.1+ stores your token only in the macOS Keychain - sandboxed apps like TokenEater cannot read it directly. This helper is a tiny background service that reads the token every few minutes and hands it to TokenEater. One click to install, no admin password, keeps working across token refreshes.";
+"credentials.helper.trust" = "Everything stays on your Mac: the helper only calls Apple's own /usr/bin/security to read your Keychain, then writes the token to a local file TokenEater reads. Zero network calls. Full source is public on GitHub if you want to verify before installing.";
+"credentials.helper.source" = "View source on GitHub";
+"credentials.helper.status.notinstalled" = "Not installed";
+"credentials.helper.status.binaryMissing" = "Helper binary missing from the app bundle - reinstall the app.";
+"credentials.helper.status.active" = "Active - last sync %@";
+"credentials.helper.status.active.nosync" = "Active - awaiting first sync";
+"credentials.helper.status.error" = "Error: %@";
+"credentials.helper.install" = "Install helper";
+"credentials.helper.uninstall" = "Remove helper";
+"credentials.helper.forcesync" = "Force sync now";
+"helper.banner.title" = "Claude Code credentials not reachable";
+"helper.banner.description" = "Install the TokenEater helper to read the token from your Keychain.";
+"helper.banner.install" = "Install helper";
+
 /* Pacing Margin */
 "settings.pacing.margin" = "Pacing Sensitivity";
 "settings.pacing.margin.value" = "Margin";

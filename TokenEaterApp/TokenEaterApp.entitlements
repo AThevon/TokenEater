@@ -10,6 +10,8 @@
     <array>
         <string>/Library/Application Support/com.tokeneater.shared/</string>
         <string>/Library/Application Support/com.claudeusagewidget.shared/</string>
+        <string>/Library/LaunchAgents/</string>
+        <string>/Library/Logs/TokenEater/</string>
     </array>
     <key>com.apple.security.temporary-exception.files.home-relative-path.read-only</key>
     <array>

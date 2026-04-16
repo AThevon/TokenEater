@@ -126,6 +126,23 @@
 "pacing.label" = "Rythme";
 "pacing.reset" = "reset %@";
 
+/* Assistant Keychain */
+"credentials.helper.title" = "Assistant Keychain";
+"credentials.helper.description" = "Claude Code 2.1+ stocke ton token uniquement dans le Keychain macOS - les apps sandboxées comme TokenEater ne peuvent pas le lire directement. Cet assistant est un petit service en arrière-plan qui lit le token toutes les quelques minutes et le transmet à TokenEater. Un clic pour installer, pas de mot de passe admin, continue de fonctionner à travers les refreshs de token.";
+"credentials.helper.trust" = "Tout reste sur ton Mac : l'assistant appelle uniquement /usr/bin/security (l'outil Apple lui-même) pour lire ton Keychain, puis écrit le token dans un fichier local que TokenEater lit. Aucun appel réseau. Le code source complet est public sur GitHub si tu veux vérifier avant d'installer.";
+"credentials.helper.source" = "Voir le code sur GitHub";
+"credentials.helper.status.notinstalled" = "Non installé";
+"credentials.helper.status.binaryMissing" = "Binaire assistant absent du bundle - réinstallez l'app.";
+"credentials.helper.status.active" = "Actif - dernière synchro %@";
+"credentials.helper.status.active.nosync" = "Actif - en attente de la première synchro";
+"credentials.helper.status.error" = "Erreur : %@";
+"credentials.helper.install" = "Installer l'assistant";
+"credentials.helper.uninstall" = "Désinstaller l'assistant";
+"credentials.helper.forcesync" = "Forcer une synchro";
+"helper.banner.title" = "Identifiants Claude Code inaccessibles";
+"helper.banner.description" = "Installez l'assistant TokenEater pour lire le token depuis votre Keychain.";
+"helper.banner.install" = "Installer l'assistant";
+
 /* Marge pacing */
 "settings.pacing.margin" = "Sensibilité du pacing";
 "settings.pacing.margin.value" = "Marge";

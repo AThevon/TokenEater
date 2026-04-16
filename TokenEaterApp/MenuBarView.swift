@@ -368,25 +368,29 @@ struct MenuBarPopoverView: View {
         VStack(alignment: .leading, spacing: 4) {
             switch usageStore.errorState {
             case .tokenUnavailable:
-                Label(String(localized: "error.banner.expired"), systemImage: "exclamationmark.triangle.fill")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.red)
-                Text(String(localized: "error.banner.expired.hint"))
-                    .font(.system(size: 10))
-                    .foregroundStyle(.white.opacity(0.5))
-                Button {
-                    Task { await usageStore.reauthenticate() }
-                } label: {
-                    Text(String(localized: "error.banner.reauth.button"))
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(.orange.opacity(0.3))
-                        .clipShape(Capsule())
+                if case .notInstalled = settingsStore.helperStatus {
+                    helperInstallBannerContent
+                } else {
+                    Label(String(localized: "error.banner.expired"), systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.red)
+                    Text(String(localized: "error.banner.expired.hint"))
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white.opacity(0.5))
+                    Button {
+                        Task { await usageStore.reauthenticate() }
+                    } label: {
+                        Text(String(localized: "error.banner.reauth.button"))
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(.orange.opacity(0.3))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 2)
                 }
-                .buttonStyle(.plain)
-                .padding(.top, 2)
             case .rateLimited:
                 Label(String(localized: "error.banner.apiunavailable"), systemImage: "icloud.slash")
                     .font(.system(size: 11, weight: .semibold))
@@ -421,6 +425,34 @@ struct MenuBarPopoverView: View {
         .padding(10)
         .background(Color.white.opacity(0.04))
         .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    @ViewBuilder
+    private var helperInstallBannerContent: some View {
+        Label(String(localized: "helper.banner.title"), systemImage: "key.slash")
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.orange)
+        Text(String(localized: "helper.banner.description"))
+            .font(.system(size: 10))
+            .foregroundStyle(.white.opacity(0.5))
+            .fixedSize(horizontal: false, vertical: true)
+        Button {
+            Task {
+                await settingsStore.installHelper()
+                await usageStore.refresh(force: true)
+            }
+        } label: {
+            Text(String(localized: "helper.banner.install"))
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(.blue.opacity(0.3))
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(settingsStore.helperBusy)
+        .padding(.top, 2)
     }
 
     private func pacingRow(metric: MetricID, label: String, pacing: PacingResult) -> some View {
