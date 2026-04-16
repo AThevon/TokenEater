@@ -325,6 +325,12 @@
 
 /* Agent Watchers */
 "settings.watchers.description" = "A floating overlay showing your active Claude Code sessions. Hover to expand, click to jump to a session.";
+"settings.watchers.trigger" = "Hover zone";
+"settings.watchers.trigger.minimal" = "Minimal";
+"settings.watchers.trigger.narrow" = "Narrow";
+"settings.watchers.trigger.medium" = "Medium";
+"settings.watchers.trigger.wide" = "Wide";
+"settings.watchers.trigger.hint" = "How close to the screen edge the cursor must get to open the overlay. Minimal keeps the rest of the screen fully clickable; once the overlay pops open the grabable area grows so the cursor can drift without snapping shut.";
 "settings.watchers.legend" = "Status legend";
 "settings.watchers.idle" = "Idle — waiting for input";
 "settings.watchers.thinking" = "Thinking — generating a response";

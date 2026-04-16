@@ -325,6 +325,12 @@
 
 /* Agent Watchers */
 "settings.watchers.description" = "Un overlay flottant qui montre vos sessions Claude Code actives. Survolez pour agrandir, cliquez pour basculer vers une session.";
+"settings.watchers.trigger" = "Zone de survol";
+"settings.watchers.trigger.minimal" = "Minimal";
+"settings.watchers.trigger.narrow" = "Étroite";
+"settings.watchers.trigger.medium" = "Moyenne";
+"settings.watchers.trigger.wide" = "Large";
+"settings.watchers.trigger.hint" = "Distance du bord où la souris doit arriver pour ouvrir l'overlay. Minimal garde le reste de l'écran pleinement cliquable ; une fois l'overlay ouvert la zone de survol s'élargit pour que la souris puisse respirer sans refermer l'overlay.";
 "settings.watchers.legend" = "Légende des statuts";
 "settings.watchers.idle" = "Idle — en attente d'une action";
 "settings.watchers.thinking" = "Thinking — génère une réponse";

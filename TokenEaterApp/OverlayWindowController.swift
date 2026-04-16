@@ -9,6 +9,11 @@ final class OverlayState: ObservableObject {
     @Published var windowWidth: CGFloat = 200
     @Published var leftSide: Bool = false
     @Published var contentOffset: CGFloat = 0
+    /// The effective horizontal activation zone (post-scale). Swapped between
+    /// the current trigger's enter and exit widths depending on whether the
+    /// overlay is already hover-active. SwiftUI uses this for visual
+    /// expansion so the visible expand tracks the click-capture zone.
+    @Published var activationZone: CGFloat = 180
 }
 
 @MainActor
@@ -28,7 +33,17 @@ final class OverlayWindowController {
         let expandedCard: CGFloat = 185 * CGFloat(settingsStore.overlayScale) + 20
         return max(base, expandedCard)
     }
-    private var interactiveZone: CGFloat { min(windowWidth, 120 * CGFloat(settingsStore.overlayScale)) }
+    /// True while the cursor has crossed the trigger's enter threshold and
+    /// has not yet strayed past the exit threshold. Used to give the user a
+    /// larger "hover grace area" once the overlay has actually expanded.
+    private var isPanelActive: Bool = false
+
+    private var enterZone: CGFloat {
+        min(windowWidth, settingsStore.overlayTriggerZone.enterWidth * CGFloat(settingsStore.overlayScale))
+    }
+    private var exitZone: CGFloat {
+        min(windowWidth, settingsStore.overlayTriggerZone.exitWidth * CGFloat(settingsStore.overlayScale))
+    }
 
     init(sessionStore: SessionStore, settingsStore: SettingsStore) {
         self.sessionStore = sessionStore
@@ -87,6 +102,22 @@ final class OverlayWindowController {
         .sink { [weak self] _ in
             self?.repositionIfNeeded()
         }
+        .store(in: &cancellables)
+
+        // Re-evaluate capture immediately when the trigger zone changes: drop
+        // the "already active" stickiness and clamp the panel back to
+        // pass-through until the cursor crosses the fresh enter threshold.
+        settingsStore.$overlayTriggerZone
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.isPanelActive = false
+                self.panel?.ignoresMouseEvents = true
+                self.overlayState.activationZone = self.enterZone
+                self.lastCursorCheck = 0
+                self.updateCursorTracking()
+            }
         .store(in: &cancellables)
     }
 
@@ -227,11 +258,22 @@ final class OverlayWindowController {
             return
         }
 
-        // Interactive zone: edge-side area AND near session items vertically
+        // Horizontal zone: use the wider "exit" width once the panel is
+        // already active so the cursor can drift off the tight entry strip
+        // without the overlay snapping shut mid-hover.
         let distanceFromEdge = settingsStore.overlayLeftSide ? localX : (frame.width - localX)
-        guard distanceFromEdge <= interactiveZone else {
+        let threshold = isPanelActive ? exitZone : enterZone
+        guard distanceFromEdge <= threshold else {
+            isPanelActive = false
+            if overlayState.activationZone != enterZone {
+                overlayState.activationZone = enterZone
+            }
             panel.ignoresMouseEvents = true
             return
+        }
+        isPanelActive = true
+        if overlayState.activationZone != exitZone {
+            overlayState.activationZone = exitZone
         }
 
         let scale = CGFloat(settingsStore.overlayScale)
