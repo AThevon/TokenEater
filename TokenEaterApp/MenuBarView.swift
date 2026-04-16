@@ -42,34 +42,47 @@ struct MenuBarPopoverView: View {
                     .padding(.bottom, 8)
             }
 
-            // Mini hero ring — Session (fiveHour)
-            heroRing
-                .padding(.horizontal, 16)
-                .padding(.bottom, 20)
+            // Ring layout: hero + satellites when Sonnet is on, otherwise
+            // two equal rings side by side.
+            if settingsStore.displaySonnet {
+                heroRing
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 20)
 
-            // Satellite rings — Weekly + Sonnet
-            satelliteRings
-                .padding(.horizontal, 24)
-                .padding(.bottom, 14)
-
-            // Session pacing
-            if let pacing = usageStore.fiveHourPacing {
-                VStack(alignment: .leading, spacing: 6) {
-                    pacingPinHeader(metric: .sessionPacing, label: String(localized: "pacing.session.label"), zone: pacing.zone)
-                    pacingRow(pacing: pacing, label: PacingBucket.fiveHour.metricID.label)
-                }
-                .padding(.horizontal, 16)
+                satelliteRings
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 14)
+            } else {
+                twoEqualRings
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 14)
             }
 
-            // Weekly + Sonnet pacing
-            if usageStore.pacingResult != nil || usageStore.sonnetPacing != nil {
-                VStack(alignment: .leading, spacing: 6) {
-                    pacingPinHeader(metric: .pacing, label: String(localized: "pacing.label"), zone: usageStore.pacingResult?.zone ?? .onTrack)
-                    if let pacing = usageStore.pacingResult {
-                        pacingRow(pacing: pacing, label: PacingBucket.sevenDay.metricID.label)
+            // Pacing rows - compact stack, each row owns its own pin.
+            if usageStore.fiveHourPacing != nil
+                || usageStore.pacingResult != nil
+                || (settingsStore.displaySonnet && usageStore.sonnetPacing != nil) {
+                VStack(spacing: 12) {
+                    if let pacing = usageStore.fiveHourPacing {
+                        pacingRow(
+                            metric: .sessionPacing,
+                            label: String(localized: "pacing.session.label"),
+                            pacing: pacing
+                        )
                     }
-                    if let pacing = usageStore.sonnetPacing {
-                        pacingRow(pacing: pacing, label: PacingBucket.sonnet.metricID.label)
+                    if let pacing = usageStore.pacingResult {
+                        pacingRow(
+                            metric: .weeklyPacing,
+                            label: String(localized: "pacing.weekly.label"),
+                            pacing: pacing
+                        )
+                    }
+                    if settingsStore.displaySonnet, let pacing = usageStore.sonnetPacing {
+                        pacingRow(
+                            metric: .sonnetPacing,
+                            label: String(localized: "pacing.sonnet.label"),
+                            pacing: pacing
+                        )
                     }
                 }
                 .padding(.horizontal, 16)
@@ -206,6 +219,78 @@ struct MenuBarPopoverView: View {
         }
     }
 
+    // MARK: - Two Equal Rings (Session + Weekly, when Sonnet is hidden)
+
+    private var twoEqualRings: some View {
+        HStack(spacing: 40) {
+            equalRingItem(
+                id: .fiveHour,
+                label: String(localized: "metric.session"),
+                pct: usageStore.fiveHourPct,
+                showSessionReset: settingsStore.showSessionReset
+            )
+            equalRingItem(
+                id: .sevenDay,
+                label: String(localized: "metric.weekly"),
+                pct: usageStore.sevenDayPct,
+                showSessionReset: false
+            )
+        }
+    }
+
+    private func equalRingItem(
+        id: MetricID,
+        label: String,
+        pct: Int,
+        showSessionReset: Bool
+    ) -> some View {
+        let isPinned = settingsStore.pinnedMetrics.contains(id)
+        let showReset = showSessionReset && !usageStore.fiveHourReset.isEmpty
+        return Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                settingsStore.toggleMetric(id)
+            }
+        } label: {
+            VStack(spacing: 10) {
+                ZStack {
+                    RingGauge(
+                        percentage: pct,
+                        gradient: gradientForPct(pct),
+                        size: 88,
+                        glowColor: colorForPct(pct),
+                        glowRadius: 5
+                    )
+
+                    VStack(spacing: 2) {
+                        GlowText(
+                            "\(pct)%",
+                            font: .system(size: 20, weight: .black, design: .rounded),
+                            color: colorForPct(pct),
+                            glowRadius: 3
+                        )
+                        Text(label)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.5))
+                    }
+                }
+
+                HStack(spacing: 3) {
+                    Image(systemName: isPinned ? "pin.fill" : "pin")
+                        .font(.system(size: 7))
+                        .foregroundStyle(isPinned ? colorForPct(pct) : .white.opacity(0.2))
+                        .rotationEffect(.degrees(isPinned ? 0 : 45))
+                    if showReset {
+                        Text(String(format: String(localized: "metric.reset"), usageStore.fiveHourReset))
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.25))
+                    }
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .help(isPinned ? Text(String(localized: "menubar.hide")) : Text(String(localized: "menubar.show")))
+    }
+
     private func satelliteRingItem(id: MetricID, label: String, pct: Int) -> some View {
         let isPinned = settingsStore.pinnedMetrics.contains(id)
         return Button {
@@ -338,51 +423,46 @@ struct MenuBarPopoverView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 
-    private func pacingPinHeader(metric: MetricID, label: String, zone: PacingZone) -> some View {
+    private func pacingRow(metric: MetricID, label: String, pacing: PacingResult) -> some View {
         let isPinned = settingsStore.pinnedMetrics.contains(metric)
-        return Button {
-            withAnimation(.easeInOut(duration: 0.15)) {
-                settingsStore.toggleMetric(metric)
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: isPinned ? "pin.fill" : "pin")
-                    .font(.system(size: 7))
-                    .foregroundStyle(isPinned ? colorForZone(zone) : .white.opacity(0.2))
-                    .rotationEffect(.degrees(isPinned ? 0 : 45))
-                Text(label)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.5))
-                Spacer()
-            }
-        }
-        .buttonStyle(.plain)
-        .help(isPinned ? Text(String(localized: "menubar.hide")) : Text(String(localized: "menubar.show")))
-    }
+        let sign = pacing.delta >= 0 ? "+" : ""
+        return VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.white.opacity(0.4))
 
-    private func pacingRow(pacing: PacingResult, label: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Text(label)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.4))
-                Spacer()
-                let sign = pacing.delta >= 0 ? "+" : ""
+            HStack(spacing: 10) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        settingsStore.toggleMetric(metric)
+                    }
+                } label: {
+                    Image(systemName: isPinned ? "pin.fill" : "pin")
+                        .font(.system(size: 9))
+                        .foregroundStyle(isPinned ? colorForZone(pacing.zone) : .white.opacity(0.25))
+                        .rotationEffect(.degrees(isPinned ? 0 : 45))
+                        .frame(width: 12, height: 12)
+                }
+                .buttonStyle(.plain)
+                .help(isPinned ? Text(String(localized: "menubar.hide")) : Text(String(localized: "menubar.show")))
+
+                PacingBar(
+                    actual: pacing.actualUsage,
+                    expected: pacing.expectedUsage,
+                    zone: pacing.zone,
+                    gradient: gradientForZone(pacing.zone),
+                    compact: true
+                )
+                .frame(maxWidth: .infinity)
+
                 GlowText(
                     "\(sign)\(Int(pacing.delta))%",
-                    font: .system(size: 13, weight: .black, design: .rounded),
+                    font: .system(size: 12, weight: .black, design: .rounded),
                     color: colorForZone(pacing.zone),
-                    glowRadius: 3
+                    glowRadius: 2
                 )
+                .frame(width: 48, alignment: .trailing)
             }
-
-            PacingBar(
-                actual: pacing.actualUsage,
-                expected: pacing.expectedUsage,
-                zone: pacing.zone,
-                gradient: gradientForZone(pacing.zone),
-                compact: true
-            )
         }
     }
 

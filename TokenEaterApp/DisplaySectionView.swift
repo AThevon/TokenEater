@@ -4,22 +4,24 @@ struct DisplaySectionView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var themeStore: ThemeStore
 
-    // Local @State bindings — stable across body re-evaluations.
+    // Local @State bindings - stable across body re-evaluations.
     // Binding to computed properties via $store.computedProp creates
     // unstable LocationProjections that the AttributeGraph can never
     // memoize, causing an infinite re-evaluation loop in Release builds.
     @State private var showFiveHour: Bool
     @State private var showSevenDay: Bool
     @State private var showSonnet: Bool
-    @State private var showPacing: Bool
     @State private var showSessionPacing: Bool
+    @State private var showWeeklyPacing: Bool
+    @State private var showSonnetPacing: Bool
 
     init(initialMetrics: Set<MetricID>) {
         _showFiveHour = State(initialValue: initialMetrics.contains(.fiveHour))
         _showSevenDay = State(initialValue: initialMetrics.contains(.sevenDay))
         _showSonnet = State(initialValue: initialMetrics.contains(.sonnet))
-        _showPacing = State(initialValue: initialMetrics.contains(.pacing))
         _showSessionPacing = State(initialValue: initialMetrics.contains(.sessionPacing))
+        _showWeeklyPacing = State(initialValue: initialMetrics.contains(.weeklyPacing))
+        _showSonnetPacing = State(initialValue: initialMetrics.contains(.sonnetPacing))
     }
 
     var body: some View {
@@ -32,6 +34,7 @@ struct DisplaySectionView: View {
                     cardLabel(String(localized: "settings.menubar.title"))
                     darkToggle(String(localized: "settings.menubar.toggle"), isOn: $settingsStore.showMenuBar)
                     darkToggle(String(localized: "settings.theme.monochrome"), isOn: $themeStore.menuBarMonochrome)
+                    darkToggle(String(localized: "settings.display.sonnet"), isOn: $settingsStore.displaySonnet)
                 }
             }
 
@@ -44,10 +47,15 @@ struct DisplaySectionView: View {
                         darkToggle(String(localized: "settings.session.reset"), isOn: $settingsStore.showSessionReset)
                     }
                     darkToggle(String(localized: "metric.weekly"), isOn: $showSevenDay)
-                    darkToggle(String(localized: "metric.sonnet"), isOn: $showSonnet)
+                    if settingsStore.displaySonnet {
+                        darkToggle(String(localized: "metric.sonnet"), isOn: $showSonnet)
+                    }
                     darkToggle(String(localized: "pacing.session.label"), isOn: $showSessionPacing)
-                    darkToggle(String(localized: "pacing.label"), isOn: $showPacing)
-                    if showPacing || showSessionPacing {
+                    darkToggle(String(localized: "pacing.weekly.label"), isOn: $showWeeklyPacing)
+                    if settingsStore.displaySonnet {
+                        darkToggle(String(localized: "pacing.sonnet.label"), isOn: $showSonnetPacing)
+                    }
+                    if showSessionPacing || showWeeklyPacing || (settingsStore.displaySonnet && showSonnetPacing) {
                         PacingDisplayPicker(selection: $settingsStore.pacingDisplayMode)
                             .padding(.leading, 8)
                     }
@@ -66,9 +74,14 @@ struct DisplaySectionView: View {
                 syncMetric(.sessionPacing, on: new, revert: { showSessionPacing = true })
             }
         }
-        .onChange(of: showPacing) { _, new in
+        .onChange(of: showWeeklyPacing) { _, new in
             withAnimation(.easeInOut(duration: 0.2)) {
-                syncMetric(.pacing, on: new, revert: { showPacing = true })
+                syncMetric(.weeklyPacing, on: new, revert: { showWeeklyPacing = true })
+            }
+        }
+        .onChange(of: showSonnetPacing) { _, new in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                syncMetric(.sonnetPacing, on: new, revert: { showSonnetPacing = true })
             }
         }
         // Sync: store -> local toggles (for external changes, e.g. from MenuBar popover)
@@ -79,8 +92,11 @@ struct DisplaySectionView: View {
             if showSessionPacing != metrics.contains(.sessionPacing) {
                 withAnimation(.easeInOut(duration: 0.2)) { showSessionPacing = metrics.contains(.sessionPacing) }
             }
-            if showPacing != metrics.contains(.pacing) {
-                withAnimation(.easeInOut(duration: 0.2)) { showPacing = metrics.contains(.pacing) }
+            if showWeeklyPacing != metrics.contains(.weeklyPacing) {
+                withAnimation(.easeInOut(duration: 0.2)) { showWeeklyPacing = metrics.contains(.weeklyPacing) }
+            }
+            if showSonnetPacing != metrics.contains(.sonnetPacing) {
+                withAnimation(.easeInOut(duration: 0.2)) { showSonnetPacing = metrics.contains(.sonnetPacing) }
             }
         }
     }

@@ -48,6 +48,9 @@
 "settings.tab.display" = "Display";
 "settings.session.reset" = "Show reset countdown";
 "pacing.session.label" = "Session pacing";
+"pacing.weekly.label" = "Weekly pacing";
+"pacing.sonnet.label" = "Sonnet pacing";
+"settings.display.sonnet" = "Display Sonnet";
 "settings.metrics.pinned" = "Pinned metrics";
 "settings.metrics.pinned.footer" = "Choose which metrics appear in the menu bar.";
 "settings.pacing.display" = "Pacing display";

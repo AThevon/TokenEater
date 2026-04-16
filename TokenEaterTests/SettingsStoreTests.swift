@@ -86,17 +86,33 @@ struct SettingsStoreTests {
         #expect(store.pinnedMetrics.count == 1)
     }
 
-    @Test("toggleMetric works with .pacing")
-    func toggleMetricPacing() {
+    @Test("toggleMetric works with .weeklyPacing")
+    func toggleMetricWeeklyPacing() {
         let (store, _, _) = makeStore()
-        #expect(!store.pinnedMetrics.contains(.pacing))
+        #expect(!store.pinnedMetrics.contains(.weeklyPacing))
 
-        store.toggleMetric(.pacing)
-        #expect(store.pinnedMetrics.contains(.pacing))
+        store.toggleMetric(.weeklyPacing)
+        #expect(store.pinnedMetrics.contains(.weeklyPacing))
 
-        store.toggleMetric(.pacing)
-        // Still has other metrics, so pacing should be removed
-        #expect(!store.pinnedMetrics.contains(.pacing))
+        store.toggleMetric(.weeklyPacing)
+        // Still has other metrics, so weeklyPacing should be removed
+        #expect(!store.pinnedMetrics.contains(.weeklyPacing))
+    }
+
+    @Test("legacy 'pacing' pin migrates to weeklyPacing on load")
+    func legacyPacingMigrates() {
+        cleanDefaults()
+        defer { cleanDefaults() }
+        // Seed the legacy value after the cleanup so it survives SettingsStore init.
+        UserDefaults.standard.set(["fiveHour", "pacing"], forKey: "pinnedMetrics")
+
+        let store = SettingsStore(
+            notificationService: MockNotificationService(),
+            tokenProvider: MockTokenProvider()
+        )
+        #expect(store.pinnedMetrics.contains(.weeklyPacing))
+        #expect(store.pinnedMetrics.contains(.fiveHour))
+        #expect(!store.pinnedMetrics.contains(where: { $0.rawValue == "pacing" }))
     }
 
     // MARK: - Credentials delegation
@@ -161,11 +177,11 @@ struct SettingsStoreTests {
     func pinnedMetricsPersists() {
         let (store, _, _) = makeStore()
 
-        store.pinnedMetrics = [.sonnet, .pacing]
+        store.pinnedMetrics = [.sonnet, .weeklyPacing]
 
         let saved = UserDefaults.standard.stringArray(forKey: "pinnedMetrics") ?? []
         #expect(saved.contains("sonnet"))
-        #expect(saved.contains("pacing"))
+        #expect(saved.contains("weeklyPacing"))
     }
 
     // MARK: - Overlay
