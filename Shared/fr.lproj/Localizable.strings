@@ -269,6 +269,10 @@
 "update.installing.hint" = "Entrez votre mot de passe quand macOS le demande";
 "update.version.current" = "Actuel";
 "update.version.new" = "Nouveau";
+"update.error.signatureInvalid" = "Échec de la vérification de signature. Installation annulée.";
+"update.error.signatureMissing" = "Signature manquante pour la mise à jour. Installation annulée.";
+"update.error.sizeMismatch" = "Taille de la mise à jour incorrecte. Installation annulée.";
+"update.error.verifyReadFailed" = "Impossible de lire les fichiers de mise à jour pour la vérification. Installation annulée.";
 
 /* Brew Migration */
 "update.brew.detected" = "Installé via Homebrew";
