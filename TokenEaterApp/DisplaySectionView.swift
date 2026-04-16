@@ -9,55 +9,92 @@ struct DisplaySectionView: View {
     // unstable LocationProjections that the AttributeGraph can never
     // memoize, causing an infinite re-evaluation loop in Release builds.
     @State private var showFiveHour: Bool
-    @State private var showSevenDay: Bool
-    @State private var showSonnet: Bool
+    @State private var showSessionReset: Bool
     @State private var showSessionPacing: Bool
+    @State private var showSevenDay: Bool
     @State private var showWeeklyPacing: Bool
-    @State private var showSonnetPacing: Bool
+    @State private var showSonnet: Bool
 
     init(initialMetrics: Set<MetricID>) {
         _showFiveHour = State(initialValue: initialMetrics.contains(.fiveHour))
-        _showSevenDay = State(initialValue: initialMetrics.contains(.sevenDay))
-        _showSonnet = State(initialValue: initialMetrics.contains(.sonnet))
+        _showSessionReset = State(initialValue: initialMetrics.contains(.sessionReset))
         _showSessionPacing = State(initialValue: initialMetrics.contains(.sessionPacing))
+        _showSevenDay = State(initialValue: initialMetrics.contains(.sevenDay))
         _showWeeklyPacing = State(initialValue: initialMetrics.contains(.weeklyPacing))
-        _showSonnetPacing = State(initialValue: initialMetrics.contains(.sonnetPacing))
+        _showSonnet = State(initialValue: initialMetrics.contains(.sonnet))
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             sectionTitle(String(localized: "sidebar.display"))
 
-            // Menu Bar
+            // 1. Menu bar visibility
             glassCard {
-                VStack(alignment: .leading, spacing: 8) {
-                    cardLabel(String(localized: "settings.menubar.title"))
-                    darkToggle(String(localized: "settings.menubar.toggle"), isOn: $settingsStore.showMenuBar)
-                    darkToggle(String(localized: "settings.theme.monochrome"), isOn: $themeStore.menuBarMonochrome)
-                    darkToggle(String(localized: "settings.display.sonnet"), isOn: $settingsStore.displaySonnet)
+                darkToggle(String(localized: "settings.menubar.toggle"), isOn: $settingsStore.showMenuBar)
+            }
+
+            // 2. Pinned metrics live preview
+            glassCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    cardLabel(String(localized: "settings.metrics.pinned"))
+                    menuBarPreview
                 }
             }
 
-            // Pinned Metrics
+            // 3. Session (5h)
             glassCard {
-                VStack(alignment: .leading, spacing: 8) {
-                    cardLabel(String(localized: "settings.metrics.pinned"))
+                VStack(alignment: .leading, spacing: 10) {
+                    cardLabel(String(localized: "settings.group.session"))
                     darkToggle(String(localized: "metric.session"), isOn: $showFiveHour)
-                    if showFiveHour {
-                        darkToggle(String(localized: "settings.session.reset"), isOn: $settingsStore.showSessionReset)
+                    toggleWithTrailing(
+                        label: String(localized: "metric.sessionReset"),
+                        isOn: $showSessionReset
+                    ) {
+                        if showSessionReset {
+                            ResetFormatPicker(selection: $settingsStore.resetDisplayFormat)
+                                .labelsHidden()
+                                .frame(maxWidth: 160)
+                        }
                     }
+                    toggleWithTrailing(
+                        label: String(localized: "pacing.session.label"),
+                        isOn: $showSessionPacing
+                    ) {
+                        if showSessionPacing {
+                            PacingDisplayPicker(selection: $settingsStore.sessionPacingDisplayMode)
+                                .labelsHidden()
+                                .frame(maxWidth: 160)
+                        }
+                    }
+                }
+            }
+
+            // 4. Weekly
+            glassCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    cardLabel(String(localized: "settings.group.weekly"))
                     darkToggle(String(localized: "metric.weekly"), isOn: $showSevenDay)
+                    toggleWithTrailing(
+                        label: String(localized: "pacing.weekly.label"),
+                        isOn: $showWeeklyPacing
+                    ) {
+                        if showWeeklyPacing {
+                            PacingDisplayPicker(selection: $settingsStore.weeklyPacingDisplayMode)
+                                .labelsHidden()
+                                .frame(maxWidth: 160)
+                        }
+                    }
+                }
+            }
+
+            // 5. Sonnet
+            glassCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    cardLabel(String(localized: "settings.group.sonnet"))
+                    darkToggle(String(localized: "settings.display.sonnet"), isOn: $settingsStore.displaySonnet)
                     if settingsStore.displaySonnet {
                         darkToggle(String(localized: "metric.sonnet"), isOn: $showSonnet)
-                    }
-                    darkToggle(String(localized: "pacing.session.label"), isOn: $showSessionPacing)
-                    darkToggle(String(localized: "pacing.weekly.label"), isOn: $showWeeklyPacing)
-                    if settingsStore.displaySonnet {
-                        darkToggle(String(localized: "pacing.sonnet.label"), isOn: $showSonnetPacing)
-                    }
-                    if showSessionPacing || showWeeklyPacing || (settingsStore.displaySonnet && showSonnetPacing) {
-                        PacingDisplayPicker(selection: $settingsStore.pacingDisplayMode)
-                            .padding(.leading, 8)
+                            .padding(.leading, 20)
                     }
                 }
             }
@@ -67,38 +104,106 @@ struct DisplaySectionView: View {
         .padding(24)
         // Sync: local toggle -> store (with at-least-one guard)
         .onChange(of: showFiveHour) { _, new in syncMetric(.fiveHour, on: new, revert: { showFiveHour = true }) }
-        .onChange(of: showSevenDay) { _, new in syncMetric(.sevenDay, on: new, revert: { showSevenDay = true }) }
-        .onChange(of: showSonnet) { _, new in syncMetric(.sonnet, on: new, revert: { showSonnet = true }) }
+        .onChange(of: showSessionReset) { _, new in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                syncMetric(.sessionReset, on: new, revert: { showSessionReset = true })
+            }
+        }
         .onChange(of: showSessionPacing) { _, new in
             withAnimation(.easeInOut(duration: 0.2)) {
                 syncMetric(.sessionPacing, on: new, revert: { showSessionPacing = true })
             }
         }
+        .onChange(of: showSevenDay) { _, new in syncMetric(.sevenDay, on: new, revert: { showSevenDay = true }) }
         .onChange(of: showWeeklyPacing) { _, new in
             withAnimation(.easeInOut(duration: 0.2)) {
                 syncMetric(.weeklyPacing, on: new, revert: { showWeeklyPacing = true })
             }
         }
-        .onChange(of: showSonnetPacing) { _, new in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                syncMetric(.sonnetPacing, on: new, revert: { showSonnetPacing = true })
-            }
-        }
-        // Sync: store -> local toggles (for external changes, e.g. from MenuBar popover)
+        .onChange(of: showSonnet) { _, new in syncMetric(.sonnet, on: new, revert: { showSonnet = true }) }
+        // Sync: store -> local toggles (external changes, e.g. pin/unpin from popover)
         .onChange(of: settingsStore.pinnedMetrics) { _, metrics in
             if showFiveHour != metrics.contains(.fiveHour) { showFiveHour = metrics.contains(.fiveHour) }
-            if showSevenDay != metrics.contains(.sevenDay) { showSevenDay = metrics.contains(.sevenDay) }
-            if showSonnet != metrics.contains(.sonnet) { showSonnet = metrics.contains(.sonnet) }
+            if showSessionReset != metrics.contains(.sessionReset) {
+                withAnimation(.easeInOut(duration: 0.2)) { showSessionReset = metrics.contains(.sessionReset) }
+            }
             if showSessionPacing != metrics.contains(.sessionPacing) {
                 withAnimation(.easeInOut(duration: 0.2)) { showSessionPacing = metrics.contains(.sessionPacing) }
             }
+            if showSevenDay != metrics.contains(.sevenDay) { showSevenDay = metrics.contains(.sevenDay) }
             if showWeeklyPacing != metrics.contains(.weeklyPacing) {
                 withAnimation(.easeInOut(duration: 0.2)) { showWeeklyPacing = metrics.contains(.weeklyPacing) }
             }
-            if showSonnetPacing != metrics.contains(.sonnetPacing) {
-                withAnimation(.easeInOut(duration: 0.2)) { showSonnetPacing = metrics.contains(.sonnetPacing) }
-            }
+            if showSonnet != metrics.contains(.sonnet) { showSonnet = metrics.contains(.sonnet) }
         }
+    }
+
+    // MARK: - Components
+
+    private func toggleWithTrailing<Trailing: View>(
+        label: String,
+        isOn: Binding<Bool>,
+        @ViewBuilder trailing: () -> Trailing
+    ) -> some View {
+        HStack {
+            Toggle("", isOn: isOn)
+                .toggleStyle(.switch)
+                .tint(.blue)
+                .labelsHidden()
+            Text(label)
+                .font(.system(size: 13))
+                .foregroundStyle(.white.opacity(0.8))
+            Spacer()
+            trailing()
+        }
+    }
+
+    private var menuBarPreview: some View {
+        let image = MenuBarRenderer.renderUncached(previewData)
+        return Image(nsImage: image)
+            .interpolation(.high)
+            .frame(height: 22)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.vertical, 10)
+            .padding(.horizontal, 12)
+            .background(
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.black.opacity(0.45))
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(.white.opacity(0.08), lineWidth: 1)
+                }
+            )
+    }
+
+    private var previewData: MenuBarRenderer.RenderData {
+        MenuBarRenderer.RenderData(
+            pinnedMetrics: settingsStore.pinnedMetrics,
+            displaySonnet: settingsStore.displaySonnet,
+            fiveHourPct: 45,
+            sevenDayPct: 72,
+            sonnetPct: 30,
+            weeklyPacingDelta: 2,
+            weeklyPacingZone: .onTrack,
+            hasWeeklyPacing: true,
+            sessionPacingDelta: -15,
+            sessionPacingZone: .chill,
+            hasSessionPacing: true,
+            sessionPacingDisplayMode: settingsStore.sessionPacingDisplayMode,
+            weeklyPacingDisplayMode: settingsStore.weeklyPacingDisplayMode,
+            hasConfig: true,
+            hasError: false,
+            themeColors: themeStore.current,
+            thresholds: themeStore.thresholds,
+            menuBarMonochrome: themeStore.menuBarMonochrome,
+            fiveHourReset: "1h58",
+            fiveHourResetAbsolute: "20:30",
+            fiveHourResetDate: Date().addingTimeInterval(1 * 3600 + 58 * 60),
+            resetDisplayFormat: settingsStore.resetDisplayFormat,
+            resetTextColorHex: settingsStore.resetTextColorHex,
+            sessionPeriodColorHex: settingsStore.sessionPeriodColorHex,
+            smartResetColor: settingsStore.smartResetColor
+        )
     }
 
     private func syncMetric(_ metric: MetricID, on: Bool, revert: @escaping () -> Void) {

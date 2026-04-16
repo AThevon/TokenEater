@@ -11,6 +11,7 @@ struct TokenProviderTests {
 
     private func makeSUT(
         credentialsToken: String? = nil,
+        helperToken: String? = nil,
         keychainToken: String? = nil,
         encryptedToken: String? = nil,
         hasEncryptionKey: Bool = false,
@@ -18,6 +19,9 @@ struct TokenProviderTests {
     ) -> (TokenProvider, MockCredentialsFileReader, MockClaudeConfigReader, MockElectronDecryptionService) {
         let credentials = MockCredentialsFileReader()
         credentials.storedToken = credentialsToken
+
+        let helperReader = MockKeychainHelperReader()
+        helperReader.token = helperToken
 
         let configReader = MockClaudeConfigReader()
         configReader.encryptedToken = encryptedToken
@@ -30,6 +34,7 @@ struct TokenProviderTests {
 
         let provider = TokenProvider(
             credentialsFileReader: credentials,
+            keychainHelperReader: helperReader,
             configReader: configReader,
             decryptionService: decryption,
             keychainReader: keychainReader
@@ -157,6 +162,7 @@ struct TokenProviderTests {
 
         let provider = TokenProvider(
             credentialsFileReader: credentials,
+            keychainHelperReader: MockKeychainHelperReader(),
             configReader: configReader,
             decryptionService: decryption,
             keychainReader: keychainReader
@@ -186,6 +192,7 @@ struct TokenProviderTests {
 
         let provider = TokenProvider(
             credentialsFileReader: credentials,
+            keychainHelperReader: MockKeychainHelperReader(),
             configReader: configReader,
             decryptionService: decryption,
             keychainReader: { _ in nil }
@@ -209,6 +216,7 @@ struct TokenProviderTests {
 
         let provider = TokenProvider(
             credentialsFileReader: credentials,
+            keychainHelperReader: MockKeychainHelperReader(),
             configReader: configReader,
             decryptionService: decryption,
             keychainReader: { _ in "keychain-fallback" }

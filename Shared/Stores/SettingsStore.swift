@@ -10,11 +10,30 @@ final class SettingsStore: ObservableObject {
     @Published var pinnedMetrics: Set<MetricID> {
         didSet { savePinnedMetrics() }
     }
-    @Published var pacingDisplayMode: PacingDisplayMode {
-        didSet { UserDefaults.standard.set(pacingDisplayMode.rawValue, forKey: "pacingDisplayMode") }
+    @Published var resetDisplayFormat: ResetDisplayFormat {
+        didSet { UserDefaults.standard.set(resetDisplayFormat.rawValue, forKey: "resetDisplayFormat") }
     }
-    @Published var showSessionReset: Bool {
-        didSet { UserDefaults.standard.set(showSessionReset, forKey: "showSessionReset") }
+    /// When true, the reset countdown text is coloured based on a risk score
+    /// (utilization x remaining minutes) rather than the static user-picked
+    /// hex. Useful to signal urgency without constantly watching the number.
+    @Published var smartResetColor: Bool {
+        didSet { UserDefaults.standard.set(smartResetColor, forKey: "smartResetColor") }
+    }
+    @Published var sessionPacingDisplayMode: PacingDisplayMode {
+        didSet { UserDefaults.standard.set(sessionPacingDisplayMode.rawValue, forKey: "sessionPacingDisplayMode") }
+    }
+    @Published var weeklyPacingDisplayMode: PacingDisplayMode {
+        didSet { UserDefaults.standard.set(weeklyPacingDisplayMode.rawValue, forKey: "weeklyPacingDisplayMode") }
+    }
+    /// Hex string ("#RRGGBB") for the menu-bar reset countdown text.
+    /// Empty = use the system's primary label color.
+    @Published var resetTextColorHex: String {
+        didSet { UserDefaults.standard.set(resetTextColorHex, forKey: "resetTextColorHex") }
+    }
+    /// Hex string ("#RRGGBB") for the "5h" / "7d" / "S" period label.
+    /// Empty = use the system's tertiary label color.
+    @Published var sessionPeriodColorHex: String {
+        didSet { UserDefaults.standard.set(sessionPeriodColorHex, forKey: "sessionPeriodColorHex") }
     }
     @Published var displaySonnet: Bool {
         didSet {
@@ -22,7 +41,7 @@ final class SettingsStore: ObservableObject {
             if !displaySonnet {
                 // Drop any sonnet-related pins so the menu bar does not keep
                 // a stale reference to a hidden metric.
-                pinnedMetrics.subtract([.sonnet, .sonnetPacing])
+                pinnedMetrics.remove(.sonnet)
             }
         }
     }
@@ -134,14 +153,6 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    var showSonnetPacing: Bool {
-        get { pinnedMetrics.contains(.sonnetPacing) }
-        set {
-            if newValue { pinnedMetrics.insert(.sonnetPacing) }
-            else if pinnedMetrics.count > 1 { pinnedMetrics.remove(.sonnetPacing) }
-        }
-    }
-
     // Notifications
     @Published var notificationStatus: UNAuthorizationStatus = .notDetermined
 
@@ -197,22 +208,45 @@ final class SettingsStore: ObservableObject {
             let val = UserDefaults.standard.integer(forKey: "refreshInterval")
             return val >= 180 ? val : 300
         }()
-        self.pacingDisplayMode = PacingDisplayMode(
+        self.resetDisplayFormat = ResetDisplayFormat(
+            rawValue: UserDefaults.standard.string(forKey: "resetDisplayFormat") ?? "relative"
+        ) ?? .relative
+        self.resetTextColorHex = UserDefaults.standard.string(forKey: "resetTextColorHex") ?? ""
+        self.sessionPeriodColorHex = UserDefaults.standard.string(forKey: "sessionPeriodColorHex") ?? ""
+        self.smartResetColor = UserDefaults.standard.bool(forKey: "smartResetColor")
+
+        // Migrate the legacy global `pacingDisplayMode` into the two per-bucket
+        // settings so existing users keep the mode they had. If either per-bucket
+        // value has been saved before, prefer it.
+        let legacyMode = PacingDisplayMode(
             rawValue: UserDefaults.standard.string(forKey: "pacingDisplayMode") ?? "dotDelta"
         ) ?? .dotDelta
-        self.showSessionReset = UserDefaults.standard.bool(forKey: "showSessionReset")
+        self.sessionPacingDisplayMode = PacingDisplayMode(
+            rawValue: UserDefaults.standard.string(forKey: "sessionPacingDisplayMode") ?? legacyMode.rawValue
+        ) ?? legacyMode
+        self.weeklyPacingDisplayMode = PacingDisplayMode(
+            rawValue: UserDefaults.standard.string(forKey: "weeklyPacingDisplayMode") ?? legacyMode.rawValue
+        ) ?? legacyMode
         self.helperSyncInterval = {
             let raw = UserDefaults.standard.integer(forKey: "helperSyncInterval")
             return raw >= 30 ? raw : Int(HelperManagerService.defaultSyncInterval)
         }()
         self.helperStatus = helperManager.currentStatus()
-        let legacyPinned: Set<MetricID>
+        var legacyPinned: Set<MetricID>
         if let saved = UserDefaults.standard.stringArray(forKey: "pinnedMetrics") {
             // Migrate legacy "pacing" (covered weekly only) to the explicit weeklyPacing id.
             let normalized = saved.map { $0 == "pacing" ? "weeklyPacing" : $0 }
             legacyPinned = Set(normalized.compactMap { MetricID(rawValue: $0) })
         } else {
             legacyPinned = [.fiveHour, .sevenDay]
+        }
+
+        // Migrate the old `showSessionReset` boolean into the new `.sessionReset`
+        // pinnable metric so existing users keep seeing the countdown they opted
+        // in to. The boolean itself is removed below.
+        if UserDefaults.standard.object(forKey: "showSessionReset") != nil,
+           UserDefaults.standard.bool(forKey: "showSessionReset") {
+            legacyPinned.insert(.sessionReset)
         }
         self.pinnedMetrics = legacyPinned
 

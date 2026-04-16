@@ -122,13 +122,6 @@ struct DashboardView: View {
                     showMessage: true
                 )
             }
-            if settingsStore.displaySonnet, let pacing = usageStore.sonnetPacing {
-                pacingCard(
-                    pacing: pacing,
-                    label: PacingBucket.sonnet.metricID.label,
-                    showMessage: false
-                )
-            }
 
             Spacer()
         }

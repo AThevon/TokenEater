@@ -91,7 +91,8 @@ final class StatusBarController: NSObject {
 
         Timer.publish(every: 60, on: .main, in: .common).autoconnect()
             .sink { [weak self] _ in
-                guard let self, self.settingsStore.showSessionReset else { return }
+                guard let self,
+                      self.settingsStore.pinnedMetrics.contains(.sessionReset) else { return }
                 self.usageStore.refreshResetCountdown()
             }
             .store(in: &cancellables)
@@ -208,20 +209,23 @@ final class StatusBarController: NSObject {
             weeklyPacingDelta: Int(usageStore.pacingResult?.delta ?? 0),
             weeklyPacingZone: usageStore.pacingResult?.zone ?? .onTrack,
             hasWeeklyPacing: usageStore.pacingResult != nil,
-            sonnetPacingDelta: Int(usageStore.sonnetPacing?.delta ?? 0),
-            sonnetPacingZone: usageStore.sonnetPacing?.zone ?? .onTrack,
-            hasSonnetPacing: usageStore.sonnetPacing != nil,
             sessionPacingDelta: Int(usageStore.fiveHourPacing?.delta ?? 0),
             sessionPacingZone: usageStore.fiveHourPacing?.zone ?? .onTrack,
             hasSessionPacing: usageStore.fiveHourPacing != nil,
-            pacingDisplayMode: settingsStore.pacingDisplayMode,
+            sessionPacingDisplayMode: settingsStore.sessionPacingDisplayMode,
+            weeklyPacingDisplayMode: settingsStore.weeklyPacingDisplayMode,
             hasConfig: usageStore.hasConfig,
             hasError: usageStore.hasError,
             themeColors: themeStore.current,
             thresholds: themeStore.thresholds,
             menuBarMonochrome: themeStore.menuBarMonochrome,
             fiveHourReset: usageStore.fiveHourReset,
-            showSessionReset: settingsStore.showSessionReset
+            fiveHourResetAbsolute: usageStore.fiveHourResetAbsolute,
+            fiveHourResetDate: usageStore.lastUsage?.fiveHour?.resetsAtDate,
+            resetDisplayFormat: settingsStore.resetDisplayFormat,
+            resetTextColorHex: settingsStore.resetTextColorHex,
+            sessionPeriodColorHex: settingsStore.sessionPeriodColorHex,
+            smartResetColor: settingsStore.smartResetColor
         ))
         statusItem.button?.image = image
     }

@@ -59,9 +59,7 @@ struct MenuBarPopoverView: View {
             }
 
             // Pacing rows - compact stack, each row owns its own pin.
-            if usageStore.fiveHourPacing != nil
-                || usageStore.pacingResult != nil
-                || (settingsStore.displaySonnet && usageStore.sonnetPacing != nil) {
+            if usageStore.fiveHourPacing != nil || usageStore.pacingResult != nil {
                 VStack(spacing: 12) {
                     if let pacing = usageStore.fiveHourPacing {
                         pacingRow(
@@ -74,13 +72,6 @@ struct MenuBarPopoverView: View {
                         pacingRow(
                             metric: .weeklyPacing,
                             label: String(localized: "pacing.weekly.label"),
-                            pacing: pacing
-                        )
-                    }
-                    if settingsStore.displaySonnet, let pacing = usageStore.sonnetPacing {
-                        pacingRow(
-                            metric: .sonnetPacing,
-                            label: String(localized: "pacing.sonnet.label"),
                             pacing: pacing
                         )
                     }
@@ -227,7 +218,7 @@ struct MenuBarPopoverView: View {
                 id: .fiveHour,
                 label: String(localized: "metric.session"),
                 pct: usageStore.fiveHourPct,
-                showSessionReset: settingsStore.showSessionReset
+                showSessionReset: settingsStore.pinnedMetrics.contains(.sessionReset)
             )
             equalRingItem(
                 id: .sevenDay,

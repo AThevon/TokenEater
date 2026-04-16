@@ -20,6 +20,40 @@ struct ThemesSectionView: View {
         VStack(alignment: .leading, spacing: 16) {
             sectionTitle(String(localized: "sidebar.themes"))
 
+            // Menu bar text appearance (monochrome + custom colors + smart reset)
+            glassCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    cardLabel(String(localized: "settings.theme.menubar"))
+                    darkToggle(String(localized: "settings.theme.monochrome"), isOn: $themeStore.menuBarMonochrome)
+                    if !themeStore.menuBarMonochrome {
+                        Divider().opacity(0.15)
+                        menuBarColorRow(
+                            label: "settings.reset.color",
+                            hex: $settingsStore.resetTextColorHex,
+                            fallback: .white,
+                            disabled: settingsStore.smartResetColor
+                        )
+                        VStack(alignment: .leading, spacing: 4) {
+                            darkToggle(
+                                String(localized: "settings.theme.smartreset"),
+                                isOn: $settingsStore.smartResetColor
+                            )
+                            Text(String(localized: "settings.theme.smartreset.hint"))
+                                .font(.system(size: 11))
+                                .foregroundStyle(.white.opacity(0.4))
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.leading, 48)
+                        }
+                        menuBarColorRow(
+                            label: "settings.session.periodcolor",
+                            hex: $settingsStore.sessionPeriodColorHex,
+                            fallback: .white.opacity(0.4),
+                            disabled: false
+                        )
+                    }
+                }
+            }
+
             // Presets
             glassCard {
                 VStack(alignment: .leading, spacing: 12) {
@@ -93,6 +127,12 @@ struct ThemesSectionView: View {
                     Button(String(localized: "settings.theme.reset.cancel"), role: .cancel) { }
                     Button(String(localized: "settings.theme.reset.action"), role: .destructive) {
                         themeStore.resetToDefaults()
+                        // Reset is scoped to the Themes view, so it also clears the
+                        // menu-bar text colors displayed on this page.
+                        settingsStore.resetTextColorHex = ""
+                        settingsStore.sessionPeriodColorHex = ""
+                        settingsStore.smartResetColor = false
+                        themeStore.menuBarMonochrome = false
                     }
                 }
             }
@@ -184,6 +224,47 @@ struct ThemesSectionView: View {
     }
 
     // MARK: - Helpers
+
+    /// Like `themeColorRow` but lets an empty hex fall through to a system
+    /// default color. Shows a revert-to-default button when the user has
+    /// picked a custom color.
+    private func menuBarColorRow(
+        label: LocalizedStringKey,
+        hex: Binding<String>,
+        fallback: Color,
+        disabled: Bool = false
+    ) -> some View {
+        let colorBinding = Binding<Color>(
+            get: {
+                hex.wrappedValue.isEmpty ? fallback : Color(hex: hex.wrappedValue)
+            },
+            set: { newColor in
+                let nsColor = NSColor(newColor).usingColorSpace(.sRGB) ?? NSColor(newColor)
+                hex.wrappedValue = nsColor.hexString()
+            }
+        )
+        return HStack {
+            Text(label)
+                .font(.system(size: 12))
+                .foregroundStyle(.white.opacity(disabled ? 0.35 : 0.7))
+            Spacer()
+            if !hex.wrappedValue.isEmpty && !disabled {
+                Button {
+                    hex.wrappedValue = ""
+                } label: {
+                    Image(systemName: "arrow.uturn.backward.circle.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white.opacity(0.35))
+                }
+                .buttonStyle(.plain)
+                .help(Text(String(localized: "settings.theme.menubar.resetColor")))
+            }
+            ColorPicker("", selection: colorBinding, supportsOpacity: false)
+                .labelsHidden()
+                .disabled(disabled)
+                .opacity(disabled ? 0.4 : 1)
+        }
+    }
 
     private func themeColorRow(_ labelKey: LocalizedStringKey, hex: Binding<String>) -> some View {
         let colorBinding = Binding<Color>(
