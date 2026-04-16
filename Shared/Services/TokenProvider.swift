@@ -6,11 +6,12 @@ private let logger = Logger(subsystem: "com.tokeneater.app", category: "TokenPro
 
 final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     private let credentialsFileReader: CredentialsFileReaderProtocol
+    private let keychainHelperReader: KeychainHelperReaderProtocol
     private let configReader: ClaudeConfigReaderProtocol
     private let decryptionService: ElectronDecryptionServiceProtocol
     private let keychainReader: KeychainTokenReader
 
-    /// In-memory token cache — avoids hitting the Keychain on every refresh.
+    /// In-memory token cache - avoids hitting the Keychain on every refresh.
     /// Only cleared on 401 (token expired) via `invalidateToken()`.
     private var cachedToken: String?
 
@@ -19,11 +20,13 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
 
     init(
         credentialsFileReader: CredentialsFileReaderProtocol = CredentialsFileReader(),
+        keychainHelperReader: KeychainHelperReaderProtocol = KeychainHelperReader(),
         configReader: ClaudeConfigReaderProtocol = ClaudeConfigReader(),
         decryptionService: ElectronDecryptionServiceProtocol = ElectronDecryptionService(),
         keychainReader: KeychainTokenReader? = nil
     ) {
         self.credentialsFileReader = credentialsFileReader
+        self.keychainHelperReader = keychainHelperReader
         self.configReader = configReader
         self.decryptionService = decryptionService
         self.keychainReader = keychainReader ?? Self.defaultKeychainReader
@@ -34,6 +37,7 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     func hasTokenSource() -> Bool {
         if cachedToken != nil { return true }
         if credentialsFileReader.readToken() != nil { return true }
+        if keychainHelperReader.readToken() != nil { return true }
         if configReader.readEncryptedToken() != nil { return true }
         if keychainReader(true) != nil { return true }
         return false
@@ -42,22 +46,31 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     /// Returns the current token, using the in-memory cache if available.
     /// The Keychain is only read when the cache is empty (app start, or after `invalidateToken()`).
     func currentToken() -> String? {
-        // Fast path: cached token from a previous successful read
         if let token = cachedToken { return token }
 
-        // Source 1: credentials file (no keychain, no popup)
+        // Source 1: credentials file (legacy Claude Code that still wrote it)
         if let token = credentialsFileReader.readToken() {
             cachedToken = token
             return token
         }
 
-        // Source 2: decrypt config.json (no keychain if key file exists)
+        // Source 2: helper-synced Keychain token (new Claude Code CLI). Reads a
+        // JSON file the helper LaunchAgent writes - no Keychain access from this
+        // process, so this path is sandbox-safe.
+        if let token = keychainHelperReader.readToken() {
+            cachedToken = token
+            logger.info("Token read from Keychain helper file")
+            return token
+        }
+
+        // Source 3: decrypt config.json (Claude Desktop)
         if let token = tokenFromConfigJSON() {
             cachedToken = token
             return token
         }
 
-        // Source 3: Keychain — silent read, last resort
+        // Source 4: Keychain direct - almost never works for sandboxed ad-hoc
+        // signed apps (ACL blocks us) but kept as a last resort.
         if let token = keychainReader(true) {
             cachedToken = token
             logger.info("Token read from Keychain (silent) and cached in memory")
@@ -71,13 +84,11 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     private func tokenFromConfigJSON() -> String? {
         guard let encrypted = configReader.readEncryptedToken() else { return nil }
 
-        // Try with existing key
         if decryptionService.hasEncryptionKey,
            let token = decryptFromConfigJSON(encrypted) {
             return token
         }
 
-        // Key missing or stale — try silent re-bootstrap (no popup)
         if decryptionService.trySilentRebootstrap(),
            let token = decryptFromConfigJSON(encrypted) {
             logger.info("Token recovered via silent re-bootstrap of decryption key")
@@ -87,21 +98,19 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
         return nil
     }
 
-    /// Call this after a 401 — clears the in-memory cache so the next `currentToken()`
+    /// Call this after a 401 - clears the in-memory cache so the next `currentToken()`
     /// re-reads from Keychain/file to pick up a refreshed token.
     func invalidateToken() {
         cachedToken = nil
-        logger.info("Token cache invalidated — next read will check Keychain")
+        logger.info("Token cache invalidated - next read will check Keychain")
     }
 
     func bootstrap() throws {
-        // Interactive Keychain read — triggers macOS "Allow" dialog
         if let token = keychainReader(false) {
             cachedToken = token
             logger.info("Bootstrap succeeded via interactive Keychain read")
         }
 
-        // Also bootstrap decryption key for config.json fallback
         do {
             try decryptionService.bootstrapEncryptionKey()
         } catch {

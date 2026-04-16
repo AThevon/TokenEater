@@ -145,15 +145,26 @@ final class SettingsStore: ObservableObject {
     // Notifications
     @Published var notificationStatus: UNAuthorizationStatus = .notDetermined
 
+    // Keychain helper
+    @Published var helperStatus: HelperStatus = .notInstalled
+    @Published var helperBusy: Bool = false
+    @Published var helperLastError: String?
+    @Published var helperSyncInterval: Int {
+        didSet { UserDefaults.standard.set(helperSyncInterval, forKey: "helperSyncInterval") }
+    }
+
     private let notificationService: NotificationServiceProtocol
     private let tokenProvider: TokenProviderProtocol
+    private let helperManager: HelperManagerProtocol
 
     init(
         notificationService: NotificationServiceProtocol = NotificationService(),
-        tokenProvider: TokenProviderProtocol = TokenProvider()
+        tokenProvider: TokenProviderProtocol = TokenProvider(),
+        helperManager: HelperManagerProtocol = HelperManagerService()
     ) {
         self.notificationService = notificationService
         self.tokenProvider = tokenProvider
+        self.helperManager = helperManager
 
         self.showMenuBar = UserDefaults.standard.object(forKey: "showMenuBar") as? Bool ?? true
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
@@ -190,6 +201,11 @@ final class SettingsStore: ObservableObject {
             rawValue: UserDefaults.standard.string(forKey: "pacingDisplayMode") ?? "dotDelta"
         ) ?? .dotDelta
         self.showSessionReset = UserDefaults.standard.bool(forKey: "showSessionReset")
+        self.helperSyncInterval = {
+            let raw = UserDefaults.standard.integer(forKey: "helperSyncInterval")
+            return raw >= 30 ? raw : Int(HelperManagerService.defaultSyncInterval)
+        }()
+        self.helperStatus = helperManager.currentStatus()
         let legacyPinned: Set<MetricID>
         if let saved = UserDefaults.standard.stringArray(forKey: "pinnedMetrics") {
             // Migrate legacy "pacing" (covered weekly only) to the explicit weeklyPacing id.
@@ -247,5 +263,55 @@ final class SettingsStore: ObservableObject {
 
     func credentialsTokenExists() -> Bool {
         tokenProvider.currentToken() != nil
+    }
+
+    // MARK: - Keychain helper
+
+    func refreshHelperStatus() {
+        helperStatus = helperManager.currentStatus()
+    }
+
+    func installHelper() async {
+        helperBusy = true
+        helperLastError = nil
+        defer {
+            helperBusy = false
+            refreshHelperStatus()
+        }
+        do {
+            try helperManager.install(syncInterval: TimeInterval(helperSyncInterval))
+            tokenProvider.invalidateToken()
+        } catch {
+            helperLastError = error.localizedDescription
+        }
+    }
+
+    func uninstallHelper() async {
+        helperBusy = true
+        helperLastError = nil
+        defer {
+            helperBusy = false
+            refreshHelperStatus()
+        }
+        do {
+            try helperManager.uninstall()
+            tokenProvider.invalidateToken()
+        } catch {
+            helperLastError = error.localizedDescription
+        }
+    }
+
+    func forceHelperSync() async {
+        helperBusy = true
+        helperLastError = nil
+        defer {
+            helperBusy = false
+            refreshHelperStatus()
+        }
+        do {
+            try helperManager.forceSync()
+        } catch {
+            helperLastError = error.localizedDescription
+        }
     }
 }

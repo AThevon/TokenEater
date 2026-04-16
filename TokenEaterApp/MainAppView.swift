@@ -28,21 +28,25 @@ struct MainAppView: View {
             Group {
                 switch selectedSection {
                 case .dashboard:
+                    // Dashboard expects to fill the viewport (uses maxHeight: .infinity
+                    // internally). Wrapping it in a ScrollView collapses that layout.
                     DashboardView()
                 case .display:
-                    DisplaySectionView(initialMetrics: settingsStore.pinnedMetrics)
+                    scrollingSection { DisplaySectionView(initialMetrics: settingsStore.pinnedMetrics) }
                 case .themes:
-                    ThemesSectionView(
-                        initialWarning: themeStore.warningThreshold,
-                        initialCritical: themeStore.criticalThreshold,
-                        initialMargin: settingsStore.pacingMargin
-                    )
+                    scrollingSection {
+                        ThemesSectionView(
+                            initialWarning: themeStore.warningThreshold,
+                            initialCritical: themeStore.criticalThreshold,
+                            initialMargin: settingsStore.pacingMargin
+                        )
+                    }
                 case .agentWatchers:
-                    AgentWatchersSectionView()
+                    scrollingSection { AgentWatchersSectionView() }
                 case .performance:
-                    PerformanceSectionView()
+                    scrollingSection { PerformanceSectionView() }
                 case .settings:
-                    SettingsSectionView()
+                    scrollingSection { SettingsSectionView() }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -62,6 +66,14 @@ struct MainAppView: View {
                let target = AppSection(rawValue: section) {
                 selectedSection = target
             }
+        }
+    }
+
+    @ViewBuilder
+    private func scrollingSection<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            content()
+                .frame(maxWidth: .infinity, alignment: .top)
         }
     }
 
