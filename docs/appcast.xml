@@ -141,7 +141,7 @@
             <title>4.10.0</title>
             <pubDate>Fri, 17 Apr 2026 00:11:07 +0000</pubDate>
             <sparkle:version>4.10.0</sparkle:version>
-            <enclosure url="https://github.com/AThevon/TokenEater/releases/download/v4.10.0/TokenEater.dmg" sparkle:edSignature="" length="2872683" type="application/octet-stream" />
+            <enclosure url="https://github.com/AThevon/TokenEater/releases/download/v4.10.0/TokenEater.dmg" sparkle:edSignature="MG661z+3qg6Lot99q64hjdoOwVnHlD1uGRdR5ThkJ7L+GJWmt2QxjPSxF7CLLFRv6wFXv1ejNDDeNzZDRS0LCw==" length="2872683" type="application/octet-stream" />
         </item>
     </channel>
 </rss>
