@@ -199,6 +199,7 @@ struct DisplaySectionView: View {
             fiveHourReset: "1h58",
             fiveHourResetAbsolute: "20:30",
             fiveHourResetDate: Date().addingTimeInterval(1 * 3600 + 58 * 60),
+            hasFiveHourBucket: true,
             resetDisplayFormat: settingsStore.resetDisplayFormat,
             resetTextColorHex: settingsStore.resetTextColorHex,
             sessionPeriodColorHex: settingsStore.sessionPeriodColorHex,
