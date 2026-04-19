@@ -222,6 +222,7 @@ final class StatusBarController: NSObject {
             fiveHourReset: usageStore.fiveHourReset,
             fiveHourResetAbsolute: usageStore.fiveHourResetAbsolute,
             fiveHourResetDate: usageStore.lastUsage?.fiveHour?.resetsAtDate,
+            hasFiveHourBucket: usageStore.lastUsage?.fiveHour != nil,
             resetDisplayFormat: settingsStore.resetDisplayFormat,
             resetTextColorHex: settingsStore.resetTextColorHex,
             sessionPeriodColorHex: settingsStore.sessionPeriodColorHex,

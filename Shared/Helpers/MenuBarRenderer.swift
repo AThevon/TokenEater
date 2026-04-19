@@ -23,6 +23,12 @@ enum MenuBarRenderer {
         let fiveHourReset: String
         let fiveHourResetAbsolute: String
         let fiveHourResetDate: Date?
+        /// True when the API returned a `five_hour` bucket at all. Independent
+        /// from whether `resets_at` was populated - Anthropic can return the
+        /// bucket with `utilization: 0` and no `resets_at` when you're between
+        /// two 5h windows. Used to keep session pins visible (with a placeholder
+        /// value) instead of making them disappear whenever there's a lull.
+        let hasFiveHourBucket: Bool
         let resetDisplayFormat: ResetDisplayFormat
         let resetTextColorHex: String
         let sessionPeriodColorHex: String
@@ -127,8 +133,11 @@ enum MenuBarRenderer {
             guard data.pinnedMetrics.contains($0) else { return false }
             if !data.displaySonnet && $0 == .sonnet { return false }
             switch $0 {
-            case .sessionReset: return !data.fiveHourReset.isEmpty || !data.fiveHourResetAbsolute.isEmpty
-            case .sessionPacing: return data.hasSessionPacing
+            // Session-scoped pins stay visible as long as the API returned a
+            // five_hour bucket. Between sessions Anthropic omits resets_at, so
+            // we render a neutral placeholder rather than silently hiding a
+            // pin the user explicitly asked for.
+            case .sessionReset, .sessionPacing: return data.hasFiveHourBucket
             case .weeklyPacing: return data.hasWeeklyPacing
             default: return true
             }
@@ -141,13 +150,21 @@ enum MenuBarRenderer {
             case .sessionReset:
                 appendSessionReset(to: str, data: data)
             case .sessionPacing:
-                appendPacing(
-                    to: str,
-                    delta: data.sessionPacingDelta,
-                    zone: data.sessionPacingZone,
-                    mode: data.sessionPacingDisplayMode,
-                    data: data
-                )
+                if data.hasSessionPacing {
+                    appendPacing(
+                        to: str,
+                        delta: data.sessionPacingDelta,
+                        zone: data.sessionPacingZone,
+                        mode: data.sessionPacingDisplayMode,
+                        data: data
+                    )
+                } else {
+                    appendPacingPlaceholder(
+                        to: str,
+                        mode: data.sessionPacingDisplayMode,
+                        data: data
+                    )
+                }
             case .weeklyPacing:
                 appendPacing(
                     to: str,
@@ -188,8 +205,11 @@ enum MenuBarRenderer {
     }
 
     private static func appendSessionReset(to str: NSMutableAttributedString, data: RenderData) {
-        let text = resetDisplayText(data: data)
-        guard !text.isEmpty else { return }
+        let resolvedText = resetDisplayText(data: data)
+        // Empty only when `fiveHour.resetsAt` is nil - typically between two
+        // 5h windows. Fall back to an em-less `-` placeholder so the pin
+        // stays visible and the user knows it's still active.
+        let text = resolvedText.isEmpty ? "-" : resolvedText
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .bold),
             .foregroundColor: resetValueColor(data),
@@ -237,6 +257,37 @@ enum MenuBarRenderer {
             str.append(NSAttributedString(string: " \(sign)\(delta)%", attributes: deltaAttrs))
         case .delta:
             str.append(NSAttributedString(string: "\(sign)\(delta)%", attributes: deltaAttrs))
+        }
+    }
+
+    /// Neutral placeholder used when the pacing bucket exists but `resets_at`
+    /// is missing, so we can't compute a meaningful delta. Uses the system's
+    /// tertiary label colour to signal "data pending" without faking an
+    /// on-track state.
+    private static func appendPacingPlaceholder(
+        to str: NSMutableAttributedString,
+        mode: PacingDisplayMode,
+        data: RenderData
+    ) {
+        let neutralColor: NSColor = data.menuBarMonochrome
+            ? .tertiaryLabelColor
+            : .tertiaryLabelColor
+        let dotAttrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11, weight: .bold),
+            .foregroundColor: neutralColor,
+        ]
+        let textAttrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .bold),
+            .foregroundColor: neutralColor,
+        ]
+        switch mode {
+        case .dot:
+            str.append(NSAttributedString(string: "\u{25CF}", attributes: dotAttrs))
+        case .dotDelta:
+            str.append(NSAttributedString(string: "\u{25CF}", attributes: dotAttrs))
+            str.append(NSAttributedString(string: " -", attributes: textAttrs))
+        case .delta:
+            str.append(NSAttributedString(string: "-", attributes: textAttrs))
         }
     }
 
