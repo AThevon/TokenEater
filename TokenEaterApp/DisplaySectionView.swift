@@ -26,7 +26,10 @@ struct DisplaySectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            sectionTitle(String(localized: "sidebar.display"))
+            sectionTitle(
+                String(localized: "sidebar.display"),
+                subtitle: String(localized: "sidebar.display.subtitle")
+            )
 
             // 1. Menu bar visibility
             glassCard {
@@ -38,6 +41,18 @@ struct DisplaySectionView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     cardLabel(String(localized: "settings.metrics.pinned"))
                     menuBarPreview
+                }
+            }
+
+            // 3. Menu bar style (font / separator / labels)
+            glassCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    cardLabel(String(localized: "settings.menubar.style"))
+                    HStack(spacing: 8) {
+                        ForEach(MenuBarStyle.allCases) { style in
+                            menuBarStyleButton(style)
+                        }
+                    }
                 }
             }
 
@@ -158,6 +173,30 @@ struct DisplaySectionView: View {
         }
     }
 
+    private func menuBarStyleButton(_ style: MenuBarStyle) -> some View {
+        let isActive = settingsStore.menuBarStyle == style
+        return Button {
+            withAnimation(.easeInOut(duration: 0.12)) {
+                settingsStore.menuBarStyle = style
+            }
+        } label: {
+            Text(style.localizedLabel)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(isActive ? .white : .white.opacity(0.55))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(isActive ? Color.blue.opacity(0.2) : Color.white.opacity(0.03))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(isActive ? Color.blue.opacity(0.5) : Color.white.opacity(0.06), lineWidth: 1)
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
     private var menuBarPreview: some View {
         let image = MenuBarRenderer.renderUncached(previewData)
         return Image(nsImage: image)
@@ -203,7 +242,9 @@ struct DisplaySectionView: View {
             resetDisplayFormat: settingsStore.resetDisplayFormat,
             resetTextColorHex: settingsStore.resetTextColorHex,
             sessionPeriodColorHex: settingsStore.sessionPeriodColorHex,
-            smartResetColor: settingsStore.smartResetColor
+            smartResetColor: settingsStore.smartResetColor,
+            menuBarStyle: settingsStore.menuBarStyle,
+            pacingShape: settingsStore.pacingShape
         )
     }
 

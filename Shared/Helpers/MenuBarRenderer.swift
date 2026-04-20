@@ -33,6 +33,8 @@ enum MenuBarRenderer {
         let resetTextColorHex: String
         let sessionPeriodColorHex: String
         let smartResetColor: Bool
+        let menuBarStyle: MenuBarStyle
+        let pacingShape: PacingShape
     }
 
     private static var cachedImage: NSImage?
@@ -119,13 +121,27 @@ enum MenuBarRenderer {
     // MARK: - Rendering
 
     private static func renderPinnedMetrics(_ data: RenderData) -> NSImage {
+        // Minimal uses an entirely different drawing path (pills), so hand
+        // off early instead of trying to fit it into the classic/mono
+        // NSAttributedString pipeline.
+        if data.menuBarStyle == .badge {
+            return renderBadgePills(data)
+        }
+
         let height: CGFloat = 22
         let str = NSMutableAttributedString()
 
         let sepAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 10, weight: .regular),
+            .font: styleFont(size: 10, weight: .regular, style: data.menuBarStyle),
             .foregroundColor: NSColor.tertiaryLabelColor,
         ]
+        let separator: String = {
+            switch data.menuBarStyle {
+            case .classic: return "  "
+            case .mono:    return " "
+            case .badge: return " \u{00B7} "  // middle dot with spaces
+            }
+        }()
 
         let ordered: [MetricID] = [
             .sessionReset, .fiveHour, .sessionPacing, .sevenDay, .weeklyPacing, .sonnet
@@ -144,7 +160,7 @@ enum MenuBarRenderer {
         }
         for (i, metric) in ordered.enumerated() {
             if i > 0 {
-                str.append(NSAttributedString(string: "  ", attributes: sepAttrs))
+                str.append(NSAttributedString(string: separator, attributes: sepAttrs))
             }
             switch metric {
             case .sessionReset:
@@ -181,16 +197,12 @@ enum MenuBarRenderer {
                 case .sonnet: value = data.sonnetPct
                 default: value = 0
                 }
-                let periodLabelAttrs: [NSAttributedString.Key: Any] = [
-                    .font: NSFont.systemFont(ofSize: 9, weight: .medium),
-                    .foregroundColor: periodColor(data),
-                ]
-                str.append(NSAttributedString(string: "\(metric.shortLabel) ", attributes: periodLabelAttrs))
-                let pctAttrs: [NSAttributedString.Key: Any] = [
-                    .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .bold),
-                    .foregroundColor: colorForPct(value, data: data),
-                ]
-                str.append(NSAttributedString(string: "\(value)%", attributes: pctAttrs))
+                appendPercentMetric(
+                    to: str,
+                    label: metric.shortLabel,
+                    value: value,
+                    data: data
+                )
             }
         }
 
@@ -211,10 +223,244 @@ enum MenuBarRenderer {
         // stays visible and the user knows it's still active.
         let text = resolvedText.isEmpty ? "-" : resolvedText
         let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .bold),
+            .font: styleFont(size: 12, weight: .bold, style: data.menuBarStyle, monospacedDigits: true),
             .foregroundColor: resetValueColor(data),
         ]
         str.append(NSAttributedString(string: text, attributes: attrs))
+    }
+
+    // MARK: - Badge pill rendering
+
+    /// Badge style: each metric becomes a small rounded pill with a tinted
+    /// background and colour-matched text. Drawn directly with NSBezierPath
+    /// rather than NSAttributedString so we can get real rounded corners in
+    /// the menu bar icon.
+    private struct BadgePill {
+        let text: String
+        let tint: NSColor
+    }
+
+    private static func renderBadgePills(_ data: RenderData) -> NSImage {
+        let pills = buildBadgePills(data)
+        let height: CGFloat = 22
+        let pillHeight: CGFloat = 17
+        let paddingH: CGFloat = 7
+        let gap: CGFloat = 5
+
+        let font = NSFont.systemFont(ofSize: 11, weight: .bold)
+        let textAttrs: [NSAttributedString.Key: Any] = [.font: font]
+
+        let widths: [CGFloat] = pills.map { pill in
+            ceil((pill.text as NSString).size(withAttributes: textAttrs).width) + paddingH * 2
+        }
+        let totalWidth = widths.reduce(0, +) + CGFloat(max(pills.count - 1, 0)) * gap
+        guard totalWidth > 0 else {
+            return NSImage(size: NSSize(width: 1, height: height))
+        }
+
+        let imgSize = NSSize(width: ceil(totalWidth) + 2, height: height)
+        let img = NSImage(size: imgSize, flipped: false) { _ in
+            var x: CGFloat = 1
+            for (i, pill) in pills.enumerated() {
+                let w = widths[i]
+                let pillRect = NSRect(
+                    x: x,
+                    y: (height - pillHeight) / 2,
+                    width: w,
+                    height: pillHeight
+                )
+                let path = NSBezierPath(
+                    roundedRect: pillRect,
+                    xRadius: pillHeight / 2,
+                    yRadius: pillHeight / 2
+                )
+                // Tinted fill (15% opacity) with a 1px outline of the same
+                // colour at higher opacity - keeps the pill readable on both
+                // light and dark menu bars.
+                pill.tint.withAlphaComponent(0.18).setFill()
+                path.fill()
+                pill.tint.withAlphaComponent(0.55).setStroke()
+                path.lineWidth = 0.8
+                path.stroke()
+
+                // Text centred.
+                let attrs: [NSAttributedString.Key: Any] = [
+                    .font: font,
+                    .foregroundColor: pill.tint,
+                ]
+                let textSize = (pill.text as NSString).size(withAttributes: attrs)
+                let textOrigin = NSPoint(
+                    x: x + (w - textSize.width) / 2,
+                    y: (height - textSize.height) / 2 - 0.5
+                )
+                (pill.text as NSString).draw(at: textOrigin, withAttributes: attrs)
+
+                x += w + gap
+            }
+            return true
+        }
+        img.isTemplate = false
+        return img
+    }
+
+    private static func buildBadgePills(_ data: RenderData) -> [BadgePill] {
+        let ordered: [MetricID] = [
+            .sessionReset, .fiveHour, .sessionPacing, .sevenDay, .weeklyPacing, .sonnet
+        ].filter {
+            guard data.pinnedMetrics.contains($0) else { return false }
+            if !data.displaySonnet && $0 == .sonnet { return false }
+            switch $0 {
+            case .sessionReset, .sessionPacing: return data.hasFiveHourBucket
+            case .weeklyPacing: return data.hasWeeklyPacing
+            default: return true
+            }
+        }
+
+        return ordered.compactMap { metric -> BadgePill? in
+            switch metric {
+            case .sessionReset:
+                let text = resetDisplayText(data: data)
+                return BadgePill(
+                    text: text.isEmpty ? "-" : text,
+                    tint: resetValueColor(data)
+                )
+            case .fiveHour:
+                return BadgePill(
+                    text: "\(data.fiveHourPct)%",
+                    tint: colorForPct(data.fiveHourPct, data: data)
+                )
+            case .sevenDay:
+                return BadgePill(
+                    text: "\(data.sevenDayPct)%",
+                    tint: colorForPct(data.sevenDayPct, data: data)
+                )
+            case .sonnet:
+                return BadgePill(
+                    text: "\(data.sonnetPct)%",
+                    tint: colorForPct(data.sonnetPct, data: data)
+                )
+            case .sessionPacing:
+                return pacingBadgePill(
+                    hasData: data.hasSessionPacing,
+                    zone: data.sessionPacingZone,
+                    delta: data.sessionPacingDelta,
+                    mode: data.sessionPacingDisplayMode,
+                    data: data
+                )
+            case .weeklyPacing:
+                return pacingBadgePill(
+                    hasData: true,
+                    zone: data.weeklyPacingZone,
+                    delta: data.weeklyPacingDelta,
+                    mode: data.weeklyPacingDisplayMode,
+                    data: data
+                )
+            }
+        }
+    }
+
+    /// Badge pacing pill content varies with `PacingDisplayMode`:
+    /// dot-only, delta-only, or dot + delta. Also handles the placeholder
+    /// state when we don't have a pacing result yet.
+    private static func pacingBadgePill(
+        hasData: Bool,
+        zone: PacingZone,
+        delta: Int,
+        mode: PacingDisplayMode,
+        data: RenderData
+    ) -> BadgePill {
+        let tint = hasData ? colorForZone(zone, data: data) : NSColor.tertiaryLabelColor
+        let sign = delta >= 0 ? "+" : ""
+        let shape = data.pacingShape.glyph
+        let text: String = {
+            switch mode {
+            case .dot:      return shape
+            case .dotDelta: return hasData ? "\(shape) \(sign)\(delta)%" : "\(shape) -"
+            case .delta:    return hasData ? "\(sign)\(delta)%" : "-"
+            }
+        }()
+        return BadgePill(text: text, tint: tint)
+    }
+
+    // MARK: - Style-aware helpers
+
+    /// Font factory that adapts to `MenuBarStyle`:
+    /// - classic: system font
+    /// - mono: full monospaced system font
+    /// - badge: rounded design (used behind pill text)
+    /// `monospacedDigits` forces tabular-nums on the classic and minimal styles
+    /// so percentages don't jitter as they change width.
+    private static func styleFont(
+        size: CGFloat,
+        weight: NSFont.Weight,
+        style: MenuBarStyle,
+        monospacedDigits: Bool = false
+    ) -> NSFont {
+        switch style {
+        case .mono:
+            return NSFont.monospacedSystemFont(ofSize: size, weight: weight)
+        case .badge:
+            let base = NSFont.systemFont(ofSize: size, weight: weight)
+            let rounded = NSFontDescriptor(
+                fontAttributes: [.family: "SF Pro Rounded"]
+            )
+            if let custom = NSFont(descriptor: rounded, size: size) {
+                return monospacedDigits
+                    ? NSFont.monospacedDigitSystemFont(ofSize: size, weight: weight)
+                    : custom
+            }
+            return base
+        case .classic:
+            return monospacedDigits
+                ? NSFont.monospacedDigitSystemFont(ofSize: size, weight: weight)
+                : NSFont.systemFont(ofSize: size, weight: weight)
+        }
+    }
+
+    /// Renders a `label + value%` block with style-specific layout:
+    /// - classic: "5h 26%" (label tinted tertiary, value bold colored)
+    /// - mono: "5h:26" (all mono, colon separator, no %)
+    /// - minimal: "26%" (rounded font, no label)
+    private static func appendPercentMetric(
+        to str: NSMutableAttributedString,
+        label: String,
+        value: Int,
+        data: RenderData
+    ) {
+        let valueColor = colorForPct(value, data: data)
+
+        switch data.menuBarStyle {
+        case .classic:
+            let labelAttrs: [NSAttributedString.Key: Any] = [
+                .font: styleFont(size: 9, weight: .medium, style: .classic),
+                .foregroundColor: periodColor(data),
+            ]
+            let valueAttrs: [NSAttributedString.Key: Any] = [
+                .font: styleFont(size: 12, weight: .bold, style: .classic, monospacedDigits: true),
+                .foregroundColor: valueColor,
+            ]
+            str.append(NSAttributedString(string: "\(label) ", attributes: labelAttrs))
+            str.append(NSAttributedString(string: "\(value)%", attributes: valueAttrs))
+
+        case .mono:
+            let labelAttrs: [NSAttributedString.Key: Any] = [
+                .font: styleFont(size: 11, weight: .regular, style: .mono),
+                .foregroundColor: periodColor(data),
+            ]
+            let valueAttrs: [NSAttributedString.Key: Any] = [
+                .font: styleFont(size: 11, weight: .bold, style: .mono),
+                .foregroundColor: valueColor,
+            ]
+            str.append(NSAttributedString(string: "\(label):", attributes: labelAttrs))
+            str.append(NSAttributedString(string: "\(value)", attributes: valueAttrs))
+
+        case .badge:
+            let valueAttrs: [NSAttributedString.Key: Any] = [
+                .font: styleFont(size: 13, weight: .bold, style: .badge, monospacedDigits: true),
+                .foregroundColor: valueColor,
+            ]
+            str.append(NSAttributedString(string: "\(value)%", attributes: valueAttrs))
+        }
     }
 
     private static func resetDisplayText(data: RenderData) -> String {
@@ -241,19 +487,19 @@ enum MenuBarRenderer {
     ) {
         let dotColor = colorForZone(zone, data: data)
         let dotAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 11, weight: .bold),
+            .font: styleFont(size: 11, weight: .bold, style: data.menuBarStyle),
             .foregroundColor: dotColor,
         ]
         let deltaAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .bold),
+            .font: styleFont(size: 10, weight: .bold, style: data.menuBarStyle, monospacedDigits: true),
             .foregroundColor: dotColor,
         ]
         let sign = delta >= 0 ? "+" : ""
         switch mode {
         case .dot:
-            str.append(NSAttributedString(string: "\u{25CF}", attributes: dotAttrs))
+            str.append(NSAttributedString(string: data.pacingShape.glyph, attributes: dotAttrs))
         case .dotDelta:
-            str.append(NSAttributedString(string: "\u{25CF}", attributes: dotAttrs))
+            str.append(NSAttributedString(string: data.pacingShape.glyph, attributes: dotAttrs))
             str.append(NSAttributedString(string: " \(sign)\(delta)%", attributes: deltaAttrs))
         case .delta:
             str.append(NSAttributedString(string: "\(sign)\(delta)%", attributes: deltaAttrs))
@@ -269,22 +515,20 @@ enum MenuBarRenderer {
         mode: PacingDisplayMode,
         data: RenderData
     ) {
-        let neutralColor: NSColor = data.menuBarMonochrome
-            ? .tertiaryLabelColor
-            : .tertiaryLabelColor
+        let neutralColor: NSColor = .tertiaryLabelColor
         let dotAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 11, weight: .bold),
+            .font: styleFont(size: 11, weight: .bold, style: data.menuBarStyle),
             .foregroundColor: neutralColor,
         ]
         let textAttrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .bold),
+            .font: styleFont(size: 10, weight: .bold, style: data.menuBarStyle, monospacedDigits: true),
             .foregroundColor: neutralColor,
         ]
         switch mode {
         case .dot:
-            str.append(NSAttributedString(string: "\u{25CF}", attributes: dotAttrs))
+            str.append(NSAttributedString(string: data.pacingShape.glyph, attributes: dotAttrs))
         case .dotDelta:
-            str.append(NSAttributedString(string: "\u{25CF}", attributes: dotAttrs))
+            str.append(NSAttributedString(string: data.pacingShape.glyph, attributes: dotAttrs))
             str.append(NSAttributedString(string: " -", attributes: textAttrs))
         case .delta:
             str.append(NSAttributedString(string: "-", attributes: textAttrs))

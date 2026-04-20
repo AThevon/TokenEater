@@ -18,7 +18,10 @@ struct ThemesSectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            sectionTitle(String(localized: "sidebar.themes"))
+            sectionTitle(
+                String(localized: "sidebar.themes"),
+                subtitle: String(localized: "sidebar.themes.subtitle")
+            )
 
             // Menu bar text appearance (monochrome + custom colors + smart reset)
             glassCard {
@@ -101,6 +104,18 @@ struct ThemesSectionView: View {
                 }
             }
 
+            // Pacing indicator shape
+            glassCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    cardLabel(String(localized: "settings.pacing.shape"))
+                    HStack(spacing: 8) {
+                        ForEach(PacingShape.allCases) { shape in
+                            pacingShapeButton(shape)
+                        }
+                    }
+                }
+            }
+
             // Pacing margin
             glassCard {
                 VStack(alignment: .leading, spacing: 8) {
@@ -171,6 +186,35 @@ struct ThemesSectionView: View {
     }
 
     // MARK: - Preset Card
+
+    private func pacingShapeButton(_ shape: PacingShape) -> some View {
+        let isActive = settingsStore.pacingShape == shape
+        return Button {
+            withAnimation(.easeInOut(duration: 0.12)) {
+                settingsStore.pacingShape = shape
+            }
+        } label: {
+            VStack(spacing: 6) {
+                Text(shape.glyph)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(isActive ? .white : .white.opacity(0.55))
+                Text(shape.localizedLabel)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(isActive ? .white.opacity(0.9) : .white.opacity(0.5))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(isActive ? Color.blue.opacity(0.2) : Color.white.opacity(0.03))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(isActive ? Color.blue.opacity(0.5) : Color.white.opacity(0.06), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
 
     private func presetCard(key: String, label: String, colors: ThemeColors) -> some View {
         let isSelected = themeStore.selectedPreset == key

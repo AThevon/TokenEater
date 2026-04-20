@@ -19,6 +19,14 @@ final class SettingsStore: ObservableObject {
     @Published var smartResetColor: Bool {
         didSet { UserDefaults.standard.set(smartResetColor, forKey: "smartResetColor") }
     }
+    /// Typography / separator style for the pinned metrics in the menu bar.
+    @Published var menuBarStyle: MenuBarStyle {
+        didSet { UserDefaults.standard.set(menuBarStyle.rawValue, forKey: "menuBarStyle") }
+    }
+    /// Glyph used for the pacing indicator across menu bar + popover.
+    @Published var pacingShape: PacingShape {
+        didSet { UserDefaults.standard.set(pacingShape.rawValue, forKey: "pacingShape") }
+    }
     @Published var sessionPacingDisplayMode: PacingDisplayMode {
         didSet { UserDefaults.standard.set(sessionPacingDisplayMode.rawValue, forKey: "sessionPacingDisplayMode") }
     }
@@ -44,6 +52,15 @@ final class SettingsStore: ObservableObject {
                 pinnedMetrics.remove(.sonnet)
             }
         }
+    }
+
+    // MARK: - Popover
+    /// Full layout configuration for the menu-bar popover. 3 variants share this
+    /// struct; switching `activeVariant` leaves the other variants untouched so
+    /// the user can keep 3 distinct preferences. Persisted as JSON under
+    /// `popoverConfig` in UserDefaults.
+    @Published var popoverConfig: PopoverConfig {
+        didSet { savePopoverConfig() }
     }
     @Published var hasCompletedOnboarding: Bool {
         didSet { UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding") }
@@ -220,6 +237,12 @@ final class SettingsStore: ObservableObject {
         self.resetTextColorHex = UserDefaults.standard.string(forKey: "resetTextColorHex") ?? ""
         self.sessionPeriodColorHex = UserDefaults.standard.string(forKey: "sessionPeriodColorHex") ?? ""
         self.smartResetColor = UserDefaults.standard.bool(forKey: "smartResetColor")
+        self.menuBarStyle = MenuBarStyle(
+            rawValue: UserDefaults.standard.string(forKey: "menuBarStyle") ?? "classic"
+        ) ?? .classic
+        self.pacingShape = PacingShape(
+            rawValue: UserDefaults.standard.string(forKey: "pacingShape") ?? "circle"
+        ) ?? .circle
 
         // Migrate the legacy global `pacingDisplayMode` into the two per-bucket
         // settings so existing users keep the mode they had. If either per-bucket
@@ -264,6 +287,34 @@ final class SettingsStore: ObservableObject {
         } else {
             self.displaySonnet = legacyPinned.contains(.sonnet)
         }
+
+        // Popover layout config. Fresh install or decode failure -> defaults
+        // that reproduce the v4.10.x popover visually (Classic variant, all
+        // blocks visible).
+        if let data = UserDefaults.standard.data(forKey: "popoverConfig"),
+           let decoded = try? JSONDecoder().decode(PopoverConfig.self, from: data) {
+            self.popoverConfig = Self.reconcile(decoded)
+        } else {
+            self.popoverConfig = .default
+        }
+    }
+
+    // MARK: - Popover persistence
+
+    private func savePopoverConfig() {
+        guard let data = try? JSONEncoder().encode(popoverConfig) else { return }
+        UserDefaults.standard.set(data, forKey: "popoverConfig")
+    }
+
+    /// Ensures a decoded config still satisfies the validation rules (at least
+    /// one visible block in hero+middle for non-focus variants). If anything is
+    /// off, fall back to defaults for that variant only.
+    private static func reconcile(_ config: PopoverConfig) -> PopoverConfig {
+        var fixed = config
+        if !fixed.hasVisibleContent(for: .classic) { fixed.classic = .classicDefault }
+        if !fixed.hasVisibleContent(for: .compact) { fixed.compact = .compactDefault }
+        // Focus always valid by construction (hero driven by focusHero radio).
+        return fixed
     }
 
     // MARK: - Metrics

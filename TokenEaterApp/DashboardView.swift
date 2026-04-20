@@ -203,8 +203,8 @@ struct DashboardView: View {
                         .foregroundStyle(.white.opacity(0.5))
                     if !usageStore.fiveHourReset.isEmpty {
                         Text(String(format: String(localized: "metric.reset"), usageStore.fiveHourReset))
-                            .font(.system(size: 10))
-                            .foregroundStyle(.white.opacity(0.3))
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.55))
                     }
                 }
             }
@@ -215,7 +215,11 @@ struct DashboardView: View {
 
     private var satelliteSection: some View {
         HStack(spacing: 20) {
-            satelliteRing(label: String(localized: "metric.weekly"), pct: usageStore.sevenDayPct)
+            satelliteRing(
+                label: String(localized: "metric.weekly"),
+                pct: usageStore.sevenDayPct,
+                resetText: usageStore.sevenDayReset
+            )
             satelliteRing(label: String(localized: "metric.sonnet"), pct: usageStore.sonnetPct)
             if usageStore.hasOpus {
                 satelliteRing(label: "Opus", pct: usageStore.opusPct)
@@ -226,7 +230,7 @@ struct DashboardView: View {
         }
     }
 
-    private func satelliteRing(label: String, pct: Int) -> some View {
+    private func satelliteRing(label: String, pct: Int, resetText: String = "") -> some View {
         VStack(spacing: 6) {
             RingGauge(
                 percentage: pct,
@@ -247,6 +251,12 @@ struct DashboardView: View {
             Text(label)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.white.opacity(0.5))
+
+            if !resetText.isEmpty {
+                Text(String(format: String(localized: "metric.reset"), resetText))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.5))
+            }
         }
     }
 

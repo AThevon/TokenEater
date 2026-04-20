@@ -65,11 +65,12 @@ struct AppSidebar: View {
 extension AppSection {
     var iconName: String {
         switch self {
-        case .dashboard: "chart.bar.fill"
-        case .display: "display"
+        case .dashboard: "gauge.high"
+        case .display: "menubar.rectangle"
         case .themes: "paintpalette.fill"
-        case .agentWatchers: "eye.fill"
-        case .performance: "gauge.with.dots.needle.33percent"
+        case .popover: "menubar.dock.rectangle"
+        case .agentWatchers: "waveform.path.ecg"
+        case .performance: "speedometer"
         case .settings: "gearshape.fill"
         }
     }
@@ -79,6 +80,7 @@ extension AppSection {
         case .dashboard: String(localized: "sidebar.dashboard")
         case .display: String(localized: "sidebar.display")
         case .themes: String(localized: "sidebar.themes")
+        case .popover: String(localized: "sidebar.popover")
         case .agentWatchers: String(localized: "sidebar.agentWatchers")
         case .performance: String(localized: "sidebar.performance")
         case .settings: String(localized: "sidebar.settings")

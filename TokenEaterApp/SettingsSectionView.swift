@@ -16,7 +16,10 @@ struct SettingsSectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            sectionTitle(String(localized: "sidebar.settings"))
+            sectionTitle(
+                String(localized: "sidebar.settings"),
+                subtitle: String(localized: "sidebar.settings.subtitle")
+            )
 
             // Connection
             glassCard {

@@ -59,7 +59,10 @@ final class StatusBarController: NSObject {
         guard let button = statusItem.button else { return }
         button.action = #selector(statusBarClicked)
         button.target = self
-        button.sendAction(on: [.leftMouseUp])
+        // Accept both primary and secondary clicks so we can route right-click
+        // (and trackpad two-finger tap - macOS surfaces those as rightMouseUp)
+        // to a contextual menu while keeping left-click tied to the popover.
+        button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         updateMenuBarIcon()
     }
 
@@ -226,7 +229,9 @@ final class StatusBarController: NSObject {
             resetDisplayFormat: settingsStore.resetDisplayFormat,
             resetTextColorHex: settingsStore.resetTextColorHex,
             sessionPeriodColorHex: settingsStore.sessionPeriodColorHex,
-            smartResetColor: settingsStore.smartResetColor
+            smartResetColor: settingsStore.smartResetColor,
+            menuBarStyle: settingsStore.menuBarStyle,
+            pacingShape: settingsStore.pacingShape
         ))
         statusItem.button?.image = image
     }
@@ -234,7 +239,165 @@ final class StatusBarController: NSObject {
     // MARK: - Click handling
 
     @objc private func statusBarClicked() {
+        // Right-click or control-click routes to the contextual menu so users
+        // get quick access to the most common actions (refresh, variant
+        // switching, settings shortcuts, quit) without opening the popover.
+        if let event = NSApp.currentEvent,
+           event.type == .rightMouseUp
+            || (event.type == .leftMouseUp && event.modifierFlags.contains(.control)) {
+            showContextMenu()
+            return
+        }
         togglePopover()
+    }
+
+    // MARK: - Context menu (right-click)
+
+    private func showContextMenu() {
+        guard let button = statusItem.button else { return }
+        let menu = buildContextMenu()
+        // Temporarily attach + popUp + detach so the menu appears anchored
+        // under the status item button without hijacking left-click.
+        statusItem.menu = menu
+        button.performClick(nil)
+        statusItem.menu = nil
+    }
+
+    private func buildContextMenu() -> NSMenu {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+
+        // Actions
+        let refresh = NSMenuItem(
+            title: String(localized: "contextmenu.refresh"),
+            action: #selector(contextRefresh),
+            keyEquivalent: "r"
+        )
+        refresh.target = self
+        refresh.isEnabled = !usageStore.isLoading
+        menu.addItem(refresh)
+
+        let openDashboard = NSMenuItem(
+            title: String(localized: "contextmenu.open"),
+            action: #selector(contextOpenDashboard),
+            keyEquivalent: ""
+        )
+        openDashboard.target = self
+        menu.addItem(openDashboard)
+
+        menu.addItem(.separator())
+
+        // Popover layout submenu
+        let variantItem = NSMenuItem(
+            title: String(localized: "contextmenu.variant"),
+            action: nil,
+            keyEquivalent: ""
+        )
+        let variantSub = NSMenu()
+        for variant in PopoverVariant.allCases {
+            let item = NSMenuItem(
+                title: variant.localizedLabel,
+                action: #selector(contextSelectVariant(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.representedObject = variant.rawValue
+            item.state = (settingsStore.popoverConfig.activeVariant == variant) ? .on : .off
+            variantSub.addItem(item)
+        }
+        variantItem.submenu = variantSub
+        menu.addItem(variantItem)
+
+        // Watchers toggle
+        let watchersLabel = settingsStore.overlayEnabled
+            ? String(localized: "contextmenu.watchers.disable")
+            : String(localized: "contextmenu.watchers.enable")
+        let watchers = NSMenuItem(
+            title: watchersLabel,
+            action: #selector(contextToggleWatchers),
+            keyEquivalent: ""
+        )
+        watchers.target = self
+        watchers.state = settingsStore.overlayEnabled ? .on : .off
+        menu.addItem(watchers)
+
+        menu.addItem(.separator())
+
+        // Settings submenu (direct section shortcuts)
+        let settingsItem = NSMenuItem(
+            title: String(localized: "contextmenu.settings"),
+            action: nil,
+            keyEquivalent: ""
+        )
+        let settingsSub = NSMenu()
+        for section in AppSection.allCases where section != .dashboard {
+            let item = NSMenuItem(
+                title: section.label,
+                action: #selector(contextOpenSection(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.representedObject = section.rawValue
+            settingsSub.addItem(item)
+        }
+        settingsItem.submenu = settingsSub
+        menu.addItem(settingsItem)
+
+        let updates = NSMenuItem(
+            title: String(localized: "contextmenu.updates"),
+            action: #selector(contextCheckUpdates),
+            keyEquivalent: ""
+        )
+        updates.target = self
+        menu.addItem(updates)
+
+        menu.addItem(.separator())
+
+        let quit = NSMenuItem(
+            title: String(localized: "menubar.quit"),
+            action: #selector(contextQuit),
+            keyEquivalent: "q"
+        )
+        quit.target = self
+        menu.addItem(quit)
+
+        return menu
+    }
+
+    @objc private func contextRefresh() {
+        Task { await usageStore.refresh(force: true) }
+    }
+
+    @objc private func contextOpenDashboard() {
+        showDashboard()
+    }
+
+    @objc private func contextSelectVariant(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String,
+              let variant = PopoverVariant(rawValue: raw) else { return }
+        settingsStore.popoverConfig.activeVariant = variant
+    }
+
+    @objc private func contextToggleWatchers() {
+        settingsStore.overlayEnabled.toggle()
+    }
+
+    @objc private func contextOpenSection(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String else { return }
+        showDashboard()
+        NotificationCenter.default.post(
+            name: .navigateToSection,
+            object: nil,
+            userInfo: ["section": raw]
+        )
+    }
+
+    @objc private func contextCheckUpdates() {
+        updateStore.checkForUpdates()
+    }
+
+    @objc private func contextQuit() {
+        NSApp.terminate(nil)
     }
 
     private func togglePopover() {
@@ -270,7 +433,7 @@ final class StatusBarController: NSObject {
             .environmentObject(sessionStore)
 
         let isOnboarding = !settingsStore.hasCompletedOnboarding
-        let size = isOnboarding ? NSSize(width: 680, height: 660) : NSSize(width: 820, height: 580)
+        let size = isOnboarding ? NSSize(width: 700, height: 720) : NSSize(width: 860, height: 720)
         var styleMask: NSWindow.StyleMask = [.titled, .closable, .fullSizeContentView]
         if !isOnboarding { styleMask.insert(.resizable) }
 
@@ -285,7 +448,12 @@ final class StatusBarController: NSObject {
         window.hasShadow = true
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        window.isMovableByWindowBackground = true
+        // Keep drag limited to the titlebar area. With this on, clicking +
+        // holding on any padding / empty space in the sidebar, the settings
+        // panels, or the popover editor would drag the whole window by
+        // accident - now only the invisible titlebar strip (~28px up top,
+        // where the traffic lights sit) moves it.
+        window.isMovableByWindowBackground = false
         window.delegate = self
 
         let hostingController = NSHostingController(rootView: appView)
@@ -298,7 +466,7 @@ final class StatusBarController: NSObject {
             window.minSize = size
             window.maxSize = size
         } else {
-            window.minSize = NSSize(width: 720, height: 450)
+            window.minSize = NSSize(width: 760, height: 560)
             window.setFrameAutosaveName("TokenEaterMain")
         }
 
@@ -324,11 +492,11 @@ final class StatusBarController: NSObject {
     private func transitionToMainWindow() {
         guard let window = dashboardWindow else { return }
         window.styleMask.insert(.resizable)
-        window.contentMinSize = NSSize(width: 720, height: 450)
+        window.contentMinSize = NSSize(width: 760, height: 560)
         window.contentMaxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        window.minSize = NSSize(width: 720, height: 450)
+        window.minSize = NSSize(width: 760, height: 560)
         window.setFrameAutosaveName("TokenEaterMain")
-        let mainSize = NSSize(width: 820, height: 580)
+        let mainSize = NSSize(width: 860, height: 720)
         window.setContentSize(mainSize)
         window.center()
     }

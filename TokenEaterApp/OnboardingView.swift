@@ -39,7 +39,8 @@ struct OnboardingView: View {
                             .frame(width: 6, height: 6)
                     }
                 }
-                .padding(.bottom, 16)
+                .padding(.top, 4)
+                .padding(.bottom, 28)
             }
         }
     }
