@@ -7,7 +7,7 @@
 "menubar.updated" = "Updated %@";
 
 /* Metrics */
-"metric.session" = "Session 5h";
+"metric.session" = "5h";
 "metric.sessionReset" = "Session reset countdown";
 "settings.pacing.style" = "Pacing style";
 "settings.group.session" = "Session (5h)";
@@ -386,7 +386,89 @@
 
 /* Sidebar */
 "sidebar.dashboard" = "Dashboard";
-"sidebar.display" = "Display";
+"sidebar.display" = "Menu bar";
 "sidebar.themes" = "Themes";
+"sidebar.popover" = "Popover";
 "sidebar.agentWatchers" = "Watchers";
 "sidebar.settings" = "Settings";
+
+/* Popover customization */
+"popover.settings.title" = "Popover";
+"popover.settings.subtitle" = "Pick a layout and customize what appears when you click the menu-bar icon.";
+
+/* Section subtitles */
+"sidebar.display.subtitle" = "Choose which metrics appear in the menu bar and how they look.";
+"sidebar.themes.subtitle" = "Colours, thresholds, and visual style.";
+"sidebar.agentWatchers.subtitle" = "Floating overlay for your live Claude Code sessions.";
+"sidebar.performance.subtitle" = "Fine-tune CPU usage by disabling features you don't need.";
+"sidebar.settings.subtitle" = "Proxy, refresh interval, and other global preferences.";
+"popover.settings.preview" = "Preview";
+"popover.settings.reset" = "Reset to defaults";
+"popover.zone.general" = "General";
+"popover.zone.hero" = "Hero";
+"popover.zone.content" = "Content";
+"popover.option.showPlanBadge" = "Show plan badge (PRO / MAX / TEAM)";
+
+"popoverVariant.classic" = "Classic";
+"popoverVariant.compact" = "Compact";
+"popoverVariant.focus" = "Focus";
+
+"popoverBlock.sessionRing" = "Session ring (5h)";
+"popoverBlock.weeklyRing" = "Weekly ring";
+"popoverBlock.sessionPaceBar" = "Session pacing";
+"popoverBlock.weeklyPaceBar" = "Weekly pacing";
+"popoverBlock.sessionChip" = "Session chip";
+"popoverBlock.weeklyChip" = "Weekly chip";
+"popoverBlock.sessionPaceTile" = "Session pacing tile";
+"popoverBlock.weeklyPaceTile" = "Weekly pacing tile";
+"popoverBlock.sessionPaceMini" = "Session pacing (mini)";
+"popoverBlock.weeklyPaceMini" = "Weekly pacing (mini)";
+"popoverBlock.watchers" = "Agent watchers";
+"popoverBlock.timestamp" = "Updated timestamp";
+"popoverBlock.openTokenEaterButton" = "Open TokenEater button";
+"popoverBlock.quitButton" = "Quit button";
+
+"focusHero.sessionReset" = "Session reset countdown";
+"focusHero.weeklyReset" = "Weekly reset countdown";
+"focusHero.sessionValue" = "Session percentage";
+"focusHero.weeklyValue" = "Weekly percentage";
+
+"focus.hero.sessionReset" = "Until session reset";
+"focus.hero.weeklyReset" = "Until weekly reset";
+"focus.hero.sessionValue" = "Session usage";
+"focus.hero.weeklyValue" = "Weekly usage";
+"focus.sat.sessionReset" = "Reset";
+"focus.sat.weeklyReset" = "Weekly reset";
+"focus.sat.sessionValue" = "Session";
+"focus.sat.weeklyValue" = "Weekly";
+
+"compact.chip.sessionLeft" = "%@ left";
+"compact.chip.weeklyLeft" = "in %@";
+
+"menubar.updated.never" = "never";
+
+/* Menu bar style picker */
+"settings.menubar.style" = "Style";
+"menuBarStyle.classic" = "Classic";
+"menuBarStyle.mono" = "Mono";
+"menuBarStyle.badge" = "Badge";
+
+/* Pacing shape picker */
+"settings.pacing.shape" = "Pacing indicator shape";
+"pacingShape.circle" = "Circle";
+"pacingShape.diamond" = "Diamond";
+"pacingShape.square" = "Square";
+"pacingShape.triangle" = "Triangle";
+"pacingShape.star" = "Star";
+
+/* Menu bar icon right-click menu */
+"contextmenu.refresh" = "Refresh now";
+"contextmenu.open" = "Open TokenEater...";
+"contextmenu.variant" = "Popover layout";
+"contextmenu.watchers.enable" = "Enable Agent Watchers";
+"contextmenu.watchers.disable" = "Disable Agent Watchers";
+"contextmenu.settings" = "Settings";
+"contextmenu.updates" = "Check for updates...";
+
+"pacing.session.label.short" = "Session";
+"pacing.weekly.label.short" = "Weekly";

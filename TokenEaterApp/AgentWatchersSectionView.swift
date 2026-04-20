@@ -23,7 +23,10 @@ struct AgentWatchersSectionView: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
         VStack(alignment: .leading, spacing: 16) {
-            sectionTitle(String(localized: "sidebar.agentWatchers"))
+            sectionTitle(
+                String(localized: "sidebar.agentWatchers"),
+                subtitle: String(localized: "sidebar.agentWatchers.subtitle")
+            )
 
             // Enable/Disable
             glassCard {

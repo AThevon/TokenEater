@@ -13,6 +13,8 @@ final class UsageStore: ObservableObject {
     @Published var sonnetPct: Int = 0
     @Published var fiveHourReset: String = ""
     @Published var fiveHourResetAbsolute: String = ""
+    @Published var sevenDayReset: String = ""
+    @Published var sevenDayResetAbsolute: String = ""
     @Published var pacingDelta: Int = 0
     @Published var pacingZone: PacingZone = .onTrack
     @Published var pacingResult: PacingResult?
@@ -221,6 +223,12 @@ final class UsageStore: ObservableObject {
         refreshTask?.cancel()
         refreshTask = Task {
             await refresh(thresholds: thresholds, force: true)
+            // Fetch the profile right after the first usage refresh so the
+            // plan badge (PRO / MAX / TEAM) shows up immediately instead of
+            // waiting 10 minutes for the auto-refresh cycle. `refreshProfile`
+            // is internally throttled to 5 min, so this is safe to call on
+            // every reload.
+            await refreshProfile()
         }
     }
 
@@ -309,37 +317,12 @@ final class UsageStore: ObservableObject {
     }
 
     func refreshResetCountdown() {
-        guard let reset = lastUsage?.fiveHour?.resetsAtDate else {
-            fiveHourReset = ""
-            fiveHourResetAbsolute = ""
-            return
-        }
-        let diff = reset.timeIntervalSinceNow
-        if diff > 0 {
-            let h = Int(diff) / 3600
-            let m = (Int(diff) % 3600) / 60
-            // Clock-style format: "1h25" when hours are present, "25min" otherwise.
-            // The 2-digit padding keeps the width stable as minutes drain.
-            fiveHourReset = h > 0 ? "\(h)h\(String(format: "%02d", m))" : "\(m)min"
-            fiveHourResetAbsolute = Self.formatAbsoluteReset(reset)
-        } else {
-            fiveHourReset = String(localized: "relative.now")
-            fiveHourResetAbsolute = ""
-        }
-    }
-
-    /// "20:30" when the reset is today, "Fri 08:00" otherwise. 24h time
-    /// because the menu bar has no room for AM/PM and seconds never help.
-    static func formatAbsoluteReset(_ date: Date, now: Date = Date()) -> String {
-        let calendar = Calendar.current
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        if calendar.isDate(date, inSameDayAs: now) {
-            formatter.dateFormat = "HH:mm"
-        } else {
-            formatter.dateFormat = "EEE HH:mm"
-        }
-        return formatter.string(from: date)
+        let session = ResetCountdownFormatter.session(from: lastUsage?.fiveHour?.resetsAtDate)
+        fiveHourReset = session.relative
+        fiveHourResetAbsolute = session.absolute
+        let weekly = ResetCountdownFormatter.weekly(from: lastUsage?.sevenDay?.resetsAtDate)
+        sevenDayReset = weekly.relative
+        sevenDayResetAbsolute = weekly.absolute
     }
 
     func recalculatePacing() {

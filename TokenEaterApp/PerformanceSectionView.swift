@@ -6,7 +6,10 @@ struct PerformanceSectionView: View {
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 16) {
-                sectionTitle(String(localized: "sidebar.performance"))
+                sectionTitle(
+                    String(localized: "sidebar.performance"),
+                    subtitle: String(localized: "sidebar.performance.subtitle")
+                )
 
                 Text("settings.performance.description")
                     .font(.system(size: 12))

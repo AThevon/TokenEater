@@ -41,6 +41,11 @@ struct MainAppView: View {
                             initialMargin: settingsStore.pacingMargin
                         )
                     }
+                case .popover:
+                    // PopoverSectionView owns its own scroll (the editor list)
+                    // and needs full height for the split layout, so don't
+                    // wrap it in scrollingSection.
+                    PopoverSectionView()
                 case .agentWatchers:
                     scrollingSection { AgentWatchersSectionView() }
                 case .performance:
@@ -85,6 +90,6 @@ struct MainAppView: View {
             .background(RoundedRectangle(cornerRadius: 16).fill(panelBg))
             .clipShape(RoundedRectangle(cornerRadius: 16))
             .padding(4)
-            .frame(width: 680, height: 660)
+            .frame(width: 700, height: 720)
     }
 }

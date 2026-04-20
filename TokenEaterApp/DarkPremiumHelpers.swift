@@ -12,10 +12,21 @@ func glassCard<Content: View>(@ViewBuilder content: () -> Content) -> some View 
 
 // MARK: - Section Title
 
-func sectionTitle(_ text: String) -> some View {
-    Text(text)
-        .font(.system(size: 18, weight: .bold))
-        .foregroundStyle(.white)
+/// Unified header used by every settings section. Big display-weight title +
+/// optional subtitle. Always leave 20pt of top breathing room.
+func sectionTitle(_ text: String, subtitle: String? = nil) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+        Text(text)
+            .font(.system(size: 24, weight: .black, design: .rounded))
+            .foregroundStyle(.white)
+        if let subtitle, !subtitle.isEmpty {
+            Text(subtitle)
+                .font(.system(size: 12))
+                .foregroundStyle(.white.opacity(0.5))
+        }
+    }
+    .padding(.top, 8)
+    .padding(.bottom, 4)
 }
 
 // MARK: - Card Label
