@@ -26,14 +26,80 @@ jobs:
             -json '{"NSExtensionPointIdentifier":"com.apple.widgetkit-extension"}' \
             TokenEaterWidget/Info.plist 2>/dev/null || true
 
-      - name: Build
+      # --- Import Developer ID cert (Apple Developer Program) ---
+      #
+      # Secrets required in the repo:
+      #   APPLE_CERT_P12_BASE64 - base64 of the exported .p12 (Developer ID Application + private key)
+      #   APPLE_CERT_PASSWORD   - password used when exporting the .p12
+      #   APPLE_TEAM_ID         - 10-char Team ID (e.g. ABCDE12345)
+      #   APPLE_ID              - Apple ID email used by notarytool
+      #   APPLE_APP_PASSWORD    - app-specific password generated at appleid.apple.com
+      #
+      # If APPLE_CERT_P12_BASE64 is empty, the workflow falls back to ad-hoc signing
+      # (CI test builds can still produce artefacts, just not notarized).
+      - name: Import signing cert
+        id: import_cert
+        env:
+          APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
         run: |
-          xcodebuild \
-            -project TokenEater.xcodeproj \
-            -scheme TokenEaterApp \
-            -configuration Release \
-            -derivedDataPath build \
-            build
+          if [ -z "$APPLE_CERT_P12_BASE64" ]; then
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::APPLE_CERT_P12_BASE64 not set, falling back to ad-hoc signing"
+            exit 0
+          fi
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+
+          echo "$APPLE_CERT_P12_BASE64" | base64 --decode > "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security import "$CERT_PATH" \
+            -P "$APPLE_CERT_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" "$(security default-keychain -d user | tr -d '"')"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" >/dev/null
+
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep "Developer ID Application" | head -1 | awk '{print $2}')
+          if [ -z "$IDENTITY" ]; then
+            echo "::error::No Developer ID Application identity found in the imported cert"
+            exit 1
+          fi
+          echo "identity=$IDENTITY" >> "$GITHUB_OUTPUT"
+          echo "keychain=$KEYCHAIN_PATH" >> "$GITHUB_OUTPUT"
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+          echo "Imported Developer ID cert (SHA1=$IDENTITY)"
+
+      - name: Build
+        env:
+          SIGNED: ${{ steps.import_cert.outputs.signed }}
+          IDENTITY: ${{ steps.import_cert.outputs.identity }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ "$SIGNED" = "true" ]; then
+            xcodebuild \
+              -project TokenEater.xcodeproj \
+              -scheme TokenEaterApp \
+              -configuration Release \
+              -derivedDataPath build \
+              CODE_SIGN_STYLE=Manual \
+              CODE_SIGN_IDENTITY="$IDENTITY" \
+              DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+              OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime" \
+              build
+          else
+            xcodebuild \
+              -project TokenEater.xcodeproj \
+              -scheme TokenEaterApp \
+              -configuration Release \
+              -derivedDataPath build \
+              build
+          fi
 
       - name: Install create-dmg
         run: brew install create-dmg
@@ -55,6 +121,29 @@ jobs:
             || true
           # create-dmg exits 2 on success when --no-internet-enable is used
           test -f TokenEater.dmg
+
+      - name: Sign DMG with Developer ID
+        if: steps.import_cert.outputs.signed == 'true'
+        env:
+          IDENTITY: ${{ steps.import_cert.outputs.identity }}
+        run: |
+          codesign --sign "$IDENTITY" --timestamp TokenEater.dmg
+          codesign --verify --strict TokenEater.dmg
+
+      - name: Notarize + staple
+        if: steps.import_cert.outputs.signed == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          xcrun notarytool submit TokenEater.dmg \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --wait
+          xcrun stapler staple TokenEater.dmg
+          xcrun stapler validate TokenEater.dmg
 
       - name: Extract version
         id: version

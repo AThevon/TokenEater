@@ -100,6 +100,8 @@ sleep 2 && \
 open /Applications/TokenEater.app
 ```
 
+> Note v5.0+ : le `xattr -cr` ci-dessus est uniquement requis pour les ad-hoc dev builds locaux. Les releases officielles passent par `codesign Developer ID` + notarisation dans la CI (voir `release.yml`), donc les DMG livrés aux users ne sont PAS quarantainés et Gatekeeper les accepte au premier lancement sans `xattr` ni approbation manuelle.
+
 #### Ce que fait le nuke (pourquoi chaque étape est nécessaire)
 
 | Étape | Pourquoi |
@@ -132,10 +134,11 @@ Le codebase suit **MV Pattern + Repository Pattern + Protocol-Oriented Design** 
 - **Strategy pattern pour les thèmes** — presets ThemeColors + support thème custom
 
 ### Partage App/Widget
-- **App principale** (sandboxée) : lit le token OAuth depuis le Keychain Claude Code, appelle l'API, écrit les données dans `~/Library/Application Support/com.tokeneater.shared/shared.json`
-- **Widget** (sandboxé, read-only) : lit le fichier JSON partagé via `SharedFileService`, affiche les données. Ne touche ni au Keychain ni au réseau.
-- Le partage utilise des `temporary-exception` entitlements (pas d'App Groups — incompatible avec les comptes Apple Developer gratuits sur macOS Sequoia)
-- Migration automatique depuis l'ancien chemin `com.claudeusagewidget.shared/` — code de migration conservé indéfiniment pour les mises à jour tardives via Homebrew Cask
+- **App principale** (non-sandboxée depuis v5.0) : shell-out à `/usr/bin/security find-generic-password -s "Claude Code-credentials"` via `SecurityCLIReader` pour lire le token OAuth, appelle l'API, écrit les données dans le shared container (App Group si dispo, sinon fallback `~/Library/Application Support/com.tokeneater.shared/shared.json`)
+- **Widget** (sandboxé, read-only - WidgetKit l'impose) : lit le fichier JSON partagé via `SharedFileService`. Ne touche ni au Keychain ni au réseau.
+- Le partage utilise l'App Group `group.com.tokeneater` une fois le Developer Team payant activé (voir `scripts/enable-app-groups.sh` pour réinjecter l'entitlement après réception du cert). Fallback `~/Library/Application Support/com.tokeneater.shared/` tant que l'App Group n'est pas valide.
+- Migration automatique depuis l'ancien chemin `com.claudeusagewidget.shared/` → `com.tokeneater.shared/` → App Group. `SharedFileService.init()` gère les deux sauts au premier lancement.
+- `LegacyHelperCleanupService` au premier lancement d'une v5.0 désinstalle le LaunchAgent v4.x (`com.tokeneater.helper`) + supprime le binaire + nettoie `keychain-token.json`. Gated par un flag UserDefaults pour ne tourner qu'une fois.
 
 ## Règles SwiftUI — ne pas enfreindre
 
@@ -169,10 +172,10 @@ Leçons apprises à la dure. Chaque règle a causé un bug en production.
 
 ## Notes techniques
 
-- `UserDefaults(suiteName:)` ne fonctionne PAS pour le partage app/widget avec un compte Apple gratuit (Personal Team) — `cfprefsd` vérifie le provisioning profile
-- `FileManager.containerURL(forSecurityApplicationGroupIdentifier:)` retourne une URL sur macOS même sans provisioning valide, mais le sandbox bloque l'accès côté widget
-- `FileManager.default.homeDirectoryForCurrentUser` retourne le chemin sandbox container, pas le vrai home — utiliser `getpwuid(getuid())` pour le vrai chemin
-- WidgetKit exige `app-sandbox: true` — un widget sans sandbox ne s'affiche pas
+- `FileManager.containerURL(forSecurityApplicationGroupIdentifier:)` retourne l'URL du container App Group si l'entitlement est présent + Team ID valide, sinon nil. `SharedFileService` gère le fallback vers `~/Library/Application Support/com.tokeneater.shared/` pour permettre les dev builds (Personal Team) de fonctionner
+- `FileManager.default.homeDirectoryForCurrentUser` retourne le chemin sandbox container pour les vues sandboxées (le widget), pas le vrai home — utiliser `getpwuid(getuid())` pour le vrai chemin (cf. `SharedFileService`)
+- WidgetKit exige `app-sandbox: true` — un widget sans sandbox ne s'affiche pas. La main app peut désandboxer (v5.0+) mais pas le widget.
+- Planning migration Apple Developer Program : voir `docs/APPLE_DEV_MIGRATION.md` pour le plan complet des phases, ce qui reste à faire après activation du cert, et les secrets GitHub à créer (`APPLE_CERT_P12_BASE64`, `APPLE_CERT_PASSWORD`, `APPLE_ID`, `APPLE_APP_PASSWORD`, `APPLE_TEAM_ID`)
 
 ### @Observable interdit
 

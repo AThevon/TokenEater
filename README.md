@@ -43,13 +43,7 @@ See all features in detail on the [website](https://tokeneater.vercel.app).
 
 **[Download TokenEater.dmg](https://github.com/AThevon/TokenEater/releases/latest/download/TokenEater.dmg)**
 
-Open the DMG, drag TokenEater to Applications, then:
-
-1. Double-click TokenEater in Applications — macOS will block it
-2. Open **System Settings → Privacy & Security** — scroll down to find the message about TokenEater
-3. Click **Open Anyway** and confirm
-
-> **Important:** Do not use `xattr -cr` to bypass this step — it prevents macOS from approving the widget extension, which will then be flagged as malware in the widget gallery.
+Open the DMG, drag TokenEater to Applications, and launch it. The DMG is signed with a Developer ID and notarized by Apple, so Gatekeeper lets it run on first launch without any extra steps.
 
 ### Homebrew
 
@@ -94,7 +88,6 @@ plutil -insert NSExtension -json '{"NSExtensionPointIdentifier":"com.apple.widge
 xcodebuild -project TokenEater.xcodeproj -scheme TokenEaterApp \
   -configuration Release -derivedDataPath build build
 cp -R "build/Build/Products/Release/TokenEater.app" /Applications/
-# Then approve via System Settings → Privacy & Security → Open Anyway
 ```
 
 ## Architecture
@@ -143,9 +136,8 @@ Anthropic does not currently offer a third-party OAuth flow or scoped API tokens
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | "Rate limited" or "API unavailable" | Your OAuth token has hit its per-token request limit | Run `claude /login` in your terminal for a fresh token - TokenEater detects the change and recovers automatically within seconds |
-| Keychain popup every few hours | macOS re-validates app signatures after updates | Click **Always Allow** - if it persists, run a clean reset |
+| Keychain popup asking to access "Claude Code-credentials" | First run on a new install needs to authorize `/usr/bin/security` to read your Claude Code token | Click **Always Allow** once - it sticks across future app updates |
 | Widget stuck / not updating | macOS caches widget extensions aggressively | Remove the widget, run a clean reset, re-add the widget |
-| App flagged as malware in widget gallery | `xattr -cr` was used instead of System Settings approval | Run a clean reset, reinstall, and approve via **System Settings > Privacy & Security > Open Anyway** |
 
 ### Clean reset
 
