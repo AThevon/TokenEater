@@ -159,7 +159,7 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
                     processPid: process.pid,
                     sourceKind: process.sourceKind,
                     contextTokens: result.contextTokens,
-                    contextMax: result.contextTokens != nil ? JSONLParser.contextMax(for: result.model) : nil
+                    contextMax: result.contextMax
                 )
                 activeSessions.append(session)
 

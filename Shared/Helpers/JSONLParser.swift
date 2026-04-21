@@ -7,11 +7,17 @@ struct JSONLParseResult: Sendable {
     let model: String?
     let state: SessionState
     let timestamp: Date
-    /// Sum of input + cache_creation + cache_read + output tokens from the most
-    /// recent assistant message in the JSONL. Represents the total size of the
-    /// conversation's current context window snapshot. Nil if no assistant
-    /// message has been seen yet (brand-new session).
+    /// Input prompt size (input_tokens + cache_creation + cache_read) from the
+    /// most recent assistant message. Represents how full the current context
+    /// window is for the conversation's next turn. Nil if no assistant message
+    /// has been seen yet (brand-new session).
     let contextTokens: Int?
+    /// Observed context window capacity in tokens. Computed dynamically by
+    /// scanning every assistant message's usage and taking the max: any value
+    /// above 200k implies the session runs with the 1M-context variant that
+    /// Claude Code auto-enables for Opus in agentic mode even though the model
+    /// string in the JSONL is the bare `claude-opus-4-7`. Default is 200k.
+    let contextMax: Int?
 }
 
 enum JSONLParser {
@@ -55,11 +61,15 @@ enum JSONLParser {
         let cache_read_input_tokens: Int?
         let output_tokens: Int?
 
-        var total: Int {
+        /// Size of the input prompt the model processed on this turn - the sum
+        /// of fresh input, newly cached content, and cache reads. Matches
+        /// what Claude Code's `/context` reports. Excludes `output_tokens`
+        /// because those are freshly generated and will show up as part of
+        /// `cache_read` on the next turn.
+        var contextInput: Int {
             (input_tokens ?? 0)
                 + (cache_creation_input_tokens ?? 0)
                 + (cache_read_input_tokens ?? 0)
-                + (output_tokens ?? 0)
         }
     }
 
@@ -96,8 +106,9 @@ enum JSONLParser {
         var latestMeta: (sessionId: String, cwd: String, gitBranch: String?)?
         var pendingPermission = false
         var seenQueueRemove = false
-        var lastAssistantUsage: Int?
+        var lastAssistantContext: Int?
         var lastAssistantModel: String?
+        var maxObservedContext: Int = 0
 
         for line in lines.reversed() {
             guard let data = line.data(using: .utf8),
@@ -109,15 +120,21 @@ enum JSONLParser {
                 latestMeta = (sid, cwd, event.gitBranch)
             }
 
-            // Capture the most recent assistant message's usage - independent of
-            // whatever became `lastMeaningfulEvent` (which might be a progress
-            // event or a system turn-duration that has no token data).
-            if lastAssistantUsage == nil,
-               event.type == "assistant",
-               let usage = event.message?.usage {
-                let total = usage.total
-                if total > 0 { lastAssistantUsage = total }
-                lastAssistantModel = event.message?.model ?? lastAssistantModel
+            // Track every assistant message's context size. The LATEST one (first
+            // we encounter in reverse iteration) gives us current context; the
+            // MAX across the whole file tells us whether the session is running
+            // on a 1M-context variant - Claude Code auto-enables 1M context for
+            // Opus even though the JSONL still logs the bare `claude-opus-4-7`
+            // model string. Without this heuristic a busy Opus session shows as
+            // "over 100% full" because we'd compare its real usage to the base
+            // 200k cap.
+            if event.type == "assistant", let usage = event.message?.usage {
+                let context = usage.contextInput
+                if lastAssistantContext == nil, context > 0 {
+                    lastAssistantContext = context
+                    lastAssistantModel = event.message?.model ?? lastAssistantModel
+                }
+                if context > maxObservedContext { maxObservedContext = context }
             }
 
             // Track queue-operation events for permission detection
@@ -168,6 +185,17 @@ enum JSONLParser {
             timestamp = Date()
         }
 
+        // Max detection: if any turn's context input exceeded 200k, the session
+        // is using the 1M variant (Claude Code auto-enables it for Opus in
+        // agentic mode without surfacing that in the model string). Else the
+        // default 200k matches Sonnet / Haiku and non-agentic Opus.
+        let detectedMax: Int?
+        if lastAssistantContext != nil {
+            detectedMax = maxObservedContext > 200_000 ? 1_000_000 : 200_000
+        } else {
+            detectedMax = nil
+        }
+
         return JSONLParseResult(
             sessionId: meta.sessionId,
             projectPath: meta.cwd,
@@ -175,20 +203,9 @@ enum JSONLParser {
             model: lastMeaningfulEvent?.message?.model ?? lastAssistantModel,
             state: state,
             timestamp: timestamp,
-            contextTokens: lastAssistantUsage
+            contextTokens: lastAssistantContext,
+            contextMax: detectedMax
         )
-    }
-
-    /// Map a Claude Code model string to its context window size. Defaults to
-    /// 200k - the standard context for every current Claude model. The `[1m]`
-    /// suffix in model strings (e.g. `claude-opus-4-7[1m]`) signals the 1M
-    /// variant that Anthropic exposes opt-in.
-    static func contextMax(for model: String?) -> Int {
-        guard let model else { return 200_000 }
-        if model.contains("[1m]") || model.contains("-1m") {
-            return 1_000_000
-        }
-        return 200_000
     }
 
     private static func determineState(_ event: RawEvent, pendingPermission: Bool) -> SessionState {
