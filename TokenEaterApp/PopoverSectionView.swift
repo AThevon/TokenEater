@@ -6,6 +6,7 @@ import SwiftUI
 /// observe.
 struct PopoverSectionView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var usageStore: UsageStore
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
@@ -67,27 +68,44 @@ struct PopoverSectionView: View {
                 .textCase(.uppercase)
                 .tracking(0.8)
 
-            HStack(spacing: 10) {
-                Toggle("", isOn: $settingsStore.popoverConfig.showPlanBadge)
-                    .toggleStyle(.switch)
-                    .tint(.blue)
-                    .labelsHidden()
-                Text(String(localized: "popover.option.showPlanBadge"))
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.85))
-                Spacer()
-            }
-            .padding(.vertical, 6)
-            .padding(.horizontal, 14)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(Color.white.opacity(0.04))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                    )
+            generalToggleRow(
+                isOn: $settingsStore.popoverConfig.showPlanBadge,
+                label: String(localized: "popover.option.showPlanBadge")
             )
+            generalToggleRow(
+                isOn: $settingsStore.displaySonnet,
+                label: String(localized: "popover.option.showSonnet")
+            )
+            if usageStore.hasDesign {
+                generalToggleRow(
+                    isOn: $settingsStore.displayDesign,
+                    label: String(localized: "popover.option.showDesign")
+                )
+            }
         }
+    }
+
+    private func generalToggleRow(isOn: Binding<Bool>, label: String) -> some View {
+        HStack(spacing: 10) {
+            Toggle("", isOn: isOn)
+                .toggleStyle(.switch)
+                .tint(.blue)
+                .labelsHidden()
+            Text(label)
+                .font(.system(size: 12))
+                .foregroundStyle(.white.opacity(0.85))
+            Spacer()
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.white.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                )
+        )
     }
 
     @ViewBuilder
@@ -117,15 +135,16 @@ private struct VariantPickerView: View {
                         settingsStore.popoverConfig.activeVariant = variant
                     }
                 } label: {
-                    VStack(spacing: 4) {
+                    VStack(spacing: 6) {
                         Image(systemName: iconName(for: variant))
-                            .font(.system(size: 16))
+                            .font(.system(size: 18, weight: .regular))
+                            .frame(height: 20)
                         Text(variant.localizedLabel)
                             .font(.system(size: 11, weight: .semibold))
                     }
                     .foregroundStyle(isActive ? .white : .white.opacity(0.5))
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+                    .frame(height: 68)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
                             .fill(isActive ? Color.blue.opacity(0.2) : Color.white.opacity(0.03))

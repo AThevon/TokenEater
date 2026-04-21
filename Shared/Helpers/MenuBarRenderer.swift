@@ -35,6 +35,8 @@ enum MenuBarRenderer {
         let smartResetColor: Bool
         let menuBarStyle: MenuBarStyle
         let pacingShape: PacingShape
+        let designPct: Int
+        let hasDesign: Bool
     }
 
     private static var cachedImage: NSImage?
@@ -144,10 +146,12 @@ enum MenuBarRenderer {
         }()
 
         let ordered: [MetricID] = [
-            .sessionReset, .fiveHour, .sessionPacing, .sevenDay, .weeklyPacing, .sonnet
+            .sessionReset, .fiveHour, .sessionPacing, .sevenDay, .weeklyPacing, .sonnet, .design
         ].filter {
             guard data.pinnedMetrics.contains($0) else { return false }
-            if !data.displaySonnet && $0 == .sonnet { return false }
+            // Sonnet / Design visibility in the menu bar is purely driven
+            // by pinnedMetrics. Popover visibility has its own toggles.
+            if $0 == .design && !data.hasDesign { return false }
             switch $0 {
             // Session-scoped pins stay visible as long as the API returned a
             // five_hour bucket. Between sessions Anthropic omits resets_at, so
@@ -155,6 +159,7 @@ enum MenuBarRenderer {
             // pin the user explicitly asked for.
             case .sessionReset, .sessionPacing: return data.hasFiveHourBucket
             case .weeklyPacing: return data.hasWeeklyPacing
+            case .design: return data.hasDesign
             default: return true
             }
         }
@@ -189,12 +194,13 @@ enum MenuBarRenderer {
                     mode: data.weeklyPacingDisplayMode,
                     data: data
                 )
-            case .fiveHour, .sevenDay, .sonnet:
+            case .fiveHour, .sevenDay, .sonnet, .design:
                 let value: Int
                 switch metric {
                 case .fiveHour: value = data.fiveHourPct
                 case .sevenDay: value = data.sevenDayPct
                 case .sonnet: value = data.sonnetPct
+                case .design: value = data.designPct
                 default: value = 0
                 }
                 appendPercentMetric(
@@ -305,13 +311,16 @@ enum MenuBarRenderer {
 
     private static func buildBadgePills(_ data: RenderData) -> [BadgePill] {
         let ordered: [MetricID] = [
-            .sessionReset, .fiveHour, .sessionPacing, .sevenDay, .weeklyPacing, .sonnet
+            .sessionReset, .fiveHour, .sessionPacing, .sevenDay, .weeklyPacing, .sonnet, .design
         ].filter {
             guard data.pinnedMetrics.contains($0) else { return false }
-            if !data.displaySonnet && $0 == .sonnet { return false }
+            // Sonnet / Design visibility in the menu bar is purely driven
+            // by pinnedMetrics. Popover visibility has its own toggles.
+            if $0 == .design && !data.hasDesign { return false }
             switch $0 {
             case .sessionReset, .sessionPacing: return data.hasFiveHourBucket
             case .weeklyPacing: return data.hasWeeklyPacing
+            case .design: return data.hasDesign
             default: return true
             }
         }
@@ -338,6 +347,11 @@ enum MenuBarRenderer {
                 return BadgePill(
                     text: "\(data.sonnetPct)%",
                     tint: colorForPct(data.sonnetPct, data: data)
+                )
+            case .design:
+                return BadgePill(
+                    text: "\(data.designPct)%",
+                    tint: colorForPct(data.designPct, data: data)
                 )
             case .sessionPacing:
                 return pacingBadgePill(

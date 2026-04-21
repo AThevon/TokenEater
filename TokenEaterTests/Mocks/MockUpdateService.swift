@@ -9,6 +9,10 @@ final class MockUpdateService: UpdateServiceProtocol {
     var downloadError: Error?
     var downloadCalled = false
 
+    var releaseNotesResult: String?
+    var fetchReleaseNotesCalled = false
+    var lastFetchedReleaseNotesVersion: String?
+
     func checkForUpdate() async throws -> AppcastItem? {
         checkForUpdateCalled = true
         if let error = checkError { throw error }
@@ -20,5 +24,11 @@ final class MockUpdateService: UpdateServiceProtocol {
         progress(1.0)
         if let error = downloadError { throw error }
         return downloadResult
+    }
+
+    func fetchReleaseNotes(version: String) async -> String? {
+        fetchReleaseNotesCalled = true
+        lastFetchedReleaseNotesVersion = version
+        return releaseNotesResult
     }
 }

@@ -27,8 +27,15 @@ final class UsageStore: ObservableObject {
     @Published var opusPct: Int = 0
     @Published var coworkPct: Int = 0
     @Published var oauthAppsPct: Int = 0
+    @Published var designPct: Int = 0
     @Published var hasOpus: Bool = false
     @Published var hasCowork: Bool = false
+    @Published var hasDesign: Bool = false
+    @Published var designReset: String = ""
+    @Published var designResetAbsolute: String = ""
+    @Published var sonnetReset: String = ""
+    @Published var sonnetResetAbsolute: String = ""
+    @Published var extraUsage: ExtraUsage?
     @Published var planType: PlanType = .unknown
     @Published var rateLimitTier: String?
     @Published var organizationName: String?
@@ -308,8 +315,11 @@ final class UsageStore: ObservableObject {
         opusPct = Int(usage.sevenDayOpus?.utilization ?? 0)
         coworkPct = Int(usage.sevenDayCowork?.utilization ?? 0)
         oauthAppsPct = Int(usage.sevenDayOauthApps?.utilization ?? 0)
+        designPct = Int(usage.sevenDayDesign?.utilization ?? 0)
         hasOpus = usage.sevenDayOpus != nil
         hasCowork = usage.sevenDayCowork != nil
+        hasDesign = usage.sevenDayDesign != nil
+        extraUsage = usage.extraUsage
 
         refreshResetCountdown()
 
@@ -323,6 +333,15 @@ final class UsageStore: ObservableObject {
         let weekly = ResetCountdownFormatter.weekly(from: lastUsage?.sevenDay?.resetsAtDate)
         sevenDayReset = weekly.relative
         sevenDayResetAbsolute = weekly.absolute
+        // Design shares the 7d cadence.
+        let design = ResetCountdownFormatter.weekly(from: lastUsage?.sevenDayDesign?.resetsAtDate)
+        designReset = design.relative
+        designResetAbsolute = design.absolute
+        // Sonnet also uses the 7d cadence - it's a separate Sonnet-specific pool
+        // on top of the global weekly limit.
+        let sonnet = ResetCountdownFormatter.weekly(from: lastUsage?.sevenDaySonnet?.resetsAtDate)
+        sonnetReset = sonnet.relative
+        sonnetResetAbsolute = sonnet.absolute
     }
 
     func recalculatePacing() {

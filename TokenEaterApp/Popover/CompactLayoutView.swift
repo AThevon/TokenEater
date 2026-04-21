@@ -17,10 +17,40 @@ struct CompactLayoutView: View {
                 PopoverErrorBanner()
             }
 
+            extraSatellitesRow
             middleZone
         }
         .frame(width: 300)
         .background(Color(nsColor: NSColor(red: 0.08, green: 0.08, blue: 0.09, alpha: 1)))
+    }
+
+    /// Sonnet / Design mini-chips rendered just under the header when the
+    /// user opted into them. Independent of the middle drag list so we
+    /// don't have to introduce new BlockIDs for these.
+    @ViewBuilder
+    private var extraSatellitesRow: some View {
+        let showSonnet = settingsStore.displaySonnet
+        let showDesign = settingsStore.displayDesign && usageStore.hasDesign
+        if showSonnet || showDesign {
+            HStack(spacing: 8) {
+                if showSonnet {
+                    CompactExtraChip(
+                        label: String(localized: "metric.sonnet"),
+                        pct: usageStore.sonnetPct,
+                        theme: themeStore
+                    )
+                }
+                if showDesign {
+                    CompactExtraChip(
+                        label: String(localized: "metric.design"),
+                        pct: usageStore.designPct,
+                        theme: themeStore
+                    )
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 4)
+        }
     }
 
     private var layout: VariantLayout { settingsStore.popoverConfig.compact }
@@ -270,6 +300,50 @@ private struct PaceTileView: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: 10)
                         .stroke(Color.white.opacity(0.04), lineWidth: 0.5)
+                )
+        )
+    }
+}
+
+/// Minimal 2-value chip used for Sonnet / Design satellites above the main
+/// middle content. Just a mini ring + % + label, no sub-caption.
+struct CompactExtraChip: View {
+    let label: String
+    let pct: Int
+    let theme: ThemeStore
+
+    var body: some View {
+        let color = PopoverColors.gauge(pct: pct, theme: theme)
+        HStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .stroke(Color.white.opacity(0.06), lineWidth: 3)
+                    .frame(width: 28, height: 28)
+                Circle()
+                    .trim(from: 0, to: CGFloat(min(max(pct, 0), 100)) / 100.0)
+                    .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .frame(width: 28, height: 28)
+                    .rotationEffect(.degrees(-90))
+                    .shadow(color: color.opacity(0.4), radius: 2)
+            }
+            VStack(alignment: .leading, spacing: 0) {
+                Text(label.uppercased())
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.45))
+                    .tracking(0.5)
+                Text("\(pct)%")
+                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .foregroundStyle(color)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(8)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.white.opacity(0.03))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.white.opacity(0.05), lineWidth: 0.5)
                 )
         )
     }

@@ -25,6 +25,8 @@ struct FocusLayoutView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 10)
 
+            extraSatellitesRow
+
             middleZone
         }
         .frame(width: 300)
@@ -50,6 +52,34 @@ struct FocusLayoutView: View {
             ForEach(sats, id: \.self) { s in
                 FocusSatelliteCard(value: s)
             }
+        }
+    }
+
+    // MARK: - Extra satellites (Sonnet / Design)
+
+    @ViewBuilder
+    private var extraSatellitesRow: some View {
+        let showSonnet = settingsStore.displaySonnet
+        let showDesign = settingsStore.displayDesign && usageStore.hasDesign
+        if showSonnet || showDesign {
+            HStack(spacing: 8) {
+                if showSonnet {
+                    CompactExtraChip(
+                        label: String(localized: "metric.sonnet"),
+                        pct: usageStore.sonnetPct,
+                        theme: themeStore
+                    )
+                }
+                if showDesign {
+                    CompactExtraChip(
+                        label: String(localized: "metric.design"),
+                        pct: usageStore.designPct,
+                        theme: themeStore
+                    )
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 10)
         }
     }
 

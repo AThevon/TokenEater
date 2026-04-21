@@ -42,25 +42,39 @@ struct ClassicLayoutView: View {
         let sessionVisible = isBlockVisible(.sessionRing)
         let weeklyVisible = isBlockVisible(.weeklyRing)
 
+        let showSonnetSat = settingsStore.displaySonnet
+        let showDesignSat = settingsStore.displayDesign && usageStore.hasDesign
+        let hasExtraSatellites = showSonnetSat || showDesignSat
+
         if !sessionVisible && !weeklyVisible {
             EmptyView()
-        } else if settingsStore.displaySonnet && sessionVisible {
-            // Legacy layout: big Session hero + satellites for Weekly / Sonnet.
+        } else if hasExtraSatellites && sessionVisible {
+            // Hero + satellites layout - kicks in as soon as the user turned
+            // on any extra satellite (Sonnet or Design), so both toggles are
+            // fully independent.
             PopoverHeroRing()
                 .padding(.horizontal, 16)
                 .padding(.bottom, 20)
 
-            HStack(spacing: 32) {
+            HStack(spacing: 24) {
                 if weeklyVisible {
                     PopoverSatelliteRing(
                         label: String(localized: "metric.weekly"),
                         pct: usageStore.sevenDayPct
                     )
                 }
-                PopoverSatelliteRing(
-                    label: String(localized: "metric.sonnet"),
-                    pct: usageStore.sonnetPct
-                )
+                if showSonnetSat {
+                    PopoverSatelliteRing(
+                        label: String(localized: "metric.sonnet"),
+                        pct: usageStore.sonnetPct
+                    )
+                }
+                if showDesignSat {
+                    PopoverSatelliteRing(
+                        label: String(localized: "metric.design"),
+                        pct: usageStore.designPct
+                    )
+                }
             }
             .padding(.horizontal, 24)
             .padding(.bottom, 14)

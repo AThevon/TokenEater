@@ -108,8 +108,15 @@ enum ProcessResolver {
         case "com.github.wez.wezterm", "io.wezfurlong.wezterm":
             if let tty {
                 switchWezTermPane(tty: tty)
-                handled = true
             }
+            // Unlike Terminal.app / iTerm2 (AppleScript "activate") and Kitty
+            // (kitten @ focus-tab raises the window), `wezterm cli activate-pane`
+            // only switches the pane INSIDE WezTerm - it does not bring the
+            // WezTerm window to the foreground. So we always raise the app
+            // ourselves after writing the trigger; the script's pane switch
+            // lands ~0.3s later on the now-visible window.
+            activateApp(app)
+            handled = true
         default:
             break
         }

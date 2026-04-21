@@ -36,7 +36,7 @@ struct UpdateModalView: View {
                 }
             }
             .padding(32)
-            .frame(width: 380)
+            .frame(width: 440)
             .background(
                 ZStack {
                     RoundedRectangle(cornerRadius: 20)
@@ -62,7 +62,7 @@ struct UpdateModalView: View {
     // MARK: - Available State
 
     private func availableContent(newVersion: String) -> some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 20) {
             // Floating app icon with glow
             ZStack {
                 Circle()
@@ -105,6 +105,9 @@ struct UpdateModalView: View {
                 versionBadge(newVersion, isCurrent: false)
             }
 
+            // Release notes
+            releaseNotesSection(version: newVersion)
+
             // Buttons
             VStack(spacing: 12) {
                 shimmerButton(String(localized: "update.download")) {
@@ -124,6 +127,170 @@ struct UpdateModalView: View {
                 .foregroundStyle(.white.opacity(0.35))
             }
         }
+    }
+
+    // MARK: - Release Notes
+
+    /// "What's new" section: small tracked label + scrollable container with
+    /// rendered markdown. Loading state shows a spinner, failure shows a
+    /// "View on GitHub" fallback link so users always have a way to read the
+    /// notes even if the API hiccups.
+    @ViewBuilder
+    private func releaseNotesSection(version: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(accentColor.opacity(0.7))
+                Text(String(localized: "update.notes.title").uppercased())
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.5))
+                    .tracking(1.3)
+                Spacer()
+                Button {
+                    if let url = URL(string: "https://github.com/AThevon/TokenEater/releases/tag/v\(version)") {
+                        NSWorkspace.shared.open(url)
+                    }
+                } label: {
+                    HStack(spacing: 3) {
+                        Text(String(localized: "update.notes.viewOnGitHub"))
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 8, weight: .semibold))
+                    }
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.4))
+                }
+                .buttonStyle(.plain)
+            }
+
+            releaseNotesBody
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.white.opacity(0.025))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(.white.opacity(0.05), lineWidth: 0.5)
+                        )
+                )
+        }
+    }
+
+    @ViewBuilder
+    private var releaseNotesBody: some View {
+        if updateStore.releaseNotesLoading {
+            HStack(spacing: 8) {
+                ProgressView().scaleEffect(0.5).frame(width: 12, height: 12)
+                Text(String(localized: "update.notes.loading"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.5))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+        } else if let notes = updateStore.releaseNotes, !notes.isEmpty {
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(alignment: .leading, spacing: 5) {
+                    ForEach(Array(parseMarkdown(notes).enumerated()), id: \.offset) { _, block in
+                        markdownLine(block)
+                    }
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 220)
+        } else {
+            Text(String(localized: "update.notes.unavailable"))
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.35))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(14)
+        }
+    }
+
+    // MARK: - Lightweight Markdown
+
+    private enum MarkdownBlock {
+        case h1(String), h2(String), h3(String)
+        case bullet(String)
+        case paragraph(String)
+        case blank
+    }
+
+    /// Line-by-line markdown parser tuned for GitHub release notes. Full
+    /// CommonMark is overkill here - release bodies are typically a short mix
+    /// of headers, bullets, and paragraphs. Inline formatting (bold, italic,
+    /// code, links) is delegated to `AttributedString(markdown:)` per block.
+    private func parseMarkdown(_ source: String) -> [MarkdownBlock] {
+        var blocks: [MarkdownBlock] = []
+        for rawLine in source.components(separatedBy: "\n") {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            if line.isEmpty {
+                blocks.append(.blank)
+            } else if line.hasPrefix("### ") {
+                blocks.append(.h3(String(line.dropFirst(4))))
+            } else if line.hasPrefix("## ") {
+                blocks.append(.h2(String(line.dropFirst(3))))
+            } else if line.hasPrefix("# ") {
+                blocks.append(.h1(String(line.dropFirst(2))))
+            } else if line.hasPrefix("- ") || line.hasPrefix("* ") {
+                blocks.append(.bullet(String(line.dropFirst(2))))
+            } else {
+                blocks.append(.paragraph(line))
+            }
+        }
+        return blocks
+    }
+
+    @ViewBuilder
+    private func markdownLine(_ block: MarkdownBlock) -> some View {
+        switch block {
+        case .h1(let text):
+            Text(attributedInline(text))
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(.white.opacity(0.95))
+                .padding(.top, 6)
+        case .h2(let text):
+            Text(attributedInline(text))
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.white.opacity(0.9))
+                .padding(.top, 4)
+        case .h3(let text):
+            Text(attributedInline(text))
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.85))
+                .tracking(0.3)
+                .padding(.top, 2)
+        case .bullet(let text):
+            HStack(alignment: .top, spacing: 7) {
+                Text("•")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(accentColor.opacity(0.7))
+                Text(attributedInline(text))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.75))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.leading, 2)
+        case .paragraph(let text):
+            Text(attributedInline(text))
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.75))
+                .fixedSize(horizontal: false, vertical: true)
+        case .blank:
+            Spacer().frame(height: 4)
+        }
+    }
+
+    /// Parse inline markdown (bold / italic / code / links) via Foundation's
+    /// built-in parser. Falls back to plain text if parsing fails.
+    private func attributedInline(_ text: String) -> AttributedString {
+        if let attributed = try? AttributedString(
+            markdown: text,
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        ) {
+            return attributed
+        }
+        return AttributedString(text)
     }
 
     // MARK: - Downloading State
