@@ -148,29 +148,34 @@ enum JSONLParser {
                 continue
             }
 
-            // System events: only turn_duration, stop_hook_summary, and compact_boundary indicate idle
-            if event.type == "system" {
-                if event.subtype == "turn_duration" || event.subtype == "stop_hook_summary" || event.subtype == "compact_boundary" {
+            // State detection: only promote an event to `lastMeaningfulEvent`
+            // if we haven't settled on one yet. Keep iterating even after a
+            // meaningful event is picked so we still have a chance to see an
+            // assistant message with token usage further back in the tail -
+            // otherwise `lastAssistantContext` stays nil when the very last
+            // event is a system `turn_duration` or a `queue-operation`, and
+            // the UI falls back to the "no data yet" look even on long
+            // sessions. Early-exit only when both buckets are filled.
+
+            if lastMeaningfulEvent == nil {
+                if event.type == "system" {
+                    if event.subtype == "turn_duration" || event.subtype == "stop_hook_summary" || event.subtype == "compact_boundary" {
+                        lastMeaningfulEvent = event
+                    }
+                } else if event.type == "assistant" || event.type == "user" {
                     lastMeaningfulEvent = event
-                    break
+                } else if event.type == "progress" {
+                    // Progress events are a soft fallback - any later definitive
+                    // event (system turn-end, assistant, user) would replace it,
+                    // but since we gate this branch on `lastMeaningfulEvent ==
+                    // nil` we simply accept it as the best we've got so far.
+                    lastMeaningfulEvent = event
                 }
-                continue
             }
 
-            // Only consider known state-indicating types; skip everything else
-            guard event.type == "assistant" || event.type == "user" || event.type == "progress" else {
-                continue
+            if lastMeaningfulEvent != nil && lastAssistantContext != nil {
+                break
             }
-
-            // Progress events are not definitive (post-turn hooks emit them after stop_hook_summary).
-            // Save as fallback and keep searching for a definitive event.
-            if event.type == "progress" {
-                if lastMeaningfulEvent == nil { lastMeaningfulEvent = event }
-                continue
-            }
-
-            lastMeaningfulEvent = event
-            break
         }
 
         guard let meta = latestMeta else { return nil }
