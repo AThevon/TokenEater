@@ -225,14 +225,24 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
     }
 
     /// Adaptive tail read: start small (2KB), grow up to 64KB if parsing fails.
+    /// Also retries with a larger tail when the parse succeeded but context
+    /// token usage is missing - on long sessions a single assistant message
+    /// can exceed 2KB on its own, so the smallest tail slice may only contain
+    /// a system/progress event and miss the usage data we need for the
+    /// context window indicator. We keep the last successful parse around as
+    /// a fallback so truly brand-new sessions (zero assistant turns) still
+    /// get a state.
     private func readAndParse(file: URL) -> JSONLParseResult? {
+        var lastResult: JSONLParseResult?
         for size in [2_048, 8_192, 32_768, 65_536] {
-            if let content = readTail(of: file, maxBytes: size),
-               let result = JSONLParser.parseLastState(from: content) {
-                return result
+            guard let content = readTail(of: file, maxBytes: size),
+                  let result = JSONLParser.parseLastState(from: content) else {
+                continue
             }
+            lastResult = result
+            if result.contextTokens != nil { return result }
         }
-        return nil
+        return lastResult
     }
 
     private func readTail(of url: URL, maxBytes: Int) -> String? {
