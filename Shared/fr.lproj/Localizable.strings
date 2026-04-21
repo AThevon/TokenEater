@@ -367,8 +367,8 @@
 /* Onboarding - Agent Watchers */
 "onboarding.watchers.title" = "Agent Watchers";
 "onboarding.watchers.description" = "Un overlay flottant qui montre vos sessions Claude Code actives d'un coup d'œil. Survolez pour agrandir, cliquez pour basculer vers une session.";
-"onboarding.watchers.tmux.hint" = "Si vous utilisez tmux, ajoutez cette ligne à votre config pour activer le switch au clic :";
-"onboarding.watchers.kitty.hint" = "Si vous utilisez Kitty, ajoutez à votre kitty.conf :";
+"onboarding.watchers.compat.title" = "Fonctionne direct avec";
+"onboarding.watchers.compat.advanced" = "tmux, Kitty et WezTerm nécessitent une ligne de config — retrouvez-la dans Réglages → Watchers après l'onboarding.";
 "onboarding.watchers.settings.hint" = "Vous pouvez simplifier l'affichage dans les Réglages.";
 
 /* Performance */

@@ -130,7 +130,7 @@ struct DashboardView: View {
                 Circle().fill(color).frame(width: 7, height: 7)
                 Circle().fill(color).frame(width: 7, height: 7).blur(radius: 5)
             }
-            Text(String(localized: "dashboard.hero.session.label"))
+            Text(String(localized: "dashboard.hero.session.label").uppercased())
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(.white.opacity(0.65))
                 .tracking(2)

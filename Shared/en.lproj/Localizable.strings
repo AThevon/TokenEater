@@ -367,8 +367,8 @@
 /* Onboarding - Agent Watchers */
 "onboarding.watchers.title" = "Agent Watchers";
 "onboarding.watchers.description" = "A floating overlay that shows your active Claude Code sessions at a glance. Hover to expand, click to jump straight to a session.";
-"onboarding.watchers.tmux.hint" = "If you use tmux, add this line to your config to enable click-to-switch:";
-"onboarding.watchers.kitty.hint" = "If you use Kitty, add to your kitty.conf:";
+"onboarding.watchers.compat.title" = "Works instantly with";
+"onboarding.watchers.compat.advanced" = "tmux, Kitty, and WezTerm need a one-line config tweak — find it in Settings → Watchers after onboarding.";
 "onboarding.watchers.settings.hint" = "You can switch to a simplified view in Settings.";
 
 /* Performance */
