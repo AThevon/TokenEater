@@ -1,0 +1,68 @@
+import Foundation
+import os.log
+
+private let logger = Logger(subsystem: "com.tokeneater.app", category: "SecurityCLIReader")
+
+/// Shells out to `/usr/bin/security find-generic-password -s "Claude Code-credentials" -w`
+/// and extracts `claudeAiOauth.accessToken` from the JSON value Claude Code stores.
+///
+/// Why this is the right path in v5.0+:
+/// - The Keychain item ACL for "Claude Code-credentials" whitelists `/usr/bin/security`
+///   (Apple-signed, stable identity). It does NOT whitelist arbitrary third-party apps,
+///   no matter how they're signed.
+/// - So calling `SecItemCopyMatching` directly from TokenEater returns an ACL denial
+///   prompt every time, while calling `security` via `Process` sails through silently
+///   once the user clicks "Always Allow" once.
+/// - Shelling out requires the main app to be desandboxed (the macOS sandbox rejects
+///   `Process.run()` on arbitrary binaries). That's the entire point of the v5.0
+///   desandbox: it lets us drop the LaunchAgent helper and read Keychain directly.
+final class SecurityCLIReader: SecurityCLIReaderProtocol, @unchecked Sendable {
+    private let service: String
+
+    init(service: String = "Claude Code-credentials") {
+        self.service = service
+    }
+
+    func readToken() -> String? {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+        task.arguments = ["find-generic-password", "-s", service, "-w"]
+
+        let stdout = Pipe()
+        let stderr = Pipe()
+        task.standardOutput = stdout
+        task.standardError = stderr
+
+        do {
+            try task.run()
+        } catch {
+            logger.info("security launch failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+        task.waitUntilExit()
+        guard task.terminationStatus == 0 else {
+            // Common exit codes: 44 (item not found), 45 (ACL denied).
+            return nil
+        }
+
+        let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        guard let raw = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else {
+            return nil
+        }
+
+        // Claude Code stores the full OAuth JSON blob as the Keychain password.
+        // Extract claudeAiOauth.accessToken, the same shape `defaultKeychainReader`
+        // handles when parsing a direct `SecItemCopyMatching` response.
+        guard let jsonData = raw.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let oauth = obj["claudeAiOauth"] as? [String: Any],
+              let token = oauth["accessToken"] as? String,
+              !token.isEmpty else {
+            return nil
+        }
+
+        return token
+    }
+}

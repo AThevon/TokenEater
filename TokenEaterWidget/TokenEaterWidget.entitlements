@@ -8,5 +8,8 @@
     <array>
         <string>/Library/Application Support/com.tokeneater.shared/</string>
     </array>
+    <!-- App Group entitlement is added by scripts/enable-app-groups.sh. Until then
+         the widget reads from the home-relative path via the temporary-exception
+         above. See docs/APPLE_DEV_MIGRATION.md. -->
 </dict>
 </plist>

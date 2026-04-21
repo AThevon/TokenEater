@@ -59,21 +59,16 @@ struct PopoverHeader: View {
     }
 }
 
-// MARK: - Error banner + helper install CTA
+// MARK: - Error banner
 
 struct PopoverErrorBanner: View {
     @EnvironmentObject private var usageStore: UsageStore
-    @EnvironmentObject private var settingsStore: SettingsStore
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             switch usageStore.errorState {
             case .tokenUnavailable:
-                if case .notInstalled = settingsStore.helperStatus {
-                    helperInstallContent
-                } else {
-                    expiredContent
-                }
+                expiredContent
             case .rateLimited:
                 rateLimitedContent
             case .networkError:
@@ -138,32 +133,6 @@ struct PopoverErrorBanner: View {
         .padding(.top, 2)
     }
 
-    @ViewBuilder private var helperInstallContent: some View {
-        Label(String(localized: "helper.banner.title"), systemImage: "key.slash")
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.orange)
-        Text(String(localized: "helper.banner.description"))
-            .font(.system(size: 10))
-            .foregroundStyle(.white.opacity(0.5))
-            .fixedSize(horizontal: false, vertical: true)
-        Button {
-            Task {
-                await settingsStore.installHelper()
-                await usageStore.refresh(force: true)
-            }
-        } label: {
-            Text(String(localized: "helper.banner.install"))
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(.blue.opacity(0.3))
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .disabled(settingsStore.helperBusy)
-        .padding(.top, 2)
-    }
 }
 
 // MARK: - Watchers toggle

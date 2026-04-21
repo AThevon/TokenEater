@@ -1,52 +1,102 @@
 import Foundation
 
 final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
-    private let newDirectoryName = "com.tokeneater.shared"
-    private let oldDirectoryName = "com.claudeusagewidget.shared"
-    private let fileName = "shared.json"
+    private static let appGroupID = "group.com.tokeneater"
+    private static let legacyDirectoryName = "com.tokeneater.shared"
+    private static let oldDirectoryName = "com.claudeusagewidget.shared"
+    private static let fileName = "shared.json"
 
     private var realHomeDirectory: String {
         guard let pw = getpwuid(getuid()) else { return NSHomeDirectory() }
         return String(cString: pw.pointee.pw_dir)
     }
 
-    private var sharedFileURL: URL {
-        URL(fileURLWithPath: realHomeDirectory)
+    /// Root directory for shared data. Prefers the App Group container (available
+    /// once TokenEater ships with a paid Developer Team and the `group.com.tokeneater`
+    /// App Group registered), falls back to the legacy `~/Library/Application Support/
+    /// com.tokeneater.shared/` path during development builds and for users still on
+    /// pre-v5.0 installs. Both app and widget evaluate this identically, so they
+    /// always agree on where the shared file lives.
+    private var rootDirectoryURL: URL {
+        if let container = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: Self.appGroupID
+        ) {
+            return container
+        }
+        return URL(fileURLWithPath: realHomeDirectory)
             .appendingPathComponent("Library/Application Support")
-            .appendingPathComponent(newDirectoryName)
-            .appendingPathComponent(fileName)
+            .appendingPathComponent(Self.legacyDirectoryName)
     }
 
-    private var oldSharedFileURL: URL {
+    private var sharedFileURL: URL {
+        rootDirectoryURL.appendingPathComponent(Self.fileName)
+    }
+
+    private var legacyHomeRelativeFileURL: URL {
         URL(fileURLWithPath: realHomeDirectory)
             .appendingPathComponent("Library/Application Support")
-            .appendingPathComponent(oldDirectoryName)
-            .appendingPathComponent(fileName)
+            .appendingPathComponent(Self.legacyDirectoryName)
+            .appendingPathComponent(Self.fileName)
+    }
+
+    private var oldProductFileURL: URL {
+        URL(fileURLWithPath: realHomeDirectory)
+            .appendingPathComponent("Library/Application Support")
+            .appendingPathComponent(Self.oldDirectoryName)
+            .appendingPathComponent(Self.fileName)
     }
 
     init() {
-        migrateIfNeeded()
+        migrateFromOldProductName()
+        migrateFromHomeRelativeToAppGroup()
     }
 
-    /// One-shot migration: copy data from old path to new path, then delete old directory.
-    /// Kept forever — costs nothing, protects late updaters on Homebrew.
-    private func migrateIfNeeded() {
+    // MARK: - Migrations
+
+    /// v4.x migration: users who installed very early with the `com.claudeusagewidget.*`
+    /// bundle IDs still have the old directory. Move its content into the new one.
+    private func migrateFromOldProductName() {
         let fm = FileManager.default
-        let oldDir = oldSharedFileURL.deletingLastPathComponent()
-        let newDir = sharedFileURL.deletingLastPathComponent()
+        guard fm.fileExists(atPath: oldProductFileURL.path) else { return }
 
-        guard fm.fileExists(atPath: oldSharedFileURL.path) else { return }
+        let legacyDir = legacyHomeRelativeFileURL.deletingLastPathComponent()
+        try? fm.createDirectory(at: legacyDir, withIntermediateDirectories: true)
 
-        // Ensure new directory exists
-        try? fm.createDirectory(at: newDir, withIntermediateDirectories: true)
-
-        // Copy old file to new location (don't overwrite if new already exists)
-        if !fm.fileExists(atPath: sharedFileURL.path) {
-            try? fm.copyItem(at: oldSharedFileURL, to: sharedFileURL)
+        if !fm.fileExists(atPath: legacyHomeRelativeFileURL.path) {
+            try? fm.copyItem(at: oldProductFileURL, to: legacyHomeRelativeFileURL)
         }
 
-        // Remove old directory
-        try? fm.removeItem(at: oldDir)
+        try? fm.removeItem(at: oldProductFileURL.deletingLastPathComponent())
+    }
+
+    /// v5.0 migration: once the App Group container becomes available (after the user
+    /// upgrades to the signed build), copy any files still sitting in the legacy
+    /// home-relative directory into the container so both app and widget agree on the
+    /// new location. No-op when containerURL is nil (dev builds on Personal Team) or
+    /// when the legacy directory is empty.
+    private func migrateFromHomeRelativeToAppGroup() {
+        let fm = FileManager.default
+        guard let container = fm.containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupID) else {
+            return
+        }
+
+        let legacyDir = legacyHomeRelativeFileURL.deletingLastPathComponent()
+        guard fm.fileExists(atPath: legacyDir.path) else { return }
+
+        let items = (try? fm.contentsOfDirectory(at: legacyDir, includingPropertiesForKeys: nil)) ?? []
+        guard !items.isEmpty else {
+            try? fm.removeItem(at: legacyDir)
+            return
+        }
+
+        try? fm.createDirectory(at: container, withIntermediateDirectories: true)
+        for item in items {
+            let dest = container.appendingPathComponent(item.lastPathComponent)
+            if !fm.fileExists(atPath: dest.path) {
+                try? fm.copyItem(at: item, to: dest)
+            }
+        }
+        try? fm.removeItem(at: legacyDir)
     }
 
     // MARK: - SharedData (same JSON format as SharedContainer for backward compat)
