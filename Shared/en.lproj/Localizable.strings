@@ -79,6 +79,9 @@
 "settings.connected" = "Connected";
 "settings.disconnected" = "Not connected";
 "settings.redetect" = "Re-detect";
+"settings.general.title" = "General";
+"settings.launchAtLogin" = "Launch at login";
+"settings.launchAtLogin.hint" = "Open TokenEater automatically when you sign in to macOS. You can toggle this from System Settings → General → Login Items as well.";
 
 /* Connect */
 "connect.button" = "Connect";

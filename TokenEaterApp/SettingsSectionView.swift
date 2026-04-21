@@ -68,6 +68,18 @@ struct SettingsSectionView: View {
                 }
             }
 
+            // General (Launch at login etc.)
+            glassCard {
+                VStack(alignment: .leading, spacing: 8) {
+                    cardLabel(String(localized: "settings.general.title"))
+                    darkToggle(String(localized: "settings.launchAtLogin"), isOn: $settingsStore.launchAtLoginEnabled)
+                    Text(String(localized: "settings.launchAtLogin.hint"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.4))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             // Proxy
             glassCard {
                 VStack(alignment: .leading, spacing: 8) {

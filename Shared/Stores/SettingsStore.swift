@@ -1,5 +1,6 @@
 import SwiftUI
 import UserNotifications
+import ServiceManagement
 
 @MainActor
 final class SettingsStore: ObservableObject {
@@ -173,6 +174,15 @@ final class SettingsStore: ObservableObject {
     // Notifications
     @Published var notificationStatus: UNAuthorizationStatus = .notDetermined
 
+    // Launch at Login - toggle + reflect actual SMAppService.mainApp status
+    @Published var launchAtLoginEnabled: Bool {
+        didSet {
+            guard launchAtLoginEnabled != oldValue else { return }
+            UserDefaults.standard.set(launchAtLoginEnabled, forKey: "launchAtLoginEnabled")
+            applyLaunchAtLogin(launchAtLoginEnabled)
+        }
+    }
+
     private let notificationService: NotificationServiceProtocol
     private let tokenProvider: TokenProviderProtocol
 
@@ -208,6 +218,18 @@ final class SettingsStore: ObservableObject {
         self.animatedGradientEnabled = UserDefaults.standard.object(forKey: "animatedGradientEnabled") as? Bool ?? true
         self.watcherAnimationsEnabled = UserDefaults.standard.object(forKey: "watcherAnimationsEnabled") as? Bool ?? true
         self.sessionMonitorEnabled = UserDefaults.standard.object(forKey: "sessionMonitorEnabled") as? Bool ?? true
+        // Reconcile the stored toggle with the actual SMAppService state - user
+        // might have flipped it from System Settings without going through the
+        // app, and we must not diverge from macOS's view of the world.
+        let storedLaunchAtLogin = UserDefaults.standard.object(forKey: "launchAtLoginEnabled") as? Bool ?? false
+        let systemLaunchAtLogin = SMAppService.mainApp.status == .enabled
+        self.launchAtLoginEnabled = systemLaunchAtLogin || storedLaunchAtLogin
+        if storedLaunchAtLogin != systemLaunchAtLogin {
+            // Persist the reconciled value without re-triggering the didSet
+            // (we only want to register/unregister when the user flips the
+            // toggle; the init path just mirrors the OS state).
+            UserDefaults.standard.set(systemLaunchAtLogin, forKey: "launchAtLoginEnabled")
+        }
         self.pacingMargin = {
             let val = UserDefaults.standard.integer(forKey: "pacingMargin")
             return val > 0 ? val : 10
@@ -338,6 +360,33 @@ final class SettingsStore: ObservableObject {
 
     func credentialsTokenExists() -> Bool {
         tokenProvider.currentToken() != nil
+    }
+
+    // MARK: - Launch at Login
+
+    private func applyLaunchAtLogin(_ enabled: Bool) {
+        let service = SMAppService.mainApp
+        do {
+            if enabled {
+                if service.status != .enabled {
+                    try service.register()
+                }
+            } else {
+                if service.status == .enabled {
+                    try service.unregister()
+                }
+            }
+        } catch {
+            // Revert the published state if the OS refused the call (usually
+            // because the user denied it in Background Items prefs). Avoids a
+            // UI that claims the toggle is on while launchd disagrees.
+            DispatchQueue.main.async {
+                let actual = SMAppService.mainApp.status == .enabled
+                if self.launchAtLoginEnabled != actual {
+                    self.launchAtLoginEnabled = actual
+                }
+            }
+        }
     }
 
 }
