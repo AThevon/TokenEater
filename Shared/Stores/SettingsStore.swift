@@ -43,15 +43,15 @@ final class SettingsStore: ObservableObject {
     @Published var sessionPeriodColorHex: String {
         didSet { UserDefaults.standard.set(sessionPeriodColorHex, forKey: "sessionPeriodColorHex") }
     }
+    /// Controls whether the Sonnet satellite appears in the popover Classic
+    /// variant AND in the dashboard constellation. The menu-bar visibility of
+    /// Sonnet is driven by `pinnedMetrics.contains(.sonnet)`, independently.
     @Published var displaySonnet: Bool {
-        didSet {
-            UserDefaults.standard.set(displaySonnet, forKey: "displaySonnet")
-            if !displaySonnet {
-                // Drop any sonnet-related pins so the menu bar does not keep
-                // a stale reference to a hidden metric.
-                pinnedMetrics.remove(.sonnet)
-            }
-        }
+        didSet { UserDefaults.standard.set(displaySonnet, forKey: "displaySonnet") }
+    }
+    /// Same as `displaySonnet` but for Claude Design.
+    @Published var displayDesign: Bool {
+        didSet { UserDefaults.standard.set(displayDesign, forKey: "displayDesign") }
     }
 
     // MARK: - Popover
@@ -104,9 +104,6 @@ final class SettingsStore: ObservableObject {
     }
 
     // Performance
-    @Published var particlesEnabled: Bool {
-        didSet { UserDefaults.standard.set(particlesEnabled, forKey: "particlesEnabled") }
-    }
     @Published var animatedGradientEnabled: Bool {
         didSet { UserDefaults.standard.set(animatedGradientEnabled, forKey: "animatedGradientEnabled") }
     }
@@ -219,7 +216,6 @@ final class SettingsStore: ObservableObject {
         self.watcherDisplayMode = WatcherDisplayMode(
             rawValue: UserDefaults.standard.string(forKey: "watcherDisplayMode") ?? "branchPriority"
         ) ?? .branchPriority
-        self.particlesEnabled = UserDefaults.standard.object(forKey: "particlesEnabled") as? Bool ?? true
         self.animatedGradientEnabled = UserDefaults.standard.object(forKey: "animatedGradientEnabled") as? Bool ?? true
         self.watcherAnimationsEnabled = UserDefaults.standard.object(forKey: "watcherAnimationsEnabled") as? Bool ?? true
         self.sessionMonitorEnabled = UserDefaults.standard.object(forKey: "sessionMonitorEnabled") as? Bool ?? true
@@ -279,14 +275,18 @@ final class SettingsStore: ObservableObject {
         }
         self.pinnedMetrics = legacyPinned
 
-        // displaySonnet defaults to false for new installs. Legacy users who
-        // had .sonnet pinned keep it on by default so their setup does not
-        // silently lose the ring after upgrade.
+        // displaySonnet and displayDesign default to false for everyone -
+        // the satellites are opt-in. Users who had the old behaviour (sonnet
+        // pinned automatically toggled displaySonnet to true) keep whatever
+        // they had saved.
         if UserDefaults.standard.object(forKey: "displaySonnet") != nil {
             self.displaySonnet = UserDefaults.standard.bool(forKey: "displaySonnet")
         } else {
-            self.displaySonnet = legacyPinned.contains(.sonnet)
+            self.displaySonnet = false
         }
+        self.displayDesign = UserDefaults.standard.object(forKey: "displayDesign") != nil
+            ? UserDefaults.standard.bool(forKey: "displayDesign")
+            : false
 
         // Popover layout config. Fresh install or decode failure -> defaults
         // that reproduce the v4.10.x popover visually (Classic variant, all

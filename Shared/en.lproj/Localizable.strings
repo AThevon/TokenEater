@@ -8,6 +8,14 @@
 
 /* Metrics */
 "metric.session" = "5h";
+"metric.design" = "Design";
+"settings.group.design" = "Claude Design";
+
+/* Extra usage (paid credits pool) */
+"dashboard.extra.title" = "Extra credits";
+"dashboard.extra.separator" = "/";
+"dashboard.extra.monthly" = "this month";
+"dashboard.extra.noLimit" = "Monthly limit not set";
 "metric.sessionReset" = "Session reset countdown";
 "settings.pacing.style" = "Pacing style";
 "settings.group.session" = "Session (5h)";
@@ -15,7 +23,7 @@
 "settings.group.sonnet" = "Sonnet";
 "metric.weekly" = "Weekly";
 "metric.sonnet" = "Sonnet";
-"metric.reset" = "reset %@";
+"metric.reset" = "Resets in %@";
 
 /* Widget */
 "widget.session" = "Session";
@@ -219,6 +227,11 @@
 "dashboard.org" = "Organization";
 "dashboard.pacing.reset.days" = "Resets in %dd %dh";
 "dashboard.pacing.reset.hours" = "Resets in %dh";
+"dashboard.hero.session.label" = "Session · 5h window";
+"dashboard.hero.resetsIn" = "Resets in";
+"pacing.zone.chill" = "Chill";
+"pacing.zone.ontrack" = "On track";
+"pacing.zone.hot" = "Hot";
 
 /* Durations */
 "duration.days.hours" = "%dd %dh";
@@ -313,6 +326,10 @@
 "update.error.signatureMissing" = "Update is missing a signature. Aborting install.";
 "update.error.sizeMismatch" = "Update file size does not match the appcast. Aborting install.";
 "update.error.verifyReadFailed" = "Could not read update files for verification. Aborting install.";
+"update.notes.title" = "What's new";
+"update.notes.loading" = "Fetching release notes…";
+"update.notes.unavailable" = "Release notes unavailable";
+"update.notes.viewOnGitHub" = "View on GitHub";
 
 /* Brew Migration */
 "update.brew.detected" = "Installed via Homebrew";
@@ -375,7 +392,6 @@
 "sidebar.performance" = "Performance";
 "settings.performance.description" = "If TokenEater uses too much CPU, disable resource-heavy features here.";
 "settings.performance.dashboard" = "Dashboard";
-"settings.performance.particles" = "Animated particles";
 "settings.performance.gradient" = "Animated gradient";
 "settings.performance.watchers" = "Agent Watchers";
 "settings.performance.animations" = "Watcher animations";
@@ -408,6 +424,9 @@
 "popover.zone.hero" = "Hero";
 "popover.zone.content" = "Content";
 "popover.option.showPlanBadge" = "Show plan badge (PRO / MAX / TEAM)";
+"popover.option.showSonnet" = "Show Sonnet ring (Classic variant)";
+"popover.option.showDesign" = "Show Design ring (Classic variant)";
+"settings.group.extra" = "Extra metrics in menu bar";
 
 "popoverVariant.classic" = "Classic";
 "popoverVariant.compact" = "Compact";

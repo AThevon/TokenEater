@@ -231,7 +231,9 @@ final class StatusBarController: NSObject {
             sessionPeriodColorHex: settingsStore.sessionPeriodColorHex,
             smartResetColor: settingsStore.smartResetColor,
             menuBarStyle: settingsStore.menuBarStyle,
-            pacingShape: settingsStore.pacingShape
+            pacingShape: settingsStore.pacingShape,
+            designPct: usageStore.designPct,
+            hasDesign: usageStore.hasDesign
         ))
         statusItem.button?.image = image
     }

@@ -3,6 +3,7 @@ import SwiftUI
 struct DisplaySectionView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var themeStore: ThemeStore
+    @EnvironmentObject private var usageStore: UsageStore
 
     // Local @State bindings - stable across body re-evaluations.
     // Binding to computed properties via $store.computedProp creates
@@ -14,6 +15,7 @@ struct DisplaySectionView: View {
     @State private var showSevenDay: Bool
     @State private var showWeeklyPacing: Bool
     @State private var showSonnet: Bool
+    @State private var showDesign: Bool
 
     init(initialMetrics: Set<MetricID>) {
         _showFiveHour = State(initialValue: initialMetrics.contains(.fiveHour))
@@ -22,6 +24,7 @@ struct DisplaySectionView: View {
         _showSevenDay = State(initialValue: initialMetrics.contains(.sevenDay))
         _showWeeklyPacing = State(initialValue: initialMetrics.contains(.weeklyPacing))
         _showSonnet = State(initialValue: initialMetrics.contains(.sonnet))
+        _showDesign = State(initialValue: initialMetrics.contains(.design))
     }
 
     var body: some View {
@@ -102,14 +105,14 @@ struct DisplaySectionView: View {
                 }
             }
 
-            // 5. Sonnet
+            // 5. Extra metrics (menu bar pins only — popover visibility is
+            // handled in the Popover section)
             glassCard {
                 VStack(alignment: .leading, spacing: 10) {
-                    cardLabel(String(localized: "settings.group.sonnet"))
-                    darkToggle(String(localized: "settings.display.sonnet"), isOn: $settingsStore.displaySonnet)
-                    if settingsStore.displaySonnet {
-                        darkToggle(String(localized: "metric.sonnet"), isOn: $showSonnet)
-                            .padding(.leading, 20)
+                    cardLabel(String(localized: "settings.group.extra"))
+                    darkToggle(String(localized: "metric.sonnet"), isOn: $showSonnet)
+                    if usageStore.hasDesign {
+                        darkToggle(String(localized: "metric.design"), isOn: $showDesign)
                     }
                 }
             }
@@ -136,6 +139,7 @@ struct DisplaySectionView: View {
             }
         }
         .onChange(of: showSonnet) { _, new in syncMetric(.sonnet, on: new, revert: { showSonnet = true }) }
+        .onChange(of: showDesign) { _, new in syncMetric(.design, on: new, revert: { showDesign = true }) }
         // Sync: store -> local toggles (external changes, e.g. pin/unpin from popover)
         .onChange(of: settingsStore.pinnedMetrics) { _, metrics in
             if showFiveHour != metrics.contains(.fiveHour) { showFiveHour = metrics.contains(.fiveHour) }
@@ -244,7 +248,9 @@ struct DisplaySectionView: View {
             sessionPeriodColorHex: settingsStore.sessionPeriodColorHex,
             smartResetColor: settingsStore.smartResetColor,
             menuBarStyle: settingsStore.menuBarStyle,
-            pacingShape: settingsStore.pacingShape
+            pacingShape: settingsStore.pacingShape,
+            designPct: 28,
+            hasDesign: true
         )
     }
 

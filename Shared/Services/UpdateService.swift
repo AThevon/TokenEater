@@ -36,6 +36,31 @@ final class UpdateService: NSObject, UpdateServiceProtocol, URLSessionDownloadDe
         }
     }
 
+    /// Fetch release notes (markdown) for the given version tag from the GitHub
+    /// Releases API. Public endpoint - 60 req/hour unauthenticated, far above
+    /// anything this app does. Returns nil on any failure so the UI shows a
+    /// graceful fallback instead of an error.
+    func fetchReleaseNotes(version: String) async -> String? {
+        let tag = version.hasPrefix("v") ? version : "v\(version)"
+        guard let url = URL(string: "https://api.github.com/repos/AThevon/TokenEater/releases/tags/\(tag)") else {
+            return nil
+        }
+        var request = URLRequest(url: url)
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { return nil }
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+            guard let body = json["body"] as? String else { return nil }
+            let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        } catch {
+            return nil
+        }
+    }
+
     // MARK: - URLSessionDownloadDelegate
 
     func urlSession(

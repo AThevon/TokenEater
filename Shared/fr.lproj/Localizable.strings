@@ -8,6 +8,14 @@
 
 /* Metrics */
 "metric.session" = "5h";
+"metric.design" = "Design";
+"settings.group.design" = "Claude Design";
+
+/* Extra usage (paid credits pool) */
+"dashboard.extra.title" = "Crédits supplémentaires";
+"dashboard.extra.separator" = "/";
+"dashboard.extra.monthly" = "ce mois-ci";
+"dashboard.extra.noLimit" = "Limite mensuelle non définie";
 "metric.sessionReset" = "Compte à rebours de session";
 "settings.pacing.style" = "Style du pacing";
 "settings.group.session" = "Session (5h)";
@@ -15,7 +23,7 @@
 "settings.group.sonnet" = "Sonnet";
 "metric.weekly" = "Hebdo";
 "metric.sonnet" = "Sonnet";
-"metric.reset" = "reset %@";
+"metric.reset" = "Reset dans %@";
 
 /* Widget */
 "widget.session" = "Session";
@@ -219,6 +227,11 @@
 "dashboard.org" = "Organisation";
 "dashboard.pacing.reset.days" = "Reset dans %dj %dh";
 "dashboard.pacing.reset.hours" = "Reset dans %dh";
+"dashboard.hero.session.label" = "Session · fenêtre 5h";
+"dashboard.hero.resetsIn" = "Reset dans";
+"pacing.zone.chill" = "Chill";
+"pacing.zone.ontrack" = "Pile-poil";
+"pacing.zone.hot" = "Chaud";
 
 /* Durations */
 "duration.days.hours" = "%dj %dh";
@@ -313,6 +326,10 @@
 "update.error.signatureMissing" = "Signature manquante pour la mise à jour. Installation annulée.";
 "update.error.sizeMismatch" = "Taille de la mise à jour incorrecte. Installation annulée.";
 "update.error.verifyReadFailed" = "Impossible de lire les fichiers de mise à jour pour la vérification. Installation annulée.";
+"update.notes.title" = "Nouveautés";
+"update.notes.loading" = "Chargement des notes de version…";
+"update.notes.unavailable" = "Notes de version indisponibles";
+"update.notes.viewOnGitHub" = "Voir sur GitHub";
 
 /* Brew Migration */
 "update.brew.detected" = "Installé via Homebrew";
@@ -375,7 +392,6 @@
 "sidebar.performance" = "Performance";
 "settings.performance.description" = "Si TokenEater consomme trop de CPU, désactivez les fonctionnalités gourmandes ici.";
 "settings.performance.dashboard" = "Dashboard";
-"settings.performance.particles" = "Particules animées";
 "settings.performance.gradient" = "Dégradé animé";
 "settings.performance.watchers" = "Agent Watchers";
 "settings.performance.animations" = "Animations des watchers";
@@ -408,6 +424,9 @@
 "popover.zone.hero" = "Hero";
 "popover.zone.content" = "Contenu";
 "popover.option.showPlanBadge" = "Afficher le badge du plan (PRO / MAX / TEAM)";
+"popover.option.showSonnet" = "Afficher l'anneau Sonnet (variant Classic)";
+"popover.option.showDesign" = "Afficher l'anneau Design (variant Classic)";
+"settings.group.extra" = "Métriques supplémentaires dans la barre de menus";
 
 "popoverVariant.classic" = "Classique";
 "popoverVariant.compact" = "Compact";

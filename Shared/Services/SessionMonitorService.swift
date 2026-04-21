@@ -92,18 +92,17 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
 
         var activeSessions: [ClaudeSession] = []
 
-        // Skip directories that haven't been touched recently. Claude Code appends to JSONL
-        // files (and touches the parent dir) on every message, so a dir with an mtime older
-        // than `projectDirFreshness` cannot host an active session and does not need to be
-        // walked. This cuts the filesystem walk from "all dirs, all files" to "recent dirs".
+        // Freshness is derived from each dir's newest JSONL mtime - NOT from the dir's own
+        // mtime. On APFS/HFS, a directory's mtime only changes when an entry is added, removed,
+        // or renamed: appending to an existing JSONL (what Claude Code does on every message
+        // of an ongoing conversation) does not touch the parent dir's mtime. Filtering on dir
+        // mtime therefore hides every session whose JSONL already existed when the 30-min
+        // window started, which is most of them. We still get the original perf benefit (skip
+        // reading file contents for dead projects) because listing a dir with cached
+        // URLResourceValues is cheap compared to `readAndParse()` on every JSONL.
         let freshnessCutoff = Date().addingTimeInterval(-projectDirFreshness)
         let sortedDirs = projectDirs
             .filter { $0.hasDirectoryPath }
-            .filter { dir in
-                let mtime = (try? dir.resourceValues(forKeys: [.contentModificationDateKey])
-                    .contentModificationDate) ?? .distantPast
-                return mtime >= freshnessCutoff
-            }
             // Process longer paths first so worktree-specific dirs match before parent project dirs.
             .sorted { $0.lastPathComponent.count > $1.lastPathComponent.count }
 
@@ -128,6 +127,10 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
             } catch { continue }
 
             let sortedFiles = jsonlFiles.sorted { $0.mtime > $1.mtime }
+
+            // Skip dirs whose newest JSONL is stale. This replaces the old dir-mtime filter
+            // and is the actual signal of "any session here was active recently".
+            guard let newest = sortedFiles.first, newest.mtime >= freshnessCutoff else { continue }
 
             for (file, mtime) in sortedFiles {
                 guard let result = readAndParse(file: file) else { continue }

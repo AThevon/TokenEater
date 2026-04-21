@@ -7,6 +7,12 @@ final class UpdateStore: ObservableObject {
     @Published var brewMigrationState: BrewMigrationState = .notNeeded
     @Published var brewUninstallCommand: String = ""
 
+    /// Release notes fetched from the GitHub API for the `.available` version.
+    /// `nil` while the fetch is pending or if it failed (UI shows a fallback in
+    /// that case). Cleared when the modal dismisses.
+    @Published var releaseNotes: String?
+    @Published var releaseNotesLoading: Bool = false
+
     private let service: UpdateServiceProtocol
     private let brewMigration: BrewMigrationServiceProtocol
     private let signatureVerifier: SignatureVerifierProtocol
@@ -56,6 +62,7 @@ final class UpdateStore: ObservableObject {
                         signature: item.edSignature,
                         expectedLength: item.expectedLength
                     )
+                    loadReleaseNotes(for: item.version)
                 } else {
                     updateState = .upToDate
                     try? await Task.sleep(for: .seconds(3))
@@ -65,6 +72,21 @@ final class UpdateStore: ObservableObject {
                 updateState = .error(error.localizedDescription)
                 try? await Task.sleep(for: .seconds(5))
                 if case .error = updateState { updateState = .idle }
+            }
+        }
+    }
+
+    /// Kick off a background fetch of the GitHub release notes for a version.
+    /// The fetch is best-effort: on failure, `releaseNotes` stays `nil` and the
+    /// modal shows a "View on GitHub" link instead of the rendered notes.
+    private func loadReleaseNotes(for version: String) {
+        releaseNotes = nil
+        releaseNotesLoading = true
+        Task {
+            let notes = await service.fetchReleaseNotes(version: version)
+            await MainActor.run {
+                self.releaseNotes = notes
+                self.releaseNotesLoading = false
             }
         }
     }
@@ -188,6 +210,8 @@ final class UpdateStore: ObservableObject {
 
     func dismissUpdateModal() {
         updateState = .idle
+        releaseNotes = nil
+        releaseNotesLoading = false
     }
 
     // MARK: - Verification

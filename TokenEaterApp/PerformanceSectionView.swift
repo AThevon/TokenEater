@@ -20,7 +20,6 @@ struct PerformanceSectionView: View {
                 glassCard {
                     VStack(alignment: .leading, spacing: 8) {
                         cardLabel(String(localized: "settings.performance.dashboard"))
-                        darkToggle(String(localized: "settings.performance.particles"), isOn: $settingsStore.particlesEnabled)
                         darkToggle(String(localized: "settings.performance.gradient"), isOn: $settingsStore.animatedGradientEnabled)
                     }
                 }
