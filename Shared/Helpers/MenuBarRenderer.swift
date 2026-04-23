@@ -95,7 +95,8 @@ enum MenuBarRenderer {
             return smartResetNSColor(
                 utilization: Double(data.fiveHourPct),
                 resetDate: reset,
-                themeColors: data.themeColors
+                themeColors: data.themeColors,
+                thresholds: data.thresholds
             )
         }
         return MenuBarTextColorResolver.resolve(
@@ -107,17 +108,27 @@ enum MenuBarRenderer {
     /// Risk = utilization * remaining_minutes / 100. Thresholds mirror the
     /// static gauge boundaries so the reset color lines up visually with the
     /// 5-hour gauge elsewhere in the app.
-    private static func smartResetNSColor(
+    ///
+    /// Once utilization crosses the critical threshold, the projection
+    /// collapses: a short remaining window would otherwise push risk back
+    /// down to a green light even though the session is already maxed out.
+    /// Short-circuit to the gauge color directly so the reset text matches
+    /// the 5h ring when the user has already hit the limit.
+    static func smartResetNSColor(
         utilization: Double,
         resetDate: Date,
         themeColors: ThemeColors,
+        thresholds: UsageThresholds,
         now: Date = Date()
     ) -> NSColor {
+        if utilization >= Double(thresholds.criticalPercent) {
+            return themeColors.gaugeNSColor(for: utilization, thresholds: thresholds)
+        }
         let remainingMinutes = max(resetDate.timeIntervalSince(now), 0) / 60
         let risk = utilization * remainingMinutes / 100
-        if risk > 100 { return themeColors.gaugeNSColor(for: 100, thresholds: .default) }
-        if risk > 70 { return themeColors.gaugeNSColor(for: 75, thresholds: .default) }
-        return themeColors.gaugeNSColor(for: 10, thresholds: .default)
+        if risk > 100 { return themeColors.gaugeNSColor(for: 100, thresholds: thresholds) }
+        if risk > 70 { return themeColors.gaugeNSColor(for: 75, thresholds: thresholds) }
+        return themeColors.gaugeNSColor(for: 10, thresholds: thresholds)
     }
 
     // MARK: - Rendering
