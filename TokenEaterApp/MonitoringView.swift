@@ -47,9 +47,15 @@ struct MonitoringView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: DS.Spacing.sm) {
-            Text(String(localized: "sidebar.monitoring"))
-                .font(DS.Typography.title1)
-                .foregroundStyle(DS.Palette.textPrimary)
+            HStack(spacing: 8) {
+                Image("Logo")
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 26, height: 26)
+                Text("TokenEater")
+                    .font(DS.Typography.title1)
+                    .foregroundStyle(DS.Palette.textPrimary)
+            }
 
             if usageStore.planType != .unknown {
                 Text(usageStore.planType.displayLabel)
