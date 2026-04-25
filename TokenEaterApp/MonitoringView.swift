@@ -16,6 +16,8 @@ struct MonitoringView: View {
     @State private var lastUpdateText = ""
     @State private var heroHover = false
     @State private var hoveredTileID: String? = nil
+    @State private var refreshHovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -85,15 +87,31 @@ struct MonitoringView: View {
             } label: {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(DS.Palette.textSecondary)
+                    .foregroundStyle(refreshHovering ? DS.Palette.accentHistory : DS.Palette.textSecondary)
                     .frame(width: 26, height: 26)
                     .background(
-                        Circle().fill(DS.Palette.glassFill)
-                            .overlay(Circle().stroke(DS.Palette.glassBorder, lineWidth: 1))
+                        Circle()
+                            .fill(refreshHovering
+                                  ? DS.Palette.accentHistory.opacity(0.18)
+                                  : DS.Palette.glassFill)
+                            .overlay(
+                                Circle().stroke(
+                                    refreshHovering
+                                        ? DS.Palette.accentHistory.opacity(0.55)
+                                        : DS.Palette.glassBorder,
+                                    lineWidth: 1
+                                )
+                            )
                     )
+                    .shadow(color: refreshHovering ? DS.Palette.accentHistory.opacity(0.55) : .clear,
+                            radius: refreshHovering ? 8 : 0)
+                    .scaleEffect(refreshHovering && !reduceMotion ? 1.05 : 1.0)
             }
             .buttonStyle(.plain)
             .help(String(localized: "contextmenu.refresh"))
+            .onHover { hovering in
+                withAnimation(DS.Motion.springSnap) { refreshHovering = hovering }
+            }
         }
         .padding(.horizontal, DS.Spacing.xs)
     }

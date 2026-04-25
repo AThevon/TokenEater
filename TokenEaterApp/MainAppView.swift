@@ -9,6 +9,8 @@ struct MainAppView: View {
 
     @State private var selectedSpace: AppSpace = .monitoring
     @State private var selectedSettingsSection: SettingsSection = .general
+    @State private var powerHovering = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         if settingsStore.hasCompletedOnboarding {
@@ -33,16 +35,32 @@ struct MainAppView: View {
                 } label: {
                     Image(systemName: "power")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(DS.Palette.textTertiary)
+                        .foregroundStyle(powerHovering ? DS.Palette.semanticError : DS.Palette.textTertiary)
                         .frame(width: 28, height: 28)
                         .background(
-                            Circle().fill(DS.Palette.glassFill)
-                                .overlay(Circle().stroke(DS.Palette.glassBorderLo, lineWidth: 1))
+                            Circle()
+                                .fill(powerHovering
+                                      ? DS.Palette.semanticError.opacity(0.18)
+                                      : DS.Palette.glassFill)
+                                .overlay(
+                                    Circle().stroke(
+                                        powerHovering
+                                            ? DS.Palette.semanticError.opacity(0.55)
+                                            : DS.Palette.glassBorderLo,
+                                        lineWidth: 1
+                                    )
+                                )
                         )
+                        .shadow(color: powerHovering ? DS.Palette.semanticError.opacity(0.55) : .clear,
+                                radius: powerHovering ? 8 : 0)
+                        .scaleEffect(powerHovering && !reduceMotion ? 1.05 : 1.0)
                 }
                 .buttonStyle(.plain)
                 .help(String(localized: "menubar.quit"))
                 .padding(.trailing, DS.Spacing.xs)
+                .onHover { hovering in
+                    withAnimation(DS.Motion.springSnap) { powerHovering = hovering }
+                }
             }
             .padding(.top, DS.Spacing.xs)
 
