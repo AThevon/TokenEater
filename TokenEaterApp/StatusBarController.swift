@@ -435,7 +435,7 @@ final class StatusBarController: NSObject {
             .environmentObject(sessionStore)
 
         let isOnboarding = !settingsStore.hasCompletedOnboarding
-        let size = isOnboarding ? NSSize(width: 700, height: 720) : NSSize(width: 860, height: 720)
+        let size = isOnboarding ? NSSize(width: 700, height: 720) : NSSize(width: 860, height: 760)
         var styleMask: NSWindow.StyleMask = [.titled, .closable, .fullSizeContentView]
         if !isOnboarding { styleMask.insert(.resizable) }
 
@@ -498,7 +498,7 @@ final class StatusBarController: NSObject {
         window.contentMaxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         window.minSize = NSSize(width: 760, height: 560)
         window.setFrameAutosaveName("TokenEaterMain")
-        let mainSize = NSSize(width: 860, height: 720)
+        let mainSize = NSSize(width: 860, height: 760)
         window.setContentSize(mainSize)
         window.center()
     }
