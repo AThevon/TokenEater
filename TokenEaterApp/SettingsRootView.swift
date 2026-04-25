@@ -50,6 +50,8 @@ struct SettingsRootView: View {
             PopoverSectionView()
         case .agentWatchers:
             scrolling { AgentWatchersSectionView() }
+        case .notifications:
+            scrolling { NotificationsSectionView() }
         case .performance:
             scrolling { PerformanceSectionView() }
         }

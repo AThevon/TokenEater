@@ -127,6 +127,24 @@ final class StatusBarController: NSObject {
         usageStore.proxyConfig = settingsStore.proxyConfig
         usageStore.pacingMargin = settingsStore.pacingMargin
         usageStore.refreshIntervalSeconds = TimeInterval(settingsStore.refreshInterval)
+        usageStore.notifTogglesProvider = { [weak self] in
+            guard let self else { return nil }
+            return NotificationToggles(
+                trackFiveHour: self.settingsStore.notifTrackFiveHour,
+                trackWeekly: self.settingsStore.notifTrackWeekly,
+                trackSonnet: self.settingsStore.notifTrackSonnet,
+                trackDesign: self.settingsStore.notifTrackDesign,
+                sendRecovery: self.settingsStore.notifSendRecovery,
+                pacingHot: self.settingsStore.notifPacingHot,
+                pacingWarning: self.settingsStore.notifPacingWarning,
+                resetReminderSession: self.settingsStore.notifResetReminderSession,
+                resetReminderWeekly: self.settingsStore.notifResetReminderWeekly,
+                extraCredits: self.settingsStore.notifExtraCredits,
+                tokenExpired: self.settingsStore.notifTokenExpired,
+                smartColorEnabled: self.settingsStore.smartColorEnabled,
+                thresholds: self.themeStore.thresholds
+            )
+        }
         usageStore.reloadConfig(thresholds: themeStore.thresholds)
         usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
         themeStore.syncToSharedFile()

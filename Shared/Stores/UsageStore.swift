@@ -78,6 +78,12 @@ final class UsageStore: ObservableObject {
 
     var proxyConfig: ProxyConfig?
 
+    /// Closure that returns the current notification toggles bundle. Wired by
+    /// `StatusBarController` at bootstrap once SettingsStore is available so
+    /// the store can fire notifications based on the latest user-facing toggles
+    /// without owning a direct SettingsStore reference.
+    var notifTogglesProvider: (() -> NotificationToggles?)?
+
     var cachedUsage: CachedUsage? {
         sharedFileService.cachedUsage
     }
@@ -138,13 +144,7 @@ final class UsageStore: ObservableObject {
             }
             retryAfterDate = nil
             WidgetReloader.scheduleReload()
-            notificationService.checkThresholds(
-                fiveHour: MetricSnapshot(pct: fiveHourPct, resetsAt: usage.fiveHour?.resetsAtDate),
-                sevenDay: MetricSnapshot(pct: sevenDayPct, resetsAt: usage.sevenDay?.resetsAtDate),
-                sonnet: MetricSnapshot(pct: sonnetPct, resetsAt: usage.sevenDaySonnet?.resetsAtDate),
-                pacingZone: pacingZone,
-                thresholds: thresholds
-            )
+            evaluateNotifications(usage: usage)
         } catch let error as APIError {
             switch error {
             case .tokenExpired, .noToken:
@@ -162,19 +162,16 @@ final class UsageStore: ObservableObject {
                         }
                         retryAfterDate = nil
                         WidgetReloader.scheduleReload()
-                        notificationService.checkThresholds(
-                            fiveHour: MetricSnapshot(pct: fiveHourPct, resetsAt: usage.fiveHour?.resetsAtDate),
-                            sevenDay: MetricSnapshot(pct: sevenDayPct, resetsAt: usage.sevenDay?.resetsAtDate),
-                            sonnet: MetricSnapshot(pct: sonnetPct, resetsAt: usage.sevenDaySonnet?.resetsAtDate),
-                            pacingZone: pacingZone,
-                            thresholds: thresholds
-                        )
+                        evaluateNotifications(usage: usage)
                         return
                     } catch {
                         // Retry also failed - fall through to set error
                     }
                 }
                 errorState = .tokenUnavailable
+                if let toggles = notifTogglesProvider?() {
+                    notificationService.notifyTokenExpired(toggle: toggles.tokenExpired)
+                }
             case .rateLimited(let retryAfter):
                 currentSpeed = .slow
                 // /api/oauth/usage returns retry-after: 0 when the token has hit its per-token
@@ -347,6 +344,55 @@ final class UsageStore: ObservableObject {
     func recalculatePacing() {
         guard let usage = lastUsage else { return }
         applyPacing(PacingCalculator.calculateAll(from: usage, margin: Double(pacingMargin)))
+    }
+
+    /// Builds metric snapshots + pacing zones from the latest API response and
+    /// hands them to `NotificationService.evaluate` along with the current
+    /// toggles. Skipped when no toggles provider is wired (e.g. tests).
+    private func evaluateNotifications(usage: UsageResponse) {
+        guard let toggles = notifTogglesProvider?() else { return }
+
+        let fiveHourSnap = MetricSnapshot(
+            pct: fiveHourPct,
+            resetsAt: usage.fiveHour?.resetsAtDate,
+            windowDuration: 5 * 3600,
+            utilization: usage.fiveHour?.utilization ?? Double(fiveHourPct)
+        )
+        let sevenDaySnap = MetricSnapshot(
+            pct: sevenDayPct,
+            resetsAt: usage.sevenDay?.resetsAtDate,
+            windowDuration: 7 * 86_400,
+            utilization: usage.sevenDay?.utilization ?? Double(sevenDayPct)
+        )
+        let sonnetSnap = MetricSnapshot(
+            pct: sonnetPct,
+            resetsAt: usage.sevenDaySonnet?.resetsAtDate,
+            windowDuration: 7 * 86_400,
+            utilization: usage.sevenDaySonnet?.utilization ?? Double(sonnetPct)
+        )
+        let designSnap = MetricSnapshot(
+            pct: designPct,
+            resetsAt: usage.sevenDayDesign?.resetsAtDate,
+            windowDuration: 7 * 86_400,
+            utilization: usage.sevenDayDesign?.utilization ?? Double(designPct)
+        )
+
+        notificationService.evaluate(
+            fiveHour: fiveHourSnap,
+            sevenDay: sevenDaySnap,
+            sonnet: sonnetSnap,
+            design: designSnap,
+            sessionPacing: fiveHourPacing?.zone,
+            weeklyPacing: pacingZone,
+            extraUsage: extraUsage,
+            toggles: toggles
+        )
+
+        notificationService.scheduleResetReminders(
+            sessionResetsAt: usage.fiveHour?.resetsAtDate,
+            weeklyResetsAt: usage.sevenDay?.resetsAtDate,
+            toggles: toggles
+        )
     }
 
     private func applyPacing(_ allPacing: [PacingBucket: PacingResult]) {

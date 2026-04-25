@@ -11,7 +11,6 @@ struct SettingsSectionView: View {
     @State private var isImporting = false
     @State private var importMessage: String?
     @State private var importSuccess = false
-    @State private var notifTestCooldown = false
     @State private var brewCopied = false
 
     var body: some View {
@@ -176,54 +175,6 @@ struct SettingsSectionView: View {
                                 .font(.system(size: 9))
                         }
                         .foregroundStyle(.orange.opacity(0.8))
-                    }
-                }
-            }
-
-            // Notifications
-            glassCard {
-                VStack(alignment: .leading, spacing: 8) {
-                    cardLabel(String(localized: "settings.notifications.title"))
-                    HStack {
-                        switch settingsStore.notificationStatus {
-                        case .authorized:
-                            Label(String(localized: "settings.notifications.on"), systemImage: "checkmark.circle.fill")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.green)
-                        case .denied:
-                            Label(String(localized: "settings.notifications.off"), systemImage: "xmark.circle.fill")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.red)
-                        default:
-                            Label(String(localized: "settings.notifications.unknown"), systemImage: "questionmark.circle")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.white.opacity(0.5))
-                        }
-                        Spacer()
-                        if settingsStore.notificationStatus == .denied {
-                            Button(String(localized: "settings.notifications.open")) {
-                                NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings")!)
-                            }
-                            .font(.system(size: 11))
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.blue)
-                        }
-                        Button(String(localized: "settings.notifications.test")) {
-                            if settingsStore.notificationStatus != .authorized {
-                                settingsStore.requestNotificationPermission()
-                            }
-                            settingsStore.sendTestNotification()
-                            notifTestCooldown = true
-                            Task {
-                                try? await Task.sleep(for: .seconds(3))
-                                notifTestCooldown = false
-                                await settingsStore.refreshNotificationStatus()
-                            }
-                        }
-                        .font(.system(size: 11))
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.blue)
-                        .disabled(notifTestCooldown)
                     }
                 }
             }

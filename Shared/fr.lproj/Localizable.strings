@@ -132,41 +132,117 @@
 "test.ratelimited" = "Connecté - limité temporairement, réessai automatique";
 "test.http" = "Erreur HTTP %d";
 
-/* Pacing */
-"pacing.chill.1" = "Tranquille, t'as du stock";
-"pacing.chill.2" = "Claude t'attend, envoie du lourd";
-"pacing.chill.3" = "Mode cruise activé";
-"pacing.ontrack.1" = "Pile dans le rythme";
-"pacing.ontrack.2" = "Steady as she goes";
-"pacing.ontrack.3" = "Tu gères";
-"pacing.hot.1" = "Doucement cowboy";
-"pacing.hot.2" = "Tu flambes";
-"pacing.hot.3" = "Lève le pied";
+/* Pacing - 5h session (vibe sprint) */
+"pacing.session.chill.1" = "5h tranquille";
+"pacing.session.chill.2" = "Y'a du temps";
+"pacing.session.chill.3" = "Session pépère";
+"pacing.session.ontrack.1" = "Bon rythme";
+"pacing.session.ontrack.2" = "5h en cadence";
+"pacing.session.ontrack.3" = "Pile à l'heure";
+"pacing.session.warning.1" = "5h qui chauffe";
+"pacing.session.warning.2" = "Cadence qui grimpe";
+"pacing.session.warning.3" = "Tempo qui s'emballe";
+"pacing.session.hot.1" = "5h en feu";
+"pacing.session.hot.2" = "Session qui flambe";
+"pacing.session.hot.3" = "Ça consomme sec";
+
+/* Pacing - hebdo (vibe marathon) */
+"pacing.weekly.chill.1" = "Semaine peinarde";
+"pacing.weekly.chill.2" = "Y'a de la marge";
+"pacing.weekly.chill.3" = "Cycle tranquille";
+"pacing.weekly.ontrack.1" = "Cadence stable";
+"pacing.weekly.ontrack.2" = "Bon rythme de semaine";
+"pacing.weekly.ontrack.3" = "Marathon réglé";
+"pacing.weekly.warning.1" = "Semaine qui s'accélère";
+"pacing.weekly.warning.2" = "Rythme qui grimpe";
+"pacing.weekly.warning.3" = "Un poil chaud";
+"pacing.weekly.hot.1" = "Semaine qui flambe";
+"pacing.weekly.hot.2" = "Cycle en feu";
+"pacing.weekly.hot.3" = "Tu carbures fort";
+
 "pacing.label" = "Rythme";
 "pacing.reset" = "reset %@";
 
 /* Marge pacing */
 "settings.pacing.margin" = "Sensibilité du pacing";
 "settings.pacing.margin.value" = "Marge";
-"settings.pacing.margin.hint" = "Écart (%) toléré par rapport au rythme idéal avant de changer de zone.";
+"settings.pacing.margin.hint" = "Bande de tolérance autour du rythme idéal. On track reste dans \u{00B1}marge, warning quand tu dépasses, hot au-delà de 2x la marge.";
 
-/* Notifications - fallback (pas de temps de reset dispo) */
-"notif.orange.body" = "Tu dépasses %d%% - lève le pied";
-"notif.red.body" = "Usage critique - limite presque atteinte";
-"notif.green.body" = "Usage réinitialisé - t'es de retour dans le vert";
-"notif.test.body" = "Les notifications fonctionnent - c'est bon !";
+/* Notifications - test + token + pacing + rappels reset */
+"notif.title.test" = "C'est branché";
+"notif.body.test" = "Si tu vois ça, les notifs marchent";
 
-/* Notifications - escalade avec temps de reset */
-"notif.orange.body.session.chill" = "Reset dans %1$@ (à %2$@) - ton rythme est bon";
-"notif.orange.body.session.ontrack" = "Reset dans %1$@ (à %2$@) - lève le pied";
-"notif.orange.body.session.hot" = "Reset dans %1$@ (à %2$@) - tu flambes";
-"notif.orange.body.weekly" = "Reset le %@ - lève le pied";
-"notif.red.body.session" = "Limite presque atteinte - reset dans %1$@ (à %2$@)";
-"notif.red.body.weekly" = "Limite presque atteinte - reset le %@";
+"notif.title.token" = "Token périmé";
+"notif.body.token" = "Reconnecte pour reprendre le suivi";
 
-/* Notifications - recovery avec prochain reset */
-"notif.green.body.session" = "T'es de retour ! Prochain reset à %@";
-"notif.green.body.weekly" = "T'es de retour ! Prochain reset le %@";
+"notif.title.pacing.hot" = "Surchauffe";
+"notif.body.pacing.hot" = "Largement en avance, lève le pied";
+"notif.title.pacing.warning" = "Ça dérive";
+"notif.body.pacing.warning" = "Un poil rapide, garde l'œil";
+
+"notif.title.reminder.session" = "Reset session dans 15";
+"notif.body.reminder.session" = "Sauve ton truc ou envoie";
+"notif.title.reminder.weekly" = "Reset hebdo dans 1h";
+"notif.body.reminder.weekly" = "Dernier tour sur le cycle";
+
+/* Notifications - 5h session */
+"notif.title.fivehour.orange.chill" = "Petit point rythme";
+"notif.title.fivehour.orange.ontrack" = "Session qui se remplit";
+"notif.title.fivehour.orange.warning" = "Dérive sur la 5h";
+"notif.title.fivehour.orange.hot" = "5h qui flambe";
+"notif.title.fivehour.red" = "5h presque pleine";
+"notif.title.fivehour.green" = "5h relancée";
+
+"notif.body.fivehour.orange.chill" = "Rythme bon, reset dans %@";
+"notif.body.fivehour.orange.ontrack" = "Pile en cadence, reset dans %@";
+"notif.body.fivehour.orange.warning" = "Un poil rapide, %@ restant";
+"notif.body.fivehour.orange.hot" = "Largement en avance, %@ restant";
+"notif.body.fivehour.orange.fallback" = "Au-delà du seuil attention";
+"notif.body.fivehour.red" = "Tranquille jusqu'au reset, %@ restant";
+"notif.body.fivehour.red.fallback" = "Limite presque atteinte";
+"notif.body.fivehour.green" = "Tout neuf à %@";
+"notif.body.fivehour.green.fallback" = "Tout neuf, t'es de retour";
+
+/* Notifications - 7j hebdo */
+"notif.title.weekly.orange" = "Semaine qui se remplit";
+"notif.title.weekly.red" = "Semaine presque pleine";
+"notif.title.weekly.green" = "Semaine relancée";
+"notif.body.weekly.orange" = "Reset %@";
+"notif.body.weekly.orange.fallback" = "Au-delà du seuil hebdo";
+"notif.body.weekly.red" = "Tranquille jusqu'au %@";
+"notif.body.weekly.red.fallback" = "Limite hebdo presque atteinte";
+"notif.body.weekly.green" = "Nouveau cycle, t'es de retour le %@";
+"notif.body.weekly.green.fallback" = "Nouveau cycle, t'es de retour";
+
+/* Notifications - Sonnet hebdo */
+"notif.title.sonnet.orange" = "Pool Sonnet bien entamé";
+"notif.title.sonnet.red" = "Sonnet presque épuisé";
+"notif.title.sonnet.green" = "Sonnet relancé";
+"notif.body.sonnet.orange" = "Reset %@";
+"notif.body.sonnet.orange.fallback" = "Au-delà du seuil Sonnet";
+"notif.body.sonnet.red" = "Mollo jusqu'au %@";
+"notif.body.sonnet.red.fallback" = "Pool Sonnet presque vide";
+"notif.body.sonnet.green" = "Sonnet rechargé le %@";
+"notif.body.sonnet.green.fallback" = "Sonnet rechargé, t'es de retour";
+
+/* Notifications - Design hebdo */
+"notif.title.design.orange" = "Pool Design bien entamé";
+"notif.title.design.red" = "Design presque épuisé";
+"notif.title.design.green" = "Design relancé";
+"notif.body.design.orange" = "Reset %@";
+"notif.body.design.orange.fallback" = "Au-delà du seuil Design";
+"notif.body.design.red" = "Mollo jusqu'au %@";
+"notif.body.design.red.fallback" = "Pool Design presque vide";
+"notif.body.design.green" = "Design rechargé le %@";
+"notif.body.design.green.fallback" = "Design rechargé, t'es de retour";
+
+/* Notifications - Extra credits */
+"notif.title.extra.orange" = "Pool extra qui baisse";
+"notif.title.extra.red" = "Pool extra presque sec";
+"notif.title.extra.green" = "Pool extra rechargé";
+"notif.body.extra.orange" = "%d%% de tes crédits utilisés";
+"notif.body.extra.red" = "%d%% consommé, temps de recharger ?";
+"notif.body.extra.green" = "Pool de retour dans le vert";
 "settings.notifications.title" = "Notifications";
 "settings.notifications.status" = "Statut";
 "settings.notifications.on" = "Activées";
@@ -175,6 +251,30 @@
 "settings.notifications.enable" = "Activer";
 "settings.notifications.open" = "Ouvrir les réglages";
 "settings.notifications.test" = "Tester";
+
+/* Notifications - groupes paramètres + libellés par event */
+"settings.notifications.group.usage" = "Seuils d'utilisation";
+"settings.notifications.group.usage.hint" = "Se déclenche quand une métrique passe en attention ou critique.";
+"settings.notifications.track.fivehour" = "Suivre la session 5h";
+"settings.notifications.track.weekly" = "Suivre la semaine 7j";
+"settings.notifications.track.sonnet" = "Suivre la semaine Sonnet";
+"settings.notifications.track.design" = "Suivre la semaine Claude Design";
+"settings.notifications.recovery" = "Notifs de retour à la normale";
+"settings.notifications.recovery.hint" = "Si OFF, seules les escalades passent (pas de message \"t'es de retour\").";
+"settings.notifications.group.pacing" = "Pacing";
+"settings.notifications.group.pacing.hint" = "Basé sur les 4 zones de pacing, indépendant des alertes par seuil.";
+"settings.notifications.pacing.hot" = "Surchauffe";
+"settings.notifications.pacing.warning" = "Dérive rapide";
+"settings.notifications.group.reset" = "Rappels avant reset";
+"settings.notifications.group.reset.hint" = "Heads-up avant la fin du cycle en cours.";
+"settings.notifications.reset.session" = "15 min avant reset session";
+"settings.notifications.reset.weekly" = "1h avant reset hebdo";
+"settings.notifications.group.extra" = "Extra credits";
+"settings.notifications.group.extra.hint" = "Ne se déclenche que si le pool payant est activé sur ton plan Anthropic.";
+"settings.notifications.extra" = "Pool warning / critique";
+"settings.notifications.group.health" = "Santé";
+"settings.notifications.group.health.hint" = "Soucis de connexion qui peuvent bloquer le suivi.";
+"settings.notifications.token" = "Token expiré";
 
 /* Relative Time */
 "relative.now" = "maintenant";
@@ -222,9 +322,6 @@
 "pacing.zone.ontrack" = "Pile-poil";
 "pacing.zone.warning" = "Attention";
 "pacing.zone.hot" = "Chaud";
-"pacing.warning.1" = "Doucement, t'es en avance";
-"pacing.warning.2" = "Le rythme s'accélère";
-"pacing.warning.3" = "Un poil rapide, lève le pied";
 
 /* Durations */
 "duration.days.hours" = "%dj %dh";
@@ -416,6 +513,8 @@
 "sidebar.themes" = "Thèmes";
 "sidebar.popover" = "Popover";
 "sidebar.agentWatchers" = "Watchers";
+"sidebar.notifications" = "Notifications";
+"sidebar.notifications.subtitle" = "Choisis quels événements déclenchent une notif. Toggles indépendants.";
 "sidebar.settings" = "Réglages";
 
 /* Popover customization */

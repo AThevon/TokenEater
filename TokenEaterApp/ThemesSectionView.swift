@@ -104,12 +104,14 @@ struct ThemesSectionView: View {
 
             // Pacing margin
             glassCard {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 10) {
                     cardLabel(String(localized: "settings.pacing.margin"))
                     thresholdSlider(label: String(localized: "settings.pacing.margin.value"), value: $marginSlider, range: 5...30)
+                    pacingZonesPreview
                     Text(String(localized: "settings.pacing.margin.hint"))
                         .font(.system(size: 11))
                         .foregroundStyle(.white.opacity(0.4))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
@@ -365,6 +367,50 @@ struct ThemesSectionView: View {
                 .foregroundStyle(.white.opacity(0.5))
                 .frame(width: 40, alignment: .trailing)
         }
+    }
+
+    /// Live 4-zone preview reflecting the current pacing margin. The single
+    /// slider drives both the on-track / warning boundary (at ±margin) and the
+    /// warning / hot boundary (at +2x margin), so showing the four chips with
+    /// their actual ranges makes the relationship obvious.
+    private var pacingZonesPreview: some View {
+        let m = Int(marginSlider)
+        let chipColors: [(PacingZone, String)] = [
+            (.chill,   "< -\(m)%"),
+            (.onTrack, "\u{00B1}\(m)%"),
+            (.warning, "+\(m)..+\(m * 2)%"),
+            (.hot,     "> +\(m * 2)%"),
+        ]
+        return HStack(spacing: 6) {
+            ForEach(Array(chipColors.enumerated()), id: \.offset) { _, entry in
+                pacingZoneChip(zone: entry.0, range: entry.1)
+            }
+        }
+    }
+
+    private func pacingZoneChip(zone: PacingZone, range: String) -> some View {
+        let color = themeStore.current.pacingColor(for: zone)
+        let label = String(localized: String.LocalizationValue("pacing.zone.\(zone.rawValue)"))
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(color)
+            Text(range)
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.6))
+                .monospacedDigit()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(color.opacity(0.15))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(color.opacity(0.45), lineWidth: 0.6)
+                )
+        )
     }
 
     private func themePreviewGauge(pct: Double, label: String) -> some View {

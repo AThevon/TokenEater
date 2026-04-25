@@ -35,6 +35,7 @@ enum SettingsSection: String, CaseIterable {
     case display
     case popover
     case agentWatchers
+    case notifications
     case performance
 
     var labelKey: String {
@@ -44,6 +45,7 @@ enum SettingsSection: String, CaseIterable {
         case .themes:        "sidebar.themes"
         case .popover:       "sidebar.popover"
         case .agentWatchers: "sidebar.agentWatchers"
+        case .notifications: "sidebar.notifications"
         case .performance:   "sidebar.performance"
         }
     }
@@ -57,6 +59,7 @@ enum SettingsSection: String, CaseIterable {
         case .themes:        "paintpalette.fill"
         case .popover:       "menubar.dock.rectangle"
         case .agentWatchers: "waveform.path.ecg"
+        case .notifications: "bell.fill"
         case .performance:   "speedometer"
         }
     }

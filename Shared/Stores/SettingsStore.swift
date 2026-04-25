@@ -125,6 +125,48 @@ final class SettingsStore: ObservableObject {
         didSet { UserDefaults.standard.set(pacingMargin, forKey: "pacingMargin") }
     }
 
+    // Notifications - per-event toggles
+    // Threshold escalations + recovery, one toggle per surface so the user can
+    // mute Sonnet without losing the 5h alerts.
+    @Published var notifTrackFiveHour: Bool {
+        didSet { UserDefaults.standard.set(notifTrackFiveHour, forKey: "notifTrackFiveHour") }
+    }
+    @Published var notifTrackWeekly: Bool {
+        didSet { UserDefaults.standard.set(notifTrackWeekly, forKey: "notifTrackWeekly") }
+    }
+    @Published var notifTrackSonnet: Bool {
+        didSet { UserDefaults.standard.set(notifTrackSonnet, forKey: "notifTrackSonnet") }
+    }
+    @Published var notifTrackDesign: Bool {
+        didSet { UserDefaults.standard.set(notifTrackDesign, forKey: "notifTrackDesign") }
+    }
+    /// When false, only escalations (orange / red) fire. Recovery to green stays silent.
+    @Published var notifSendRecovery: Bool {
+        didSet { UserDefaults.standard.set(notifSendRecovery, forKey: "notifSendRecovery") }
+    }
+    /// Pacing zone transitions
+    @Published var notifPacingHot: Bool {
+        didSet { UserDefaults.standard.set(notifPacingHot, forKey: "notifPacingHot") }
+    }
+    @Published var notifPacingWarning: Bool {
+        didSet { UserDefaults.standard.set(notifPacingWarning, forKey: "notifPacingWarning") }
+    }
+    /// Scheduled reminders (15min before 5h reset, 1h before weekly reset)
+    @Published var notifResetReminderSession: Bool {
+        didSet { UserDefaults.standard.set(notifResetReminderSession, forKey: "notifResetReminderSession") }
+    }
+    @Published var notifResetReminderWeekly: Bool {
+        didSet { UserDefaults.standard.set(notifResetReminderWeekly, forKey: "notifResetReminderWeekly") }
+    }
+    /// Paid extra credits pool transitions
+    @Published var notifExtraCredits: Bool {
+        didSet { UserDefaults.standard.set(notifExtraCredits, forKey: "notifExtraCredits") }
+    }
+    /// Token expired / authentication issues
+    @Published var notifTokenExpired: Bool {
+        didSet { UserDefaults.standard.set(notifTokenExpired, forKey: "notifTokenExpired") }
+    }
+
     // Refresh interval (seconds) - minimum 180 (3min), default 300 (5min)
     @Published var refreshInterval: Int {
         didSet { UserDefaults.standard.set(refreshInterval, forKey: "refreshInterval") }
@@ -247,6 +289,22 @@ final class SettingsStore: ObservableObject {
             let val = UserDefaults.standard.integer(forKey: "refreshInterval")
             return val >= 180 ? val : 300
         }()
+
+        // Notification toggles
+        // First-launch defaults (no key in UserDefaults yet) follow the user-validated
+        // policy : 5h / 7d / Design ON, Sonnet OFF, recovery ON, hot ON, warning OFF,
+        // reset reminders OFF, extra credits ON, token expired OFF.
+        self.notifTrackFiveHour = Self.boolDefault(key: "notifTrackFiveHour", default: true)
+        self.notifTrackWeekly = Self.boolDefault(key: "notifTrackWeekly", default: true)
+        self.notifTrackSonnet = Self.boolDefault(key: "notifTrackSonnet", default: false)
+        self.notifTrackDesign = Self.boolDefault(key: "notifTrackDesign", default: true)
+        self.notifSendRecovery = Self.boolDefault(key: "notifSendRecovery", default: true)
+        self.notifPacingHot = Self.boolDefault(key: "notifPacingHot", default: true)
+        self.notifPacingWarning = Self.boolDefault(key: "notifPacingWarning", default: false)
+        self.notifResetReminderSession = Self.boolDefault(key: "notifResetReminderSession", default: false)
+        self.notifResetReminderWeekly = Self.boolDefault(key: "notifResetReminderWeekly", default: false)
+        self.notifExtraCredits = Self.boolDefault(key: "notifExtraCredits", default: true)
+        self.notifTokenExpired = Self.boolDefault(key: "notifTokenExpired", default: false)
         self.resetDisplayFormat = ResetDisplayFormat(
             rawValue: UserDefaults.standard.string(forKey: "resetDisplayFormat") ?? "relative"
         ) ?? .relative
@@ -330,6 +388,17 @@ final class SettingsStore: ObservableObject {
     private func savePopoverConfig() {
         guard let data = try? JSONEncoder().encode(popoverConfig) else { return }
         UserDefaults.standard.set(data, forKey: "popoverConfig")
+    }
+
+    /// Reads a Bool from UserDefaults but distinguishes "absent" from "false".
+    /// `UserDefaults.bool(forKey:)` returns false for missing keys, which would
+    /// silently override our intended default. Using `object(forKey:)` lets us
+    /// fall back only when the key has never been written.
+    private static func boolDefault(key: String, default fallback: Bool) -> Bool {
+        if let stored = UserDefaults.standard.object(forKey: key) as? Bool {
+            return stored
+        }
+        return fallback
     }
 
     /// Ensures a decoded config still satisfies the validation rules (at least
