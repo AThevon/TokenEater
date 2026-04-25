@@ -669,13 +669,13 @@ struct DashboardView: View {
                 .frame(height: 6)
 
                 HStack {
-                    Text(formatCredits(used, currency: currency))
+                    Text(CurrencyFormatter.formatMinorUnits(used, currencyCode: currency))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.white.opacity(0.7))
                     Text(String(localized: "dashboard.extra.separator"))
                         .font(.system(size: 11))
                         .foregroundStyle(.white.opacity(0.35))
-                    Text(formatCredits(limit, currency: currency))
+                    Text(CurrencyFormatter.formatMinorUnits(limit, currencyCode: currency))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.white.opacity(0.7))
                     Spacer()
@@ -693,14 +693,6 @@ struct DashboardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.ultraThinMaterial.opacity(0.15))
         .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-
-    private func formatCredits(_ value: Double, currency: String) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = currency
-        formatter.maximumFractionDigits = value.truncatingRemainder(dividingBy: 1) == 0 ? 0 : 2
-        return formatter.string(from: NSNumber(value: value)) ?? "\(currency) \(value)"
     }
 
     // MARK: - Theme Helpers
