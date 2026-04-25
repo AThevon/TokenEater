@@ -22,20 +22,22 @@ struct DashboardView: View {
                     .ignoresSafeArea()
             }
 
-            VStack(spacing: 14) {
-                dashboardHeader
-                heroCommandStrip
-                metricsGrid
-                pacingSignals
-                if let extra = usageStore.extraUsage, extra.isEnabled {
-                    extraUsageCard(extra)
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 14) {
+                    dashboardHeader
+                    heroCommandStrip
+                    metricsGrid
+                    pacingSignals
+                    if let extra = usageStore.extraUsage, extra.isEnabled {
+                        extraUsageCard(extra)
+                    }
+                    footerStatus
                 }
-                footerStatus
-                Spacer(minLength: 0)
+                .padding(.horizontal, 24)
+                .padding(.top, 20)
+                .padding(.bottom, 20)
+                .frame(maxWidth: .infinity)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 20)
-            .padding(.bottom, 20)
         }
         .onAppear { isVisible = true }
         .onDisappear { isVisible = false }

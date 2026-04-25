@@ -28,8 +28,8 @@ struct MainAppView: View {
             Group {
                 switch selectedSection {
                 case .dashboard:
-                    // Dashboard expects to fill the viewport (uses maxHeight: .infinity
-                    // internally). Wrapping it in a ScrollView collapses that layout.
+                    // DashboardView owns its own ScrollView (background gradient
+                    // stays fixed, foreground content scrolls when it overflows).
                     DashboardView()
                 case .display:
                     scrollingSection { DisplaySectionView(initialMetrics: settingsStore.pinnedMetrics) }
