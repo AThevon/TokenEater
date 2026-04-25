@@ -33,6 +33,7 @@ struct UsageStoreTests {
 
     private func fixtureToggles() -> NotificationToggles {
         NotificationToggles(
+            masterEnabled: true,
             trackFiveHour: true, trackWeekly: true, trackSonnet: true, trackDesign: true,
             sendRecovery: true, pacingHot: true, pacingWarning: false,
             resetReminderSession: false, resetReminderWeekly: false,

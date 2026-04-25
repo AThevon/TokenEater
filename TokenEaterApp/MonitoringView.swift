@@ -130,7 +130,11 @@ struct MonitoringView: View {
         let gaugeColor = gaugeColor(pct: pct, resetDate: resetDate, windowDuration: 5 * 3600)
         let gaugeGradient = gaugeGradient(pct: pct, resetDate: resetDate, windowDuration: 5 * 3600)
         let zone = usageStore.fiveHourPacing?.zone
-        let accent = DS.Palette.accentStats
+        // The card's ambient tint follows the gauge color so the wash, the
+        // big number, and the ring all read as a single signal. Using the
+        // module accent here used to produce a green-orange-blue mix when
+        // the user was in warning territory.
+        let accent = gaugeColor
 
         return HStack(alignment: .center, spacing: DS.Spacing.lg) {
             // Left -> labels + meta
@@ -255,6 +259,7 @@ struct MonitoringView: View {
                     resetDate: tile.resetDate,
                     windowDuration: tile.windowDuration,
                     smartEnabled: settingsStore.smartColorEnabled,
+                    pacingMargin: Double(settingsStore.pacingMargin),
                     isHovered: hoveredTileID == tile.id,
                     themeStore: themeStore
                 ) { hovering in
@@ -543,7 +548,8 @@ struct MonitoringView: View {
                 utilization: Double(pct),
                 resetDate: resetDate,
                 windowDuration: windowDuration,
-                thresholds: themeStore.thresholds
+                thresholds: themeStore.thresholds,
+                pacingMargin: Double(settingsStore.pacingMargin)
             )
         }
         return themeStore.current.gaugeColor(for: Double(pct), thresholds: themeStore.thresholds)
@@ -556,6 +562,7 @@ struct MonitoringView: View {
                 resetDate: resetDate,
                 windowDuration: windowDuration,
                 thresholds: themeStore.thresholds,
+                pacingMargin: Double(settingsStore.pacingMargin),
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -615,6 +622,7 @@ private struct MetricTile: View {
     let resetDate: Date?
     let windowDuration: TimeInterval
     let smartEnabled: Bool
+    let pacingMargin: Double
     let isHovered: Bool
     let themeStore: ThemeStore
     let onHoverChange: (Bool) -> Void
@@ -625,7 +633,8 @@ private struct MetricTile: View {
                 utilization: Double(pct),
                 resetDate: resetDate,
                 windowDuration: windowDuration,
-                thresholds: themeStore.thresholds
+                thresholds: themeStore.thresholds,
+                pacingMargin: pacingMargin
             )
             : themeStore.current.gaugeColor(for: Double(pct), thresholds: themeStore.thresholds)
         let clamped = CGFloat(min(max(pct, 0), 100)) / 100

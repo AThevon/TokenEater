@@ -49,13 +49,24 @@ struct TopPillsNav: View {
                 Image(systemName: space.iconName)
                     .font(.system(size: 12, weight: .medium))
                     .frame(width: 16)
+                // Render the label with a stable layout: we always reserve the
+                // "semibold" footprint by overlaying a hidden semibold ghost,
+                // and only swap the visible weight via opacity. Without this,
+                // toggling weight between regular and semibold would resize
+                // the text and shift the whole nav box.
                 Text(space.label)
-                    .font(.system(size: 12, weight: isActive ? .semibold : .regular))
+                    .font(.system(size: 12, weight: .medium))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .foregroundStyle(foreground(isActive: isActive, isHovered: isHovered))
-            .padding(.horizontal, DS.Spacing.sm)
+            .padding(.horizontal, DS.Spacing.md)
             .padding(.vertical, 7)
-            .frame(minWidth: 92)
+            // Intrinsic width per pill (no shared frame). The total nav width
+            // stays constant because all three pills keep their natural size
+            // regardless of which one is active -> matchedGeometryEffect glide
+            // runs between fixed positions, no shift.
+            .fixedSize(horizontal: true, vertical: false)
             .contentShape(RoundedRectangle(cornerRadius: DS.Radius.input, style: .continuous))
             .background(
                 ZStack {
@@ -71,7 +82,9 @@ struct TopPillsNav: View {
                     }
                 }
             )
-            .scaleEffect(isHovered && !isActive ? 1.04 : 1.0)
+            // Hover lift only on inactive pills; active stays neutral so the
+            // moving highlight isn't fighting another transform.
+            .scaleEffect(isHovered && !isActive ? 1.02 : 1.0)
         }
         .buttonStyle(.plain)
         .onHover { hovering in

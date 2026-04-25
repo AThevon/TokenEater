@@ -130,6 +130,7 @@ final class StatusBarController: NSObject {
         usageStore.notifTogglesProvider = { [weak self] in
             guard let self else { return nil }
             return NotificationToggles(
+                masterEnabled: self.settingsStore.notificationsEnabled,
                 trackFiveHour: self.settingsStore.notifTrackFiveHour,
                 trackWeekly: self.settingsStore.notifTrackWeekly,
                 trackSonnet: self.settingsStore.notifTrackSonnet,

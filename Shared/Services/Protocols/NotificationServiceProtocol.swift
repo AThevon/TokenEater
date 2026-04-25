@@ -24,6 +24,10 @@ struct MetricSnapshot {
 /// `SettingsStore` and re-built on every refresh so toggle changes are
 /// reflected without restarting.
 struct NotificationToggles {
+    /// Master gate. When false, every per-event toggle is ignored and no
+    /// notification fires. Lets the user silence everything without losing
+    /// their per-event configuration.
+    let masterEnabled: Bool
     let trackFiveHour: Bool
     let trackWeekly: Bool
     let trackSonnet: Bool

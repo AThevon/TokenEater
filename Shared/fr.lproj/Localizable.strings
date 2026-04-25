@@ -56,6 +56,16 @@
 "settings.clickbehavior.popover" = "Aperçu rapide";
 "settings.clickbehavior.dashboard" = "Dashboard";
 "settings.menubar.toggle" = "Afficher dans la barre de menu";
+"settings.menubar.preview" = "Aperçu en direct";
+"settings.group.chrome" = "Chrome";
+"settings.group.chrome.hint" = "Style et forme de la barre.";
+"settings.group.pin" = "À épingler";
+"settings.group.pin.hint" = "Clique sur une puce pour épingler une métrique. Les puces actives ouvrent leurs options en place.";
+"settings.group.colors" = "Couleurs";
+"settings.group.colors.hint" = "Couleur du texte. Smart Color (dans Themes) reprend la main sur le countdown quand il est activé.";
+"settings.metric.format" = "Format";
+"settings.theme.color.custom" = "Personnalisé";
+"settings.theme.color.mono" = "Monochrome";
 "settings.menubar.title" = "Barre de menu";
 "settings.tab.connection" = "Connexion";
 "settings.tab.display" = "Affichage";
@@ -166,7 +176,7 @@
 /* Marge pacing */
 "settings.pacing.margin" = "Sensibilité du pacing";
 "settings.pacing.margin.value" = "Marge";
-"settings.pacing.margin.hint" = "Bande de tolérance autour du rythme idéal. On track reste dans \u{00B1}marge, warning quand tu dépasses, hot au-delà de 2x la marge.";
+"settings.pacing.margin.hint" = "Bande de tolérance autour du rythme idéal. On track reste dans ±marge, warning quand tu dépasses, hot au-delà de 2x la marge.";
 
 /* Notifications - test + token + pacing + rappels reset */
 "notif.title.test" = "C'est branché";
@@ -253,6 +263,7 @@
 "settings.notifications.test" = "Tester";
 
 /* Notifications - groupes paramètres + libellés par event */
+"settings.notifications.master" = "Notifs activées";
 "settings.notifications.group.usage" = "Seuils d'utilisation";
 "settings.notifications.group.usage.hint" = "Se déclenche quand une métrique passe en attention ou critique.";
 "settings.notifications.track.fivehour" = "Suivre la session 5h";
@@ -294,6 +305,7 @@
 "settings.theme.widget.bg" = "Fond du widget";
 "settings.theme.widget.text" = "Texte du widget";
 "settings.theme.thresholds" = "Seuils d'utilisation";
+"settings.theme.thresholds.hint" = "Utilisés dans les deux modes. Smart Color les combine avec la zone de pacing (max des deux), donc une forte utilisation alerte toujours même si le pacing est on track.";
 "settings.theme.warning" = "Attention";
 "settings.theme.critical" = "Critique";
 "settings.theme.menubar" = "Barre de menus";
@@ -306,6 +318,16 @@
 "settings.theme.reset.confirm" = "Réinitialiser tous les réglages d'apparence ?";
 "settings.theme.reset.cancel" = "Annuler";
 "settings.theme.reset.action" = "Réinitialiser";
+
+/* Reset partagé (par section) */
+"settings.section.reset" = "Réinitialiser";
+"settings.section.reset.cancel" = "Annuler";
+"settings.section.reset.action" = "Réinitialiser";
+"settings.display.reset.confirm" = "Réinitialiser tous les réglages d'affichage ?";
+"settings.popover.reset.confirm" = "Réinitialiser tous les réglages du popover ?";
+"settings.watchers.reset.confirm" = "Réinitialiser tous les réglages des watchers ?";
+"settings.notifications.reset.confirm" = "Réinitialiser toutes les notifs ?";
+"settings.performance.reset.confirm" = "Réinitialiser tous les réglages de performance ?";
 "theme.default" = "Par défaut";
 "theme.monochrome" = "Monochrome";
 "theme.neon" = "Néon";
@@ -450,6 +472,15 @@
 "settings.watchers.trigger.wide" = "Large";
 "settings.watchers.trigger.hint" = "Distance du bord où la souris doit arriver pour ouvrir l'overlay. Minimal garde le reste de l'écran pleinement cliquable ; une fois l'overlay ouvert la zone de survol s'élargit pour que la souris puisse respirer sans refermer l'overlay.";
 "settings.watchers.legend" = "Légende des statuts";
+"settings.watchers.legend.hint" = "Signal coloré sur chaque tuile de session.";
+"settings.watchers.legend.simple" = "Simple";
+"settings.watchers.legend.detailed" = "Détaillé";
+"settings.watchers.behavior.hint" = "Comment l'overlay apparaît et où il vit à l'écran.";
+"settings.watchers.style.hint" = "Traitement visuel de chaque tuile de session.";
+"settings.watchers.terminalSetup" = "Setup terminal";
+"settings.watchers.terminalSetup.hint" = "Helpers pour tmux, WezTerm et Kitty au même endroit.";
+"settings.watchers.terminalSetup.sheet.hint" = "Colle le snippet correspondant dans ta config terminal pour que TokenEater détecte les sessions correctement.";
+"settings.watchers.animations" = "Animations";
 "settings.watchers.idle" = "Idle - en attente d'une action";
 "settings.watchers.thinking" = "Thinking - génère une réponse";
 "settings.watchers.executing" = "Executing - exécute un outil";
@@ -509,6 +540,35 @@
 "sidebar.general" = "Général";
 "history.placeholder.title" = "Historique bientôt disponible";
 "history.placeholder.subtitle" = "L'historique de tes sessions Claude Code s'affichera ici -> répartition des tokens par modèle, graphiques journaliers et patterns d'usage extraits de tes fichiers JSONL locaux.";
+
+/* History view */
+"history.title" = "TokenEater";
+"history.sessionsCount" = "%d sessions";
+"history.range.24h" = "24h";
+"history.range.7d" = "7j";
+"history.range.30d" = "30j";
+"history.range.90d" = "90j";
+"history.filter.all" = "Tous";
+"history.hero.label" = "TOKENS ACTIFS";
+"history.hero.deltaSuffix" = "vs période précédente";
+"history.hero.active" = "actifs";
+"history.hero.cached" = "en cache";
+"history.hero.cacheHit" = "cache hit";
+"history.empty.dash" = "—";
+"history.empty.title" = "Aucune session pour l'instant";
+"history.empty.subtitle" = "Lance Claude Code pour remplir ton historique. Chaque session écrit un fichier JSONL dans ~/.claude/projects/ que TokenEater agrège ici.";
+"history.empty.filter.all" = "Rien sur les %@ derniers";
+"history.empty.filter.model" = "Pas d'usage %@ sur les %@ derniers";
+"history.chip.cacheHit" = "Cache hit";
+"history.chip.cacheHit.sub" = "%@ depuis le cache";
+"history.chip.heaviest" = "Le plus chargé";
+"history.chip.heaviest.sub" = "%@ tokens";
+"history.chip.topProject" = "Top projet";
+"history.chip.topProject.sub" = "%@ tokens";
+"history.chip.topModel" = "Top model";
+"history.chip.topModel.sub" = "%d%% du total";
+"history.chip.avgPerSession" = "Moy / session";
+"history.chip.avgPerSession.sub" = "%d sessions";
 "sidebar.display" = "Barre de menus";
 "sidebar.themes" = "Thèmes";
 "sidebar.popover" = "Popover";

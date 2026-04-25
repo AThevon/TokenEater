@@ -87,3 +87,37 @@ func darkPrimaryButton(_ titleKey: LocalizedStringResource, action: @escaping ()
     }
     .buttonStyle(.plain)
 }
+
+// MARK: - Reset Section Button
+
+/// Bottom-of-section reset control with a destructive confirmation alert.
+/// Shared across settings sub-sections so the visual + interaction is
+/// identical everywhere (Themes, Display, Popover, Watchers, Notifications,
+/// Performance). Caller passes the localised confirmation title and the
+/// closure that performs the actual reset.
+struct ResetSectionButton: View {
+    let confirmTitle: String
+    let onReset: () -> Void
+
+    @State private var showAlert = false
+
+    var body: some View {
+        HStack {
+            Spacer()
+            Button(role: .destructive) {
+                showAlert = true
+            } label: {
+                Text(String(localized: "settings.section.reset"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.red.opacity(0.7))
+            }
+            .buttonStyle(.plain)
+            .alert(confirmTitle, isPresented: $showAlert) {
+                Button(String(localized: "settings.section.reset.cancel"), role: .cancel) { }
+                Button(String(localized: "settings.section.reset.action"), role: .destructive) {
+                    onReset()
+                }
+            }
+        }
+    }
+}

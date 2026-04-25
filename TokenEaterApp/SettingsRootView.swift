@@ -52,8 +52,6 @@ struct SettingsRootView: View {
             scrolling { AgentWatchersSectionView() }
         case .notifications:
             scrolling { NotificationsSectionView() }
-        case .performance:
-            scrolling { PerformanceSectionView() }
         }
     }
 

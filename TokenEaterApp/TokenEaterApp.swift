@@ -40,7 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             updateStore: updateStore,
             sessionStore: sessionStore
         )
-        if settingsStore.sessionMonitorEnabled {
+        if settingsStore.overlayEnabled {
             sessionStore.startMonitoring()
         }
         overlayWindowController = OverlayWindowController(
@@ -51,7 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateStore.checkBrewMigration()
         updateStore.checkForUpdates()
 
-        monitorCancellable = settingsStore.$sessionMonitorEnabled
+        monitorCancellable = settingsStore.$overlayEnabled
             .dropFirst()
             .sink { [weak self] enabled in
                 guard let self else { return }

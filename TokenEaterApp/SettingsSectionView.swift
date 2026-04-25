@@ -67,6 +67,46 @@ struct SettingsSectionView: View {
                 }
             }
 
+            // Update (placed right under Connection so the user spots a
+            // pending version straight away).
+            glassCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("TokenEater v\(updateStore.currentVersion)")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.5))
+                        Spacer()
+                        if case .checking = updateStore.updateState {
+                            ProgressView()
+                                .scaleEffect(0.5)
+                                .frame(width: 16, height: 16)
+                        } else if case .upToDate = updateStore.updateState {
+                            Label(String(localized: "update.uptodate"), systemImage: "checkmark.circle.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.green)
+                        } else if let version = updateStore.updateState.availableVersion {
+                            Button(String(localized: "update.available.badge \(version)")) {
+                                updateStore.downloadUpdate()
+                            }
+                            .font(.system(size: 11, weight: .medium))
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.orange)
+                        } else {
+                            Button(String(localized: "update.check")) {
+                                updateStore.checkForUpdates()
+                            }
+                            .font(.system(size: 11))
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.blue)
+                        }
+                    }
+
+                    if updateStore.brewMigrationState == .detected {
+                        brewMigrationBanner
+                    }
+                }
+            }
+
             // General (Launch at login + replay onboarding)
             glassCard {
                 VStack(alignment: .leading, spacing: 12) {
@@ -175,45 +215,6 @@ struct SettingsSectionView: View {
                                 .font(.system(size: 9))
                         }
                         .foregroundStyle(.orange.opacity(0.8))
-                    }
-                }
-            }
-
-            // About
-            glassCard {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text("TokenEater v\(updateStore.currentVersion)")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.5))
-                        Spacer()
-                        if case .checking = updateStore.updateState {
-                            ProgressView()
-                                .scaleEffect(0.5)
-                                .frame(width: 16, height: 16)
-                        } else if case .upToDate = updateStore.updateState {
-                            Label(String(localized: "update.uptodate"), systemImage: "checkmark.circle.fill")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.green)
-                        } else if let version = updateStore.updateState.availableVersion {
-                            Button(String(localized: "update.available.badge \(version)")) {
-                                updateStore.downloadUpdate()
-                            }
-                            .font(.system(size: 11, weight: .medium))
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.orange)
-                        } else {
-                            Button(String(localized: "update.check")) {
-                                updateStore.checkForUpdates()
-                            }
-                            .font(.system(size: 11))
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.blue)
-                        }
-                    }
-
-                    if updateStore.brewMigrationState == .detected {
-                        brewMigrationBanner
                     }
                 }
             }

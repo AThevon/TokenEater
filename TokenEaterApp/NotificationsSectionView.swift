@@ -11,10 +11,22 @@ struct NotificationsSectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            sectionTitle(
-                String(localized: "sidebar.notifications"),
-                subtitle: String(localized: "sidebar.notifications.subtitle")
-            )
+            HStack(alignment: .center) {
+                sectionTitle(
+                    String(localized: "sidebar.notifications"),
+                    subtitle: String(localized: "sidebar.notifications.subtitle")
+                )
+                Spacer()
+                ClickChip(
+                    label: String(localized: "settings.notifications.master"),
+                    icon: settingsStore.notificationsEnabled ? "checkmark" : "bell.slash",
+                    isActive: settingsStore.notificationsEnabled,
+                    accent: .blue,
+                    style: .compact
+                ) {
+                    settingsStore.notificationsEnabled.toggle()
+                }
+            }
 
             authorizationCard
             usageCard
@@ -22,9 +34,29 @@ struct NotificationsSectionView: View {
             resetRemindersCard
             extraCreditsCard
             healthCard
+
+            ResetSectionButton(
+                confirmTitle: String(localized: "settings.notifications.reset.confirm"),
+                onReset: resetToDefaults
+            )
         }
         .padding(24)
         .task { await settingsStore.refreshNotificationStatus() }
+    }
+
+    private func resetToDefaults() {
+        settingsStore.notificationsEnabled = true
+        settingsStore.notifTrackFiveHour = true
+        settingsStore.notifTrackWeekly = true
+        settingsStore.notifTrackSonnet = false
+        settingsStore.notifTrackDesign = true
+        settingsStore.notifSendRecovery = true
+        settingsStore.notifPacingHot = true
+        settingsStore.notifPacingWarning = false
+        settingsStore.notifResetReminderSession = false
+        settingsStore.notifResetReminderWeekly = false
+        settingsStore.notifExtraCredits = true
+        settingsStore.notifTokenExpired = false
     }
 
     // MARK: - Authorization

@@ -116,18 +116,19 @@ final class SettingsStore: ObservableObject {
     @Published var watcherAnimationsEnabled: Bool {
         didSet { UserDefaults.standard.set(watcherAnimationsEnabled, forKey: "watcherAnimationsEnabled") }
     }
-    @Published var sessionMonitorEnabled: Bool {
-        didSet { UserDefaults.standard.set(sessionMonitorEnabled, forKey: "sessionMonitorEnabled") }
-    }
 
     // Pacing
     @Published var pacingMargin: Int {
         didSet { UserDefaults.standard.set(pacingMargin, forKey: "pacingMargin") }
     }
 
-    // Notifications - per-event toggles
-    // Threshold escalations + recovery, one toggle per surface so the user can
-    // mute Sonnet without losing the 5h alerts.
+    // Notifications - master switch and per-event toggles.
+    // When `notificationsEnabled` is false, NotificationService.evaluate
+    // bails out before touching the per-event toggles. The user keeps their
+    // granular config while silencing the whole pipeline.
+    @Published var notificationsEnabled: Bool {
+        didSet { UserDefaults.standard.set(notificationsEnabled, forKey: "notificationsEnabled") }
+    }
     @Published var notifTrackFiveHour: Bool {
         didSet { UserDefaults.standard.set(notifTrackFiveHour, forKey: "notifTrackFiveHour") }
     }
@@ -266,7 +267,6 @@ final class SettingsStore: ObservableObject {
             rawValue: UserDefaults.standard.string(forKey: "watcherDisplayMode") ?? "branchPriority"
         ) ?? .branchPriority
         self.watcherAnimationsEnabled = UserDefaults.standard.object(forKey: "watcherAnimationsEnabled") as? Bool ?? true
-        self.sessionMonitorEnabled = UserDefaults.standard.object(forKey: "sessionMonitorEnabled") as? Bool ?? true
         // Reconcile the stored toggle with the actual SMAppService state - user
         // might have flipped it from System Settings without going through the
         // app, and we must not diverge from macOS's view of the world.
@@ -292,8 +292,9 @@ final class SettingsStore: ObservableObject {
 
         // Notification toggles
         // First-launch defaults (no key in UserDefaults yet) follow the user-validated
-        // policy : 5h / 7d / Design ON, Sonnet OFF, recovery ON, hot ON, warning OFF,
-        // reset reminders OFF, extra credits ON, token expired OFF.
+        // policy : master ON, 5h / 7d / Design ON, Sonnet OFF, recovery ON, hot ON,
+        // warning OFF, reset reminders OFF, extra credits ON, token expired OFF.
+        self.notificationsEnabled = Self.boolDefault(key: "notificationsEnabled", default: true)
         self.notifTrackFiveHour = Self.boolDefault(key: "notifTrackFiveHour", default: true)
         self.notifTrackWeekly = Self.boolDefault(key: "notifTrackWeekly", default: true)
         self.notifTrackSonnet = Self.boolDefault(key: "notifTrackSonnet", default: false)

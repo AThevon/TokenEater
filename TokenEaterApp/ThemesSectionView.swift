@@ -5,7 +5,6 @@ struct ThemesSectionView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var usageStore: UsageStore
 
-    @State private var showResetAlert = false
     @State private var showSmartColorPopover = false
     @State private var warningSlider: Double
     @State private var criticalSlider: Double
@@ -90,6 +89,12 @@ struct ThemesSectionView: View {
                     thresholdSlider(label: String(localized: "settings.theme.warning"), value: $warningSlider, range: 10...90)
                     thresholdSlider(label: String(localized: "settings.theme.critical"), value: $criticalSlider, range: 15...95)
 
+                    Text(String(localized: "settings.theme.thresholds.hint"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.4))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 4)
+
                     // Preview gauges
                     HStack(spacing: 24) {
                         Spacer()
@@ -116,28 +121,16 @@ struct ThemesSectionView: View {
             }
 
             // Reset
-            HStack {
-                Spacer()
-                Button(role: .destructive) {
-                    showResetAlert = true
-                } label: {
-                    Text(String(localized: "settings.theme.reset"))
-                        .font(.system(size: 12))
-                        .foregroundStyle(.red.opacity(0.7))
-                }
-                .buttonStyle(.plain)
-                .alert(String(localized: "settings.theme.reset.confirm"), isPresented: $showResetAlert) {
-                    Button(String(localized: "settings.theme.reset.cancel"), role: .cancel) { }
-                    Button(String(localized: "settings.theme.reset.action"), role: .destructive) {
-                        themeStore.resetToDefaults()
-                        // Reset is scoped to the Themes view, so it also clears the
-                        // menu-bar text colors displayed on this page.
-                        settingsStore.resetTextColorHex = ""
-                        settingsStore.sessionPeriodColorHex = ""
-                        settingsStore.smartColorEnabled = true
-                        themeStore.menuBarMonochrome = false
-                    }
-                }
+            ResetSectionButton(
+                confirmTitle: String(localized: "settings.theme.reset.confirm")
+            ) {
+                themeStore.resetToDefaults()
+                // Reset is scoped to the Themes view, so it also clears the
+                // menu-bar text colors displayed on this page.
+                settingsStore.resetTextColorHex = ""
+                settingsStore.sessionPeriodColorHex = ""
+                settingsStore.smartColorEnabled = true
+                themeStore.menuBarMonochrome = false
             }
 
             Spacer()
@@ -390,7 +383,7 @@ struct ThemesSectionView: View {
 
     private func pacingZoneChip(zone: PacingZone, range: String) -> some View {
         let color = themeStore.current.pacingColor(for: zone)
-        let label = String(localized: String.LocalizationValue("pacing.zone.\(zone.rawValue)"))
+        let label = NSLocalizedString("pacing.zone.\(zone.rawValue.lowercased())", comment: "")
         return VStack(alignment: .leading, spacing: 2) {
             Text(label)
                 .font(.system(size: 10, weight: .semibold))

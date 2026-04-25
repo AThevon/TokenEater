@@ -19,26 +19,34 @@ enum UsageLevel: Int, Comparable {
         return .green
     }
 
-    /// Mirrors `ThemeColors.smartGaugeColor` so notifications align with the
-    /// gauge color the user actually sees. When smart is OFF or no resetDate
-    /// is available, falls back to the threshold computation.
+    /// Mirrors `ThemeColors.smartLevel` so notifications align with the gauge
+    /// color the user actually sees. Couples threshold severity with pacing
+    /// severity, applies the reset-imminent override, and falls back to the
+    /// pure threshold path when no resetDate / windowDuration is available.
     static func from(
         smartUtilization utilization: Double,
         resetDate: Date?,
         windowDuration: TimeInterval,
         thresholds: UsageThresholds = .default,
+        pacingMargin: Double = 10,
         now: Date = Date()
     ) -> UsageLevel {
-        if utilization >= 100 { return .red }
-        guard let resetDate, windowDuration > 0 else {
-            return from(pct: Int(utilization), thresholds: thresholds)
+        // Reuse the same decision tree as the gauge so the user-visible
+        // signals stay in sync. We use the default theme since the threshold
+        // logic only depends on `thresholds`, not on the colour palette.
+        let level = ThemeColors.default.smartLevel(
+            utilization: utilization,
+            resetDate: resetDate,
+            windowDuration: windowDuration,
+            thresholds: thresholds,
+            pacingMargin: pacingMargin,
+            now: now
+        )
+        switch level {
+        case .critical: return .red
+        case .warning:  return .orange
+        case .normal:   return .green
         }
-        let remaining = max(resetDate.timeIntervalSince(now), 0)
-        let remainingFraction = max(0, min(1, remaining / windowDuration))
-        let risk = utilization * remainingFraction
-        if risk > 30 { return .red }
-        if risk > 20 { return .orange }
-        return .green
     }
 }
 
@@ -107,6 +115,16 @@ final class NotificationService: NotificationServiceProtocol {
         extraUsage: ExtraUsage?,
         toggles: NotificationToggles
     ) {
+        // Master switch. When the user flipped notifications off in Settings,
+        // we skip every per-event check (and also drop any pending scheduled
+        // reminders so a switch-back doesn't fire stale ones).
+        guard toggles.masterEnabled else {
+            center.removePendingNotificationRequests(withIdentifiers: [
+                "reminder_session", "reminder_weekly",
+            ])
+            return
+        }
+
         // Threshold / smart-aware notifications, one surface at a time.
         if toggles.trackFiveHour {
             checkSurface(.fiveHour, snapshot: fiveHour, pacing: sessionPacing, toggles: toggles)
@@ -179,7 +197,7 @@ final class NotificationService: NotificationServiceProtocol {
     private func notifyRecovery(surface: Surface, snapshot: MetricSnapshot) {
         let content = UNMutableNotificationContent()
         content.sound = .default
-        content.title = String(localized: String.LocalizationValue("notif.title.\(surface.bodyFamily).green"))
+        content.title = NSLocalizedString("notif.title.\(surface.bodyFamily).green", comment: "")
         content.body = recoveryBody(surface: surface, resetsAt: snapshot.resetsAt)
         send(id: "recovery_\(surface.rawValue)", content: content)
     }
@@ -211,8 +229,8 @@ final class NotificationService: NotificationServiceProtocol {
     private func firePacing(zone: PacingZone) {
         let content = UNMutableNotificationContent()
         content.sound = .default
-        content.title = String(localized: String.LocalizationValue("notif.title.pacing.\(zone.rawValue)"))
-        content.body = String(localized: String.LocalizationValue("notif.body.pacing.\(zone.rawValue)"))
+        content.title = NSLocalizedString("notif.title.pacing.\(zone.rawValue)", comment: "")
+        content.body = NSLocalizedString("notif.body.pacing.\(zone.rawValue)", comment: "")
         send(id: "pacing_\(zone.rawValue)", content: content)
     }
 
@@ -231,8 +249,9 @@ final class NotificationService: NotificationServiceProtocol {
         case .orange, .red:
             let content = UNMutableNotificationContent()
             content.sound = .default
-            content.title = String(localized: String.LocalizationValue("notif.title.extra.\(level == .red ? "red" : "orange")"))
-            content.body = String(format: String(localized: "notif.body.extra.\(level == .red ? "red" : "orange")"), pct)
+            let extraKey = level == .red ? "red" : "orange"
+            content.title = NSLocalizedString("notif.title.extra.\(extraKey)", comment: "")
+            content.body = String(format: NSLocalizedString("notif.body.extra.\(extraKey)", comment: ""), pct)
             send(id: "escalation_extra", content: content)
         case .green where previous > .green && toggles.sendRecovery:
             let content = UNMutableNotificationContent()
@@ -299,8 +318,8 @@ final class NotificationService: NotificationServiceProtocol {
 
     private func schedule(id: String, titleKey: String, bodyKey: String, fireDate: Date) {
         let content = UNMutableNotificationContent()
-        content.title = String(localized: String.LocalizationValue(titleKey))
-        content.body = String(localized: String.LocalizationValue(bodyKey))
+        content.title = NSLocalizedString(titleKey, comment: "")
+        content.body = NSLocalizedString(bodyKey, comment: "")
         content.sound = .default
 
         let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: fireDate)
@@ -312,12 +331,17 @@ final class NotificationService: NotificationServiceProtocol {
     // MARK: - Title / body lookups
 
     private func title(for surface: Surface, level: UsageLevel, pacing: PacingZone?) -> String {
-        // 5h orange has 4 pacing-aware variants. Everything else is one-per-level.
+        // Runtime-composed keys must go through `NSLocalizedString` to actually
+        // hit the .strings file. `String(localized: String.LocalizationValue(_))`
+        // takes a runtime String as a default value rather than as a key, so it
+        // happily returns the literal "notif.title.fivehour.green" if used here.
+        // PacingZone.onTrack has rawValue "onTrack" (camelCase) but the strings
+        // use lowercase to keep keys stylistically aligned, so we normalise.
         if surface == .fiveHour, level == .orange, let pacing {
-            return String(localized: String.LocalizationValue("notif.title.fivehour.orange.\(pacing.rawValue)"))
+            return NSLocalizedString("notif.title.fivehour.orange.\(pacing.rawValue.lowercased())", comment: "")
         }
         let levelKey = level == .red ? "red" : (level == .orange ? "orange" : "green")
-        return String(localized: String.LocalizationValue("notif.title.\(surface.bodyFamily).\(levelKey)"))
+        return NSLocalizedString("notif.title.\(surface.bodyFamily).\(levelKey)", comment: "")
     }
 
     private func body(for surface: Surface, level: UsageLevel, snapshot: MetricSnapshot, pacing: PacingZone?) -> String {
@@ -326,40 +350,40 @@ final class NotificationService: NotificationServiceProtocol {
         case .fiveHour:
             if let resetsAt, resetsAt.timeIntervalSinceNow > 0 {
                 let countdown = NotificationBodyFormatter.formatCountdown(from: Date(), to: resetsAt)
-                let pacingKey = (level == .orange) ? (pacing?.rawValue ?? "ontrack") : "red"
+                let pacingKey = (level == .orange) ? (pacing?.rawValue.lowercased() ?? "ontrack") : "red"
                 let key = level == .red
                     ? "notif.body.fivehour.red"
                     : "notif.body.fivehour.orange.\(pacingKey)"
-                return String(format: String(localized: String.LocalizationValue(key)), countdown)
+                return String(format: NSLocalizedString(key, comment: ""), countdown)
             }
             return level == .red
-                ? String(localized: "notif.body.fivehour.red.fallback")
-                : String(localized: "notif.body.fivehour.orange.fallback")
+                ? NSLocalizedString("notif.body.fivehour.red.fallback", comment: "")
+                : NSLocalizedString("notif.body.fivehour.orange.fallback", comment: "")
         case .weekly, .sonnet, .design:
             if let resetsAt, resetsAt.timeIntervalSinceNow > 0 {
                 let dateTime = NotificationBodyFormatter.formatDateTime(resetsAt)
                 let key = level == .red
                     ? "notif.body.\(surface.bodyFamily).red"
                     : "notif.body.\(surface.bodyFamily).orange"
-                return String(format: String(localized: String.LocalizationValue(key)), dateTime)
+                return String(format: NSLocalizedString(key, comment: ""), dateTime)
             }
             return level == .red
-                ? String(localized: String.LocalizationValue("notif.body.\(surface.bodyFamily).red.fallback"))
-                : String(localized: String.LocalizationValue("notif.body.\(surface.bodyFamily).orange.fallback"))
+                ? NSLocalizedString("notif.body.\(surface.bodyFamily).red.fallback", comment: "")
+                : NSLocalizedString("notif.body.\(surface.bodyFamily).orange.fallback", comment: "")
         }
     }
 
     private func recoveryBody(surface: Surface, resetsAt: Date?) -> String {
         guard let resetsAt, resetsAt.timeIntervalSinceNow > 0 else {
-            return String(localized: String.LocalizationValue("notif.body.\(surface.bodyFamily).green.fallback"))
+            return NSLocalizedString("notif.body.\(surface.bodyFamily).green.fallback", comment: "")
         }
         switch surface {
         case .fiveHour:
             let time = NotificationBodyFormatter.formatTime(resetsAt)
-            return String(format: String(localized: "notif.body.fivehour.green"), time)
+            return String(format: NSLocalizedString("notif.body.fivehour.green", comment: ""), time)
         case .weekly, .sonnet, .design:
             let dateTime = NotificationBodyFormatter.formatDateTime(resetsAt)
-            return String(format: String(localized: String.LocalizationValue("notif.body.\(surface.bodyFamily).green")), dateTime)
+            return String(format: NSLocalizedString("notif.body.\(surface.bodyFamily).green", comment: ""), dateTime)
         }
     }
 

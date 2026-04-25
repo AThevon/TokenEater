@@ -26,42 +26,45 @@ Default thresholds : `60` warning / `85` critical. Configurable in Settings -> T
 
 **Used when** : `smartColorEnabled = false`, or `resetDate` is missing.
 
-## 2. Smart gauge (risk-aware, time-normalized)
+## 2. Smart gauge (composite : threshold + pacing, with reset-imminent override)
 
-The default since v5.0. Integrates the time remaining before the next reset to compute a projected risk score.
+The default since v5.0. Couples the two independent severity signals (threshold band + pacing zone) and surfaces the worst of the two, while a short-cycle override pulls everything back to green when a reset is imminent.
 
-### Formula
+### Decision tree
 
-```swift
-remainingFraction = max(0, min(1, remaining / windowDuration))
-risk = utilization × remainingFraction
-
-risk > 30  -> critical (red)
-risk > 20  -> warning  (orange)
-else        -> normal   (green)
+```text
+1. utilization >= 100                          -> critical   (hard limit hit)
+2. remainingFraction < imminentThreshold       -> normal     (reset arriving, ignore band)
+   imminentThreshold = 0.10  on 5h windows     (last ~30 min)
+                     = 0.05  on 7d windows     (last ~8h)
+3. otherwise:
+   absolute = green (<warning%) | orange (>=warning%) | red (>=critical%)
+   pacing   = green (chill / onTrack)
+            | orange (delta in (margin, 2×margin])
+            | red    (delta > 2×margin)
+   smart    = max(absolute, pacing)
 ```
 
-Hard override : `utilization >= 100` always returns critical (the user has genuinely hit the cap, no projection should pretend otherwise).
-
-`windowDuration` is the total length of the rolling window the gauge tracks :
+`absolute` reuses the threshold-gauge logic (system 1). `pacing` is computed inline from the same inputs the pacing system uses (delta = utilization - elapsedFraction × 100, vs the user's `pacingMargin`). `windowDuration` is the rolling window length:
 - `5h` for the `fiveHour` bucket
 - `7d` for `sevenDay`, `sevenDaySonnet`, `sevenDayDesign`
 
-Normalising by `windowDuration` is the key fix introduced in v5.0. The pre-v5 formula multiplied by `remainingMinutes` in absolute, which made any 7d gauge with a meaningful percentage land critical regardless of how reasonable the consumption actually was (`13% × 9600min / 100 = 1248`).
+### Why this shape
 
-### Reading the threshold map
+The pre-v5.1 smart formula was `risk = utilization × remainingFraction` with breakpoints at 20 / 30. It tripped orange far too eagerly: at 33% util with 64% of the window remaining, risk = 21 -> orange while the user was calmly on track. The user-visible signal felt out of step with the pacing pill in the same view.
 
-Same `risk` cutoffs in both directions, but the utilization that triggers a band depends on where you are inside the window. Cheat sheet for the weekly bucket :
+Coupling threshold + pacing instead, with `max` as the combinator, keeps the safety net (high utilization or hot pacing always escalates) without the false positives in early-cycle low-util zones.
 
-| Time elapsed in week | Remaining / window | Util triggering orange | Util triggering red |
-|---|---|---|---|
-| Day 0 (Monday morning) | 0.95-1.0 | ~21% | ~32% |
-| Day 1 evening | 0.85 | ~24% | ~36% |
-| Day 3.5 (mid-week) | 0.50 | 40% | 60% |
-| Day 5 evening | 0.30 | 67% | 100% |
-| Day 6 (one day left) | 0.14 | 140% (impossible) | 100% (override) |
+### Cheat sheet for the 5h session
 
-The earlier in the cycle, the lower the percent that triggers a warning, because there is still plenty of time to drift further. Late in the cycle, even high percentages stay green because the reset arrives soon.
+| Util | Time in cycle | Pacing zone | Absolute | Smart |
+|---|---|---|---|---|
+| 33% | 1h49 in (36% elapsed) | onTrack | green (<60) | **green** |
+| 95% | 4h58 in (99% elapsed) | onTrack | red (>=85) | **green** (reset imminent) |
+| 100% | any | n/a | red | **red** (limit hit) |
+| 70% | 2h in (40% elapsed) | hot (delta +30) | orange | **red** |
+| 75% | 4h in (80% elapsed) | onTrack | orange | **orange** |
+| 30% | 30 min in (10% elapsed) | hot (delta +20) | green | **red** |
 
 ### When the formula is bypassed
 

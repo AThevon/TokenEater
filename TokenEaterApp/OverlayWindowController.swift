@@ -70,7 +70,7 @@ final class OverlayWindowController {
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] hasActive in
-                guard let self, self.settingsStore.overlayEnabled, self.settingsStore.sessionMonitorEnabled else { return }
+                guard let self, self.settingsStore.overlayEnabled else { return }
                 if hasActive {
                     self.showOverlay()
                 } else {
@@ -80,7 +80,7 @@ final class OverlayWindowController {
             .store(in: &cancellables)
 
         // Hide overlay when session monitor is disabled
-        settingsStore.$sessionMonitorEnabled
+        settingsStore.$overlayEnabled
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] enabled in

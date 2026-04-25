@@ -56,6 +56,16 @@
 "settings.clickbehavior.popover" = "Quick Glance";
 "settings.clickbehavior.dashboard" = "Dashboard";
 "settings.menubar.toggle" = "Show in menu bar";
+"settings.menubar.preview" = "Live preview";
+"settings.group.chrome" = "Chrome";
+"settings.group.chrome.hint" = "Style and shape of the bar.";
+"settings.group.pin" = "What to pin";
+"settings.group.pin.hint" = "Tap a chip to pin or unpin a metric. Active chips reveal their format options inline.";
+"settings.group.colors" = "Colors";
+"settings.group.colors.hint" = "Theme the menu bar text. Smart Color (in Themes) takes over the reset countdown when enabled.";
+"settings.metric.format" = "Format";
+"settings.theme.color.custom" = "Custom";
+"settings.theme.color.mono" = "Monochrome";
 "settings.menubar.title" = "Menu bar";
 "settings.tab.connection" = "Connection";
 "settings.tab.display" = "Display";
@@ -166,7 +176,7 @@
 /* Pacing Margin */
 "settings.pacing.margin" = "Pacing Sensitivity";
 "settings.pacing.margin.value" = "Margin";
-"settings.pacing.margin.hint" = "Tolerance band around the ideal pace. On track stays within \u{00B1}margin, warning fires once you drift further, hot kicks in beyond 2x the margin.";
+"settings.pacing.margin.hint" = "Tolerance band around the ideal pace. On track stays within ±margin, warning fires once you drift further, hot kicks in beyond 2x the margin.";
 
 /* Notifications - test + token + pacing + reset reminders */
 "notif.title.test" = "Hey, you're set";
@@ -253,6 +263,7 @@
 "settings.notifications.test" = "Test";
 
 /* Notifications - settings groups + per-event labels */
+"settings.notifications.master" = "Notifications enabled";
 "settings.notifications.group.usage" = "Usage thresholds";
 "settings.notifications.group.usage.hint" = "Fires when a tracked metric crosses its warning or critical level.";
 "settings.notifications.track.fivehour" = "Track 5h session";
@@ -294,6 +305,7 @@
 "settings.theme.widget.bg" = "Widget Background";
 "settings.theme.widget.text" = "Widget Text";
 "settings.theme.thresholds" = "Usage Thresholds";
+"settings.theme.thresholds.hint" = "Used in both modes. Smart Color combines these with the pacing zone (max of the two), so a high utilization always escalates even when pacing is on track.";
 "settings.theme.warning" = "Warning";
 "settings.theme.critical" = "Critical";
 "settings.theme.menubar" = "Menu Bar";
@@ -306,6 +318,16 @@
 "settings.theme.reset.confirm" = "Reset all theming settings?";
 "settings.theme.reset.cancel" = "Cancel";
 "settings.theme.reset.action" = "Reset";
+
+/* Shared reset (per-section) */
+"settings.section.reset" = "Reset to Defaults";
+"settings.section.reset.cancel" = "Cancel";
+"settings.section.reset.action" = "Reset";
+"settings.display.reset.confirm" = "Reset all display settings?";
+"settings.popover.reset.confirm" = "Reset all popover settings?";
+"settings.watchers.reset.confirm" = "Reset all watcher settings?";
+"settings.notifications.reset.confirm" = "Reset all notification toggles?";
+"settings.performance.reset.confirm" = "Reset all performance settings?";
 "theme.default" = "Default";
 "theme.monochrome" = "Monochrome";
 "theme.neon" = "Neon";
@@ -450,6 +472,15 @@
 "settings.watchers.trigger.wide" = "Wide";
 "settings.watchers.trigger.hint" = "How close to the screen edge the cursor must get to open the overlay. Minimal keeps the rest of the screen fully clickable; once the overlay pops open the grabable area grows so the cursor can drift without snapping shut.";
 "settings.watchers.legend" = "Status legend";
+"settings.watchers.legend.hint" = "Color cues that show on each session tile.";
+"settings.watchers.legend.simple" = "Simple";
+"settings.watchers.legend.detailed" = "Detailed";
+"settings.watchers.behavior.hint" = "How the overlay reveals itself and where it lives on screen.";
+"settings.watchers.style.hint" = "Visual treatment for each session tile.";
+"settings.watchers.terminalSetup" = "Terminal setup";
+"settings.watchers.terminalSetup.hint" = "Helpers for tmux, WezTerm and Kitty in one place.";
+"settings.watchers.terminalSetup.sheet.hint" = "Drop the matching snippet into your terminal config so TokenEater can pick up sessions correctly.";
+"settings.watchers.animations" = "Animations";
 "settings.watchers.idle" = "Idle - waiting for input";
 "settings.watchers.thinking" = "Thinking - generating a response";
 "settings.watchers.executing" = "Executing - running a tool";
@@ -509,6 +540,35 @@
 "sidebar.general" = "General";
 "history.placeholder.title" = "History coming soon";
 "history.placeholder.subtitle" = "Your Claude Code session history will live here -> per-model token breakdown, daily charts, and usage patterns across your local JSONL files.";
+
+/* History view */
+"history.title" = "TokenEater";
+"history.sessionsCount" = "%d sessions";
+"history.range.24h" = "24h";
+"history.range.7d" = "7d";
+"history.range.30d" = "30d";
+"history.range.90d" = "90d";
+"history.filter.all" = "All";
+"history.hero.label" = "ACTIVE TOKENS";
+"history.hero.deltaSuffix" = "vs previous period";
+"history.hero.active" = "active";
+"history.hero.cached" = "cached";
+"history.hero.cacheHit" = "cache hit";
+"history.empty.dash" = "—";
+"history.empty.title" = "No sessions yet";
+"history.empty.subtitle" = "Run Claude Code to populate your history. Each session writes a JSONL file under ~/.claude/projects/ which TokenEater aggregates here.";
+"history.empty.filter.all" = "Nothing logged in the last %@";
+"history.empty.filter.model" = "No %@ usage in the last %@";
+"history.chip.cacheHit" = "Cache hit";
+"history.chip.cacheHit.sub" = "%@ from cache";
+"history.chip.heaviest" = "Heaviest";
+"history.chip.heaviest.sub" = "%@ tokens";
+"history.chip.topProject" = "Top project";
+"history.chip.topProject.sub" = "%@ tokens";
+"history.chip.topModel" = "Top model";
+"history.chip.topModel.sub" = "%d%% of total";
+"history.chip.avgPerSession" = "Avg / session";
+"history.chip.avgPerSession.sub" = "%d sessions";
 "sidebar.display" = "Menu bar";
 "sidebar.themes" = "Themes";
 "sidebar.popover" = "Popover";
