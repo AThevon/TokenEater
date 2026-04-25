@@ -1,9 +1,9 @@
 import SwiftUI
 
 enum RefreshSpeed: TimeInterval {
-    case fast = 120      // After FSEvents token change — 2min
-    case normal = 300    // Steady state — configurable via settings (default 5min)
-    case slow = 1200     // After 429 — 2x normal or 20min minimum
+    case fast = 120      // After FSEvents token change - 2min
+    case normal = 300    // Steady state - configurable via settings (default 5min)
+    case slow = 1200     // After 429 - 2x normal or 20min minimum
 }
 
 @MainActor
@@ -171,7 +171,7 @@ final class UsageStore: ObservableObject {
                         )
                         return
                     } catch {
-                        // Retry also failed — fall through to set error
+                        // Retry also failed - fall through to set error
                     }
                 }
                 errorState = .tokenUnavailable
@@ -179,7 +179,7 @@ final class UsageStore: ObservableObject {
                 currentSpeed = .slow
                 // /api/oauth/usage returns retry-after: 0 when the token has hit its per-token
                 // request limit (not a transient throttle). A value of 0 or a missing header
-                // both signal the same "token exhausted" state — default to 6 hours so we stop
+                // both signal the same "token exhausted" state - default to 6 hours so we stop
                 // hammering the endpoint every 20 minutes.
                 let backoff: TimeInterval = retryAfter.flatMap { $0 > 0 ? $0 : nil } ?? (6 * 3600)
                 retryAfterDate = Date().addingTimeInterval(backoff)
@@ -242,7 +242,7 @@ final class UsageStore: ObservableObject {
     func startAutoRefresh(interval: TimeInterval = 600, thresholds: UsageThresholds = .default) {
         autoRefreshTask?.cancel()
         autoRefreshTask = Task { [weak self] in
-            // Wait first — reloadConfig already triggers an initial refresh
+            // Wait first - reloadConfig already triggers an initial refresh
             try? await Task.sleep(for: .seconds(interval))
             // Fetch profile once on first cycle (deferred from startup to save rate limit)
             if let self { await self.refreshProfile() }
@@ -301,7 +301,7 @@ final class UsageStore: ObservableObject {
             organizationName = profile.organization?.name
             lastProfileFetch = Date()
         } catch {
-            // Profile fetch failure is non-critical — don't update errorState
+            // Profile fetch failure is non-critical - don't update errorState
         }
     }
 

@@ -88,7 +88,7 @@ struct AgentWatchersStep: View {
                     .foregroundStyle(.white.opacity(0.85))
             }
 
-            // Terminal pills — each pill represents a terminal TokenEater can
+            // Terminal pills - each pill represents a terminal TokenEater can
             // click-teleport into without any user-side configuration.
             HStack(spacing: 6) {
                 terminalPill("iTerm2")

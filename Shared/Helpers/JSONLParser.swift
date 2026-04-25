@@ -49,7 +49,7 @@ enum JSONLParser {
             role = try container.decodeIfPresent(String.self, forKey: .role)
             model = try container.decodeIfPresent(String.self, forKey: .model)
             stop_reason = try container.decodeIfPresent(String.self, forKey: .stop_reason)
-            // content can be a string (user msgs) or an array (assistant) — graceful fallback
+            // content can be a string (user msgs) or an array (assistant) - graceful fallback
             content = try? container.decode([RawContentBlock].self, forKey: .content)
             usage = try? container.decode(RawUsage.self, forKey: .usage)
         }

@@ -17,8 +17,16 @@ final class SettingsStore: ObservableObject {
     /// When true, the reset countdown text is coloured based on a risk score
     /// (utilization x remaining minutes) rather than the static user-picked
     /// hex. Useful to signal urgency without constantly watching the number.
-    @Published var smartResetColor: Bool {
-        didSet { UserDefaults.standard.set(smartResetColor, forKey: "smartResetColor") }
+    /// Global "Smart Color" theming. When ON, color codes throughout the app
+    /// (gauges, reset countdowns) integrate the time-to-reset factor instead of
+    /// raw thresholds. Example: 95% utilization with 2 minutes left to reset
+    /// stays green rather than going red. Falls back to threshold-based coloring
+    /// when no reset date is available.
+    @Published var smartColorEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(smartColorEnabled, forKey: "smartColorEnabled")
+            sharedFileService.updateSmartColorEnabled(smartColorEnabled)
+        }
     }
     /// Typography / separator style for the pinned metrics in the menu bar.
     @Published var menuBarStyle: MenuBarStyle {
@@ -105,9 +113,6 @@ final class SettingsStore: ObservableObject {
     }
 
     // Performance
-    @Published var animatedGradientEnabled: Bool {
-        didSet { UserDefaults.standard.set(animatedGradientEnabled, forKey: "animatedGradientEnabled") }
-    }
     @Published var watcherAnimationsEnabled: Bool {
         didSet { UserDefaults.standard.set(watcherAnimationsEnabled, forKey: "watcherAnimationsEnabled") }
     }
@@ -120,7 +125,7 @@ final class SettingsStore: ObservableObject {
         didSet { UserDefaults.standard.set(pacingMargin, forKey: "pacingMargin") }
     }
 
-    // Refresh interval (seconds) — minimum 180 (3min), default 300 (5min)
+    // Refresh interval (seconds) - minimum 180 (3min), default 300 (5min)
     @Published var refreshInterval: Int {
         didSet { UserDefaults.standard.set(refreshInterval, forKey: "refreshInterval") }
     }
@@ -185,13 +190,16 @@ final class SettingsStore: ObservableObject {
 
     private let notificationService: NotificationServiceProtocol
     private let tokenProvider: TokenProviderProtocol
+    private let sharedFileService: SharedFileServiceProtocol
 
     init(
         notificationService: NotificationServiceProtocol = NotificationService(),
-        tokenProvider: TokenProviderProtocol = TokenProvider()
+        tokenProvider: TokenProviderProtocol = TokenProvider(),
+        sharedFileService: SharedFileServiceProtocol = SharedFileService()
     ) {
         self.notificationService = notificationService
         self.tokenProvider = tokenProvider
+        self.sharedFileService = sharedFileService
 
         self.showMenuBar = UserDefaults.standard.object(forKey: "showMenuBar") as? Bool ?? true
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
@@ -215,7 +223,6 @@ final class SettingsStore: ObservableObject {
         self.watcherDisplayMode = WatcherDisplayMode(
             rawValue: UserDefaults.standard.string(forKey: "watcherDisplayMode") ?? "branchPriority"
         ) ?? .branchPriority
-        self.animatedGradientEnabled = UserDefaults.standard.object(forKey: "animatedGradientEnabled") as? Bool ?? true
         self.watcherAnimationsEnabled = UserDefaults.standard.object(forKey: "watcherAnimationsEnabled") as? Bool ?? true
         self.sessionMonitorEnabled = UserDefaults.standard.object(forKey: "sessionMonitorEnabled") as? Bool ?? true
         // Reconcile the stored toggle with the actual SMAppService state - user
@@ -232,7 +239,9 @@ final class SettingsStore: ObservableObject {
         }
         self.pacingMargin = {
             let val = UserDefaults.standard.integer(forKey: "pacingMargin")
-            return val > 0 ? val : 10
+            let raw = val > 0 ? val : 10
+            let snapped = (Int((Double(raw) / 5.0).rounded()) * 5)
+            return min(30, max(5, snapped))
         }()
         self.refreshInterval = {
             let val = UserDefaults.standard.integer(forKey: "refreshInterval")
@@ -243,7 +252,18 @@ final class SettingsStore: ObservableObject {
         ) ?? .relative
         self.resetTextColorHex = UserDefaults.standard.string(forKey: "resetTextColorHex") ?? ""
         self.sessionPeriodColorHex = UserDefaults.standard.string(forKey: "sessionPeriodColorHex") ?? ""
-        self.smartResetColor = UserDefaults.standard.bool(forKey: "smartResetColor")
+        // Default ON. Migration: if the user had explicitly set the legacy
+        // "smartResetColor" key, respect that decision; otherwise opt them into
+        // smart coloring globally.
+        let initialSmartColor: Bool = {
+            if let v = UserDefaults.standard.object(forKey: "smartColorEnabled") as? Bool { return v }
+            if let legacy = UserDefaults.standard.object(forKey: "smartResetColor") as? Bool { return legacy }
+            return true
+        }()
+        self.smartColorEnabled = initialSmartColor
+        // Push the resolved value to the shared file so the (sandboxed) widget
+        // sees the same setting on first launch without waiting for a toggle.
+        sharedFileService.updateSmartColorEnabled(initialSmartColor)
         self.menuBarStyle = MenuBarStyle(
             rawValue: UserDefaults.standard.string(forKey: "menuBarStyle") ?? "classic"
         ) ?? .classic

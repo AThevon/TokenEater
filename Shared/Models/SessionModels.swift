@@ -22,7 +22,7 @@ struct ClaudeSession: Identifiable, Sendable {
 
     var gitBranch: String?
 
-    /// Branch to display in the UI — nil for default branches (main/master/HEAD)
+    /// Branch to display in the UI - nil for default branches (main/master/HEAD)
     var visibleBranch: String? {
         guard let branch = gitBranch,
               branch != "main", branch != "master", branch != "HEAD" else { return nil }

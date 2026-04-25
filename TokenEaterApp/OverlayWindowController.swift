@@ -220,7 +220,7 @@ final class OverlayWindowController {
     }
 
     private func updateCursorTracking() {
-        // Throttle to ~20Hz — global mouse monitor fires at 60Hz+
+        // Throttle to ~20Hz - global mouse monitor fires at 60Hz+
         let now = CFAbsoluteTimeGetCurrent()
         guard now - lastCursorCheck >= 0.05 else { return }
         lastCursorCheck = now

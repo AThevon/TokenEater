@@ -63,7 +63,7 @@ final class OnboardingViewModel: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self else { return }
             // Check if a token source EXISTS (config.json or credentials file)
-            // This doesn't require the decryption key — bootstrap happens in connect()
+            // This doesn't require the decryption key - bootstrap happens in connect()
             let hasSource = self.tokenProvider.hasTokenSource()
             self.claudeCodeStatus = hasSource ? .detected : .notFound
         }
@@ -101,7 +101,7 @@ final class OnboardingViewModel: ObservableObject {
 
         // Bootstrap encryption key if needed (triggers one-time Keychain modal)
         if !tokenProvider.isBootstrapped {
-            logger.info("Bootstrap needed — reading Claude Safe Storage from Keychain")
+            logger.info("Bootstrap needed - reading Claude Safe Storage from Keychain")
             do {
                 try tokenProvider.bootstrap()
                 logger.info("Bootstrap succeeded, isBootstrapped=\(self.tokenProvider.isBootstrapped)")
@@ -116,7 +116,7 @@ final class OnboardingViewModel: ObservableObject {
         let token = tokenProvider.currentToken()
         logger.info("currentToken result: \(token != nil ? "got token (\(token!.prefix(10))...)" : "nil")")
         guard let token else {
-            logger.error("No token after bootstrap — hasTokenSource=\(self.tokenProvider.hasTokenSource()), isBootstrapped=\(self.tokenProvider.isBootstrapped)")
+            logger.error("No token after bootstrap - hasTokenSource=\(self.tokenProvider.hasTokenSource()), isBootstrapped=\(self.tokenProvider.isBootstrapped)")
             connectionStatus = .failed(String(localized: "onboarding.connection.failed.notoken"))
             NSApp.activate(ignoringOtherApps: true)
             return

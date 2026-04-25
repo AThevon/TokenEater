@@ -7,9 +7,11 @@ protocol SharedFileServiceProtocol: Sendable {
     var lastSyncDate: Date? { get }
     var theme: ThemeColors { get }
     var thresholds: UsageThresholds { get }
+    var smartColorEnabled: Bool { get }
 
     func invalidateCache()
     func updateAfterSync(usage: CachedUsage, syncDate: Date)
     func updateTheme(_ theme: ThemeColors, thresholds: UsageThresholds)
+    func updateSmartColorEnabled(_ enabled: Bool)
     func clear()
 }

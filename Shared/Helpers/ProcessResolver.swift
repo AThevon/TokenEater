@@ -162,7 +162,7 @@ enum ProcessResolver {
         let script = """
         #!/bin/bash
         \(version)
-        # TokenEater tmux pane switcher — started by tmux via run-shell.
+        # TokenEater tmux pane switcher - started by tmux via run-shell.
         # Polls for a trigger file written by the app and switches to the target pane.
         PIDFILE="$HOME/Library/Application Support/com.tokeneater.shared/tmux-watcher.pid"
         if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
@@ -488,7 +488,7 @@ enum ProcessResolver {
     // MARK: - WezTerm trigger file
 
     /// Write a trigger file with the target TTY so the WezTerm watcher script can
-    /// activate the correct tab/pane. Same approach as tmux — the app sandbox blocks
+    /// activate the correct tab/pane. Same approach as tmux - the app sandbox blocks
     /// direct unix socket access, so a watcher script running outside the sandbox
     /// (started via wezterm.lua) polls for trigger files and runs wezterm cli.
     private static func switchWezTermPane(tty: String) {
@@ -513,7 +513,7 @@ enum ProcessResolver {
         let script = """
         #!/bin/bash
         \(version)
-        # TokenEater WezTerm pane switcher — started by WezTerm via wezterm.lua.
+        # TokenEater WezTerm pane switcher - started by WezTerm via wezterm.lua.
         # Polls for a trigger file written by the app and switches to the target pane.
         PIDFILE="$HOME/Library/Application Support/com.tokeneater.shared/wezterm-watcher.pid"
         if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
@@ -558,7 +558,7 @@ enum ProcessResolver {
         try? script.write(toFile: scriptPath, atomically: true, encoding: .utf8)
     }
 
-    /// Activate via LaunchServices — reliably switches spaces/fullscreen.
+    /// Activate via LaunchServices - reliably switches spaces/fullscreen.
     private static func activateApp(_ app: NSRunningApplication) {
         guard let url = app.bundleURL else {
             DispatchQueue.main.async { app.activate() }

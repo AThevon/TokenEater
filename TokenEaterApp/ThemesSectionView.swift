@@ -6,6 +6,7 @@ struct ThemesSectionView: View {
     @EnvironmentObject private var usageStore: UsageStore
 
     @State private var showResetAlert = false
+    @State private var showSmartColorPopover = false
     @State private var warningSlider: Double
     @State private var criticalSlider: Double
     @State private var marginSlider: Double
@@ -23,37 +24,34 @@ struct ThemesSectionView: View {
                 subtitle: String(localized: "sidebar.themes.subtitle")
             )
 
-            // Menu bar text appearance (monochrome + custom colors + smart reset)
+            // Smart Color (global toggle, drives gauges + countdowns coloring)
             glassCard {
-                VStack(alignment: .leading, spacing: 10) {
-                    cardLabel(String(localized: "settings.theme.menubar"))
-                    darkToggle(String(localized: "settings.theme.monochrome"), isOn: $themeStore.menuBarMonochrome)
-                    if !themeStore.menuBarMonochrome {
-                        Divider().opacity(0.15)
-                        menuBarColorRow(
-                            label: "settings.reset.color",
-                            hex: $settingsStore.resetTextColorHex,
-                            fallback: .white,
-                            disabled: settingsStore.smartResetColor
-                        )
-                        VStack(alignment: .leading, spacing: 4) {
-                            darkToggle(
-                                String(localized: "settings.theme.smartreset"),
-                                isOn: $settingsStore.smartResetColor
-                            )
-                            Text(String(localized: "settings.theme.smartreset.hint"))
-                                .font(.system(size: 11))
-                                .foregroundStyle(.white.opacity(0.4))
-                                .fixedSize(horizontal: false, vertical: true)
-                                .padding(.leading, 48)
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            cardLabel(String(localized: "settings.smartcolor.title"))
+                            Button {
+                                showSmartColorPopover.toggle()
+                            } label: {
+                                Image(systemName: "info.circle")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.white.opacity(0.55))
+                            }
+                            .buttonStyle(.plain)
+                            .popover(isPresented: $showSmartColorPopover, arrowEdge: .bottom) {
+                                smartColorInfoPopover
+                            }
                         }
-                        menuBarColorRow(
-                            label: "settings.session.periodcolor",
-                            hex: $settingsStore.sessionPeriodColorHex,
-                            fallback: .white.opacity(0.4),
-                            disabled: false
-                        )
+                        Text(String(localized: "settings.smartcolor.hint"))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.white.opacity(0.5))
+                            .fixedSize(horizontal: false, vertical: true)
                     }
+                    Spacer()
+                    Toggle("", isOn: $settingsStore.smartColorEnabled)
+                        .toggleStyle(.switch)
+                        .tint(.blue)
+                        .labelsHidden()
                 }
             }
 
@@ -104,23 +102,11 @@ struct ThemesSectionView: View {
                 }
             }
 
-            // Pacing indicator shape
-            glassCard {
-                VStack(alignment: .leading, spacing: 10) {
-                    cardLabel(String(localized: "settings.pacing.shape"))
-                    HStack(spacing: 8) {
-                        ForEach(PacingShape.allCases) { shape in
-                            pacingShapeButton(shape)
-                        }
-                    }
-                }
-            }
-
             // Pacing margin
             glassCard {
                 VStack(alignment: .leading, spacing: 8) {
                     cardLabel(String(localized: "settings.pacing.margin"))
-                    thresholdSlider(label: String(localized: "settings.pacing.margin.value"), value: $marginSlider, range: 1...30)
+                    thresholdSlider(label: String(localized: "settings.pacing.margin.value"), value: $marginSlider, range: 5...30)
                     Text(String(localized: "settings.pacing.margin.hint"))
                         .font(.system(size: 11))
                         .foregroundStyle(.white.opacity(0.4))
@@ -146,7 +132,7 @@ struct ThemesSectionView: View {
                         // menu-bar text colors displayed on this page.
                         settingsStore.resetTextColorHex = ""
                         settingsStore.sessionPeriodColorHex = ""
-                        settingsStore.smartResetColor = false
+                        settingsStore.smartColorEnabled = true
                         themeStore.menuBarMonochrome = false
                     }
                 }
@@ -185,36 +171,112 @@ struct ThemesSectionView: View {
         }
     }
 
-    // MARK: - Preset Card
+    // MARK: - Smart Color popover
 
-    private func pacingShapeButton(_ shape: PacingShape) -> some View {
-        let isActive = settingsStore.pacingShape == shape
-        return Button {
-            withAnimation(.easeInOut(duration: 0.12)) {
-                settingsStore.pacingShape = shape
+    private var smartColorInfoPopover: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+            // Header
+            HStack(spacing: DS.Spacing.xs) {
+                Image(systemName: "wand.and.stars")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(DS.Palette.brandPrimary)
+                Text(String(localized: "settings.smartcolor.popover.title"))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(DS.Palette.textPrimary)
             }
-        } label: {
-            VStack(spacing: 6) {
-                Text(shape.glyph)
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(isActive ? .white : .white.opacity(0.55))
-                Text(shape.localizedLabel)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(isActive ? .white.opacity(0.9) : .white.opacity(0.5))
+
+            // Intro
+            Text(String(localized: "settings.smartcolor.popover.intro"))
+                .font(.system(size: 12))
+                .foregroundStyle(DS.Palette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .lineSpacing(2)
+
+            Divider().opacity(0.18)
+
+            // Example cards
+            VStack(spacing: DS.Spacing.sm) {
+                smartColorExample(
+                    glyph: "leaf.fill",
+                    pct: 95,
+                    resetText: "2 min",
+                    zoneLabel: String(localized: "settings.smartcolor.popover.example1.label"),
+                    color: Color(hex: themeStore.current.gaugeNormal),
+                    explanation: String(localized: "settings.smartcolor.popover.example1")
+                )
+                smartColorExample(
+                    glyph: "flame.fill",
+                    pct: 50,
+                    resetText: "5 h",
+                    zoneLabel: String(localized: "settings.smartcolor.popover.example2.label"),
+                    color: Color(hex: themeStore.current.gaugeCritical),
+                    explanation: String(localized: "settings.smartcolor.popover.example2")
+                )
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(isActive ? Color.blue.opacity(0.2) : Color.white.opacity(0.03))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(isActive ? Color.blue.opacity(0.5) : Color.white.opacity(0.06), lineWidth: 1)
-                    )
-            )
+
+            // Formula footer
+            Text(String(localized: "settings.smartcolor.popover.formula"))
+                .font(.system(size: 10, weight: .regular, design: .monospaced))
+                .italic()
+                .foregroundStyle(DS.Palette.textTertiary)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, DS.Spacing.xxs)
         }
-        .buttonStyle(.plain)
+        .padding(DS.Spacing.lg)
+        .frame(width: 400)
     }
+
+    private func smartColorExample(
+        glyph: String,
+        pct: Int,
+        resetText: String,
+        zoneLabel: String,
+        color: Color,
+        explanation: String
+    ) -> some View {
+        HStack(alignment: .center, spacing: DS.Spacing.md) {
+            // Left column -> glyph + value + reset
+            VStack(spacing: 4) {
+                Image(systemName: glyph)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(color)
+                    .shadow(color: color.opacity(0.45), radius: 6)
+                Text("\(pct)%")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(color)
+                Text(resetText)
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(DS.Palette.textTertiary)
+            }
+            .frame(width: 64)
+
+            // Right column -> zone label + explanation
+            VStack(alignment: .leading, spacing: 4) {
+                Text(zoneLabel.uppercased())
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(1.2)
+                    .foregroundStyle(color)
+                Text(explanation)
+                    .font(.system(size: 11))
+                    .foregroundStyle(DS.Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineSpacing(2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(DS.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
+                .fill(color.opacity(0.07))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
+                        .stroke(color.opacity(0.28), lineWidth: 1)
+                )
+        )
+    }
+
+    // MARK: - Preset Card
 
     private func presetCard(key: String, label: String, colors: ThemeColors) -> some View {
         let isSelected = themeStore.selectedPreset == key
@@ -268,47 +330,6 @@ struct ThemesSectionView: View {
     }
 
     // MARK: - Helpers
-
-    /// Like `themeColorRow` but lets an empty hex fall through to a system
-    /// default color. Shows a revert-to-default button when the user has
-    /// picked a custom color.
-    private func menuBarColorRow(
-        label: LocalizedStringKey,
-        hex: Binding<String>,
-        fallback: Color,
-        disabled: Bool = false
-    ) -> some View {
-        let colorBinding = Binding<Color>(
-            get: {
-                hex.wrappedValue.isEmpty ? fallback : Color(hex: hex.wrappedValue)
-            },
-            set: { newColor in
-                let nsColor = NSColor(newColor).usingColorSpace(.sRGB) ?? NSColor(newColor)
-                hex.wrappedValue = nsColor.hexString()
-            }
-        )
-        return HStack {
-            Text(label)
-                .font(.system(size: 12))
-                .foregroundStyle(.white.opacity(disabled ? 0.35 : 0.7))
-            Spacer()
-            if !hex.wrappedValue.isEmpty && !disabled {
-                Button {
-                    hex.wrappedValue = ""
-                } label: {
-                    Image(systemName: "arrow.uturn.backward.circle.fill")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.white.opacity(0.35))
-                }
-                .buttonStyle(.plain)
-                .help(Text(String(localized: "settings.theme.menubar.resetColor")))
-            }
-            ColorPicker("", selection: colorBinding, supportsOpacity: false)
-                .labelsHidden()
-                .disabled(disabled)
-                .opacity(disabled ? 0.4 : 1)
-        }
-    }
 
     private func themeColorRow(_ labelKey: LocalizedStringKey, hex: Binding<String>) -> some View {
         let colorBinding = Binding<Color>(

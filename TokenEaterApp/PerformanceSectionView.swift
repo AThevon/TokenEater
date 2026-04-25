@@ -16,14 +16,6 @@ struct PerformanceSectionView: View {
                     .foregroundStyle(.white.opacity(0.5))
                     .fixedSize(horizontal: false, vertical: true)
 
-                // Dashboard
-                glassCard {
-                    VStack(alignment: .leading, spacing: 8) {
-                        cardLabel(String(localized: "settings.performance.dashboard"))
-                        darkToggle(String(localized: "settings.performance.gradient"), isOn: $settingsStore.animatedGradientEnabled)
-                    }
-                }
-
                 // Agent Watchers
                 glassCard {
                     VStack(alignment: .leading, spacing: 8) {

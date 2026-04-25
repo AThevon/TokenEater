@@ -68,15 +68,52 @@ struct SettingsSectionView: View {
                 }
             }
 
-            // General (Launch at login etc.)
+            // General (Launch at login + replay onboarding)
             glassCard {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 12) {
                     cardLabel(String(localized: "settings.general.title"))
                     darkToggle(String(localized: "settings.launchAtLogin"), isOn: $settingsStore.launchAtLoginEnabled)
                     Text(String(localized: "settings.launchAtLogin.hint"))
                         .font(.system(size: 11))
                         .foregroundStyle(.white.opacity(0.4))
                         .fixedSize(horizontal: false, vertical: true)
+
+                    Divider().opacity(0.12)
+
+                    HStack(alignment: .center, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(String(localized: "settings.general.replayOnboarding"))
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.85))
+                            Text(String(localized: "settings.general.replayOnboarding.hint"))
+                                .font(.system(size: 11))
+                                .foregroundStyle(.white.opacity(0.4))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                        Button {
+                            settingsStore.hasCompletedOnboarding = false
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "arrow.counterclockwise")
+                                    .font(.system(size: 11, weight: .semibold))
+                                Text(String(localized: "settings.general.replayOnboarding.action"))
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                            .foregroundStyle(.white.opacity(0.9))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(Color.blue.opacity(0.18))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .stroke(Color.blue.opacity(0.4), lineWidth: 1)
+                                    )
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
 

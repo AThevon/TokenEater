@@ -106,9 +106,10 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         var lastSyncDate: Date?
         var theme: ThemeColors?
         var thresholds: UsageThresholds?
+        var smartColorEnabled: Bool?
     }
 
-    /// In-memory cache — avoids redundant disk reads within the same process.
+    /// In-memory cache - avoids redundant disk reads within the same process.
     /// Each process (app, widget) has its own SharedFileService instance, so no cross-process staleness.
     private var cachedData: SharedData?
 
@@ -166,6 +167,10 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         load().thresholds ?? .default
     }
 
+    var smartColorEnabled: Bool {
+        load().smartColorEnabled ?? true
+    }
+
     func updateAfterSync(usage: CachedUsage, syncDate: Date) {
         var data = load()
         data.cachedUsage = usage
@@ -177,6 +182,12 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         var data = load()
         data.theme = theme
         data.thresholds = thresholds
+        save(data)
+    }
+
+    func updateSmartColorEnabled(_ enabled: Bool) {
+        var data = load()
+        data.smartColorEnabled = enabled
         save(data)
     }
 

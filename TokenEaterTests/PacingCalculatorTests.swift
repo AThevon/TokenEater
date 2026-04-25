@@ -139,16 +139,17 @@ struct PacingCalculatorTests {
         #expect(result?.zone == .onTrack)
     }
 
-    @Test("delta just above +10 is hot")
-    func deltaJustAbovePlus10IsHot() {
+    @Test("delta just above +10 is warning (between margin and 2x margin)")
+    func deltaJustAbovePlus10IsWarning() {
         let now = Self.stableNow()
-        // At 50% elapsed, expected = 50. utilization = 61 → delta ≈ +11
+        // At 50% elapsed, expected = 50. utilization = 61 → delta ≈ +11.
+        // With margin 10, the warning band is (10..20], so +11 lands in warning.
         let usage = UsageResponse.fixture(
             sevenDayUtil: 61,
             sevenDayResetsAt: makeResetsAt(elapsedFraction: 0.5, now: now)
         )
         let result = PacingCalculator.calculate(from: usage, now: now)
-        #expect(result?.zone == .hot)
+        #expect(result?.zone == .warning)
     }
 
     @Test("delta just below -10 is chill")
@@ -188,16 +189,18 @@ struct PacingCalculatorTests {
         #expect(result?.zone == .hot)
     }
 
-    @Test("at start of period (elapsed ≈ 0) even small usage is hot")
-    func startOfPeriodSmallUsageIsHot() {
+    @Test("at start of period (elapsed ≈ 0) small usage is warning")
+    func startOfPeriodSmallUsageIsWarning() {
         let now = Self.stableNow()
-        // elapsed ≈ 1% → expected ≈ 1. Utilization = 20 → delta ≈ +19
+        // elapsed ≈ 1% → expected ≈ 1. Utilization = 20 → delta ≈ +19.
+        // With margin 10 the warning band is (10..20]; pushing utilization
+        // above 30 in this scenario would tip into hot.
         let usage = UsageResponse.fixture(
             sevenDayUtil: 20,
             sevenDayResetsAt: makeResetsAt(elapsedFraction: 0.01, now: now)
         )
         let result = PacingCalculator.calculate(from: usage, now: now)
-        #expect(result?.zone == .hot)
+        #expect(result?.zone == .warning)
     }
 
     @Test("at end of period (elapsed ≈ 100%) high usage is onTrack")
@@ -214,10 +217,11 @@ struct PacingCalculatorTests {
 
     // MARK: - Custom margin
 
-    @Test("custom margin 5: delta +6 is hot (would be onTrack with default 10)")
-    func customMargin5MakesSmallDeltaHot() {
+    @Test("custom margin 5: delta +6 is warning (would be onTrack with default 10)")
+    func customMargin5MakesSmallDeltaWarning() {
         let now = Self.stableNow()
-        // At 50% elapsed, expected = 50. Utilization = 56 → delta = +6
+        // At 50% elapsed, expected = 50. Utilization = 56 → delta = +6.
+        // With margin 5, the warning band is (5..10], so +6 lands warning.
         let usage = UsageResponse.fixture(
             sevenDayUtil: 56,
             sevenDayResetsAt: makeResetsAt(elapsedFraction: 0.5, now: now)
@@ -226,7 +230,7 @@ struct PacingCalculatorTests {
         #expect(defaultResult?.zone == .onTrack)
 
         let tightResult = PacingCalculator.calculate(from: usage, margin: 5, now: now)
-        #expect(tightResult?.zone == .hot)
+        #expect(tightResult?.zone == .warning)
     }
 
     @Test("custom margin 5: delta -6 is chill (would be onTrack with default 10)")
@@ -244,16 +248,18 @@ struct PacingCalculatorTests {
         #expect(tightResult?.zone == .chill)
     }
 
-    @Test("custom margin 20: delta +15 is onTrack (would be hot with default 10)")
+    @Test("custom margin 20: delta +15 is onTrack (would be warning with default 10)")
     func customMargin20KeepsLargeDeltaOnTrack() {
         let now = Self.stableNow()
-        // At 50% elapsed, expected = 50. Utilization = 65 → delta = +15
+        // At 50% elapsed, expected = 50. Utilization = 65 → delta = +15.
+        // Default margin 10 → warning band (10..20], so +15 is warning.
+        // With margin 20, the onTrack band stretches to ±20, so +15 is onTrack.
         let usage = UsageResponse.fixture(
             sevenDayUtil: 65,
             sevenDayResetsAt: makeResetsAt(elapsedFraction: 0.5, now: now)
         )
         let defaultResult = PacingCalculator.calculate(from: usage, now: now)
-        #expect(defaultResult?.zone == .hot)
+        #expect(defaultResult?.zone == .warning)
 
         let wideResult = PacingCalculator.calculate(from: usage, margin: 20, now: now)
         #expect(wideResult?.zone == .onTrack)
@@ -277,13 +283,15 @@ struct PacingCalculatorTests {
     @Test("margin 1: nearly any deviation triggers zone change")
     func margin1VeryTight() {
         let now = Self.stableNow()
-        // At 50% elapsed, expected = 50. Utilization = 52 → delta = +2
+        // At 50% elapsed, expected = 50. Utilization = 52 → delta = +2.
+        // With margin 1, warning band is (1..2], hot is >2, so +2 lands at the
+        // top of warning (the boundary is inclusive on the warning side).
         let usage = UsageResponse.fixture(
             sevenDayUtil: 52,
             sevenDayResetsAt: makeResetsAt(elapsedFraction: 0.5, now: now)
         )
         let result = PacingCalculator.calculate(from: usage, margin: 1, now: now)
-        #expect(result?.zone == .hot)
+        #expect(result?.zone == .warning)
     }
 
     @Test("default margin: existing boundary tests still pass with explicit margin 10")

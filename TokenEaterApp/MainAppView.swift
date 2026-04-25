@@ -7,9 +7,8 @@ struct MainAppView: View {
     @EnvironmentObject private var updateStore: UpdateStore
     @EnvironmentObject private var sessionStore: SessionStore
 
-    @State private var selectedSection: AppSection = .dashboard
-
-    private let panelBg = Color(red: 0.10, green: 0.10, blue: 0.12)
+    @State private var selectedSpace: AppSpace = .monitoring
+    @State private var selectedSettingsSection: SettingsSection = .general
 
     var body: some View {
         if settingsStore.hasCompletedOnboarding {
@@ -19,76 +18,92 @@ struct MainAppView: View {
         }
     }
 
-    // MARK: - Main Content
+    // MARK: - Main
 
     private var mainContent: some View {
-        HStack(spacing: 4) {
-            AppSidebar(selection: $selectedSection)
+        VStack(spacing: DS.Spacing.sm) {
+            HStack {
+                TopPillsNav(selection: $selectedSpace)
+                    .padding(.leading, DS.Spacing.xs)
+
+                Spacer()
+
+                Button {
+                    NSApplication.shared.terminate(nil)
+                } label: {
+                    Image(systemName: "power")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(DS.Palette.textTertiary)
+                        .frame(width: 28, height: 28)
+                        .background(
+                            Circle().fill(DS.Palette.glassFill)
+                                .overlay(Circle().stroke(DS.Palette.glassBorderLo, lineWidth: 1))
+                        )
+                }
+                .buttonStyle(.plain)
+                .help(String(localized: "menubar.quit"))
+                .padding(.trailing, DS.Spacing.xs)
+            }
+            .padding(.top, DS.Spacing.xs)
 
             Group {
-                switch selectedSection {
-                case .dashboard:
-                    // DashboardView owns its own ScrollView (background gradient
-                    // stays fixed, foreground content scrolls when it overflows).
-                    DashboardView()
-                case .display:
-                    scrollingSection { DisplaySectionView(initialMetrics: settingsStore.pinnedMetrics) }
-                case .themes:
-                    scrollingSection {
-                        ThemesSectionView(
-                            initialWarning: themeStore.warningThreshold,
-                            initialCritical: themeStore.criticalThreshold,
-                            initialMargin: settingsStore.pacingMargin
-                        )
-                    }
-                case .popover:
-                    // PopoverSectionView owns its own scroll (the editor list)
-                    // and needs full height for the split layout, so don't
-                    // wrap it in scrollingSection.
-                    PopoverSectionView()
-                case .agentWatchers:
-                    scrollingSection { AgentWatchersSectionView() }
-                case .performance:
-                    scrollingSection { PerformanceSectionView() }
+                switch selectedSpace {
+                case .monitoring:
+                    MonitoringView()
+                case .history:
+                    HistoryView()
                 case .settings:
-                    scrollingSection { SettingsSectionView() }
+                    SettingsRootView(selection: $selectedSettingsSection)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(RoundedRectangle(cornerRadius: 16).fill(panelBg))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .id(selectedSpace)
+            .transition(spaceTransition)
         }
+        .padding(.horizontal, DS.Spacing.sm)
+        .padding(.bottom, DS.Spacing.sm)
+        .dsWindowBackground()
         .overlay {
             if updateStore.updateState.isModalVisible {
                 UpdateModalView()
                     .transition(.opacity)
-                    .animation(.spring(response: 0.4, dampingFraction: 0.9), value: updateStore.updateState.isModalVisible)
+                    .animation(DS.Motion.springSoft, value: updateStore.updateState.isModalVisible)
             }
         }
-        .padding(4)
         .onReceive(NotificationCenter.default.publisher(for: .navigateToSection)) { notification in
-            if let section = notification.userInfo?["section"] as? String,
-               let target = AppSection(rawValue: section) {
-                selectedSection = target
+            guard let payload = notification.userInfo?["section"] as? String,
+                  let target = NavigationTarget.parse(payload) else { return }
+            withAnimation(DS.Motion.springSnap) {
+                selectedSpace = target.space
+                if let sub = target.settingsSection {
+                    selectedSettingsSection = sub
+                }
             }
         }
     }
 
-    @ViewBuilder
-    private func scrollingSection<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
-        ScrollView(.vertical, showsIndicators: true) {
-            content()
-                .frame(maxWidth: .infinity, alignment: .top)
-        }
+    /// Cross-fade depth-shift -> entry pops in from a slightly compressed scale
+    /// (0.97 -> 1.0), exit drifts out at a slightly expanded scale (1.0 -> 1.03).
+    /// No directional movement -> the eye stays on the same axis, only the
+    /// "depth" of the layer shifts, à la Arc tab switch + native macOS window
+    /// fades. Stylé sans donner mal au crâne.
+    private var spaceTransition: AnyTransition {
+        .asymmetric(
+            insertion: .opacity.combined(with: .scale(scale: 0.97, anchor: .center)),
+            removal: .opacity.combined(with: .scale(scale: 1.03, anchor: .center))
+        )
     }
 
-    // MARK: - Onboarding Content
+    // MARK: - Onboarding
 
     private var onboardingContent: some View {
         OnboardingView()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(RoundedRectangle(cornerRadius: 16).fill(panelBg))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .background(
+                RoundedRectangle(cornerRadius: DS.Radius.modal)
+                    .fill(DS.Palette.bgElevated)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.modal))
             .padding(4)
             .frame(width: 700, height: 720)
     }

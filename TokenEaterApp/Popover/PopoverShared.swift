@@ -7,12 +7,30 @@ import SwiftUI
 
 @MainActor
 enum PopoverColors {
-    static func gauge(pct: Int, theme: ThemeStore) -> Color {
-        theme.current.gaugeColor(for: Double(pct), thresholds: theme.thresholds)
+    static func gauge(pct: Int, resetDate: Date?, windowDuration: TimeInterval, theme: ThemeStore, settings: SettingsStore) -> Color {
+        if settings.smartColorEnabled {
+            return theme.current.smartGaugeColor(
+                utilization: Double(pct),
+                resetDate: resetDate,
+                windowDuration: windowDuration,
+                thresholds: theme.thresholds
+            )
+        }
+        return theme.current.gaugeColor(for: Double(pct), thresholds: theme.thresholds)
     }
 
-    static func gaugeGradient(pct: Int, theme: ThemeStore) -> LinearGradient {
-        theme.current.gaugeGradient(
+    static func gaugeGradient(pct: Int, resetDate: Date?, windowDuration: TimeInterval, theme: ThemeStore, settings: SettingsStore) -> LinearGradient {
+        if settings.smartColorEnabled {
+            return theme.current.smartGaugeGradient(
+                utilization: Double(pct),
+                resetDate: resetDate,
+                windowDuration: windowDuration,
+                thresholds: theme.thresholds,
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        }
+        return theme.current.gaugeGradient(
             for: Double(pct),
             thresholds: theme.thresholds,
             startPoint: .leading,
@@ -284,15 +302,18 @@ struct PopoverPacingRow: View {
 struct PopoverHeroRing: View {
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var themeStore: ThemeStore
+    @EnvironmentObject private var settingsStore: SettingsStore
 
     var body: some View {
         let pct = usageStore.fiveHourPct
-        let color = PopoverColors.gauge(pct: pct, theme: themeStore)
+        let resetDate = usageStore.lastUsage?.fiveHour?.resetsAtDate
+        let windowDuration: TimeInterval = 5 * 3600
+        let color = PopoverColors.gauge(pct: pct, resetDate: resetDate, windowDuration: windowDuration, theme: themeStore, settings: settingsStore)
         VStack(spacing: 8) {
             ZStack {
                 RingGauge(
                     percentage: pct,
-                    gradient: PopoverColors.gaugeGradient(pct: pct, theme: themeStore),
+                    gradient: PopoverColors.gaugeGradient(pct: pct, resetDate: resetDate, windowDuration: windowDuration, theme: themeStore, settings: settingsStore),
                     size: 100,
                     glowColor: color,
                     glowRadius: 6
@@ -322,17 +343,20 @@ struct PopoverHeroRing: View {
 /// `displaySonnet = true`.
 struct PopoverSatelliteRing: View {
     @EnvironmentObject private var themeStore: ThemeStore
+    @EnvironmentObject private var settingsStore: SettingsStore
 
     let label: String
     let pct: Int
+    let resetDate: Date?
+    let windowDuration: TimeInterval
 
     var body: some View {
-        let color = PopoverColors.gauge(pct: pct, theme: themeStore)
+        let color = PopoverColors.gauge(pct: pct, resetDate: resetDate, windowDuration: windowDuration, theme: themeStore, settings: settingsStore)
         VStack(spacing: 4) {
             ZStack {
                 RingGauge(
                     percentage: pct,
-                    gradient: PopoverColors.gaugeGradient(pct: pct, theme: themeStore),
+                    gradient: PopoverColors.gaugeGradient(pct: pct, resetDate: resetDate, windowDuration: windowDuration, theme: themeStore, settings: settingsStore),
                     size: 40,
                     glowColor: color,
                     glowRadius: 3
@@ -355,19 +379,22 @@ struct PopoverSatelliteRing: View {
 /// Sonnet). Includes an optional reset countdown below.
 struct PopoverEqualRing: View {
     @EnvironmentObject private var themeStore: ThemeStore
+    @EnvironmentObject private var settingsStore: SettingsStore
 
     let label: String
     let pct: Int
     /// Empty string = hide the row.
     let resetText: String
+    let resetDate: Date?
+    let windowDuration: TimeInterval
 
     var body: some View {
-        let color = PopoverColors.gauge(pct: pct, theme: themeStore)
+        let color = PopoverColors.gauge(pct: pct, resetDate: resetDate, windowDuration: windowDuration, theme: themeStore, settings: settingsStore)
         VStack(spacing: 8) {
             ZStack {
                 RingGauge(
                     percentage: pct,
-                    gradient: PopoverColors.gaugeGradient(pct: pct, theme: themeStore),
+                    gradient: PopoverColors.gaugeGradient(pct: pct, resetDate: resetDate, windowDuration: windowDuration, theme: themeStore, settings: settingsStore),
                     size: 70,
                     glowColor: color,
                     glowRadius: 4

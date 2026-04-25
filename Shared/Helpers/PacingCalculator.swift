@@ -7,6 +7,9 @@ enum PacingCalculator {
     private static let onTrackMessages = [
         "pacing.ontrack.1", "pacing.ontrack.2", "pacing.ontrack.3",
     ]
+    private static let warningMessages = [
+        "pacing.warning.1", "pacing.warning.2", "pacing.warning.3",
+    ]
     private static let hotMessages = [
         "pacing.hot.1", "pacing.hot.2", "pacing.hot.3",
     ]
@@ -45,17 +48,23 @@ enum PacingCalculator {
         let expectedUsage = clampedElapsed * 100
         let delta = bucket.utilization - expectedUsage
 
+        // 4-zone pacing -> chill / onTrack (within ±margin) / warning (margin..2*margin)
+        // / hot (>2*margin). The pacingMargin slider drives both thresholds so a
+        // single user-facing setting controls the whole sensitivity curve.
         let zone: PacingZone
         let messages: [String]
         if delta < -margin {
             zone = .chill
             messages = chillMessages
-        } else if delta > margin {
-            zone = .hot
-            messages = hotMessages
-        } else {
+        } else if delta <= margin {
             zone = .onTrack
             messages = onTrackMessages
+        } else if delta <= margin * 2 {
+            zone = .warning
+            messages = warningMessages
+        } else {
+            zone = .hot
+            messages = hotMessages
         }
 
         let index = abs(Int(delta)) % messages.count

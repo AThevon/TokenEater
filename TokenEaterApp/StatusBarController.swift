@@ -195,8 +195,14 @@ final class StatusBarController: NSObject {
         showDashboard()
 
         if let section = notification.userInfo?["section"] as? String,
-           let target = AppSection(rawValue: section) {
-            NotificationCenter.default.post(name: .navigateToSection, object: nil, userInfo: ["section": target.rawValue])
+           let target = NavigationTarget.parse(section) {
+            let payload: String
+            if let sub = target.settingsSection {
+                payload = "settings.\(sub.rawValue)"
+            } else {
+                payload = target.space.rawValue
+            }
+            NotificationCenter.default.post(name: .navigateToSection, object: nil, userInfo: ["section": payload])
         }
     }
 
@@ -225,11 +231,14 @@ final class StatusBarController: NSObject {
             fiveHourReset: usageStore.fiveHourReset,
             fiveHourResetAbsolute: usageStore.fiveHourResetAbsolute,
             fiveHourResetDate: usageStore.lastUsage?.fiveHour?.resetsAtDate,
+            sevenDayResetDate: usageStore.lastUsage?.sevenDay?.resetsAtDate,
+            sonnetResetDate: usageStore.lastUsage?.sevenDaySonnet?.resetsAtDate,
+            designResetDate: usageStore.lastUsage?.sevenDayDesign?.resetsAtDate,
             hasFiveHourBucket: usageStore.lastUsage?.fiveHour != nil,
             resetDisplayFormat: settingsStore.resetDisplayFormat,
             resetTextColorHex: settingsStore.resetTextColorHex,
             sessionPeriodColorHex: settingsStore.sessionPeriodColorHex,
-            smartResetColor: settingsStore.smartResetColor,
+            smartResetColor: settingsStore.smartColorEnabled,
             menuBarStyle: settingsStore.menuBarStyle,
             pacingShape: settingsStore.pacingShape,
             designPct: usageStore.designPct,
@@ -332,14 +341,14 @@ final class StatusBarController: NSObject {
             keyEquivalent: ""
         )
         let settingsSub = NSMenu()
-        for section in AppSection.allCases where section != .dashboard {
+        for section in SettingsSection.allCases {
             let item = NSMenuItem(
                 title: section.label,
                 action: #selector(contextOpenSection(_:)),
                 keyEquivalent: ""
             )
             item.target = self
-            item.representedObject = section.rawValue
+            item.representedObject = "settings.\(section.rawValue)"
             settingsSub.addItem(item)
         }
         settingsItem.submenu = settingsSub
@@ -435,7 +444,7 @@ final class StatusBarController: NSObject {
             .environmentObject(sessionStore)
 
         let isOnboarding = !settingsStore.hasCompletedOnboarding
-        let size = isOnboarding ? NSSize(width: 700, height: 720) : NSSize(width: 860, height: 760)
+        let size = isOnboarding ? NSSize(width: 700, height: 720) : NSSize(width: 940, height: 700)
         var styleMask: NSWindow.StyleMask = [.titled, .closable, .fullSizeContentView]
         if !isOnboarding { styleMask.insert(.resizable) }
 
@@ -468,7 +477,8 @@ final class StatusBarController: NSObject {
             window.minSize = size
             window.maxSize = size
         } else {
-            window.minSize = NSSize(width: 760, height: 560)
+            window.minSize = NSSize(width: 600, height: 440)
+            window.contentMinSize = NSSize(width: 600, height: 440)
             window.setFrameAutosaveName("TokenEaterMain")
         }
 
@@ -494,11 +504,11 @@ final class StatusBarController: NSObject {
     private func transitionToMainWindow() {
         guard let window = dashboardWindow else { return }
         window.styleMask.insert(.resizable)
-        window.contentMinSize = NSSize(width: 760, height: 560)
+        window.contentMinSize = NSSize(width: 600, height: 440)
         window.contentMaxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        window.minSize = NSSize(width: 760, height: 560)
+        window.minSize = NSSize(width: 600, height: 440)
         window.setFrameAutosaveName("TokenEaterMain")
-        let mainSize = NSSize(width: 860, height: 760)
+        let mainSize = NSSize(width: 940, height: 700)
         window.setContentSize(mainSize)
         window.center()
     }
@@ -527,7 +537,7 @@ extension StatusBarController: NSWindowDelegate {
     nonisolated func windowShouldClose(_ sender: NSWindow) -> Bool {
         MainActor.assumeIsolated {
             if !self.settingsStore.hasCompletedOnboarding {
-                // User closed during onboarding — quit the app so they're not stuck
+                // User closed during onboarding - quit the app so they're not stuck
                 // (LSUIElement app has no Dock icon, no Force Quit entry)
                 NSApp.terminate(nil)
                 return
@@ -537,6 +547,17 @@ extension StatusBarController: NSWindowDelegate {
             self.dashboardWindow = nil
         }
         return false
+    }
+
+    /// Hard-clamp the resize so AppKit can't honor a frame smaller than our
+    /// declared min, even if `setFrameAutosaveName` restored a stale frame
+    /// or the user drags the resize grip past the floor. Belt-and-braces
+    /// for the `minSize` / `contentMinSize` properties.
+    nonisolated func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        NSSize(
+            width: max(frameSize.width, 600),
+            height: max(frameSize.height, 440)
+        )
     }
 }
 

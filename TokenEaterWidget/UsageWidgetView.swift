@@ -8,6 +8,7 @@ enum WidgetTheme {
 
     static var theme: ThemeColors { shared.theme }
     static var thresholds: UsageThresholds { shared.thresholds }
+    static var smartColorEnabled: Bool { shared.smartColorEnabled }
 }
 
 // MARK: - Widget Background (macOS 13 compat)
@@ -78,14 +79,18 @@ struct UsageWidgetView: View {
                     CircularUsageView(
                         label: String(localized: "widget.session"),
                         resetInfo: formatResetTime(fiveHour.resetsAtDate),
-                        utilization: fiveHour.utilization
+                        utilization: fiveHour.utilization,
+                        resetDate: fiveHour.resetsAtDate,
+                        windowDuration: 5 * 3600
                     )
                 }
                 if let sevenDay = usage.sevenDay {
                     CircularUsageView(
                         label: String(localized: "widget.weekly"),
                         resetInfo: formatResetDate(sevenDay.resetsAtDate),
-                        utilization: sevenDay.utilization
+                        utilization: sevenDay.utilization,
+                        resetDate: sevenDay.resetsAtDate,
+                        windowDuration: 7 * 86_400
                     )
                 }
                 if let pacing = PacingCalculator.calculate(from: usage) {
@@ -141,29 +146,35 @@ struct UsageWidgetView: View {
                     label: String(localized: "widget.session"),
                     subtitle: String(localized: "widget.session.subtitle"),
                     resetInfo: formatResetTime(fiveHour.resetsAtDate),
-                    utilization: fiveHour.utilization
+                    utilization: fiveHour.utilization,
+                    resetDate: fiveHour.resetsAtDate,
+                    windowDuration: 5 * 3600
                 )
             }
 
-            // Weekly — All models
+            // Weekly - All models
             if let sevenDay = usage.sevenDay {
                 LargeUsageBarView(
                     icon: "chart.bar.fill",
                     label: String(localized: "widget.weekly.full"),
                     subtitle: String(localized: "widget.weekly.subtitle"),
                     resetInfo: formatResetDate(sevenDay.resetsAtDate),
-                    utilization: sevenDay.utilization
+                    utilization: sevenDay.utilization,
+                    resetDate: sevenDay.resetsAtDate,
+                    windowDuration: 7 * 86_400
                 )
             }
 
-            // Weekly — Sonnet
+            // Weekly - Sonnet
             if let sonnet = usage.sevenDaySonnet {
                 LargeUsageBarView(
                     icon: "wand.and.stars",
                     label: String(localized: "widget.sonnet"),
                     subtitle: String(localized: "widget.sonnet.subtitle"),
                     resetInfo: formatResetDate(sonnet.resetsAtDate),
-                    utilization: sonnet.utilization
+                    utilization: sonnet.utilization,
+                    resetDate: sonnet.resetsAtDate,
+                    windowDuration: 7 * 86_400
                 )
             }
 
@@ -293,11 +304,22 @@ struct CircularUsageView: View {
     let label: String
     let resetInfo: String
     let utilization: Double
+    var resetDate: Date? = nil
+    var windowDuration: TimeInterval = 5 * 3600
+    var smartEnabled: Bool = WidgetTheme.smartColorEnabled
     var theme: ThemeColors = WidgetTheme.theme
     var thresholds: UsageThresholds = WidgetTheme.thresholds
 
     private var ringGradient: LinearGradient {
-        theme.gaugeGradient(for: utilization, thresholds: thresholds)
+        if smartEnabled {
+            return theme.smartGaugeGradient(
+                utilization: utilization,
+                resetDate: resetDate,
+                windowDuration: windowDuration,
+                thresholds: thresholds
+            )
+        }
+        return theme.gaugeGradient(for: utilization, thresholds: thresholds)
     }
 
     var body: some View {
@@ -397,6 +419,9 @@ struct LargeUsageBarView: View {
     let utilization: Double
     var colorOverride: Color? = nil
     var displayText: String? = nil
+    var resetDate: Date? = nil
+    var windowDuration: TimeInterval = 5 * 3600
+    var smartEnabled: Bool = WidgetTheme.smartColorEnabled
     var theme: ThemeColors = WidgetTheme.theme
     var thresholds: UsageThresholds = WidgetTheme.thresholds
 
@@ -404,11 +429,29 @@ struct LargeUsageBarView: View {
         if let color = colorOverride {
             return LinearGradient(colors: [color, color.opacity(0.8)], startPoint: .leading, endPoint: .trailing)
         }
+        if smartEnabled {
+            return theme.smartGaugeGradient(
+                utilization: utilization,
+                resetDate: resetDate,
+                windowDuration: windowDuration,
+                thresholds: thresholds,
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        }
         return theme.gaugeGradient(for: utilization, thresholds: thresholds, startPoint: .leading, endPoint: .trailing)
     }
 
     private var accentColor: Color {
         if let color = colorOverride { return color }
+        if smartEnabled {
+            return theme.smartGaugeColor(
+                utilization: utilization,
+                resetDate: resetDate,
+                windowDuration: windowDuration,
+                thresholds: thresholds
+            )
+        }
         return theme.gaugeColor(for: utilization, thresholds: thresholds)
     }
 

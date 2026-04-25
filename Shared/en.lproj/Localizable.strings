@@ -82,6 +82,9 @@
 "settings.general.title" = "General";
 "settings.launchAtLogin" = "Launch at login";
 "settings.launchAtLogin.hint" = "Open TokenEater automatically when you sign in to macOS. You can toggle this from System Settings → General → Login Items as well.";
+"settings.general.replayOnboarding" = "Replay onboarding";
+"settings.general.replayOnboarding.hint" = "Restart the welcome flow from the beginning. Useful to reconnect, review notification permissions, or rediscover features.";
+"settings.general.replayOnboarding.action" = "Replay";
 
 /* Connect */
 "connect.button" = "Connect";
@@ -96,25 +99,25 @@
 "guide.oauth.badge" = "Recommended";
 "guide.oauth.step1" = "Install **Claude Code** (Anthropic's CLI)";
 "guide.oauth.step2" = "Open TokenEater and click **Connect**";
-"guide.oauth.step3" = "Done — token refreshes automatically";
+"guide.oauth.step3" = "Done - token refreshes automatically";
 "guide.widget" = "Add the widget";
 "guide.widget.detail" = "Right-click desktop > **Edit Widgets** > **TokenEater**";
 
 /* Errors - API */
 "error.notoken" = "No OAuth token found. Install Claude Code and click Connect.";
-"error.tokenexpired" = "OAuth token expired — relaunch Claude Code to refresh it";
+"error.tokenexpired" = "OAuth token expired - relaunch Claude Code to refresh it";
 "error.invalidurl" = "Invalid URL";
 "error.invalidresponse" = "Invalid server response";
 "error.http" = "HTTP error %d";
 "error.ratelimited" = "Rate limited";
 "error.network" = "Network error: %@";
 "error.invalidresponse.short" = "Invalid response";
-"error.keychainlocked" = "Keychain locked — will retry automatically";
-"error.unsupportedplan" = "Usage data not available — Claude Pro or Team plan required";
+"error.keychainlocked" = "Keychain locked - will retry automatically";
+"error.unsupportedplan" = "Usage data not available - Claude Pro or Team plan required";
 "error.banner.expired" = "Token expired";
-"error.banner.expired.hint" = "Run /login in Claude Code — TokenEater will pick it up automatically";
+"error.banner.expired.hint" = "Run /login in Claude Code - TokenEater will pick it up automatically";
 "error.banner.keychain" = "Keychain locked";
-"error.banner.keychain.hint" = "Will retry automatically — or open Settings to re-authorize";
+"error.banner.keychain.hint" = "Will retry automatically - or open Settings to re-authorize";
 "error.banner.reauth" = "Authorization needed";
 "error.banner.reauth.hint" = "Token expired and automatic recovery failed";
 "error.banner.reauth.button" = "Re-authorize";
@@ -124,9 +127,9 @@
 "error.banner.retry.button" = "Retry now";
 
 /* Connection Test */
-"test.success" = "Connected — Session: %d%%";
+"test.success" = "Connected - Session: %d%%";
 "test.expired" = "Session expired or invalid (HTTP %d)";
-"test.ratelimited" = "Connected — rate limited, will retry shortly";
+"test.ratelimited" = "Connected - rate limited, will retry shortly";
 "test.http" = "HTTP error %d";
 
 /* Pacing */
@@ -147,21 +150,21 @@
 "settings.pacing.margin.value" = "Margin";
 "settings.pacing.margin.hint" = "How far (%) usage can deviate from ideal pace before switching zones.";
 
-/* Notifications — fallback (no reset time available) */
-"notif.orange.body" = "You're past %d%% — consider slowing down";
-"notif.red.body" = "Critical usage — limit almost reached";
-"notif.green.body" = "Usage reset — you're back in the green";
-"notif.test.body" = "Notifications are working — you're all set!";
+/* Notifications - fallback (no reset time available) */
+"notif.orange.body" = "You're past %d%% - consider slowing down";
+"notif.red.body" = "Critical usage - limit almost reached";
+"notif.green.body" = "Usage reset - you're back in the green";
+"notif.test.body" = "Notifications are working - you're all set!";
 
-/* Notifications — escalation with reset time */
-"notif.orange.body.session.chill" = "Resets in %1$@ (at %2$@) — your pace is fine";
-"notif.orange.body.session.ontrack" = "Resets in %1$@ (at %2$@) — pace yourself";
-"notif.orange.body.session.hot" = "Resets in %1$@ (at %2$@) — you're burning fast";
-"notif.orange.body.weekly" = "Resets on %@ — pace yourself";
-"notif.red.body.session" = "Limit almost reached — resets in %1$@ (at %2$@)";
-"notif.red.body.weekly" = "Limit almost reached — resets on %@";
+/* Notifications - escalation with reset time */
+"notif.orange.body.session.chill" = "Resets in %1$@ (at %2$@) - your pace is fine";
+"notif.orange.body.session.ontrack" = "Resets in %1$@ (at %2$@) - pace yourself";
+"notif.orange.body.session.hot" = "Resets in %1$@ (at %2$@) - you're burning fast";
+"notif.orange.body.weekly" = "Resets on %@ - pace yourself";
+"notif.red.body.session" = "Limit almost reached - resets in %1$@ (at %2$@)";
+"notif.red.body.weekly" = "Limit almost reached - resets on %@";
 
-/* Notifications — recovery with next reset time */
+/* Notifications - recovery with next reset time */
 "notif.green.body.session" = "You're back! Next reset at %@";
 "notif.green.body.weekly" = "You're back! Next reset on %@";
 "settings.notifications.title" = "Notifications";
@@ -217,7 +220,11 @@
 "dashboard.hero.resetsIn" = "Resets in";
 "pacing.zone.chill" = "Chill";
 "pacing.zone.ontrack" = "On track";
+"pacing.zone.warning" = "Watch out";
 "pacing.zone.hot" = "Hot";
+"pacing.warning.1" = "Easy now, you're ahead";
+"pacing.warning.2" = "Picking up the pace";
+"pacing.warning.3" = "Bit fast, ease off";
 
 /* Durations */
 "duration.days.hours" = "%dd %dh";
@@ -243,35 +250,35 @@
 "onboarding.prereq.step3" = "Come back here and hit retry";
 "onboarding.prereq.install.link" = "Get Claude Code";
 "onboarding.prereq.retry" = "Retry";
-"onboarding.prereq.plan.required" = "Requires a Claude Pro or Team plan — the free plan doesn't expose usage data.";
+"onboarding.prereq.plan.required" = "Requires a Claude Pro or Team plan - the free plan doesn't expose usage data.";
 
 /* Onboarding - Notifications */
 "onboarding.notif.title" = "Stay in the loop";
 "onboarding.notif.simple" = "Get notified when your usage hits warning or critical levels.";
-"onboarding.notif.detailed" = "TokenEater sends local notifications when your usage crosses configurable thresholds (default: 60%% warning, 85%% critical). Only transitions trigger alerts — no spam.";
+"onboarding.notif.detailed" = "TokenEater sends local notifications when your usage crosses configurable thresholds (default: 60%% warning, 85%% critical). Only transitions trigger alerts - no spam.";
 "onboarding.notif.enable" = "Enable Notifications";
 "onboarding.notif.enabled" = "Notifications enabled!";
 "onboarding.notif.test" = "Send a test";
-"onboarding.notif.denied.hint" = "No worries — you can enable them later in System Settings.";
+"onboarding.notif.denied.hint" = "No worries - you can enable them later in System Settings.";
 "onboarding.notif.open.settings" = "Open Settings";
 "onboarding.notif.skip.hint" = "You'll miss threshold alerts";
-"onboarding.notif.mockup.title" = "⚠️ Session 5h — 72%";
-"onboarding.notif.mockup.body" = "You're past 60% — consider slowing down";
+"onboarding.notif.mockup.title" = "⚠️ Session 5h - 72%";
+"onboarding.notif.mockup.body" = "You're past 60% - consider slowing down";
 
 /* Onboarding - Connection */
 "onboarding.connection.title" = "One last thing";
-"onboarding.connection.simple" = "macOS will ask for your password — that's normal. It lets TokenEater securely read your Claude session.";
-"onboarding.connection.detailed" = "macOS protects the Keychain with your login password. TokenEater needs a one-time read via SecItemCopyMatching. Only the access token is copied — nothing else leaves the Keychain.";
+"onboarding.connection.simple" = "macOS will ask for your password - that's normal. It lets TokenEater securely read your Claude session.";
+"onboarding.connection.detailed" = "macOS protects the Keychain with your login password. TokenEater needs a one-time read via SecItemCopyMatching. Only the access token is copied - nothing else leaves the Keychain.";
 "onboarding.connection.authorize" = "Authorize";
 "onboarding.connection.connecting" = "Connecting…";
 "onboarding.connection.success.title" = "You're all set!";
 "onboarding.connection.widget.hint" = "Add the widget: right-click desktop → Edit Widgets → TokenEater";
-"onboarding.connection.ratelimited.hint" = "Connected, but Anthropic's usage API is temporarily unavailable — your data will appear as soon as it's back";
+"onboarding.connection.ratelimited.hint" = "Connected, but Anthropic's usage API is temporarily unavailable - your data will appear as soon as it's back";
 "onboarding.connection.start" = "Let's go";
 "onboarding.connection.retry" = "Try again";
 "onboarding.connection.failed.title" = "Something went wrong";
 "onboarding.connection.failed.notoken" = "Couldn't read the token. Make sure Claude Code is installed and you're signed in.";
-"onboarding.connection.failed.tip" = "Try running /login in Claude Code even if you're already signed in — it can fix stale sessions.";
+"onboarding.connection.failed.tip" = "Try running /login in Claude Code even if you're already signed in - it can fix stale sessions.";
 "onboarding.connection.keychain.hint" = "TokenEater needs one-time access to read Claude Code's encryption key. Click 'Always Allow' when macOS asks.";
 
 /* Settings - Onboarding reset */
@@ -289,6 +296,17 @@
 "settings.theme.menubar.resetColor" = "Revert to system default";
 "settings.theme.smartreset" = "Smart color for reset countdown";
 "settings.theme.smartreset.hint" = "Colour the reset countdown based on urgency (gauge colors): green when you have headroom, orange / red when usage is high relative to time remaining. Overrides the manual color above while on.";
+
+/* Smart Color (global toggle in Themes) */
+"settings.smartcolor.title" = "Smart Color";
+"settings.smartcolor.hint" = "Color codes adapt to time-to-reset, not just absolute usage.";
+"settings.smartcolor.popover.title" = "How Smart Color works";
+"settings.smartcolor.popover.intro" = "Smart Color factors in the time you have left before the next reset. Same percentage gets a different color depending on how soon you'll be reset.";
+"settings.smartcolor.popover.example1.label" = "Low risk";
+"settings.smartcolor.popover.example1" = "Critical % but reset is imminent.\nLow real risk, stays green.";
+"settings.smartcolor.popover.example2.label" = "Hot zone";
+"settings.smartcolor.popover.example2" = "Moderate usage with hours ahead.\nAt this pace you'll likely overshoot, so it warns red.";
+"settings.smartcolor.popover.formula" = "risk = utilization × minutes / 100";
 
 /* Update */
 "update.check" = "Check for updates";
@@ -335,15 +353,15 @@
 "settings.watchers.trigger.wide" = "Wide";
 "settings.watchers.trigger.hint" = "How close to the screen edge the cursor must get to open the overlay. Minimal keeps the rest of the screen fully clickable; once the overlay pops open the grabable area grows so the cursor can drift without snapping shut.";
 "settings.watchers.legend" = "Status legend";
-"settings.watchers.idle" = "Idle — waiting for input";
-"settings.watchers.thinking" = "Thinking — generating a response";
-"settings.watchers.executing" = "Executing — running a tool";
-"settings.watchers.waiting" = "Waiting — needs your input";
-"settings.watchers.subagent" = "Subagent — spawned an agent";
-"settings.watchers.compacting" = "Compacting — compressing context";
+"settings.watchers.idle" = "Idle - waiting for input";
+"settings.watchers.thinking" = "Thinking - generating a response";
+"settings.watchers.executing" = "Executing - running a tool";
+"settings.watchers.waiting" = "Waiting - needs your input";
+"settings.watchers.subagent" = "Subagent - spawned an agent";
+"settings.watchers.compacting" = "Compacting - compressing context";
 "settings.watchers.detailed" = "Detailed status mode";
-"settings.watchers.simple.idle" = "Idle — waiting for input";
-"settings.watchers.simple.working" = "Working — Claude is busy";
+"settings.watchers.simple.idle" = "Idle - waiting for input";
+"settings.watchers.simple.working" = "Working - Claude is busy";
 "settings.watchers.behavior" = "Behavior";
 "settings.watchers.dock" = "Dock magnification effect";
 "settings.watchers.leftside" = "Left side";
@@ -371,7 +389,7 @@
 "onboarding.watchers.title" = "Agent Watchers";
 "onboarding.watchers.description" = "A floating overlay that shows your active Claude Code sessions at a glance. Hover to expand, click to jump straight to a session.";
 "onboarding.watchers.compat.title" = "Works instantly with";
-"onboarding.watchers.compat.advanced" = "tmux, Kitty, and WezTerm need a one-line config tweak — find it in Settings → Watchers after onboarding.";
+"onboarding.watchers.compat.advanced" = "tmux, Kitty, and WezTerm need a one-line config tweak - find it in Settings → Watchers after onboarding.";
 "onboarding.watchers.settings.hint" = "You can switch to a simplified view in Settings.";
 
 /* Performance */
@@ -388,6 +406,12 @@
 
 /* Sidebar */
 "sidebar.dashboard" = "Dashboard";
+"sidebar.stats" = "Stats";
+"sidebar.monitoring" = "Monitoring";
+"sidebar.history" = "History";
+"sidebar.general" = "General";
+"history.placeholder.title" = "History coming soon";
+"history.placeholder.subtitle" = "Your Claude Code session history will live here -> per-model token breakdown, daily charts, and usage patterns across your local JSONL files.";
 "sidebar.display" = "Menu bar";
 "sidebar.themes" = "Themes";
 "sidebar.popover" = "Popover";

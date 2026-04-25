@@ -105,9 +105,9 @@ final class NotificationService: NotificationServiceProtocol {
 
         switch level {
         case .orange:
-            content.title = "\u{26a0}\u{fe0f} \(label) — \(pct)%"
+            content.title = "\u{26a0}\u{fe0f} \(label) - \(pct)%"
         case .red:
-            content.title = "\u{1f534} \(label) — \(pct)%"
+            content.title = "\u{1f534} \(label) - \(pct)%"
         case .green:
             return
         }
@@ -128,7 +128,7 @@ final class NotificationService: NotificationServiceProtocol {
         metricType: NotificationBodyFormatter.MetricType, resetsAt: Date?
     ) {
         let content = UNMutableNotificationContent()
-        content.title = "\u{1f7e2} \(label) — \(pct)%"
+        content.title = "\u{1f7e2} \(label) - \(pct)%"
         content.body = NotificationBodyFormatter.recoveryBody(
             metricType: metricType,
             resetsAt: resetsAt

@@ -7,8 +7,10 @@ final class MockSharedFileService: SharedFileServiceProtocol, @unchecked Sendabl
     var _lastSyncDate: Date?
     var _theme: ThemeColors = .default
     var _thresholds: UsageThresholds = .default
+    var _smartColorEnabled: Bool = true
     var updateAfterSyncCallCount = 0
     var updateThemeCallCount = 0
+    var updateSmartColorCallCount = 0
 
     var isConfigured: Bool { _cachedUsage != nil }
 
@@ -16,6 +18,7 @@ final class MockSharedFileService: SharedFileServiceProtocol, @unchecked Sendabl
     var lastSyncDate: Date? { _lastSyncDate }
     var theme: ThemeColors { _theme }
     var thresholds: UsageThresholds { _thresholds }
+    var smartColorEnabled: Bool { _smartColorEnabled }
 
     func updateAfterSync(usage: CachedUsage, syncDate: Date) {
         updateAfterSyncCallCount += 1
@@ -27,6 +30,11 @@ final class MockSharedFileService: SharedFileServiceProtocol, @unchecked Sendabl
         updateThemeCallCount += 1
         _theme = theme
         _thresholds = thresholds
+    }
+
+    func updateSmartColorEnabled(_ enabled: Bool) {
+        updateSmartColorCallCount += 1
+        _smartColorEnabled = enabled
     }
 
     func invalidateCache() {}

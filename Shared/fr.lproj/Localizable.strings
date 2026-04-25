@@ -82,6 +82,9 @@
 "settings.general.title" = "Général";
 "settings.launchAtLogin" = "Lancer au démarrage";
 "settings.launchAtLogin.hint" = "Ouvre TokenEater automatiquement quand vous vous connectez à macOS. Vous pouvez aussi gérer ce réglage depuis Réglages système → Général → Éléments de connexion.";
+"settings.general.replayOnboarding" = "Rejouer l'onboarding";
+"settings.general.replayOnboarding.hint" = "Relance le tutoriel depuis le début. Utile pour te reconnecter, revoir les permissions de notifications, ou redécouvrir les features.";
+"settings.general.replayOnboarding.action" = "Rejouer";
 
 /* Connect */
 "connect.button" = "Connexion";
@@ -96,25 +99,25 @@
 "guide.oauth.badge" = "Recommandé";
 "guide.oauth.step1" = "Installez **Claude Code** (le CLI d'Anthropic)";
 "guide.oauth.step2" = "Ouvrez TokenEater et cliquez sur **Connecter**";
-"guide.oauth.step3" = "Terminé — le token se rafraîchit automatiquement";
+"guide.oauth.step3" = "Terminé - le token se rafraîchit automatiquement";
 "guide.widget" = "Ajouter le widget";
 "guide.widget.detail" = "Clic droit sur le bureau > **Modifier les widgets** > **TokenEater**";
 
 /* Errors - API */
 "error.notoken" = "Aucun token OAuth trouvé. Installez Claude Code et cliquez sur Connexion.";
-"error.tokenexpired" = "Token OAuth expiré — relancez Claude Code pour le rafraîchir";
+"error.tokenexpired" = "Token OAuth expiré - relancez Claude Code pour le rafraîchir";
 "error.invalidurl" = "URL invalide";
 "error.invalidresponse" = "Réponse invalide du serveur";
 "error.http" = "Erreur HTTP %d";
 "error.ratelimited" = "Limite de requêtes atteinte";
 "error.network" = "Erreur réseau : %@";
 "error.invalidresponse.short" = "Réponse invalide";
-"error.keychainlocked" = "Keychain verrouillé — nouvelle tentative automatique";
-"error.unsupportedplan" = "Données d'utilisation indisponibles — un plan Claude Pro ou Team est requis";
+"error.keychainlocked" = "Keychain verrouillé - nouvelle tentative automatique";
+"error.unsupportedplan" = "Données d'utilisation indisponibles - un plan Claude Pro ou Team est requis";
 "error.banner.expired" = "Token expiré";
-"error.banner.expired.hint" = "Lancez /login dans Claude Code — TokenEater le récupérera automatiquement";
+"error.banner.expired.hint" = "Lancez /login dans Claude Code - TokenEater le récupérera automatiquement";
 "error.banner.keychain" = "Keychain verrouillé";
-"error.banner.keychain.hint" = "Nouvelle tentative automatique — ou ouvrez les Réglages pour ré-autoriser";
+"error.banner.keychain.hint" = "Nouvelle tentative automatique - ou ouvrez les Réglages pour ré-autoriser";
 "error.banner.reauth" = "Autorisation requise";
 "error.banner.reauth.hint" = "Token expiré et la récupération automatique a échoué";
 "error.banner.reauth.button" = "Ré-autoriser";
@@ -124,9 +127,9 @@
 "error.banner.retry.button" = "Réessayer";
 
 /* Connection Test */
-"test.success" = "Connexion OK — Session : %d%%";
+"test.success" = "Connexion OK - Session : %d%%";
 "test.expired" = "Session expirée ou invalide (HTTP %d)";
-"test.ratelimited" = "Connecté — limité temporairement, réessai automatique";
+"test.ratelimited" = "Connecté - limité temporairement, réessai automatique";
 "test.http" = "Erreur HTTP %d";
 
 /* Pacing */
@@ -147,21 +150,21 @@
 "settings.pacing.margin.value" = "Marge";
 "settings.pacing.margin.hint" = "Écart (%) toléré par rapport au rythme idéal avant de changer de zone.";
 
-/* Notifications — fallback (pas de temps de reset dispo) */
-"notif.orange.body" = "Tu dépasses %d%% — lève le pied";
-"notif.red.body" = "Usage critique — limite presque atteinte";
-"notif.green.body" = "Usage réinitialisé — t'es de retour dans le vert";
-"notif.test.body" = "Les notifications fonctionnent — c'est bon !";
+/* Notifications - fallback (pas de temps de reset dispo) */
+"notif.orange.body" = "Tu dépasses %d%% - lève le pied";
+"notif.red.body" = "Usage critique - limite presque atteinte";
+"notif.green.body" = "Usage réinitialisé - t'es de retour dans le vert";
+"notif.test.body" = "Les notifications fonctionnent - c'est bon !";
 
-/* Notifications — escalade avec temps de reset */
-"notif.orange.body.session.chill" = "Reset dans %1$@ (à %2$@) — ton rythme est bon";
-"notif.orange.body.session.ontrack" = "Reset dans %1$@ (à %2$@) — lève le pied";
-"notif.orange.body.session.hot" = "Reset dans %1$@ (à %2$@) — tu flambes";
-"notif.orange.body.weekly" = "Reset le %@ — lève le pied";
-"notif.red.body.session" = "Limite presque atteinte — reset dans %1$@ (à %2$@)";
-"notif.red.body.weekly" = "Limite presque atteinte — reset le %@";
+/* Notifications - escalade avec temps de reset */
+"notif.orange.body.session.chill" = "Reset dans %1$@ (à %2$@) - ton rythme est bon";
+"notif.orange.body.session.ontrack" = "Reset dans %1$@ (à %2$@) - lève le pied";
+"notif.orange.body.session.hot" = "Reset dans %1$@ (à %2$@) - tu flambes";
+"notif.orange.body.weekly" = "Reset le %@ - lève le pied";
+"notif.red.body.session" = "Limite presque atteinte - reset dans %1$@ (à %2$@)";
+"notif.red.body.weekly" = "Limite presque atteinte - reset le %@";
 
-/* Notifications — recovery avec prochain reset */
+/* Notifications - recovery avec prochain reset */
 "notif.green.body.session" = "T'es de retour ! Prochain reset à %@";
 "notif.green.body.weekly" = "T'es de retour ! Prochain reset le %@";
 "settings.notifications.title" = "Notifications";
@@ -217,7 +220,11 @@
 "dashboard.hero.resetsIn" = "Reset dans";
 "pacing.zone.chill" = "Chill";
 "pacing.zone.ontrack" = "Pile-poil";
+"pacing.zone.warning" = "Attention";
 "pacing.zone.hot" = "Chaud";
+"pacing.warning.1" = "Doucement, t'es en avance";
+"pacing.warning.2" = "Le rythme s'accélère";
+"pacing.warning.3" = "Un poil rapide, lève le pied";
 
 /* Durations */
 "duration.days.hours" = "%dj %dh";
@@ -243,35 +250,35 @@
 "onboarding.prereq.step3" = "Revenez ici et cliquez sur réessayer";
 "onboarding.prereq.install.link" = "Installer Claude Code";
 "onboarding.prereq.retry" = "Réessayer";
-"onboarding.prereq.plan.required" = "Nécessite un plan Claude Pro ou Team — le plan gratuit ne fournit pas les données d'usage.";
+"onboarding.prereq.plan.required" = "Nécessite un plan Claude Pro ou Team - le plan gratuit ne fournit pas les données d'usage.";
 
 /* Onboarding - Notifications */
 "onboarding.notif.title" = "Restez informé";
 "onboarding.notif.simple" = "Recevez une notification quand votre usage atteint les seuils d'alerte.";
-"onboarding.notif.detailed" = "TokenEater envoie des notifications locales quand votre usage franchit les seuils configurables (60%% alerte, 85%% critique par défaut). Seules les transitions déclenchent une alerte — pas de spam.";
+"onboarding.notif.detailed" = "TokenEater envoie des notifications locales quand votre usage franchit les seuils configurables (60%% alerte, 85%% critique par défaut). Seules les transitions déclenchent une alerte - pas de spam.";
 "onboarding.notif.enable" = "Activer les notifications";
 "onboarding.notif.enabled" = "Notifications activées !";
 "onboarding.notif.test" = "Envoyer un test";
-"onboarding.notif.denied.hint" = "Pas de souci — vous pourrez les activer plus tard dans les Réglages Système.";
+"onboarding.notif.denied.hint" = "Pas de souci - vous pourrez les activer plus tard dans les Réglages Système.";
 "onboarding.notif.open.settings" = "Ouvrir les réglages";
 "onboarding.notif.skip.hint" = "Vous manquerez les alertes de seuil";
-"onboarding.notif.mockup.title" = "⚠️ Session 5h — 72%";
-"onboarding.notif.mockup.body" = "Tu dépasses 60% — lève le pied";
+"onboarding.notif.mockup.title" = "⚠️ Session 5h - 72%";
+"onboarding.notif.mockup.body" = "Tu dépasses 60% - lève le pied";
 
 /* Onboarding - Connection */
 "onboarding.connection.title" = "Dernière étape";
-"onboarding.connection.simple" = "macOS va demander votre mot de passe — c'est normal. Ça permet à TokenEater de lire votre session Claude en toute sécurité.";
-"onboarding.connection.detailed" = "macOS protège le Keychain avec votre mot de passe. TokenEater fait une lecture unique via SecItemCopyMatching. Seul l'access token est copié — rien d'autre ne sort du Keychain.";
+"onboarding.connection.simple" = "macOS va demander votre mot de passe - c'est normal. Ça permet à TokenEater de lire votre session Claude en toute sécurité.";
+"onboarding.connection.detailed" = "macOS protège le Keychain avec votre mot de passe. TokenEater fait une lecture unique via SecItemCopyMatching. Seul l'access token est copié - rien d'autre ne sort du Keychain.";
 "onboarding.connection.authorize" = "Autoriser";
 "onboarding.connection.connecting" = "Connexion…";
 "onboarding.connection.success.title" = "C'est bon, tout roule !";
 "onboarding.connection.widget.hint" = "Ajoutez le widget : clic droit sur le bureau → Modifier les widgets → TokenEater";
-"onboarding.connection.ratelimited.hint" = "Connecté, mais l'API usage d'Anthropic est temporairement indisponible — vos données apparaîtront dès qu'elle reviendra";
+"onboarding.connection.ratelimited.hint" = "Connecté, mais l'API usage d'Anthropic est temporairement indisponible - vos données apparaîtront dès qu'elle reviendra";
 "onboarding.connection.start" = "C'est parti";
 "onboarding.connection.retry" = "Réessayer";
 "onboarding.connection.failed.title" = "Quelque chose a planté";
 "onboarding.connection.failed.notoken" = "Impossible de lire le token. Vérifiez que Claude Code est installé et que vous êtes connecté.";
-"onboarding.connection.failed.tip" = "Essayez /login dans Claude Code même si vous êtes déjà connecté — ça peut débloquer une session expirée.";
+"onboarding.connection.failed.tip" = "Essayez /login dans Claude Code même si vous êtes déjà connecté - ça peut débloquer une session expirée.";
 "onboarding.connection.keychain.hint" = "TokenEater a besoin d'un accès unique pour lire la clé de chiffrement de Claude Code. Cliquez « Toujours autoriser » quand macOS le demande.";
 
 /* Settings - Onboarding reset */
@@ -289,6 +296,17 @@
 "settings.theme.menubar.resetColor" = "Rétablir la valeur par défaut";
 "settings.theme.smartreset" = "Couleur intelligente du reset";
 "settings.theme.smartreset.hint" = "Colorise le compte à rebours selon l'urgence (couleurs du gauge) : vert quand tu as de la marge, orange / rouge quand l'usage est élevé vs le temps restant. Override la couleur manuelle ci-dessus quand activé.";
+
+/* Smart Color (toggle global dans Themes) */
+"settings.smartcolor.title" = "Smart Color";
+"settings.smartcolor.hint" = "Les couleurs s'adaptent au temps restant avant reset, pas juste au pourcentage absolu.";
+"settings.smartcolor.popover.title" = "Comment fonctionne Smart Color";
+"settings.smartcolor.popover.intro" = "Smart Color intègre le temps qu'il te reste avant le prochain reset. Même pourcentage, couleur différente selon la proximité du reset.";
+"settings.smartcolor.popover.example1.label" = "Risque faible";
+"settings.smartcolor.popover.example1" = "Pourcentage critique mais reset imminent.\nRisque réel faible, reste vert.";
+"settings.smartcolor.popover.example2.label" = "Zone chaude";
+"settings.smartcolor.popover.example2" = "Usage modéré avec plusieurs heures devant.\nÀ ce rythme tu vas dépasser, donc rouge en avertissement.";
+"settings.smartcolor.popover.formula" = "risque = utilization × minutes / 100";
 
 /* Update */
 "update.check" = "Vérifier les mises à jour";
@@ -335,15 +353,15 @@
 "settings.watchers.trigger.wide" = "Large";
 "settings.watchers.trigger.hint" = "Distance du bord où la souris doit arriver pour ouvrir l'overlay. Minimal garde le reste de l'écran pleinement cliquable ; une fois l'overlay ouvert la zone de survol s'élargit pour que la souris puisse respirer sans refermer l'overlay.";
 "settings.watchers.legend" = "Légende des statuts";
-"settings.watchers.idle" = "Idle — en attente d'une action";
-"settings.watchers.thinking" = "Thinking — génère une réponse";
-"settings.watchers.executing" = "Executing — exécute un outil";
-"settings.watchers.waiting" = "Waiting — attend votre action";
-"settings.watchers.subagent" = "Subagent — sous-agent en cours";
-"settings.watchers.compacting" = "Compacting — compresse le contexte";
+"settings.watchers.idle" = "Idle - en attente d'une action";
+"settings.watchers.thinking" = "Thinking - génère une réponse";
+"settings.watchers.executing" = "Executing - exécute un outil";
+"settings.watchers.waiting" = "Waiting - attend votre action";
+"settings.watchers.subagent" = "Subagent - sous-agent en cours";
+"settings.watchers.compacting" = "Compacting - compresse le contexte";
 "settings.watchers.detailed" = "Mode détaillé";
-"settings.watchers.simple.idle" = "Idle — en attente d'une action";
-"settings.watchers.simple.working" = "Working — Claude travaille";
+"settings.watchers.simple.idle" = "Idle - en attente d'une action";
+"settings.watchers.simple.working" = "Working - Claude travaille";
 "settings.watchers.behavior" = "Comportement";
 "settings.watchers.dock" = "Effet de loupe style Dock";
 "settings.watchers.leftside" = "Côté gauche";
@@ -371,7 +389,7 @@
 "onboarding.watchers.title" = "Agent Watchers";
 "onboarding.watchers.description" = "Un overlay flottant qui montre vos sessions Claude Code actives d'un coup d'œil. Survolez pour agrandir, cliquez pour basculer vers une session.";
 "onboarding.watchers.compat.title" = "Fonctionne direct avec";
-"onboarding.watchers.compat.advanced" = "tmux, Kitty et WezTerm nécessitent une ligne de config — retrouvez-la dans Réglages → Watchers après l'onboarding.";
+"onboarding.watchers.compat.advanced" = "tmux, Kitty et WezTerm nécessitent une ligne de config - retrouvez-la dans Réglages → Watchers après l'onboarding.";
 "onboarding.watchers.settings.hint" = "Vous pouvez simplifier l'affichage dans les Réglages.";
 
 /* Performance */
@@ -388,6 +406,12 @@
 
 /* Sidebar */
 "sidebar.dashboard" = "Tableau de bord";
+"sidebar.stats" = "Stats";
+"sidebar.monitoring" = "Monitoring";
+"sidebar.history" = "Historique";
+"sidebar.general" = "Général";
+"history.placeholder.title" = "Historique bientôt disponible";
+"history.placeholder.subtitle" = "L'historique de tes sessions Claude Code s'affichera ici -> répartition des tokens par modèle, graphiques journaliers et patterns d'usage extraits de tes fichiers JSONL locaux.";
 "sidebar.display" = "Barre de menus";
 "sidebar.themes" = "Thèmes";
 "sidebar.popover" = "Popover";

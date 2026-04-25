@@ -29,7 +29,7 @@ enum NotificationBodyFormatter {
             switch pacingZone ?? .onTrack {
             case .chill: key = "notif.orange.body.session.chill"
             case .onTrack: key = "notif.orange.body.session.ontrack"
-            case .hot: key = "notif.orange.body.session.hot"
+            case .warning, .hot: key = "notif.orange.body.session.hot"
             }
             return String(format: String(localized: String.LocalizationValue(key)), countdown, time)
 

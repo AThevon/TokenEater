@@ -47,14 +47,53 @@ struct DisplaySectionView: View {
                 }
             }
 
-            // 3. Menu bar style (font / separator / labels)
+            // 3. Menu bar style (font / separator / labels) + Pacing shape
+            glassCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        cardLabel(String(localized: "settings.menubar.style"))
+                        HStack(spacing: 8) {
+                            ForEach(MenuBarStyle.allCases) { style in
+                                menuBarStyleButton(style)
+                            }
+                        }
+                    }
+
+                    Divider().opacity(0.15)
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        cardLabel(String(localized: "settings.pacing.shape"))
+                        HStack(spacing: 8) {
+                            ForEach(PacingShape.allCases) { shape in
+                                pacingShapeButton(shape)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 4. Menu bar text appearance (monochrome + custom colors).
+            // The reset countdown coloring is governed by the global "Smart
+            // Color" toggle in Themes -> when enabled, the reset color picker
+            // becomes informational (Smart drives the actual color).
             glassCard {
                 VStack(alignment: .leading, spacing: 10) {
-                    cardLabel(String(localized: "settings.menubar.style"))
-                    HStack(spacing: 8) {
-                        ForEach(MenuBarStyle.allCases) { style in
-                            menuBarStyleButton(style)
-                        }
+                    cardLabel(String(localized: "settings.theme.menubar"))
+                    darkToggle(String(localized: "settings.theme.monochrome"), isOn: $themeStore.menuBarMonochrome)
+                    if !themeStore.menuBarMonochrome {
+                        Divider().opacity(0.15)
+                        menuBarColorRow(
+                            label: "settings.reset.color",
+                            hex: $settingsStore.resetTextColorHex,
+                            fallback: .white,
+                            disabled: settingsStore.smartColorEnabled
+                        )
+                        menuBarColorRow(
+                            label: "settings.session.periodcolor",
+                            hex: $settingsStore.sessionPeriodColorHex,
+                            fallback: .white.opacity(0.4),
+                            disabled: false
+                        )
                     }
                 }
             }
@@ -105,7 +144,7 @@ struct DisplaySectionView: View {
                 }
             }
 
-            // 5. Extra metrics (menu bar pins only — popover visibility is
+            // 5. Extra metrics (menu bar pins only - popover visibility is
             // handled in the Popover section)
             glassCard {
                 VStack(alignment: .leading, spacing: 10) {
@@ -177,6 +216,75 @@ struct DisplaySectionView: View {
         }
     }
 
+    private func pacingShapeButton(_ shape: PacingShape) -> some View {
+        let isActive = settingsStore.pacingShape == shape
+        return Button {
+            withAnimation(.easeInOut(duration: 0.12)) {
+                settingsStore.pacingShape = shape
+            }
+        } label: {
+            VStack(spacing: 6) {
+                Text(shape.glyph)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(isActive ? .white : .white.opacity(0.55))
+                Text(shape.localizedLabel)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(isActive ? .white.opacity(0.9) : .white.opacity(0.5))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(isActive ? Color.blue.opacity(0.2) : Color.white.opacity(0.03))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(isActive ? Color.blue.opacity(0.5) : Color.white.opacity(0.06), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Menu-bar text color row -> empty hex falls back to a system color and
+    /// shows a revert-to-default button when the user has picked a custom color.
+    private func menuBarColorRow(
+        label: LocalizedStringKey,
+        hex: Binding<String>,
+        fallback: Color,
+        disabled: Bool = false
+    ) -> some View {
+        let colorBinding = Binding<Color>(
+            get: {
+                hex.wrappedValue.isEmpty ? fallback : Color(hex: hex.wrappedValue)
+            },
+            set: { newColor in
+                let nsColor = NSColor(newColor).usingColorSpace(.sRGB) ?? NSColor(newColor)
+                hex.wrappedValue = nsColor.hexString()
+            }
+        )
+        return HStack {
+            Text(label)
+                .font(.system(size: 12))
+                .foregroundStyle(.white.opacity(disabled ? 0.35 : 0.7))
+            Spacer()
+            if !hex.wrappedValue.isEmpty && !disabled {
+                Button {
+                    hex.wrappedValue = ""
+                } label: {
+                    Image(systemName: "arrow.uturn.backward.circle.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white.opacity(0.35))
+                }
+                .buttonStyle(.plain)
+                .help(Text(String(localized: "settings.theme.menubar.resetColor")))
+            }
+            ColorPicker("", selection: colorBinding, supportsOpacity: false)
+                .labelsHidden()
+                .disabled(disabled)
+                .opacity(disabled ? 0.4 : 1)
+        }
+    }
+
     private func menuBarStyleButton(_ style: MenuBarStyle) -> some View {
         let isActive = settingsStore.menuBarStyle == style
         return Button {
@@ -242,11 +350,14 @@ struct DisplaySectionView: View {
             fiveHourReset: "1h58",
             fiveHourResetAbsolute: "20:30",
             fiveHourResetDate: Date().addingTimeInterval(1 * 3600 + 58 * 60),
+            sevenDayResetDate: Date().addingTimeInterval(2 * 24 * 3600),
+            sonnetResetDate: Date().addingTimeInterval(2 * 24 * 3600),
+            designResetDate: Date().addingTimeInterval(2 * 24 * 3600),
             hasFiveHourBucket: true,
             resetDisplayFormat: settingsStore.resetDisplayFormat,
             resetTextColorHex: settingsStore.resetTextColorHex,
             sessionPeriodColorHex: settingsStore.sessionPeriodColorHex,
-            smartResetColor: settingsStore.smartResetColor,
+            smartResetColor: settingsStore.smartColorEnabled,
             menuBarStyle: settingsStore.menuBarStyle,
             pacingShape: settingsStore.pacingShape,
             designPct: 28,
