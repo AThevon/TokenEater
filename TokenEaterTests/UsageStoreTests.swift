@@ -38,7 +38,10 @@ struct UsageStoreTests {
             sendRecovery: true, pacingHot: true, pacingWarning: false,
             resetReminderSession: false, resetReminderWeekly: false,
             extraCredits: true, tokenExpired: true,
-            smartColorEnabled: false, thresholds: .default
+            smartColorEnabled: false,
+            smartColorProfile: .default,
+            pacingMargin: 10,
+            thresholds: .default
         )
     }
 

@@ -40,6 +40,8 @@ struct NotificationToggles {
     let extraCredits: Bool
     let tokenExpired: Bool
     let smartColorEnabled: Bool
+    let smartColorProfile: SmartColorProfile
+    let pacingMargin: Double
     let thresholds: UsageThresholds
 }
 

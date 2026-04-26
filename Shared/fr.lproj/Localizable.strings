@@ -380,7 +380,27 @@
 "settings.smartcolor.popover.example1" = "Pourcentage critique mais reset imminent.\nRisque réel faible, reste vert.";
 "settings.smartcolor.popover.example2.label" = "Zone chaude";
 "settings.smartcolor.popover.example2" = "Usage modéré avec plusieurs heures devant.\nÀ ce rythme tu vas dépasser, donc rouge en avertissement.";
-"settings.smartcolor.popover.formula" = "risque = utilization × minutes / 100";
+"settings.smartcolor.popover.formula" = "risque = max(absolu, projection · c, pacing · c)";
+
+/* Smart Color popover - décomposition des 3 signaux (algo v2) */
+"settings.smartcolor.popover.signals.title" = "Les 3 signaux de risque";
+"settings.smartcolor.popover.signal.absolute.title" = "Absolu";
+"settings.smartcolor.popover.signal.absolute.desc" = "À quel point tu es proche de la limite, sans tenir compte du rythme. Sous ton seuil warning c'est zéro, au-delà du critical c'est un, montée douce entre les deux - pas de palier.";
+"settings.smartcolor.popover.signal.projection.title" = "Projection";
+"settings.smartcolor.popover.signal.projection.desc" = "À ton rythme actuel, vas-tu dépasser avant le reset ? Le score grimpe avec l'ampleur du dépassement projeté. Atténué tôt dans la fenêtre quand le rythme n'est pas encore fiable.";
+"settings.smartcolor.popover.signal.pacing.title" = "Pacing";
+"settings.smartcolor.popover.signal.pacing.desc" = "Tu consommes plus vite que la cadence linéaire ? Reste à zéro tant que tu es dans ta marge, monte quand tu dépasses. Même atténuation en début de fenêtre.";
+"settings.smartcolor.popover.combine" = "Combinés via max - le pire signal gagne. Aucun signal calme ne peut masquer une alarme.";
+"settings.smartcolor.popover.profile" = "Ton profil (Confiant / Équilibré / Suspicieux) règle quand chaque transition se déclenche. Choisis le tempérament qui colle à ton appétit du risque.";
+
+/* Smart Color profile picker - 3 tempéraments qui règlent quand la jauge transitionne sur le continuum de risque */
+"settings.smartColor.profile.label" = "Sensibilité";
+"settings.smartColor.profile.confident" = "Confiant";
+"settings.smartColor.profile.balanced" = "Équilibré";
+"settings.smartColor.profile.suspicious" = "Suspicieux";
+"settings.smartColor.profile.confident.hint" = "Tolère les bursts. Reste calme plus longtemps, alarme tard.";
+"settings.smartColor.profile.balanced.hint" = "Réglage par défaut, validé sur la matrice de test.";
+"settings.smartColor.profile.suspicious.hint" = "Lit les premiers signaux comme du risque. Alarme tôt.";
 
 /* Update */
 "update.check" = "Vérifier les mises à jour";

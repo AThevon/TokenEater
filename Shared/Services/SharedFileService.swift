@@ -107,6 +107,12 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         var theme: ThemeColors?
         var thresholds: UsageThresholds?
         var smartColorEnabled: Bool?
+        /// Persisted as the raw rawValue (e.g. "balanced") so older widget
+        /// builds that don't know about the profile field still decode the
+        /// rest of the JSON cleanly. Decoded back through the enum's
+        /// `init?(rawValue:)` so an unknown future value falls back to nil
+        /// (and the getter returns `.default`).
+        var smartColorProfile: String?
     }
 
     /// In-memory cache - avoids redundant disk reads within the same process.
@@ -171,6 +177,14 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         load().smartColorEnabled ?? true
     }
 
+    var smartColorProfile: SmartColorProfile {
+        guard let raw = load().smartColorProfile,
+              let profile = SmartColorProfile(rawValue: raw) else {
+            return .default
+        }
+        return profile
+    }
+
     func updateAfterSync(usage: CachedUsage, syncDate: Date) {
         var data = load()
         data.cachedUsage = usage
@@ -188,6 +202,12 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
     func updateSmartColorEnabled(_ enabled: Bool) {
         var data = load()
         data.smartColorEnabled = enabled
+        save(data)
+    }
+
+    func updateSmartColorProfile(_ profile: SmartColorProfile) {
+        var data = load()
+        data.smartColorProfile = profile.rawValue
         save(data)
     }
 

@@ -143,6 +143,8 @@ final class StatusBarController: NSObject {
                 extraCredits: self.settingsStore.notifExtraCredits,
                 tokenExpired: self.settingsStore.notifTokenExpired,
                 smartColorEnabled: self.settingsStore.smartColorEnabled,
+                smartColorProfile: self.settingsStore.smartColorProfile,
+                pacingMargin: Double(self.settingsStore.pacingMargin),
                 thresholds: self.themeStore.thresholds
             )
         }
@@ -258,6 +260,8 @@ final class StatusBarController: NSObject {
             resetTextColorHex: settingsStore.resetTextColorHex,
             sessionPeriodColorHex: settingsStore.sessionPeriodColorHex,
             smartResetColor: settingsStore.smartColorEnabled,
+            smartColorProfile: settingsStore.smartColorProfile,
+            pacingMargin: Double(settingsStore.pacingMargin),
             menuBarStyle: settingsStore.menuBarStyle,
             pacingShape: settingsStore.pacingShape,
             designPct: usageStore.designPct,

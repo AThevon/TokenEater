@@ -29,7 +29,8 @@ enum UsageLevel: Int, Comparable {
         windowDuration: TimeInterval,
         thresholds: UsageThresholds = .default,
         pacingMargin: Double = 10,
-        now: Date = Date()
+        now: Date = Date(),
+        profile: SmartColorProfile = .default
     ) -> UsageLevel {
         // Reuse the same decision tree as the gauge so the user-visible
         // signals stay in sync. We use the default theme since the threshold
@@ -40,7 +41,8 @@ enum UsageLevel: Int, Comparable {
             windowDuration: windowDuration,
             thresholds: thresholds,
             pacingMargin: pacingMargin,
-            now: now
+            now: now,
+            profile: profile
         )
         switch level {
         case .critical: return .red
@@ -168,7 +170,9 @@ final class NotificationService: NotificationServiceProtocol {
             ? .from(smartUtilization: snapshot.utilization,
                     resetDate: snapshot.resetsAt,
                     windowDuration: snapshot.windowDuration,
-                    thresholds: toggles.thresholds)
+                    thresholds: toggles.thresholds,
+                    pacingMargin: toggles.pacingMargin,
+                    profile: toggles.smartColorProfile)
             : .from(pct: snapshot.pct, thresholds: toggles.thresholds)
 
         guard current != previous else { return }

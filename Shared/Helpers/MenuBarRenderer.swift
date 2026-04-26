@@ -36,6 +36,8 @@ enum MenuBarRenderer {
         let resetTextColorHex: String
         let sessionPeriodColorHex: String
         let smartResetColor: Bool
+        let smartColorProfile: SmartColorProfile
+        let pacingMargin: Double
         let menuBarStyle: MenuBarStyle
         let pacingShape: PacingShape
         let designPct: Int
@@ -75,7 +77,9 @@ enum MenuBarRenderer {
                 utilization: Double(pct),
                 resetDate: resetDate,
                 windowDuration: windowDuration,
-                thresholds: data.thresholds
+                thresholds: data.thresholds,
+                pacingMargin: data.pacingMargin,
+                profile: data.smartColorProfile
             )
         }
         return data.themeColors.gaugeNSColor(for: Double(pct), thresholds: data.thresholds)
@@ -125,7 +129,9 @@ enum MenuBarRenderer {
                 utilization: Double(data.fiveHourPct),
                 resetDate: data.fiveHourResetDate,
                 windowDuration: 5 * 3600,
-                thresholds: data.thresholds
+                thresholds: data.thresholds,
+                pacingMargin: data.pacingMargin,
+                profile: data.smartColorProfile
             )
         }
         return MenuBarTextColorResolver.resolve(

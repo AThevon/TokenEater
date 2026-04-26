@@ -201,7 +201,8 @@ struct ThemeColors: Codable, Equatable {
         windowDuration: TimeInterval,
         thresholds: UsageThresholds,
         pacingMargin: Double = 10,
-        now: Date = Date()
+        now: Date = Date(),
+        profile: SmartColorProfile = .default
     ) -> Color {
         let r = smartRisk(
             utilization: utilization,
@@ -209,7 +210,8 @@ struct ThemeColors: Codable, Equatable {
             windowDuration: windowDuration,
             thresholds: thresholds,
             pacingMargin: pacingMargin,
-            now: now
+            now: now,
+            profile: profile
         )
         return SmartColor.colorForRisk(r, theme: self)
     }
@@ -220,7 +222,8 @@ struct ThemeColors: Codable, Equatable {
         windowDuration: TimeInterval,
         thresholds: UsageThresholds,
         pacingMargin: Double = 10,
-        now: Date = Date()
+        now: Date = Date(),
+        profile: SmartColorProfile = .default
     ) -> NSColor {
         let r = smartRisk(
             utilization: utilization,
@@ -228,7 +231,8 @@ struct ThemeColors: Codable, Equatable {
             windowDuration: windowDuration,
             thresholds: thresholds,
             pacingMargin: pacingMargin,
-            now: now
+            now: now,
+            profile: profile
         )
         return SmartColor.nsColorForRisk(r, theme: self)
     }
@@ -241,7 +245,8 @@ struct ThemeColors: Codable, Equatable {
         pacingMargin: Double = 10,
         now: Date = Date(),
         startPoint: UnitPoint = .topLeading,
-        endPoint: UnitPoint = .bottomTrailing
+        endPoint: UnitPoint = .bottomTrailing,
+        profile: SmartColorProfile = .default
     ) -> LinearGradient {
         let base = smartGaugeColor(
             utilization: utilization,
@@ -249,7 +254,8 @@ struct ThemeColors: Codable, Equatable {
             windowDuration: windowDuration,
             thresholds: thresholds,
             pacingMargin: pacingMargin,
-            now: now
+            now: now,
+            profile: profile
         )
         return LinearGradient(colors: [base, base.lighter()], startPoint: startPoint, endPoint: endPoint)
     }
@@ -279,7 +285,8 @@ struct ThemeColors: Codable, Equatable {
         windowDuration: TimeInterval,
         thresholds: UsageThresholds,
         pacingMargin: Double = 10,
-        now: Date = Date()
+        now: Date = Date(),
+        profile: SmartColorProfile = .default
     ) -> SmartLevel {
         let r = smartRisk(
             utilization: utilization,
@@ -287,7 +294,8 @@ struct ThemeColors: Codable, Equatable {
             windowDuration: windowDuration,
             thresholds: thresholds,
             pacingMargin: pacingMargin,
-            now: now
+            now: now,
+            profile: profile
         )
         return SmartColor.legacyLevel(forRisk: r)
     }
@@ -302,7 +310,8 @@ struct ThemeColors: Codable, Equatable {
         thresholds: UsageThresholds,
         pacingMargin: Double = 10,
         now: Date = Date(),
-        previous: PacingZone? = nil
+        previous: PacingZone? = nil,
+        profile: SmartColorProfile = .default
     ) -> PacingZone {
         let r = smartRisk(
             utilization: utilization,
@@ -310,9 +319,10 @@ struct ThemeColors: Codable, Equatable {
             windowDuration: windowDuration,
             thresholds: thresholds,
             pacingMargin: pacingMargin,
-            now: now
+            now: now,
+            profile: profile
         )
-        return SmartColor.zoneForRisk(r, previous: previous)
+        return SmartColor.zoneForRisk(r, previous: previous, params: profile.parameters)
     }
 
     func pacingNSColor(for zone: PacingZone) -> NSColor {

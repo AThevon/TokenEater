@@ -57,11 +57,16 @@ struct MenuBarRendererTests {
         #expect(observed == expected)
     }
 
-    @Test("pre-critical utilization with moderate remaining lands in warning band")
+    @Test("pre-critical utilization with moderate remaining stays in critical band (v2)")
     func projectedRiskWarning() {
-        // 80% utilization with 90 min left: risk = 72 (between 70 and 100) -> warning.
+        // v2 model: at u=0.80, absolute risk smoothstep(0.60, 0.85, 0.80)
+        // already lands ~0.90 - well past the 0.85 critical anchor. The
+        // legacy v1 expectation of "warning band at 80% / 90min" is no
+        // longer correct: the absolute component alone makes 80% red,
+        // independent of the remaining-minutes projection. This is the
+        // intended v2 behaviour (no override, no soft cap).
         let observed = color(80, minutesRemaining: 90)
-        let expected = theme.gaugeNSColor(for: 75, thresholds: thresholds)
+        let expected = theme.gaugeNSColor(for: 95, thresholds: thresholds)
         #expect(observed == expected)
     }
 }

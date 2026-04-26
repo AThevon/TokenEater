@@ -467,6 +467,7 @@ struct MonitoringView: View {
                     windowDuration: tile.windowDuration,
                     smartEnabled: settingsStore.smartColorEnabled,
                     pacingMargin: Double(settingsStore.pacingMargin),
+                    smartProfile: settingsStore.smartColorProfile,
                     themeStore: themeStore,
                     insights: hasRichBack(tileId: tile.id)
                         ? insightsStore.snapshot(for: tileFamily(for: tile.id))
@@ -755,7 +756,8 @@ struct MonitoringView: View {
                 resetDate: resetDate,
                 windowDuration: windowDuration,
                 thresholds: themeStore.thresholds,
-                pacingMargin: Double(settingsStore.pacingMargin)
+                pacingMargin: Double(settingsStore.pacingMargin),
+                profile: settingsStore.smartColorProfile
             )
         }
         return themeStore.current.gaugeColor(for: Double(pct), thresholds: themeStore.thresholds)
@@ -770,7 +772,8 @@ struct MonitoringView: View {
                 thresholds: themeStore.thresholds,
                 pacingMargin: Double(settingsStore.pacingMargin),
                 startPoint: .topLeading,
-                endPoint: .bottomTrailing
+                endPoint: .bottomTrailing,
+                profile: settingsStore.smartColorProfile
             )
         }
         return themeStore.current.gaugeGradient(
@@ -829,6 +832,7 @@ private struct MetricTile: View {
     let windowDuration: TimeInterval
     let smartEnabled: Bool
     let pacingMargin: Double
+    let smartProfile: SmartColorProfile
     let themeStore: ThemeStore
     /// 7d insights snapshot when the tile family has data. Nil for
     /// design / cowork tiles where the JSONL feed has nothing relevant.
@@ -849,7 +853,8 @@ private struct MetricTile: View {
                 resetDate: resetDate,
                 windowDuration: windowDuration,
                 thresholds: themeStore.thresholds,
-                pacingMargin: pacingMargin
+                pacingMargin: pacingMargin,
+                profile: smartProfile
             )
             : themeStore.current.gaugeColor(for: Double(pct), thresholds: themeStore.thresholds)
         let clamped = CGFloat(min(max(pct, 0), 100)) / 100

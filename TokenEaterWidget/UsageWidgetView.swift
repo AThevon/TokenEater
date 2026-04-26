@@ -9,6 +9,7 @@ enum WidgetTheme {
     static var theme: ThemeColors { shared.theme }
     static var thresholds: UsageThresholds { shared.thresholds }
     static var smartColorEnabled: Bool { shared.smartColorEnabled }
+    static var smartColorProfile: SmartColorProfile { shared.smartColorProfile }
 }
 
 // MARK: - Widget Background (macOS 13 compat)
@@ -307,6 +308,7 @@ struct CircularUsageView: View {
     var resetDate: Date? = nil
     var windowDuration: TimeInterval = 5 * 3600
     var smartEnabled: Bool = WidgetTheme.smartColorEnabled
+    var smartProfile: SmartColorProfile = WidgetTheme.smartColorProfile
     var theme: ThemeColors = WidgetTheme.theme
     var thresholds: UsageThresholds = WidgetTheme.thresholds
 
@@ -316,7 +318,8 @@ struct CircularUsageView: View {
                 utilization: utilization,
                 resetDate: resetDate,
                 windowDuration: windowDuration,
-                thresholds: thresholds
+                thresholds: thresholds,
+                profile: smartProfile
             )
         }
         return theme.gaugeGradient(for: utilization, thresholds: thresholds)
@@ -422,6 +425,7 @@ struct LargeUsageBarView: View {
     var resetDate: Date? = nil
     var windowDuration: TimeInterval = 5 * 3600
     var smartEnabled: Bool = WidgetTheme.smartColorEnabled
+    var smartProfile: SmartColorProfile = WidgetTheme.smartColorProfile
     var theme: ThemeColors = WidgetTheme.theme
     var thresholds: UsageThresholds = WidgetTheme.thresholds
 
@@ -436,7 +440,8 @@ struct LargeUsageBarView: View {
                 windowDuration: windowDuration,
                 thresholds: thresholds,
                 startPoint: .leading,
-                endPoint: .trailing
+                endPoint: .trailing,
+                profile: smartProfile
             )
         }
         return theme.gaugeGradient(for: utilization, thresholds: thresholds, startPoint: .leading, endPoint: .trailing)
@@ -449,7 +454,8 @@ struct LargeUsageBarView: View {
                 utilization: utilization,
                 resetDate: resetDate,
                 windowDuration: windowDuration,
-                thresholds: thresholds
+                thresholds: thresholds,
+                profile: smartProfile
             )
         }
         return theme.gaugeColor(for: utilization, thresholds: thresholds)

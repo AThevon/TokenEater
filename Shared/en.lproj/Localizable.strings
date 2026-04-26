@@ -380,7 +380,27 @@
 "settings.smartcolor.popover.example1" = "Critical % but reset is imminent.\nLow real risk, stays green.";
 "settings.smartcolor.popover.example2.label" = "Hot zone";
 "settings.smartcolor.popover.example2" = "Moderate usage with hours ahead.\nAt this pace you'll likely overshoot, so it warns red.";
-"settings.smartcolor.popover.formula" = "risk = utilization × minutes / 100";
+"settings.smartcolor.popover.formula" = "risk = max(absolute, projection · c, pacing · c)";
+
+/* Smart Color popover - 3 risk signals breakdown (v2 algorithm) */
+"settings.smartcolor.popover.signals.title" = "The 3 risk signals";
+"settings.smartcolor.popover.signal.absolute.title" = "Absolute";
+"settings.smartcolor.popover.signal.absolute.desc" = "How close to the limit, regardless of pace. Below your warning threshold it's zero, above critical it's one, smooth ramp between - no cliff.";
+"settings.smartcolor.popover.signal.projection.title" = "Projection";
+"settings.smartcolor.popover.signal.projection.desc" = "At your current rate, will you overshoot before reset? Climbs with the projected overflow. Damped early in the window when the rate isn't trustworthy yet.";
+"settings.smartcolor.popover.signal.pacing.title" = "Pacing";
+"settings.smartcolor.popover.signal.pacing.desc" = "Burning faster than the linear pace? Stays at zero inside your configured margin, ramps up when you push past it. Same early-window damping.";
+"settings.smartcolor.popover.combine" = "Combined via max - the worst signal wins. No calm signal can mask another's alarm.";
+"settings.smartcolor.popover.profile" = "Your profile (Confident / Balanced / Suspicious) shifts when each transition happens. Pick the temperament that matches your appetite for risk.";
+
+/* Smart Color profile picker - 3 temperaments tune when the gauge transitions on the risk continuum */
+"settings.smartColor.profile.label" = "Sensitivity";
+"settings.smartColor.profile.confident" = "Confident";
+"settings.smartColor.profile.balanced" = "Balanced";
+"settings.smartColor.profile.suspicious" = "Suspicious";
+"settings.smartColor.profile.confident.hint" = "Trusts bursts. Stays calm longer, alarms late.";
+"settings.smartColor.profile.balanced.hint" = "Default tuning, validated against the test matrix.";
+"settings.smartColor.profile.suspicious.hint" = "Reads early signals as risk. Alarms sooner.";
 
 /* Update */
 "update.check" = "Check for updates";

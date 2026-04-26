@@ -13,7 +13,9 @@ enum PopoverColors {
                 utilization: Double(pct),
                 resetDate: resetDate,
                 windowDuration: windowDuration,
-                thresholds: theme.thresholds
+                thresholds: theme.thresholds,
+                pacingMargin: Double(settings.pacingMargin),
+                profile: settings.smartColorProfile
             )
         }
         return theme.current.gaugeColor(for: Double(pct), thresholds: theme.thresholds)
@@ -26,8 +28,10 @@ enum PopoverColors {
                 resetDate: resetDate,
                 windowDuration: windowDuration,
                 thresholds: theme.thresholds,
+                pacingMargin: Double(settings.pacingMargin),
                 startPoint: .leading,
-                endPoint: .trailing
+                endPoint: .trailing,
+                profile: settings.smartColorProfile
             )
         }
         return theme.current.gaugeGradient(

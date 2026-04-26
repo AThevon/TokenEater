@@ -25,32 +25,38 @@ struct ThemesSectionView: View {
 
             // Smart Color (global toggle, drives gauges + countdowns coloring)
             glassCard {
-                HStack(alignment: .center, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) {
-                            cardLabel(String(localized: "settings.smartcolor.title"))
-                            Button {
-                                showSmartColorPopover.toggle()
-                            } label: {
-                                Image(systemName: "info.circle")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(.white.opacity(0.55))
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(alignment: .center, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                cardLabel(String(localized: "settings.smartcolor.title"))
+                                Button {
+                                    showSmartColorPopover.toggle()
+                                } label: {
+                                    Image(systemName: "info.circle")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(.white.opacity(0.55))
+                                }
+                                .buttonStyle(.plain)
+                                .popover(isPresented: $showSmartColorPopover, arrowEdge: .bottom) {
+                                    smartColorInfoPopover
+                                }
                             }
-                            .buttonStyle(.plain)
-                            .popover(isPresented: $showSmartColorPopover, arrowEdge: .bottom) {
-                                smartColorInfoPopover
-                            }
+                            Text(String(localized: "settings.smartcolor.hint"))
+                                .font(.system(size: 11))
+                                .foregroundStyle(.white.opacity(0.5))
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                        Text(String(localized: "settings.smartcolor.hint"))
-                            .font(.system(size: 11))
-                            .foregroundStyle(.white.opacity(0.5))
-                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer()
+                        Toggle("", isOn: $settingsStore.smartColorEnabled)
+                            .toggleStyle(.switch)
+                            .tint(.blue)
+                            .labelsHidden()
                     }
-                    Spacer()
-                    Toggle("", isOn: $settingsStore.smartColorEnabled)
-                        .toggleStyle(.switch)
-                        .tint(.blue)
-                        .labelsHidden()
+
+                    if settingsStore.smartColorEnabled {
+                        smartColorProfilePicker
+                    }
                 }
             }
 
@@ -166,6 +172,42 @@ struct ThemesSectionView: View {
         }
     }
 
+    // MARK: - Smart Color profile picker
+
+    private var smartColorProfilePicker: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            cardLabel(String(localized: "settings.smartColor.profile.label"))
+            Picker("", selection: $settingsStore.smartColorProfile) {
+                ForEach(SmartColorProfile.allCases, id: \.self) { profile in
+                    Text(profileDisplayLabel(profile)).tag(profile)
+                }
+            }
+            .pickerStyle(.segmented)
+            .controlSize(.small)
+            .labelsHidden()
+            Text(profileHint(for: settingsStore.smartColorProfile))
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.45))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func profileDisplayLabel(_ profile: SmartColorProfile) -> String {
+        switch profile {
+        case .confident:  return String(localized: "settings.smartColor.profile.confident")
+        case .balanced:   return String(localized: "settings.smartColor.profile.balanced")
+        case .suspicious: return String(localized: "settings.smartColor.profile.suspicious")
+        }
+    }
+
+    private func profileHint(for profile: SmartColorProfile) -> String {
+        switch profile {
+        case .confident:  return String(localized: "settings.smartColor.profile.confident.hint")
+        case .balanced:   return String(localized: "settings.smartColor.profile.balanced.hint")
+        case .suspicious: return String(localized: "settings.smartColor.profile.suspicious.hint")
+        }
+    }
+
     // MARK: - Smart Color popover
 
     private var smartColorInfoPopover: some View {
@@ -209,7 +251,60 @@ struct ThemesSectionView: View {
                 )
             }
 
-            // Formula footer
+            Divider().opacity(0.18)
+
+            // The 3 risk signals
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                Text(String(localized: "settings.smartcolor.popover.signals.title"))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(DS.Palette.textPrimary)
+                    .padding(.bottom, 2)
+
+                signalRow(
+                    index: 1,
+                    title: String(localized: "settings.smartcolor.popover.signal.absolute.title"),
+                    desc: String(localized: "settings.smartcolor.popover.signal.absolute.desc"),
+                    tint: Color(hex: themeStore.current.gaugeCritical)
+                )
+                signalRow(
+                    index: 2,
+                    title: String(localized: "settings.smartcolor.popover.signal.projection.title"),
+                    desc: String(localized: "settings.smartcolor.popover.signal.projection.desc"),
+                    tint: Color(hex: themeStore.current.gaugeWarning)
+                )
+                signalRow(
+                    index: 3,
+                    title: String(localized: "settings.smartcolor.popover.signal.pacing.title"),
+                    desc: String(localized: "settings.smartcolor.popover.signal.pacing.desc"),
+                    tint: DS.Palette.brandPrimary
+                )
+
+                // Combination + profile note
+                HStack(alignment: .top, spacing: DS.Spacing.xs) {
+                    Image(systemName: "function")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(DS.Palette.textTertiary)
+                        .padding(.top, 1)
+                    Text(String(localized: "settings.smartcolor.popover.combine"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(DS.Palette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, 2)
+
+                HStack(alignment: .top, spacing: DS.Spacing.xs) {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(DS.Palette.textTertiary)
+                        .padding(.top, 1)
+                    Text(String(localized: "settings.smartcolor.popover.profile"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(DS.Palette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            // Formula footer (v2)
             Text(String(localized: "settings.smartcolor.popover.formula"))
                 .font(.system(size: 10, weight: .regular, design: .monospaced))
                 .italic()
@@ -219,6 +314,32 @@ struct ThemesSectionView: View {
         }
         .padding(DS.Spacing.lg)
         .frame(width: 400)
+    }
+
+    private func signalRow(index: Int, title: String, desc: String, tint: Color) -> some View {
+        HStack(alignment: .top, spacing: DS.Spacing.sm) {
+            // Numbered badge
+            Text("\(index)")
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundStyle(tint)
+                .frame(width: 18, height: 18)
+                .background(
+                    Circle()
+                        .fill(tint.opacity(0.14))
+                        .overlay(Circle().stroke(tint.opacity(0.45), lineWidth: 0.6))
+                )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(DS.Palette.textPrimary)
+                Text(desc)
+                    .font(.system(size: 11))
+                    .foregroundStyle(DS.Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineSpacing(1.5)
+            }
+        }
     }
 
     private func smartColorExample(

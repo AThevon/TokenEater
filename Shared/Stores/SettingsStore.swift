@@ -32,7 +32,10 @@ final class SettingsStore: ObservableObject {
     /// when the gauge transitions from chill -> warning -> hot. See
     /// `SmartColorProfile` for the parameter mapping.
     @Published var smartColorProfile: SmartColorProfile {
-        didSet { UserDefaults.standard.set(smartColorProfile.rawValue, forKey: "smartColorProfile") }
+        didSet {
+            UserDefaults.standard.set(smartColorProfile.rawValue, forKey: "smartColorProfile")
+            sharedFileService.updateSmartColorProfile(smartColorProfile)
+        }
     }
     /// Typography / separator style for the pinned metrics in the menu bar.
     @Published var menuBarStyle: MenuBarStyle {
@@ -329,9 +332,13 @@ final class SettingsStore: ObservableObject {
         // Push the resolved value to the shared file so the (sandboxed) widget
         // sees the same setting on first launch without waiting for a toggle.
         sharedFileService.updateSmartColorEnabled(initialSmartColor)
-        self.smartColorProfile = SmartColorProfile(
+        let initialProfile = SmartColorProfile(
             rawValue: UserDefaults.standard.string(forKey: "smartColorProfile") ?? SmartColorProfile.default.rawValue
         ) ?? .default
+        self.smartColorProfile = initialProfile
+        // Mirror the resolved profile to the shared file so the (sandboxed)
+        // widget picks it up at first paint without waiting for a toggle.
+        sharedFileService.updateSmartColorProfile(initialProfile)
         self.menuBarStyle = MenuBarStyle(
             rawValue: UserDefaults.standard.string(forKey: "menuBarStyle") ?? "classic"
         ) ?? .classic
