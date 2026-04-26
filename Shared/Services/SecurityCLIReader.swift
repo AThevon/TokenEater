@@ -6,16 +6,15 @@ private let logger = Logger(subsystem: "com.tokeneater.app", category: "Security
 /// Shells out to `/usr/bin/security find-generic-password -s "Claude Code-credentials" -w`
 /// and extracts `claudeAiOauth.accessToken` from the JSON value Claude Code stores.
 ///
-/// Why this is the right path in v5.0+:
-/// - The Keychain item ACL for "Claude Code-credentials" whitelists `/usr/bin/security`
-///   (Apple-signed, stable identity). It does NOT whitelist arbitrary third-party apps,
-///   no matter how they're signed.
-/// - So calling `SecItemCopyMatching` directly from TokenEater returns an ACL denial
-///   prompt every time, while calling `security` via `Process` sails through silently
-///   once the user clicks "Always Allow" once.
-/// - Shelling out requires the main app to be desandboxed (the macOS sandbox rejects
-///   `Process.run()` on arbitrary binaries). That's the entire point of the v5.0
-///   desandbox: it lets us drop the LaunchAgent helper and read Keychain directly.
+/// Why shell-out (not `SecItemCopyMatching`):
+/// - The Keychain item ACL for "Claude Code-credentials" whitelists
+///   `/usr/bin/security` (Apple-signed, stable identity). It does NOT
+///   whitelist arbitrary third-party apps, even when correctly signed.
+/// - Direct `SecItemCopyMatching` from TokenEater would trip the ACL
+///   denial prompt every time; routing through `security` via `Process`
+///   sails through silently once the user clicked "Always Allow" once.
+/// - Requires the main app to be desandboxed (sandboxed apps cannot
+///   `Process.run()` arbitrary binaries).
 final class SecurityCLIReader: SecurityCLIReaderProtocol, @unchecked Sendable {
     private let service: String
 

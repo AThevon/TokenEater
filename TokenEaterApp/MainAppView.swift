@@ -12,24 +12,17 @@ struct MainAppView: View {
     @State private var powerHovering = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    // Directional blur burst transition between spaces.
-    // `displayedSpace` lags `selectedSpace` until the blur peak, where the
-    // content swap fires inside a `withTransaction(animation: nil)` so it
-    // lands instantly under cover of full blur. Without that guard, the
-    // outer pill-nav `withAnimation` context would crossfade the swap and
-    // we'd see "blur in, blur out, snap content" instead of "blur in,
-    // swap at peak, blur out."
+    // Blur burst transition between spaces. `displayedSpace` lags
+    // `selectedSpace` until the blur peak, where the content swap fires
+    // inside `withTransaction(animation: nil)` so the swap is invisible
+    // under the full blur (no implicit crossfade).
     @State private var displayedSpace: AppSpace = .monitoring
     @State private var transitionBlur: CGFloat = 0
     @State private var isTransitioningSpace = false
 
-    // Hoisted from the child views so the data outlives the
-    // navigation-driven view destruction. Without this, switching away
-    // from History tore down `HistoryStore` along with its loaded buckets,
-    // and the next return to History showed empty placeholders for the
-    // ~100ms it took the async reload to finish - the values "popped in"
-    // a quart de seconde after the blur burst resolved. Now the stores
-    // live at the MainAppView level and re-entries hit warm data.
+    // Hoisted from the child views so each store's cache outlives the
+    // navigation-driven view destruction; re-entering a space hits warm
+    // data instead of triggering a fresh load.
     @StateObject private var historyStore = HistoryStore()
     @StateObject private var insightsStore = MonitoringInsightsStore()
 
@@ -99,10 +92,9 @@ struct MainAppView: View {
             .id(displayedSpace)
             .blur(radius: reduceMotion ? 0 : transitionBlur)
             .opacity(reduceMotion ? max(0, 1 - transitionBlur) : 1)
-            // Critical: tells SwiftUI that no implicit animation should run
-            // when `displayedSpace` flips. The flip itself is wrapped in
-            // `withTransaction(animation: nil)`, but this is the second
-            // safety net at the receiving end.
+            // Safety net: ensure no implicit animation runs on the
+            // `displayedSpace` swap (the flip is also wrapped in
+            // `withTransaction(animation: nil)` upstream).
             .animation(nil, value: displayedSpace)
         }
         .padding(.horizontal, DS.Spacing.sm)
@@ -118,10 +110,8 @@ struct MainAppView: View {
         .onReceive(NotificationCenter.default.publisher(for: .navigateToSection)) { notification in
             guard let payload = notification.userInfo?["section"] as? String,
                   let target = NavigationTarget.parse(payload) else { return }
-            // Don't wrap `selectedSpace` in withAnimation - the directional
-            // blur burst is driven by `onChange(of: selectedSpace)` and
-            // manages its own animation contexts. Wrapping here would push
-            // an outer animation into the swap and reintroduce the crossfade.
+            // No `withAnimation` wrap - the blur burst is driven by
+            // `onChange(of: selectedSpace)` with its own contexts.
             selectedSpace = target.space
             if let sub = target.settingsSection {
                 withAnimation(DS.Motion.springSnap) {
@@ -136,21 +126,15 @@ struct MainAppView: View {
 
     // MARK: - Blur burst transition between spaces
 
-    /// Mirrors the flip-card pattern from `MonitoringView` -> `easeIn`
-    /// ramp-up to peak blur, instant content swap inside a
-    /// `Transaction(animation: nil)` while the surface is fully blurred
-    /// (so the swap is invisible to the eye), then `easeOut` ramp-down
-    /// to rest.
-    ///
-    /// Reduce-motion: blur is bypassed; the surface fades via opacity
-    /// derived from the same `transitionBlur` ramp so the state machine
-    /// stays unified across both modes.
+    /// Drives the inter-space transition: easeIn ramp-up to peak blur,
+    /// instant content swap (no implicit animation) while fully blurred,
+    /// then easeOut ramp-down. Reduce-motion bypasses blur and fades the
+    /// surface via opacity derived from the same `transitionBlur` ramp.
     private func performSpaceTransition(to newSpace: AppSpace) {
         guard newSpace != displayedSpace else { return }
 
-        // Bail mid-flight: rapid pill clicks during a 0.40s transition
-        // shouldn't pile up. The current animation completes against the
-        // latest `selectedSpace`, the next click is honored once idle.
+        // Ignore rapid clicks during a transition; the current run
+        // completes against the latest `selectedSpace`.
         if isTransitioningSpace { return }
         isTransitioningSpace = true
 
@@ -158,21 +142,15 @@ struct MainAppView: View {
         let rampDown: Double = reduceMotion ? 0.09 : 0.24
         let blurPeak: CGFloat = 5
 
-        // Phase 1 - ramp-up: outgoing page blurs to peak. easeIn so the
-        // dwell at peak feels brief.
         withAnimation(.easeIn(duration: rampUp)) {
             transitionBlur = blurPeak
         }
 
-        // Phase 2 - swap at peak: content flip lands UNDER the full blur
-        // (invisible).
         DispatchQueue.main.asyncAfter(deadline: .now() + rampUp) {
             withTransaction(Transaction(animation: nil)) {
                 self.displayedSpace = newSpace
             }
 
-            // Phase 3 - ramp-down: incoming page resolves to crisp.
-            // easeOut so the arrival decelerates and feels grounded.
             withAnimation(.easeOut(duration: rampDown)) {
                 self.transitionBlur = 0
             }

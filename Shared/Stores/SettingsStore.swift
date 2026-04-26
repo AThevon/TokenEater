@@ -299,10 +299,8 @@ final class SettingsStore: ObservableObject {
             return val >= 180 ? val : 300
         }()
 
-        // Notification toggles
-        // First-launch defaults (no key in UserDefaults yet) follow the user-validated
-        // policy : master ON, 5h / 7d / Design ON, Sonnet OFF, recovery ON, hot ON,
-        // warning OFF, reset reminders OFF, extra credits ON, token expired OFF.
+        // Notification toggles. Defaults below apply only on first launch
+        // (no value yet in UserDefaults) - per `boolDefault` semantics.
         self.notificationsEnabled = Self.boolDefault(key: "notificationsEnabled", default: true)
         self.notifTrackFiveHour = Self.boolDefault(key: "notifTrackFiveHour", default: true)
         self.notifTrackWeekly = Self.boolDefault(key: "notifTrackWeekly", default: true)

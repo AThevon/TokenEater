@@ -14,19 +14,16 @@ struct MonitoringView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var sessionStore: SessionStore
 
-    /// Lightweight 7d daily-buckets store dedicated to the back-of-card
-    /// stats. Loaded once on appear, refreshed if older than 60s.
-    /// Owned by `MainAppView` so its cache survives navigation away
-    /// (and back) from this space, avoiding the "values pop in" beat.
+    /// Lightweight 7d daily-buckets store for the back-of-card stats.
+    /// Loaded once on appear, refreshed if older than 60s. Owned by
+    /// `MainAppView` so the cache survives navigation between spaces.
     @ObservedObject var insightsStore: MonitoringInsightsStore
 
     @State private var lastUpdateText = ""
     @State private var heroHover = false
     @State private var refreshHovering = false
-    // Hero flip state - lives at the parent because heroTile is a
-    // computed var (not its own struct). Reset automatically when the
-    // user navigates away from Monitoring (MainAppView .id(selectedSpace)
-    // recreates MonitoringView, clearing all @State).
+    // Hero flip state lives at the parent because `heroTile` is a
+    // computed var (not its own struct).
     @State private var heroFlipped: Bool = false
     @State private var heroBlurProgress: CGFloat = 0
     @State private var heroFlipping: Bool = false
@@ -164,10 +161,8 @@ struct MonitoringView: View {
         let gaugeGradient = gaugeGradient(pct: pct, resetDate: resetDate, windowDuration: 5 * 3600)
         let zone = usageStore.fiveHourPacing?.zone
         let pacing = usageStore.fiveHourPacing
-        // The card's ambient tint follows the gauge color so the wash, the
-        // big number, and the ring all read as a single signal. Using the
-        // module accent here used to produce a green-orange-blue mix when
-        // the user was in warning territory.
+        // Ambient tint follows the gauge color so the wash, the big
+        // number, and the ring all read as a single signal.
         let accent = gaugeColor
 
         return Button {
@@ -190,9 +185,8 @@ struct MonitoringView: View {
                     )
                 }
             }
-            // Force snap swap (no implicit animation) so the new face
-            // is in place at the blur peak, not crossfading during the
-            // blur-out. Same fix as MetricTile.
+            // Snap swap (no implicit animation) so the new face is in
+            // place at the blur peak rather than crossfading.
             .animation(nil, value: heroFlipped)
             .padding(DS.Spacing.lg)
             .frame(height: 200)
@@ -863,13 +857,8 @@ private struct MetricTile: View {
                     frontContent(color: color, clamped: clamped)
                 }
             }
-            // Critical: disable SwiftUI's implicit animation on the
-            // showBack swap. Without this, the surrounding withAnimation
-            // (driving the blur) wraps the if/else replacement and
-            // implicitly fades / morphs the swap, so the new content
-            // crossfades in DURING the blur-out instead of being already
-            // there at the blur peak. Result was "blur in blur out PUIS
-            // snap" - the swap was lagging behind the visual peak.
+            // Snap swap (no implicit animation) so the new face is in
+            // place at the blur peak rather than crossfading during it.
             .animation(nil, value: showBack)
             .padding(DS.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)

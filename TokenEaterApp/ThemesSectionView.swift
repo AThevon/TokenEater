@@ -179,12 +179,9 @@ struct ThemesSectionView: View {
 
     // MARK: - Smart Color profile picker
 
-    /// Three card-style chips, one per profile, with icon + label + tagline
-    /// stacked vertically. Replaces the prior segmented Picker so the
-    /// importance of the choice (it shifts the gauge sensitivity) reads
-    /// at the same level as the toggle that gates it. The selected card
-    /// inflates with the brand-primary tint; the others stay muted but
-    /// fully readable so the user can see their alternatives at a glance.
+    /// Three card-style chips, one per profile, with icon + label + tagline.
+    /// Selected card uses the brand-primary tint; others stay muted but
+    /// fully readable.
     private var smartColorProfilePicker: some View {
         VStack(alignment: .leading, spacing: 8) {
             cardLabel(String(localized: "settings.smartColor.profile.label"))
@@ -367,7 +364,7 @@ struct ThemesSectionView: View {
                 }
             }
 
-            // Formula footer (v2)
+            // Formula footer
             Text(String(localized: "settings.smartcolor.popover.formula"))
                 .font(.system(size: 10, weight: .regular, design: .monospaced))
                 .italic()

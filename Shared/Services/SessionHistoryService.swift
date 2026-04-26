@@ -14,12 +14,9 @@ import Foundation
 /// - cooperative cancellation via `Task.checkCancellation()`
 final class SessionHistoryService: SessionHistoryServiceProtocol {
 
-    /// Where the cache lives. Same dir as the shared usage file so it's easy
-    /// to nuke during dev (`rm -rf ~/Library/Application Support/com.tokeneater.shared/`).
-    /// `urls(for:in:)` returns an empty array in some CI / sandboxed test
-    /// environments where the user domain isn't fully resolved, so we fall
-    /// back to `~/Library/Application Support` derived from `NSHomeDirectory()`
-    /// rather than crashing on a force-unwrap.
+    /// Cache file path. Same dir as the shared usage file so it's easy
+    /// to nuke during dev. Falls back to `NSHomeDirectory()` when the
+    /// user domain isn't fully resolved (some CI / sandboxed envs).
     private static var cacheURL: URL {
         let support = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)
@@ -198,14 +195,10 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
                 sessionIds.insert(sessionId)
             }
 
-            // Project path: prefer the per-event `cwd` field Claude Code
-            // writes alongside each turn (it's the actual filesystem path
-            // and survives round-tripping cleanly). Fall back to decoding
-            // the parent directory name only when `cwd` is missing - that
-            // path uses a lossy encoding (`/` -> `-`) and merges projects
-            // whose real names contain hyphens (e.g. `/a/b-c` and `/a/b/c`
-            // both decode to `/a/b/c`). Keep it as a safety net for older
-            // JSONL files that predate the `cwd` field.
+            // Project path: prefer the per-event `cwd` field. The
+            // directory-name decoding fallback is lossy for project paths
+            // that contain hyphens (`/` -> `-` collapses `/a/b-c` and
+            // `/a/b/c` to the same key).
             let projectPath: String
             if let cwd = obj["cwd"] as? String, !cwd.isEmpty {
                 projectPath = cwd

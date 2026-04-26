@@ -2,24 +2,17 @@ import Foundation
 import SwiftUI
 import AppKit
 
-/// Smart-color v2 risk model. Pure functional layer - no UI, no I/O,
-/// no state. The math sits here so it can be unit-tested in isolation
-/// (see `SmartColorTests`); the `ThemeColors` extension below adapts
-/// the result back to the existing public API (`smartGaugeColor`,
-/// `smartLevel`, etc.).
+/// Smart-color risk model. Pure functional layer - no UI, no I/O,
+/// no state. Tested directly in isolation (see `SmartColorTests`).
 ///
-/// Design rationale + invariants are documented in the project notes
-/// under "Smart Color v2". Short version:
+/// Invariants:
 /// - `risk` is a continuous score in [0, 1] derived from three
 ///   independent sources (absolute, projection, pacing).
-/// - Each source uses `smoothstep` for C1 continuity, so the output
-///   never exhibits cliffs around threshold/margin/time-remaining
-///   boundaries.
-/// - Confidence weighting on the time-derived sources (projection,
-///   pacing) suppresses early-window noise.
-/// - The discrete zone (chill/onTrack/warning/hot) is derived with
-///   optional hysteresis to prevent flicker when the risk oscillates
-///   around a band boundary.
+/// - Each source uses `smoothstep` for C1 continuity.
+/// - Confidence weighting on the time-derived sources suppresses
+///   early-window noise.
+/// - The discrete zone (chill/onTrack/warning/hot) supports
+///   optional hysteresis to prevent flicker around band boundaries.
 enum SmartColor {
 
     // MARK: - Mathematical primitives
@@ -50,9 +43,8 @@ enum SmartColor {
 
     /// Component B - projection risk: at the current consumption rate,
     /// how much over the limit will we end the window? Saturates at the
-    /// profile-defined `projUpper` (default 1.4 = hitting the limit at
-    /// ~71% of the window). Weighted by confidence so the early-window
-    /// 5%/1% scenario doesn't scream.
+    /// profile-defined `projUpper`. Weighted by confidence so a high
+    /// rate computed from a few elapsed minutes doesn't scream.
     static func projectionRisk(u: Double, e: Double, params: SmartColorParameters = .default) -> Double {
         guard u > 0.0001, e > 0.0001 else { return 0 }
         let projected = u / e
@@ -75,8 +67,8 @@ enum SmartColor {
     /// when utilization >= 100%.
     ///
     /// The absolute component uses the profile's `absoluteLower` /
-    /// `absoluteUpper` smoothstep bounds (per-profile sensitivity) and
-    /// is then dampened by **projection health**:
+    /// `absoluteUpper` smoothstep bounds and is dampened by projection
+    /// health:
     ///
     /// ```text
     /// aRaw = smoothstep(params.absoluteLower, params.absoluteUpper, u)
@@ -84,17 +76,14 @@ enum SmartColor {
     /// a = aRaw × projectionHealth
     /// ```
     ///
-    /// At `u/e ≥ 1` (you'll hit or overshoot the limit), `projectionHealth`
-    /// saturates to 1 and `a` fires at full strength - the 98%/30min hard
-    /// flag is preserved. At `u/e ≤ 0.7` (you'll finish well below), the
-    /// multiplier drops to 0 and absolute is suppressed - quieting the
-    /// false alarm at e.g. 72% with calm pacing where the v1+early-v2
-    /// behaviour would have shown amber despite no real risk.
+    /// At `u/e ≥ 1` (projected to overshoot), `projectionHealth` saturates
+    /// to 1 and absolute fires at full strength. At `u/e ≤ 0.7` (projected
+    /// well under), the multiplier drops to 0 and absolute is suppressed -
+    /// keeping calm pacing on a high absolute from triggering a false alarm.
     ///
-    /// In smart mode, the user's threshold sliders (warningPercent /
-    /// criticalPercent) no longer participate - the profile fully owns
-    /// the absolute calibration. The thresholds remain in scope only for
-    /// the threshold-mode fallback (when `smartColorEnabled == false`).
+    /// Profile owns the smart calibration end-to-end. The user's threshold
+    /// sliders only drive the threshold-mode fallback (when
+    /// `smartColorEnabled == false`).
     static func combinedRisk(u: Double, e: Double, m: Double, params: SmartColorParameters = .default) -> Double {
         if u >= 1.0 { return 1.0 }
         let aRaw = smoothstep(params.absoluteLower, params.absoluteUpper, u)
@@ -116,8 +105,8 @@ enum SmartColor {
     /// - 0.55 -> warning (orange)
     /// - 0.85 -> critical (red)
     /// - 1.00 -> critical
-    /// Linear RGBA interpolation between adjacent stops avoids visible
-    /// banding even though the underlying zones are discrete.
+    /// HSB interpolation between adjacent stops keeps the gradient
+    /// readable through yellow-orange-red without muddy intermediates.
     static func colorForRisk(_ risk: Double, theme: ThemeColors) -> Color {
         let r = max(0, min(1, risk))
         let normal = Color(hex: theme.gaugeNormal)

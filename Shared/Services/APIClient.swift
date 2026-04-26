@@ -9,11 +9,8 @@ final class APIClient: APIClientProtocol, @unchecked Sendable {
     }()
 
     private func session(proxyConfig: ProxyConfig?) -> URLSession {
-        // Refuse syntactically invalid proxy targets and silently fall back
-        // to the default session. Without this, a tampered UserDefaults
-        // plist (the main app is desandboxed since v5.0) could route the
-        // OAuth bearer through an attacker-controlled host. TLS still
-        // protects the wire, but rejecting obvious garbage is cheap hygiene.
+        // Reject syntactically invalid proxy targets before they reach
+        // `connectionProxyDictionary`; fall back to the default session.
         guard let proxy = proxyConfig, proxy.isValidForUse else { return .shared }
         let c = URLSessionConfiguration.default
         c.connectionProxyDictionary = [

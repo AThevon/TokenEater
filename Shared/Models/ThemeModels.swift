@@ -177,16 +177,11 @@ struct ThemeColors: Codable, Equatable {
         let u = max(0, utilization) / 100
         let params = profile.parameters
 
-        // Smart mode does NOT use the user's threshold sliders. Calibration
-        // is fully owned by the profile (`params.absoluteLower/Upper`).
-        // The `thresholds:` parameter is kept on the API for the legacy
-        // threshold-mode path the caller may share, but it does not flow
-        // into the smart calculation. See `docs/design/COLORING.md`.
+        // Smart mode is profile-driven; user thresholds only apply to
+        // threshold mode. See `docs/design/COLORING.md`.
         _ = thresholds
 
         guard let resetDate, windowDuration > 0 else {
-            // No reset date -> fall back to absolute-only, still using
-            // the profile's bounds (not the user thresholds).
             return SmartColor.absoluteRisk(
                 u: u,
                 θw: params.absoluteLower,

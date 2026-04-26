@@ -6,10 +6,8 @@ import Charts
 /// bar chart by model with model-family filter chips. Performance-sensitive:
 /// the underlying service caches per-file aggregates so repeat opens stay fast.
 struct HistoryView: View {
-    /// Owned by `MainAppView` so the buckets survive navigation away from
-    /// History. Accepting it as a dependency rather than @StateObject-ing
-    /// it locally is what avoids the "values pop in a quart de seconde
-    /// after the transition" effect when re-entering this space.
+    /// Owned by `MainAppView` so the buckets survive navigation away
+    /// and re-entries hit warm data.
     @ObservedObject var store: HistoryStore
     @State private var hoveredBucket: HistoryBucket?
     @State private var chartReveal: Double = 1.0
@@ -123,9 +121,8 @@ struct HistoryView: View {
     }
 
     /// Right-anchored badge inside the hero card carrying the sessions
-    /// count. The loading indicator that used to live here moved to the
-    /// page-level `LoadingProgressBar` so a single signal covers the
-    /// whole History view consistently.
+    /// count. The page-level `LoadingProgressBar` covers the loading
+    /// signal for the whole view.
     private var sessionsBadge: some View {
         HStack(spacing: 10) {
             Image(systemName: "circle.dashed")
@@ -261,10 +258,8 @@ struct HistoryView: View {
     }
 
     /// Background for each range pill. Always returns a concrete shape
-    /// (with a transparent fill when inactive) so the button has a
-    /// hit-testable surface across the full padded rectangle. Returning
-    /// an empty view from a `@ViewBuilder` here used to leave the bottom
-    /// strip of the inactive pill outside SwiftUI's hit area.
+    /// (transparent fill when inactive) so the button has a hit-testable
+    /// surface across the full padded rectangle.
     private func rangeBackground(active: Bool) -> some View {
         RoundedRectangle(cornerRadius: 5, style: .continuous)
             .fill(active ? DS.Palette.glassFillHi : Color.clear)
@@ -466,13 +461,11 @@ struct HistoryView: View {
 
     // MARK: - Hover tooltip
 
-    /// Picks the bucket whose interval contains the cursor's X position. Uses
-    /// `proxy.value(atX:)` to map screen-space to chart-space, then matches
-    /// against `[bucket.date, bucket.date + bucketSeconds)`. Interval-based
-    /// matching is precise regardless of bar height - "closest center" was
-    /// inaccurate because `bucket.date` is the start of the interval, not its
-    /// center. Falls back to the nearest bucket if no interval matches (cursor
-    /// outside any data range, e.g. between buckets due to gaps).
+    /// Picks the bucket whose interval contains the cursor's X position.
+    /// `bucket.date` marks the start of the interval, so we match against
+    /// `[bucket.date, bucket.date + bucketSeconds)` rather than nearest
+    /// center. Falls back to the closest bucket if no interval matches
+    /// (cursor outside any data range, e.g. between buckets due to gaps).
     private func handleChartHover(
         at location: CGPoint,
         proxy: ChartProxy,
@@ -630,8 +623,8 @@ struct HistoryView: View {
     /// - end -> next hour / next day so today's bar (anchored at start of
     ///   period) doesn't clip on the right
     /// - start -> start of the bucket that contains `now - range.seconds`
-    ///   so the leftmost bar doesn't clip on the left (bug previously hit
-    ///   when the rolling window cut a daily bucket mid-day)
+    ///   so the leftmost bar doesn't clip when the rolling window cuts a
+    ///   daily bucket mid-day
     private var chartDomain: (start: Date, end: Date) {
         let now = Date()
         let cal = Calendar.current
@@ -917,9 +910,8 @@ private struct LoadingProgressBar: View {
         .frame(height: 2)
         .onAppear {
             guard !reduceMotion else { return }
-            // Reset then kick the perpetual cycle. Without the reset
-            // step the animation can fail to (re)start when the view
-            // is recreated with phase already at 1 from a prior pass.
+            // Reset before kicking the loop so a recreated view with a
+            // stale `phase = 1` still triggers the animation.
             phase = 0
             withAnimation(.linear(duration: cycle).repeatForever(autoreverses: false)) {
                 phase = 1

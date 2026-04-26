@@ -1,23 +1,17 @@
 import Foundation
 
-/// User-selectable temperament for the smart-color algorithm. The
-/// names describe the system's attitude (how readily it alerts), not
-/// the user's personality. Each profile dials three internal knobs:
+/// User-selectable temperament for the smart-color algorithm. Names
+/// describe the system's attitude (how readily it alerts). Each
+/// profile dials internal knobs:
 ///
-/// - `k` -> growth rate of the confidence factor `c(e) = 1 - exp(-k·e)`.
-///         Higher k = projection / pacing risks count earlier in the
-///         window. Lower k = trust the trajectory only late.
+/// - `k` -> growth rate of `c(e) = 1 - exp(-k·e)`. Higher k = projection
+///   and pacing count earlier in the window.
 /// - `projUpper` -> upper bound of the projection-overflow smoothstep.
-///         Lower = the system panics for smaller projected overflows.
-///         Higher = more tolerance before the projection screams.
+///   Lower = panics for smaller projected overflows.
+/// - `absoluteLower` / `absoluteUpper` -> smoothstep bounds for the
+///   absolute-risk component in smart mode.
 /// - zone thresholds -> where the discrete bands switch on the [0,1]
-///         risk continuum. Lower thresholds = more pessimistic mapping
-///         (red earlier).
-///
-/// The default is `.balanced`, the tuning derived from the validation
-/// matrix. `.patient` waits longer before alerting (good for bursty
-/// usage); `.vigilant` reacts to early signals (good when the limit
-/// matters more than dwelling on the noise floor).
+///   risk continuum. Lower = more pessimistic mapping.
 enum SmartColorProfile: String, CaseIterable, Codable, Sendable {
     case patient, balanced, vigilant
 
