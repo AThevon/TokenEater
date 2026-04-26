@@ -351,22 +351,32 @@ struct HistoryView: View {
                     }
                 }
 
-                // Vertical guideline + tooltip annotation pinned to the
-                // hovered bucket. RuleMark draws inside the chart's
-                // coordinate space so the line stays aligned to the bar
-                // even as the chart resizes. The annotation takes
-                // care of avoiding clipping at the chart edges.
+                // Vertical guideline through the hovered bucket. Spans the
+                // full chart so the alignment stays obvious from any bar
+                // height. The tooltip itself is anchored elsewhere so it
+                // can sit near the bar instead of pinned to the chart top.
                 if let bucket = hoveredBucket {
                     RuleMark(x: .value("date", bucket.date, unit: store.range.isHourly ? .hour : .day))
                         .foregroundStyle(DS.Palette.textPrimary.opacity(0.18))
                         .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                        .annotation(
-                            position: .top,
-                            spacing: 8,
-                            overflowResolution: .init(x: .fit(to: .chart), y: .disabled)
-                        ) {
-                            tooltipCard(for: bucket, visibleKinds: visibleKinds)
-                        }
+
+                    // Invisible anchor positioned at the bar's peak so the
+                    // tooltip annotation rides the actual bar height instead
+                    // of the chart's top edge. SwiftUI Charts auto-flips the
+                    // position when there's no room above (tall bars get
+                    // tooltips below, short bars get them above).
+                    PointMark(
+                        x: .value("date", bucket.date, unit: store.range.isHourly ? .hour : .day),
+                        y: .value("tokens", bucket.totalActive)
+                    )
+                    .opacity(0)
+                    .annotation(
+                        position: .top,
+                        spacing: 10,
+                        overflowResolution: .init(x: .fit(to: .chart), y: .fit(to: .chart))
+                    ) {
+                        tooltipCard(for: bucket, visibleKinds: visibleKinds)
+                    }
                 }
             }
             .chartXScale(domain: domain.start...domain.end)
