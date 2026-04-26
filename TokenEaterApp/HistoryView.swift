@@ -589,23 +589,31 @@ struct HistoryView: View {
     /// Date range the chart should always span, even when only one bucket has
     /// data. Pinning the X scale prevents SwiftUI Charts from auto-fitting a
     /// single bar across the full chart width.
-    /// End-of-domain rounds up to the next bucket boundary so today's bar
-    /// (positioned at start-of-day / start-of-hour) fully fits within the
-    /// drawing area instead of being clipped on the right edge.
+    ///
+    /// Both edges round to the bucket boundary that fully contains the
+    /// edge bar:
+    /// - end -> next hour / next day so today's bar (anchored at start of
+    ///   period) doesn't clip on the right
+    /// - start -> start of the bucket that contains `now - range.seconds`
+    ///   so the leftmost bar doesn't clip on the left (bug previously hit
+    ///   when the rolling window cut a daily bucket mid-day)
     private var chartDomain: (start: Date, end: Date) {
         let now = Date()
         let cal = Calendar.current
+        let rawStart = now.addingTimeInterval(-store.range.seconds)
+        let start: Date
         let end: Date
         if store.range.isHourly {
-            // Round up to the next full hour so the current hour's bar fits.
-            let comps = cal.dateComponents([.year, .month, .day, .hour], from: now)
-            let startOfHour = cal.date(from: comps) ?? now
-            end = cal.date(byAdding: .hour, value: 1, to: startOfHour) ?? now
+            let endComps = cal.dateComponents([.year, .month, .day, .hour], from: now)
+            let endOfHour = cal.date(from: endComps) ?? now
+            end = cal.date(byAdding: .hour, value: 1, to: endOfHour) ?? now
+            let startComps = cal.dateComponents([.year, .month, .day, .hour], from: rawStart)
+            start = cal.date(from: startComps) ?? rawStart
         } else {
-            // Round up to the start of tomorrow so today's bar fits.
             end = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: now)) ?? now
+            start = cal.startOfDay(for: rawStart)
         }
-        return (start: now.addingTimeInterval(-store.range.seconds), end: end)
+        return (start: start, end: end)
     }
 
     /// Centered overlay shown when the active filter zeroes out every bucket
