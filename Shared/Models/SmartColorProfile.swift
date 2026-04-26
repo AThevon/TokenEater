@@ -1,8 +1,8 @@
 import Foundation
 
-/// User-selectable temperament for the smart-color algorithm. Each
-/// profile dials three internal knobs that shift WHEN the color
-/// transitions happen on the risk continuum:
+/// User-selectable temperament for the smart-color algorithm. The
+/// names describe the system's attitude (how readily it alerts), not
+/// the user's personality. Each profile dials three internal knobs:
 ///
 /// - `k` -> growth rate of the confidence factor `c(e) = 1 - exp(-k·e)`.
 ///         Higher k = projection / pacing risks count earlier in the
@@ -14,19 +14,18 @@ import Foundation
 ///         risk continuum. Lower thresholds = more pessimistic mapping
 ///         (red earlier).
 ///
-/// The default is `.balanced`, the original tuning derived from the
-/// validation matrix. The other two profiles let users with bursty
-/// (`.confident`) or anxious (`.suspicious`) consumption patterns shift
-/// the system to match their risk appetite without changing the core
-/// math.
+/// The default is `.balanced`, the tuning derived from the validation
+/// matrix. `.patient` waits longer before alerting (good for bursty
+/// usage); `.vigilant` reacts to early signals (good when the limit
+/// matters more than dwelling on the noise floor).
 enum SmartColorProfile: String, CaseIterable, Codable, Sendable {
-    case confident, balanced, suspicious
+    case patient, balanced, vigilant
 
     static let `default`: SmartColorProfile = .balanced
 
     var parameters: SmartColorParameters {
         switch self {
-        case .confident:
+        case .patient:
             return SmartColorParameters(
                 k: 3.0,
                 projUpper: 1.6,
@@ -42,7 +41,7 @@ enum SmartColorProfile: String, CaseIterable, Codable, Sendable {
                 warningThreshold: 0.55,
                 hotThreshold: 0.78
             )
-        case .suspicious:
+        case .vigilant:
             return SmartColorParameters(
                 k: 8.0,
                 projUpper: 1.2,

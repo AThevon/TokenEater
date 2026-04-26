@@ -174,37 +174,95 @@ struct ThemesSectionView: View {
 
     // MARK: - Smart Color profile picker
 
+    /// Three card-style chips, one per profile, with icon + label + tagline
+    /// stacked vertically. Replaces the prior segmented Picker so the
+    /// importance of the choice (it shifts the gauge sensitivity) reads
+    /// at the same level as the toggle that gates it. The selected card
+    /// inflates with the brand-primary tint; the others stay muted but
+    /// fully readable so the user can see their alternatives at a glance.
     private var smartColorProfilePicker: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             cardLabel(String(localized: "settings.smartColor.profile.label"))
-            Picker("", selection: $settingsStore.smartColorProfile) {
+            HStack(spacing: 8) {
                 ForEach(SmartColorProfile.allCases, id: \.self) { profile in
-                    Text(profileDisplayLabel(profile)).tag(profile)
+                    profileCard(profile)
                 }
             }
-            .pickerStyle(.segmented)
-            .controlSize(.small)
-            .labelsHidden()
-            Text(profileHint(for: settingsStore.smartColorProfile))
-                .font(.system(size: 11))
-                .foregroundStyle(.white.opacity(0.45))
-                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func profileCard(_ profile: SmartColorProfile) -> some View {
+        let isActive = settingsStore.smartColorProfile == profile
+        let accent = DS.Palette.brandPrimary
+        return Button {
+            withAnimation(DS.Motion.springSnap) {
+                settingsStore.smartColorProfile = profile
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: profileIcon(profile))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(isActive ? accent : DS.Palette.textTertiary)
+                        .frame(width: 16)
+                    Text(profileDisplayLabel(profile))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(isActive ? DS.Palette.textPrimary : DS.Palette.textSecondary)
+                    Spacer(minLength: 0)
+                    if isActive {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(accent)
+                            .transition(.scale.combined(with: .opacity))
+                    }
+                }
+                Text(profileHint(for: profile))
+                    .font(.system(size: 10))
+                    .foregroundStyle(DS.Palette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .topLeading)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(isActive ? accent.opacity(0.14) : Color.white.opacity(0.03))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(isActive ? accent.opacity(0.45) : Color.white.opacity(0.07), lineWidth: 1)
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Icon language: progression on a "how readily the system reacts"
+    /// axis. Tortoise = takes its time. Equal-circle = balanced midpoint.
+    /// Eye = watchful, alerts on early signals.
+    private func profileIcon(_ profile: SmartColorProfile) -> String {
+        switch profile {
+        case .patient:  return "tortoise.fill"
+        case .balanced: return "equal.circle.fill"
+        case .vigilant: return "eye.fill"
         }
     }
 
     private func profileDisplayLabel(_ profile: SmartColorProfile) -> String {
         switch profile {
-        case .confident:  return String(localized: "settings.smartColor.profile.confident")
-        case .balanced:   return String(localized: "settings.smartColor.profile.balanced")
-        case .suspicious: return String(localized: "settings.smartColor.profile.suspicious")
+        case .patient:  return String(localized: "settings.smartColor.profile.patient")
+        case .balanced: return String(localized: "settings.smartColor.profile.balanced")
+        case .vigilant: return String(localized: "settings.smartColor.profile.vigilant")
         }
     }
 
     private func profileHint(for profile: SmartColorProfile) -> String {
         switch profile {
-        case .confident:  return String(localized: "settings.smartColor.profile.confident.hint")
-        case .balanced:   return String(localized: "settings.smartColor.profile.balanced.hint")
-        case .suspicious: return String(localized: "settings.smartColor.profile.suspicious.hint")
+        case .patient:  return String(localized: "settings.smartColor.profile.patient.hint")
+        case .balanced: return String(localized: "settings.smartColor.profile.balanced.hint")
+        case .vigilant: return String(localized: "settings.smartColor.profile.vigilant.hint")
         }
     }
 

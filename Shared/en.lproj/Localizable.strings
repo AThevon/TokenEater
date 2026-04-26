@@ -391,16 +391,16 @@
 "settings.smartcolor.popover.signal.pacing.title" = "Pacing";
 "settings.smartcolor.popover.signal.pacing.desc" = "Burning faster than the linear pace? Stays at zero inside your configured margin, ramps up when you push past it. Same early-window damping.";
 "settings.smartcolor.popover.combine" = "Combined via max - the worst signal wins. No calm signal can mask another's alarm.";
-"settings.smartcolor.popover.profile" = "Your profile (Confident / Balanced / Suspicious) shifts when each transition happens. Pick the temperament that matches your appetite for risk.";
+"settings.smartcolor.popover.profile" = "Your profile (Patient / Balanced / Vigilant) shifts when each transition happens. Pick the temperament that matches your appetite for risk.";
 
-/* Smart Color profile picker - 3 temperaments tune when the gauge transitions on the risk continuum */
+/* Smart Color profile picker - 3 temperaments tune how readily the system alerts */
 "settings.smartColor.profile.label" = "Sensitivity";
-"settings.smartColor.profile.confident" = "Confident";
+"settings.smartColor.profile.patient" = "Patient";
 "settings.smartColor.profile.balanced" = "Balanced";
-"settings.smartColor.profile.suspicious" = "Suspicious";
-"settings.smartColor.profile.confident.hint" = "Trusts bursts. Stays calm longer, alarms late.";
-"settings.smartColor.profile.balanced.hint" = "Default tuning, validated against the test matrix.";
-"settings.smartColor.profile.suspicious.hint" = "Reads early signals as risk. Alarms sooner.";
+"settings.smartColor.profile.vigilant" = "Vigilant";
+"settings.smartColor.profile.patient.hint" = "Trusts bursts, alarms late.";
+"settings.smartColor.profile.balanced.hint" = "Default tuning.";
+"settings.smartColor.profile.vigilant.hint" = "Reads early signals as risk.";
 
 /* Update */
 "update.check" = "Check for updates";

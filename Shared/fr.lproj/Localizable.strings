@@ -391,16 +391,16 @@
 "settings.smartcolor.popover.signal.pacing.title" = "Pacing";
 "settings.smartcolor.popover.signal.pacing.desc" = "Tu consommes plus vite que la cadence linéaire ? Reste à zéro tant que tu es dans ta marge, monte quand tu dépasses. Même atténuation en début de fenêtre.";
 "settings.smartcolor.popover.combine" = "Combinés via max - le pire signal gagne. Aucun signal calme ne peut masquer une alarme.";
-"settings.smartcolor.popover.profile" = "Ton profil (Confiant / Équilibré / Suspicieux) règle quand chaque transition se déclenche. Choisis le tempérament qui colle à ton appétit du risque.";
+"settings.smartcolor.popover.profile" = "Ton profil (Patient / Équilibré / Vigilant) règle quand chaque transition se déclenche. Choisis le tempérament qui colle à ton appétit du risque.";
 
-/* Smart Color profile picker - 3 tempéraments qui règlent quand la jauge transitionne sur le continuum de risque */
+/* Smart Color profile picker - 3 tempéraments décrivent l'attitude du système */
 "settings.smartColor.profile.label" = "Sensibilité";
-"settings.smartColor.profile.confident" = "Confiant";
+"settings.smartColor.profile.patient" = "Patient";
 "settings.smartColor.profile.balanced" = "Équilibré";
-"settings.smartColor.profile.suspicious" = "Suspicieux";
-"settings.smartColor.profile.confident.hint" = "Tolère les bursts. Reste calme plus longtemps, alarme tard.";
-"settings.smartColor.profile.balanced.hint" = "Réglage par défaut, validé sur la matrice de test.";
-"settings.smartColor.profile.suspicious.hint" = "Lit les premiers signaux comme du risque. Alarme tôt.";
+"settings.smartColor.profile.vigilant" = "Vigilant";
+"settings.smartColor.profile.patient.hint" = "Tolère les bursts, alarme tard.";
+"settings.smartColor.profile.balanced.hint" = "Réglage par défaut.";
+"settings.smartColor.profile.vigilant.hint" = "Lit les premiers signaux comme du risque.";
 
 /* Update */
 "update.check" = "Vérifier les mises à jour";

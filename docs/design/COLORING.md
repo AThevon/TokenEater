@@ -33,10 +33,15 @@ The default since v5.0. Replaces the v1 threshold+pacing/`max` combinator + rese
 ### Architecture
 
 ```text
-risk = max(absoluteRisk, projectionRisk × confidence, pacingRisk × confidence)
+projectionHealth = smoothstep(0.7, 1.0, u / e)
+risk = max(absoluteRisk × projectionHealth,
+           projectionRisk × confidence,
+           pacingRisk × confidence)
 ```
 
 Three independent components, each producing a `[0, 1]` score, combined via `max` so the worst signal always wins. The two time-derived components are weighted by a confidence factor that grows from 0 at window start to ~1 at window end, so a 5% used / 1% elapsed burst doesn't trigger a panic alarm.
+
+The absolute component is dampened by `projectionHealth`: when the current rate projects a comfortable finish under the limit (`u/e ≤ 0.7`), the multiplier drops to 0 and the "you've burnt a lot" signal is suppressed. At `u/e ≥ 1.0` (you'll hit or overshoot), the multiplier saturates to 1 and absolute fires at full strength. This keeps the 98% / 30min hard flag intact while quieting the false alarm at e.g. 72% with calm pacing where `u/e ≈ 0.86` and the user is on track to finish ~86% — no real risk.
 
 The continuous score then drives the gauge color via linear RGBA interpolation across 4 anchor stops (chill / chill / warning / critical at 0.0 / 0.30 / 0.55 / 0.85), so the user sees a smooth color ramp rather than discrete bands.
 
@@ -98,9 +103,9 @@ Three presets ship in Settings -> Themes -> Smart Color -> Sensitivity. Each tun
 
 | Profile | k (confidence) | projUpper | Zone thresholds (rising) | Feel |
 |---|---|---|---|---|
-| **Confident**  | 3.0 | 1.6 | 0.38 / 0.62 / 0.85 | Trusts bursts, alarms late |
-| **Balanced**   | 5.0 | 1.4 | 0.30 / 0.55 / 0.78 | Default tuning, validated against the test matrix |
-| **Suspicious** | 8.0 | 1.2 | 0.22 / 0.45 / 0.68 | Reads early signals as risk, alarms sooner |
+| **Patient**  | 3.0 | 1.6 | 0.38 / 0.62 / 0.85 | Trusts bursts, alarms late |
+| **Balanced** | 5.0 | 1.4 | 0.30 / 0.55 / 0.78 | Default tuning, validated against the test matrix |
+| **Vigilant** | 8.0 | 1.2 | 0.22 / 0.45 / 0.68 | Reads early signals as risk, alarms sooner |
 
 `k` controls how fast the time-derived components gain confidence in the rate. `projUpper` controls how aggressively the projection saturates - a lower value means a smaller projected overflow already screams. Zone thresholds control where the discrete `PacingZone` mapping switches (used by notifications + the pacing pill).
 
@@ -126,10 +131,11 @@ Edge cases the v2 algorithm gets right (and v1 did not). All scenarios assume `�
 | Scenario | u | e | Expected | v1 wrong because | v2 result |
 |---|---|---|---|---|---|
 | Just started, healthy burst | 0.05 | 0.01 | chill | n/a | risk ≈ 0.04 -> chill ✅ |
-| 80% used, 50% elapsed | 0.80 | 0.50 | hot | n/a | absolute = 0.90 -> red ✅ |
+| 80% used, 50% elapsed | 0.80 | 0.50 | hot | n/a | absolute = 0.90, projHealth = 1 -> red ✅ |
 | **98% used, 30 min left on 5h** | 0.98 | 0.90 | hot | reset-imminent override pulled it green | risk = 1.0 -> red ✅ |
 | **75% used at 1h01 vs 59min on 5h** | 0.75 | 0.79 / 0.80 | same band | discrete cliff between two adjacent samples | continuous, no cliff ✅ |
-| 50% used, 90% elapsed | 0.50 | 0.90 | chill | n/a | absolute = 0, no projection | risk ≈ 0 -> chill ✅ |
+| **72% used at 4h12 on 5h, calm pacing** | 0.72 | 0.84 | chill | absolute fired alone despite safe projection | projHealth ≈ 0.53, absolute damped to 0.25 -> chill ✅ |
+| 50% used, 90% elapsed | 0.50 | 0.90 | chill | n/a | absolute = 0, projHealth ≈ 0 -> chill ✅ |
 | Hard cap | 1.0 | any | hot | n/a | risk = 1.0 (hard cap) ✅ |
 
 The v1 cliffs all came from `if`-based ladders (threshold band, pacing band, override gate). v2's smoothstep + max + continuous interpolation eliminates them by construction.
@@ -222,7 +228,7 @@ The smart gauge interpolates between the three `gauge*` tokens on the [0, 1] ris
 
 `Settings -> Themes -> Smart Color` controls the smart vs threshold path globally. Default ON since v5.0.
 
-When ON, a segmented `Sensitivity` picker lets the user choose between `Confident` / `Balanced` / `Suspicious` profiles, each with a contextual hint. The popover info icon expands into a 3-signal breakdown (absolute / projection / pacing) + a `combined via max` note + a profile reminder.
+When ON, three card-style chips let the user choose between `Patient` / `Balanced` / `Vigilant` profiles. Each card carries an icon + label + tagline so the temperament reads at a glance. The popover info icon expands into a 3-signal breakdown (absolute / projection / pacing) + a `combined via max` note + a profile reminder.
 
 The toggle + profile are both mirrored to the shared file (`SharedFileService.smartColorEnabled` + `SharedFileService.smartColorProfile`) so the sandboxed widget reads the same state without round-tripping through the app process.
 

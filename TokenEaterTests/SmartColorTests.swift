@@ -94,6 +94,22 @@ struct SmartColorTests {
         #expect(SmartColor.zoneForRisk(r) == .hot)
     }
 
+    @Test("KEY FIX -> 72% with chill pacing (e=0.84) -> chill, not amber")
+    func scenarioHighAbsoluteCalmPacing() {
+        // Real-world scenario: user is at 72% in a 5h session with ~48min
+        // remaining. Pacing is -11% under linear (delta = -0.12), so they
+        // project to finish at u/e = 0.857 → ~86% of the limit. No real
+        // overshoot risk. The early-v2 algo would have flagged amber here
+        // because absolute alone (smoothstep(0.60, 0.85, 0.72) ≈ 0.47)
+        // landed in the green→orange interpolation band. The projection-
+        // health damping introduced after that quiets the absolute signal
+        // when projection says "you'll finish well below" - so this scenario
+        // should now read chill.
+        let r = risk(u: 0.72, e: 0.84)
+        #expect(r < 0.30, "Calm pacing + safe projection must keep risk in the chill band, got \(r)")
+        #expect(SmartColor.zoneForRisk(r) == .chill)
+    }
+
     @Test("50% used at 90% elapsed -> chill (low absolute, behind pace)")
     func scenarioLowAt90() {
         let r = risk(u: 0.50, e: 0.90)

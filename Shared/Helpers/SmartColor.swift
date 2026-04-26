@@ -73,9 +73,35 @@ enum SmartColor {
     /// Combines the three components via `max`. The most conservative
     /// signal wins - none can mask another's red flag. Hard-caps at 1.0
     /// when utilization >= 100%.
+    ///
+    /// The absolute component is dampened by **projection health** so we
+    /// don't fire a "you've burnt a lot" alert when the current rate
+    /// projects a comfortable finish under the limit. Concretely:
+    ///
+    /// ```text
+    /// projectionHealth = smoothstep(0.7, 1.0, u / e)
+    /// a = absoluteRisk × projectionHealth
+    /// ```
+    ///
+    /// At `u/e ≥ 1` (you'll hit or overshoot the limit), `projectionHealth`
+    /// saturates to 1 and `a` fires at full strength - the 98%/30min hard
+    /// flag is preserved. At `u/e ≤ 0.7` (you'll finish well below), the
+    /// multiplier drops to 0 and absolute is suppressed - quieting the
+    /// false alarm at e.g. 72% with calm pacing where the v1+early-v2
+    /// behaviour would have shown amber despite no real risk.
+    ///
+    /// `combinedRisk` is the only place this dampening lives. The pure
+    /// `absoluteRisk` function stays untouched so the no-reset fallback
+    /// (`smartRisk` -> `absoluteRisk` directly) keeps the raw consumption
+    /// signal when no projection data is available.
     static func combinedRisk(u: Double, e: Double, θw: Double, θc: Double, m: Double, params: SmartColorParameters = .default) -> Double {
         if u >= 1.0 { return 1.0 }
-        let a = absoluteRisk(u: u, θw: θw, θc: θc)
+        let aRaw = absoluteRisk(u: u, θw: θw, θc: θc)
+        let projectionHealth: Double = {
+            guard e > 0.0001 else { return 1.0 }
+            return smoothstep(0.7, 1.0, u / e)
+        }()
+        let a = aRaw * projectionHealth
         let b = projectionRisk(u: u, e: e, params: params)
         let c = pacingRisk(u: u, e: e, m: m, params: params)
         return max(a, max(b, c))
