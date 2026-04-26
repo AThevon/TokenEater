@@ -41,22 +41,78 @@ final class OnboardingViewModel: ObservableObject {
     @Published var connectionStatus: ConnectionStatus = .idle
     @Published var notificationStatus: NotificationStatus = .unknown
 
+    /// Bridges `SettingsStore.overlayEnabled` so the Watchers card can
+    /// toggle directly without going through an environment object. Default
+    /// reflects the current store value at init time so re-running the
+    /// onboarding shows the user's existing preference.
+    @Published var watcherEnabled: Bool
+
+    /// Total number of cards the user can interact with. Used by the hero
+    /// progress indicator. Hard-coded at 4 (Claude Code, Notifications,
+    /// Watchers, Connect).
+    let totalSteps: Int = 4
+
     private let tokenProvider: TokenProviderProtocol
     private let repository: UsageRepositoryProtocol
     private let notificationService: NotificationServiceProtocol
+    private let settingsStore: SettingsStore
 
     init(
         tokenProvider: TokenProviderProtocol = TokenProvider(),
         repository: UsageRepositoryProtocol = UsageRepository(),
-        notificationService: NotificationServiceProtocol = NotificationService()
+        notificationService: NotificationServiceProtocol = NotificationService(),
+        settingsStore: SettingsStore? = nil
     ) {
         self.tokenProvider = tokenProvider
         self.repository = repository
         self.notificationService = notificationService
+        let store = settingsStore ?? SettingsStore(
+            notificationService: notificationService,
+            tokenProvider: tokenProvider
+        )
+        self.settingsStore = store
+        self.watcherEnabled = store.overlayEnabled
     }
 
     /// Whether the user might see a Keychain dialog (first connection attempt)
     var needsBootstrap: Bool { tokenProvider.currentToken() == nil }
+
+    /// Gating rule for the Finish button. Both required cards must succeed:
+    /// Claude Code detected AND Connect connected (rateLimited counts as
+    /// connected because the token works - server is just throttling).
+    var canFinish: Bool {
+        guard claudeCodeStatus == .detected else { return false }
+        switch connectionStatus {
+        case .success, .rateLimited:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Hero progress count - how many of the 4 cards are in their "ready"
+    /// state. Both gates must be green; optional toggles count as ready
+    /// when on (Watchers) or authorized (Notifications).
+    var readyCount: Int {
+        var count = 0
+        if claudeCodeStatus == .detected { count += 1 }
+        if notificationStatus == .authorized { count += 1 }
+        if watcherEnabled { count += 1 }
+        switch connectionStatus {
+        case .success, .rateLimited:
+            count += 1
+        default:
+            break
+        }
+        return count
+    }
+
+    /// Updates `SettingsStore.overlayEnabled` whenever the user flicks the
+    /// Watchers toggle. Called from `WatchersCard`.
+    func setWatcherEnabled(_ enabled: Bool) {
+        watcherEnabled = enabled
+        settingsStore.overlayEnabled = enabled
+    }
 
     func checkClaudeCode() {
         claudeCodeStatus = .checking
