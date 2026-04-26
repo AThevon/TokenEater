@@ -360,14 +360,13 @@ struct HistoryView: View {
                         .foregroundStyle(DS.Palette.textPrimary.opacity(0.18))
                         .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
 
-                    // Invisible anchor positioned at the bar's peak so the
-                    // tooltip annotation rides the actual bar height instead
-                    // of the chart's top edge. SwiftUI Charts auto-flips the
-                    // position when there's no room above (tall bars get
-                    // tooltips below, short bars get them above).
+                    // Invisible anchor for the tooltip. We blend the bar's
+                    // own peak with a floor at 60% of the chart's max value
+                    // so short bars don't drag the tooltip down to the
+                    // baseline. Tall bars stay glued to their peak.
                     PointMark(
                         x: .value("date", bucket.date, unit: store.range.isHourly ? .hour : .day),
-                        y: .value("tokens", bucket.totalActive)
+                        y: .value("tokens", tooltipAnchorY(for: bucket, in: bucketsArray))
                     )
                     .opacity(0)
                     .annotation(
@@ -432,10 +431,13 @@ struct HistoryView: View {
 
     // MARK: - Hover tooltip
 
-    /// Picks the bucket whose date is closest to the cursor's X position. Uses
-    /// `proxy.value(atX:)` to map screen-space to chart-space, then a single
-    /// linear scan over the (small, sorted) bucket array. Snapping rather than
-    /// requiring pixel-perfect bar hit so the tooltip feels generous.
+    /// Picks the bucket whose interval contains the cursor's X position. Uses
+    /// `proxy.value(atX:)` to map screen-space to chart-space, then matches
+    /// against `[bucket.date, bucket.date + bucketSeconds)`. Interval-based
+    /// matching is precise regardless of bar height - "closest center" was
+    /// inaccurate because `bucket.date` is the start of the interval, not its
+    /// center. Falls back to the nearest bucket if no interval matches (cursor
+    /// outside any data range, e.g. between buckets due to gaps).
     private func handleChartHover(
         at location: CGPoint,
         proxy: ChartProxy,
@@ -450,19 +452,36 @@ struct HistoryView: View {
         let plotRect = geo[plotFrameAnchor]
         let xInPlot = location.x - plotRect.origin.x
         guard xInPlot >= 0, xInPlot <= plotRect.size.width,
-              let date: Date = proxy.value(atX: xInPlot) else {
+              let cursorDate: Date = proxy.value(atX: xInPlot) else {
             clearHover()
             return
         }
-        let nearest = buckets.min { lhs, rhs in
-            abs(lhs.date.timeIntervalSince(date)) < abs(rhs.date.timeIntervalSince(date))
+        let bucketSeconds = store.range.bucketSeconds
+        let containing = buckets.first { bucket in
+            let start = bucket.date
+            let end = start.addingTimeInterval(bucketSeconds)
+            return cursorDate >= start && cursorDate < end
         }
-        guard let nearest else { return }
-        if hoveredBucket?.id != nearest.id {
+        let resolved = containing ?? buckets.min { lhs, rhs in
+            abs(lhs.date.timeIntervalSince(cursorDate)) < abs(rhs.date.timeIntervalSince(cursorDate))
+        }
+        guard let resolved else { return }
+        if hoveredBucket?.id != resolved.id {
             withAnimation(reduceMotion ? .easeInOut(duration: 0.15) : .smooth(duration: 0.18)) {
-                hoveredBucket = nearest
+                hoveredBucket = resolved
             }
         }
+    }
+
+    /// Computes the Y anchor (in tokens) for the tooltip. Returns the bar's
+    /// own peak when it's tall enough, otherwise lifts to 60% of the chart's
+    /// max bar so short bars don't pull the tooltip to the baseline. Result:
+    /// the tooltip sits in a comfortable upper-middle band regardless of which
+    /// bar is hovered.
+    private func tooltipAnchorY(for bucket: HistoryBucket, in buckets: [HistoryBucket]) -> Int {
+        let max = buckets.map(\.totalActive).max() ?? 0
+        let floor = Int(Double(max) * 0.6)
+        return Swift.max(bucket.totalActive, floor)
     }
 
     private func clearHover() {
