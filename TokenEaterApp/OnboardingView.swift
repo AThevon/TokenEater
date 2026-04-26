@@ -49,11 +49,11 @@ struct OnboardingView: View {
         Grid(horizontalSpacing: 12, verticalSpacing: 12) {
             GridRow {
                 ClaudeCodeCard(viewModel: viewModel)
-                NotificationsCard(viewModel: viewModel)
+                ConnectCard(viewModel: viewModel)
             }
             GridRow {
                 WatchersCard(viewModel: viewModel)
-                ConnectCard(viewModel: viewModel)
+                NotificationsCard(viewModel: viewModel)
             }
         }
     }

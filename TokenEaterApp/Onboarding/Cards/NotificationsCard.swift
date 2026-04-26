@@ -13,7 +13,7 @@ struct NotificationsCard: View {
     var body: some View {
         OnboardingCard(
             kind: .optional,
-            tilt: .right,
+            tilt: .left,
             title: "onboarding.card.notifications.title",
             statusText: statusText,
             statusColor: statusColor,

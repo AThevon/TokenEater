@@ -12,7 +12,7 @@ struct ConnectCard: View {
     var body: some View {
         OnboardingCard(
             kind: .required,
-            tilt: .left,
+            tilt: .right,
             title: "onboarding.card.connect.title",
             statusText: statusText,
             statusColor: statusColor,
