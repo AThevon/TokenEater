@@ -28,12 +28,15 @@
 
 A native macOS menu bar app + desktop widgets + floating overlay that tracks your Claude AI usage in real-time.
 
-- **Menu bar** — Live percentages, color-coded thresholds, detailed popover dashboard
-- **Widgets** — Native WidgetKit widgets (usage gauges, progress bars, pacing) with reactive refresh
-- **Agent Watchers** — Floating overlay showing active Claude Code sessions with dock-like hover effect. Click to jump to the right terminal (Terminal.app, iTerm2, tmux, Kitty, WezTerm).
-- **Smart pacing** — Are you burning through tokens or cruising? Three zones: chill, on track, hot.
+- **Menu bar** — Live percentages, color-coded thresholds, detailed popover dashboard with three layout variants (Classic / Compact / Focus).
+- **Dashboard** — Three-space layout (Monitoring / History / Settings) with flippable tiles surfacing 7d sparklines, peak day, and a pacing-vs-equilibrium graph.
+- **History** — Tokens-over-time browser sourced from Claude Code's local JSONL logs. Filter by model family (Opus / Sonnet / Haiku), switch range (24h / 7d / 30d / 90d), hover bars for daily breakdown, identify your heaviest day and top project at a glance.
+- **Widgets** — Native WidgetKit widgets (usage gauges, progress bars, pacing) with reactive refresh.
+- **Agent Watchers** — Floating overlay showing active Claude Code sessions with dock-like hover effect. Click to jump to the right terminal (Terminal.app, iTerm2, tmux, Kitty, WezTerm). Frost or Neon style, with per-session context fraction.
+- **Smart Color** — Risk-aware coloring that combines absolute usage, projection rate, and pacing into a continuous risk score with early-window confidence damping. Three temperaments (Confident / Balanced / Suspicious) to dial sensitivity to your appetite for risk.
+- **Smart pacing** — Are you burning through tokens or cruising? Four zones: chill, on track, warning, hot.
 - **Themes** — 4 presets + full custom colors. Configurable warning/critical thresholds.
-- **Notifications** — Alerts at warning, critical, and reset.
+- **Notifications** — Granular per-surface (5h / 7d / Sonnet / Design) and per-event toggles (escalation, recovery, pacing, scheduled reset reminders, extra credits, token expiry).
 
 See all features in detail on the [website](https://tokeneater.vercel.app).
 
@@ -97,10 +100,10 @@ TokenEaterApp/           App host (settings, OAuth, menu bar, overlay)
 TokenEaterWidget/        Widget Extension (WidgetKit, reactive refresh)
 Shared/                  Shared code (services, stores, models, pacing)
   ├── Models/            Pure Codable structs
-  ├── Services/          Protocol-based I/O (API, TokenProvider, SharedFile, Notification, SessionMonitor)
+  ├── Services/          Protocol-based I/O (API, TokenProvider, SharedFile, Notification, SessionMonitor, SessionHistory)
   ├── Repositories/      Orchestration (UsageRepository)
-  ├── Stores/            ObservableObject state containers
-  └── Helpers/           Pure functions (PacingCalculator, MenuBarRenderer, JSONLParser)
+  ├── Stores/            ObservableObject state containers (Usage, Theme, Settings, History, MonitoringInsights, Session, Update)
+  └── Helpers/           Pure functions (PacingCalculator, MenuBarRenderer, JSONLParser, SmartColor)
 ```
 
 The app reads Claude Code's OAuth token silently from the macOS Keychain (`kSecUseAuthenticationUISkip`), calls the Anthropic usage API, and writes results to a shared JSON file. A `TokenFileMonitor` watches for credential changes via FSEvents and triggers immediate refresh. The widget reads the shared file — it never touches the network or Keychain. The Agent Watchers overlay scans running Claude Code processes every 2s using macOS system APIs and tail-reads their JSONL logs.
@@ -127,7 +130,7 @@ TokenEater reads an **OAuth access token** from the Claude Code keychain entry -
 
 The token never leaves your machine except for these two API calls to `api.anthropic.com`. The widget reads a local JSON file and has no network or keychain access at all.
 
-Anthropic does not currently offer a third-party OAuth flow or scoped API tokens - reading the existing token from the keychain is the only option. If scoped tokens become available, TokenEater will adopt them immediately. The entire codebase is open source and auditable: keychain access is in [`KeychainService.swift`](Shared/Services/KeychainService.swift), API calls in [`APIClient.swift`](Shared/Services/APIClient.swift).
+Anthropic does not currently offer a third-party OAuth flow or scoped API tokens - reading the existing token from the keychain is the only option. If scoped tokens become available, TokenEater will adopt them immediately. The entire codebase is open source and auditable: keychain access is in [`SecurityCLIReader.swift`](Shared/Services/SecurityCLIReader.swift) (primary) and [`KeychainService.swift`](Shared/Services/KeychainService.swift) (fallback), API calls in [`APIClient.swift`](Shared/Services/APIClient.swift).
 
 ## Troubleshooting
 
