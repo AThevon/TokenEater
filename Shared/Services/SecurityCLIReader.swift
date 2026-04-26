@@ -51,10 +51,16 @@ final class SecurityCLIReader: SecurityCLIReaderProtocol, @unchecked Sendable {
               !raw.isEmpty else {
             return nil
         }
+        return Self.extractToken(fromKeychainPassword: raw)
+    }
 
-        // Claude Code stores the full OAuth JSON blob as the Keychain password.
-        // Extract claudeAiOauth.accessToken, the same shape `defaultKeychainReader`
-        // handles when parsing a direct `SecItemCopyMatching` response.
+    /// Parses the password payload `/usr/bin/security` returned for the
+    /// "Claude Code-credentials" item and pulls out
+    /// `claudeAiOauth.accessToken`. Pure function so it's tested in
+    /// isolation - the Process spawn above doesn't need to run.
+    /// Returns nil if the payload is empty, isn't JSON, doesn't carry
+    /// the expected nested keys, or the access token field is empty.
+    static func extractToken(fromKeychainPassword raw: String) -> String? {
         guard let jsonData = raw.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
               let oauth = obj["claudeAiOauth"] as? [String: Any],
@@ -62,7 +68,6 @@ final class SecurityCLIReader: SecurityCLIReaderProtocol, @unchecked Sendable {
               !token.isEmpty else {
             return nil
         }
-
         return token
     }
 }
