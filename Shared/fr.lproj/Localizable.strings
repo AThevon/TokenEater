@@ -349,56 +349,11 @@
 "duration.days.hours" = "%dj %dh";
 
 /* Onboarding */
-"onboarding.continue" = "Continuer";
-"onboarding.back" = "Retour";
 "onboarding.mode.simple" = "Simple";
 "onboarding.mode.detailed" = "Détaillé";
 
-/* Onboarding - Welcome */
-"onboarding.welcome.subtitle" = "Gardez un œil sur votre conso Claude";
-"onboarding.welcome.description" = "Un widget dans la barre de menu pour voir votre consommation Claude Code d'un coup d'œil.";
-
-/* Onboarding - Prerequisites */
-"onboarding.prereq.checking" = "Recherche de Claude Code…";
-"onboarding.prereq.detected.title" = "Claude Code trouvé !";
-"onboarding.prereq.detected.simple" = "TokenEater a trouvé Claude Code sur votre Mac. Il va utiliser votre session pour récupérer vos données d'usage.";
-"onboarding.prereq.detected.detailed" = "TokenEater a trouvé un token OAuth Claude Code dans le Keychain macOS (service : Claude Code-credentials). Il lit ce token pour appeler l'API usage d'Anthropic.";
-"onboarding.prereq.notfound.title" = "Claude Code introuvable";
-"onboarding.prereq.step1" = "Installez Claude Code (le CLI d'Anthropic)";
-"onboarding.prereq.step2" = "Lancez-le et connectez-vous avec votre compte Claude";
-"onboarding.prereq.step3" = "Revenez ici et cliquez sur réessayer";
-"onboarding.prereq.install.link" = "Installer Claude Code";
-"onboarding.prereq.retry" = "Réessayer";
-"onboarding.prereq.plan.required" = "Nécessite un plan Claude Pro ou Team - le plan gratuit ne fournit pas les données d'usage.";
-
-/* Onboarding - Notifications */
-"onboarding.notif.title" = "Restez informé";
-"onboarding.notif.simple" = "Recevez une notification quand votre usage atteint les seuils d'alerte.";
-"onboarding.notif.detailed" = "TokenEater envoie des notifications locales quand votre usage franchit les seuils configurables (60%% alerte, 85%% critique par défaut). Seules les transitions déclenchent une alerte - pas de spam.";
-"onboarding.notif.enable" = "Activer les notifications";
-"onboarding.notif.enabled" = "Notifications activées !";
-"onboarding.notif.test" = "Envoyer un test";
-"onboarding.notif.denied.hint" = "Pas de souci - vous pourrez les activer plus tard dans les Réglages Système.";
-"onboarding.notif.open.settings" = "Ouvrir les réglages";
-"onboarding.notif.skip.hint" = "Vous manquerez les alertes de seuil";
-"onboarding.notif.mockup.title" = "⚠️ Session 5h - 72%";
-"onboarding.notif.mockup.body" = "Tu dépasses 60% - lève le pied";
-
-/* Onboarding - Connection */
-"onboarding.connection.title" = "Dernière étape";
-"onboarding.connection.simple" = "macOS va demander votre mot de passe - c'est normal. Ça permet à TokenEater de lire votre session Claude en toute sécurité.";
-"onboarding.connection.detailed" = "macOS protège le Keychain avec votre mot de passe. TokenEater fait une lecture unique via SecItemCopyMatching. Seul l'access token est copié - rien d'autre ne sort du Keychain.";
-"onboarding.connection.authorize" = "Autoriser";
-"onboarding.connection.connecting" = "Connexion…";
-"onboarding.connection.success.title" = "C'est bon, tout roule !";
-"onboarding.connection.widget.hint" = "Ajoutez le widget : clic droit sur le bureau → Modifier les widgets → TokenEater";
-"onboarding.connection.ratelimited.hint" = "Connecté, mais l'API usage d'Anthropic est temporairement indisponible - vos données apparaîtront dès qu'elle reviendra";
-"onboarding.connection.start" = "C'est parti";
-"onboarding.connection.retry" = "Réessayer";
-"onboarding.connection.failed.title" = "Quelque chose a planté";
+/* Onboarding - Connection (kept: referenced by OnboardingViewModel) */
 "onboarding.connection.failed.notoken" = "Impossible de lire le token. Vérifiez que Claude Code est installé et que vous êtes connecté.";
-"onboarding.connection.failed.tip" = "Essayez /login dans Claude Code même si vous êtes déjà connecté - ça peut débloquer une session expirée.";
-"onboarding.connection.keychain.hint" = "TokenEater a besoin d'un accès unique pour lire la clé de chiffrement de Claude Code. Cliquez « Toujours autoriser » quand macOS le demande.";
 
 /* Settings - Onboarding reset */
 "settings.onboarding.reset" = "Relancer la configuration";
@@ -513,13 +468,6 @@
 "settings.watchers.display.branchPriority.hint" = "Affiche la branche git en titre quand elle n'est pas par défaut, sinon le nom du projet.";
 "settings.watchers.display.projectAndBranch.hint" = "Affiche toujours le nom du projet en titre, avec la branche à côté du statut.";
 
-/* Onboarding - Agent Watchers */
-"onboarding.watchers.title" = "Agent Watchers";
-"onboarding.watchers.description" = "Un overlay flottant qui montre vos sessions Claude Code actives d'un coup d'œil. Survolez pour agrandir, cliquez pour basculer vers une session.";
-"onboarding.watchers.compat.title" = "Fonctionne direct avec";
-"onboarding.watchers.compat.advanced" = "tmux, Kitty et WezTerm nécessitent une ligne de config - retrouvez-la dans Réglages → Watchers après l'onboarding.";
-"onboarding.watchers.settings.hint" = "Vous pouvez simplifier l'affichage dans les Réglages.";
-
 /* Performance */
 "sidebar.performance" = "Performance";
 "settings.performance.description" = "Si TokenEater consomme trop de CPU, désactivez les fonctionnalités gourmandes ici.";
@@ -530,7 +478,6 @@
 "settings.performance.monitor" = "Session Monitor";
 "settings.performance.monitor.toggle" = "Détection des sessions";
 "settings.performance.monitor.warning" = "Désactiver coupe entièrement l'overlay Agent Watchers.";
-"onboarding.performance.hint" = "Vous pouvez ajuster les performances dans les Réglages si besoin.";
 
 /* Sidebar */
 "sidebar.dashboard" = "Tableau de bord";
@@ -660,3 +607,56 @@
 
 "pacing.session.label.short" = "Session";
 "pacing.weekly.label.short" = "Hebdo";
+
+/* MARK: - Onboarding (rework 2026-04) */
+
+"onboarding.hero.label" = "INSTALLATION";
+"onboarding.hero.title" = "on te configure tout ca.";
+"onboarding.hero.subtitle" = "Deux obligatoires, deux optionnels. Active ce que tu veux, clique Terminer, ca prend 30 secondes.";
+"onboarding.progress.label %lld %lld" = "%lld / %lld prets";
+"onboarding.finish" = "Terminer";
+
+"onboarding.badge.required" = "REQUIS";
+"onboarding.badge.optional" = "OPTIONNEL";
+
+/* Card 1 - Claude Code */
+"onboarding.card.claudecode.title" = "Claude Code";
+"onboarding.card.claudecode.checking" = "detection...";
+"onboarding.card.claudecode.status.checking" = "detection auto";
+"onboarding.card.claudecode.status.detected" = "detecte sur ta machine";
+"onboarding.card.claudecode.status.notfound" = "non trouve - installe + reessaie";
+"onboarding.card.claudecode.notfound.step1" = "installe via brew install claude";
+"onboarding.card.claudecode.notfound.step2" = "connecte-toi : lance claude";
+"onboarding.card.claudecode.notfound.step3" = "reviens ici, clique Reessayer";
+"onboarding.card.claudecode.retry" = "Reessayer";
+
+/* Card 2 - Notifications */
+"onboarding.card.notifications.title" = "Notifications";
+"onboarding.card.notifications.status.off" = "off - active pour autoriser";
+"onboarding.card.notifications.status.on" = "on - alertes activees";
+"onboarding.card.notifications.status.denied" = "bloque au niveau systeme";
+"onboarding.card.notifications.authorized.scene" = "clique pour envoyer un test";
+"onboarding.card.notifications.denied.scene" = "bloque - ouvre les Reglages Notifications";
+"onboarding.card.notifications.test" = "Envoyer un test";
+"onboarding.card.notifications.opensettings" = "Ouvrir les Reglages";
+
+/* Card 3 - Watchers */
+"onboarding.card.watchers.title" = "Agent Watchers";
+"onboarding.card.watchers.status.on" = "on - overlay live";
+"onboarding.card.watchers.status.off" = "off - tuiles en pause";
+
+/* Card 4 - Connect */
+"onboarding.card.connect.title" = "Connecter";
+"onboarding.card.connect.status.idle" = "clique pour autoriser";
+"onboarding.card.connect.status.connecting" = "discussion avec le keychain...";
+"onboarding.card.connect.status.success" = "connecte";
+"onboarding.card.connect.status.failed" = "acces refuse";
+"onboarding.card.connect.connecting" = "autorisation...";
+"onboarding.card.connect.success.scene" = "connecte - bouton Terminer debloque";
+"onboarding.card.connect.failed.scene" = "acces refuse";
+"onboarding.card.connect.authorize" = "Autoriser";
+"onboarding.card.connect.retry" = "Reessayer";
+"onboarding.card.connect.keychain.title" = "\"TokenEater\" veut acceder a";
+"onboarding.card.connect.keychain.sub" = "ton trousseau Claude Code.";
+"onboarding.card.connect.keychain.deny" = "Refuser";
+"onboarding.card.connect.keychain.allow" = "Toujours autoriser";
