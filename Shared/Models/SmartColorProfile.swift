@@ -1,0 +1,76 @@
+import Foundation
+
+/// User-selectable temperament for the smart-color algorithm. Each
+/// profile dials three internal knobs that shift WHEN the color
+/// transitions happen on the risk continuum:
+///
+/// - `k` -> growth rate of the confidence factor `c(e) = 1 - exp(-k·e)`.
+///         Higher k = projection / pacing risks count earlier in the
+///         window. Lower k = trust the trajectory only late.
+/// - `projUpper` -> upper bound of the projection-overflow smoothstep.
+///         Lower = the system panics for smaller projected overflows.
+///         Higher = more tolerance before the projection screams.
+/// - zone thresholds -> where the discrete bands switch on the [0,1]
+///         risk continuum. Lower thresholds = more pessimistic mapping
+///         (red earlier).
+///
+/// The default is `.balanced`, the original tuning derived from the
+/// validation matrix. The other two profiles let users with bursty
+/// (`.confident`) or anxious (`.suspicious`) consumption patterns shift
+/// the system to match their risk appetite without changing the core
+/// math.
+enum SmartColorProfile: String, CaseIterable, Codable, Sendable {
+    case confident, balanced, suspicious
+
+    static let `default`: SmartColorProfile = .balanced
+
+    var parameters: SmartColorParameters {
+        switch self {
+        case .confident:
+            return SmartColorParameters(
+                k: 3.0,
+                projUpper: 1.6,
+                chillThreshold: 0.38,
+                warningThreshold: 0.62,
+                hotThreshold: 0.85
+            )
+        case .balanced:
+            return SmartColorParameters(
+                k: 5.0,
+                projUpper: 1.4,
+                chillThreshold: 0.30,
+                warningThreshold: 0.55,
+                hotThreshold: 0.78
+            )
+        case .suspicious:
+            return SmartColorParameters(
+                k: 8.0,
+                projUpper: 1.2,
+                chillThreshold: 0.22,
+                warningThreshold: 0.45,
+                hotThreshold: 0.68
+            )
+        }
+    }
+
+    var displayLabelKey: String {
+        "settings.smartColor.profile.\(rawValue)"
+    }
+}
+
+/// Concrete tuning knobs consumed by `SmartColor` primitives. Falling
+/// thresholds for hysteresis are derived as `rising - 0.05` so the
+/// 5-percentage-point buffer scales with the chosen profile.
+struct SmartColorParameters: Equatable, Sendable {
+    let k: Double
+    let projUpper: Double
+    let chillThreshold: Double
+    let warningThreshold: Double
+    let hotThreshold: Double
+
+    static let `default` = SmartColorProfile.balanced.parameters
+
+    var fallingChill: Double { max(0, chillThreshold - 0.05) }
+    var fallingWarning: Double { max(0, warningThreshold - 0.05) }
+    var fallingHot: Double { max(0, hotThreshold - 0.05) }
+}

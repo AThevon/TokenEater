@@ -151,29 +151,50 @@ struct ThemeColors: Codable, Equatable {
         return NSColor(hex: gaugeNormal)
     }
 
-    // MARK: - Smart (risk-aware) gauge
+    // MARK: - Smart (risk-aware) gauge — v2
 
-    /// Smart gauge color -> couples the threshold severity (utilization vs
-    /// `warningPercent` / `criticalPercent`) with the pacing severity (delta
-    /// vs ideal pace at this point in the cycle), and takes the worst of the
-    /// two. A "reset imminent" override pulls everything back to green when
-    /// less than ~10% of the window remains, on the basis that an imminent
-    /// reset cancels any short-term escalation.
-    ///
-    /// Why not the old `risk = utilization × remainingFraction` formula:
-    /// it triggered orange far too eagerly. At 33% util with 64% of the window
-    /// remaining, risk = 21 -> already orange while the user is calmly on
-    /// track. The user-visible signal felt out of step with the pacing pill.
-    ///
-    /// Returns:
-    /// - red   if util >= 100 (limit hit, override)
-    /// - green if reset imminent (< 10% of 5h windows, < 5% of weekly windows)
-    /// - max(threshold severity, pacing severity) otherwise
-    ///
-    /// Where:
-    /// - threshold severity = green/orange/red from `gaugeColor(for:thresholds:)`
-    /// - pacing severity    = green (chill / onTrack), orange (warning), red (hot)
-    ///   based on delta = utilization - elapsedFraction*100, vs `pacingMargin`
+    /// Continuous risk score [0, 1] surfaced for any UI / logic that
+    /// wants the live signal. Combines three components via `max`:
+    ///   - absolute (how close to the threshold ladder)
+    ///   - projection (will current rate exceed the limit before reset)
+    ///   - pacing (gap between actual and linear-pace consumption)
+    /// All three are smoothstep-based so the score is C1 continuous; the
+    /// time-driven components (projection, pacing) are weighted by a
+    /// confidence factor that grows from 0 at e=0 to ~1 at e=1, so the
+    /// early-window noise doesn't trigger false alarms.
+    /// See `SmartColor` for the math + `SmartColorTests` for the
+    /// validation matrix.
+    func smartRisk(
+        utilization: Double,
+        resetDate: Date?,
+        windowDuration: TimeInterval,
+        thresholds: UsageThresholds,
+        pacingMargin: Double = 10,
+        now: Date = Date(),
+        profile: SmartColorProfile = .default
+    ) -> Double {
+        if utilization >= 100 { return 1.0 }
+        let u = max(0, utilization) / 100
+        let θw = Double(thresholds.warningPercent) / 100
+        let θc = Double(thresholds.criticalPercent) / 100
+        let params = profile.parameters
+
+        guard let resetDate, windowDuration > 0 else {
+            return SmartColor.absoluteRisk(u: u, θw: θw, θc: θc)
+        }
+
+        let remaining = max(0, resetDate.timeIntervalSince(now))
+        let t = min(1.0, remaining / windowDuration)
+        let e = max(0.0, 1.0 - t)
+        let m = pacingMargin / 100
+
+        return SmartColor.combinedRisk(u: u, e: e, θw: θw, θc: θc, m: m, params: params)
+    }
+
+    /// Smart gauge color -> continuous interpolation across 4 stops
+    /// (chill -> warning -> critical) based on the live risk score.
+    /// Uses the theme's gauge palette so the color identity stays
+    /// consistent with the rest of the app.
     func smartGaugeColor(
         utilization: Double,
         resetDate: Date?,
@@ -182,18 +203,15 @@ struct ThemeColors: Codable, Equatable {
         pacingMargin: Double = 10,
         now: Date = Date()
     ) -> Color {
-        switch smartLevel(
+        let r = smartRisk(
             utilization: utilization,
             resetDate: resetDate,
             windowDuration: windowDuration,
             thresholds: thresholds,
             pacingMargin: pacingMargin,
             now: now
-        ) {
-        case .critical: return Color(hex: gaugeCritical)
-        case .warning:  return Color(hex: gaugeWarning)
-        case .normal:   return Color(hex: gaugeNormal)
-        }
+        )
+        return SmartColor.colorForRisk(r, theme: self)
     }
 
     func smartGaugeNSColor(
@@ -204,18 +222,15 @@ struct ThemeColors: Codable, Equatable {
         pacingMargin: Double = 10,
         now: Date = Date()
     ) -> NSColor {
-        switch smartLevel(
+        let r = smartRisk(
             utilization: utilization,
             resetDate: resetDate,
             windowDuration: windowDuration,
             thresholds: thresholds,
             pacingMargin: pacingMargin,
             now: now
-        ) {
-        case .critical: return NSColor(hex: gaugeCritical)
-        case .warning:  return NSColor(hex: gaugeWarning)
-        case .normal:   return NSColor(hex: gaugeNormal)
-        }
+        )
+        return SmartColor.nsColorForRisk(r, theme: self)
     }
 
     func smartGaugeGradient(
@@ -239,9 +254,9 @@ struct ThemeColors: Codable, Equatable {
         return LinearGradient(colors: [base, base.lighter()], startPoint: startPoint, endPoint: endPoint)
     }
 
-    /// Severity buckets the smart system collapses into. Internal type used
-    /// to share logic between the SwiftUI Color, AppKit NSColor, and the
-    /// notification level computations.
+    /// Legacy 3-level enum kept for back-compat with `NotificationService`
+    /// and any caller still on the discrete API. Derived from `smartRisk`
+    /// via `SmartColor.legacyLevel(forRisk:)`.
     enum SmartLevel {
         case normal, warning, critical
 
@@ -258,10 +273,6 @@ struct ThemeColors: Codable, Equatable {
         }
     }
 
-    /// Single source of truth for the smart-color decision tree.
-    /// Returns the severity that the gauge / notification should surface,
-    /// based on the worst of (threshold severity, pacing severity) with a
-    /// "reset imminent" green override.
     func smartLevel(
         utilization: Double,
         resetDate: Date?,
@@ -270,49 +281,38 @@ struct ThemeColors: Codable, Equatable {
         pacingMargin: Double = 10,
         now: Date = Date()
     ) -> SmartLevel {
-        // Hard limit hit.
-        if utilization >= 100 { return .critical }
-
-        // No date / no window -> degrade to threshold-only logic.
-        guard let resetDate, windowDuration > 0 else {
-            return thresholdLevel(utilization: utilization, thresholds: thresholds)
-        }
-
-        let remaining = max(resetDate.timeIntervalSince(now), 0)
-        let remainingFraction = max(0, min(1, remaining / windowDuration))
-
-        // Reset imminent override : a 5h window with < 30 min left, or a 7d
-        // window with < ~8h left, is so close to wiping the slate that we
-        // ignore everything except the hard 100% override above. 5h windows
-        // are short enough that a 10% margin is generous; 7d windows benefit
-        // from a tighter 5% margin because the projection is more reliable.
-        let imminentThreshold: Double = windowDuration <= 6 * 3600 ? 0.10 : 0.05
-        if remainingFraction < imminentThreshold { return .normal }
-
-        // Threshold severity (how much have you actually consumed).
-        let absolute = thresholdLevel(utilization: utilization, thresholds: thresholds)
-
-        // Pacing severity (how does the current rate compare to ideal).
-        let elapsedFraction = 1.0 - remainingFraction
-        let expectedUsage = elapsedFraction * 100
-        let delta = utilization - expectedUsage
-        let pacing: SmartLevel
-        if delta > pacingMargin * 2 {
-            pacing = .critical
-        } else if delta > pacingMargin {
-            pacing = .warning
-        } else {
-            pacing = .normal
-        }
-
-        return SmartLevel.max(absolute, pacing)
+        let r = smartRisk(
+            utilization: utilization,
+            resetDate: resetDate,
+            windowDuration: windowDuration,
+            thresholds: thresholds,
+            pacingMargin: pacingMargin,
+            now: now
+        )
+        return SmartColor.legacyLevel(forRisk: r)
     }
 
-    /// Pure threshold mapping, kept private to mirror `gaugeColor(for:thresholds:)`.
-    private func thresholdLevel(utilization: Double, thresholds: UsageThresholds) -> SmartLevel {
-        if utilization >= Double(thresholds.criticalPercent) { return .critical }
-        if utilization >= Double(thresholds.warningPercent)  { return .warning }
-        return .normal
+    /// 4-zone discretisation (chill / onTrack / warning / hot) used by
+    /// the pacing pill + notifications when they need a finer grain
+    /// than `SmartLevel`. Pass `previous` to enable hysteresis.
+    func smartZone(
+        utilization: Double,
+        resetDate: Date?,
+        windowDuration: TimeInterval,
+        thresholds: UsageThresholds,
+        pacingMargin: Double = 10,
+        now: Date = Date(),
+        previous: PacingZone? = nil
+    ) -> PacingZone {
+        let r = smartRisk(
+            utilization: utilization,
+            resetDate: resetDate,
+            windowDuration: windowDuration,
+            thresholds: thresholds,
+            pacingMargin: pacingMargin,
+            now: now
+        )
+        return SmartColor.zoneForRisk(r, previous: previous)
     }
 
     func pacingNSColor(for zone: PacingZone) -> NSColor {
