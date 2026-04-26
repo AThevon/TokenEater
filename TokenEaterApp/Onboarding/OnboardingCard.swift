@@ -99,14 +99,14 @@ struct OnboardingCard<Scene: View, Control: View>: View {
             Text("onboarding.badge.required")
                 .font(.system(size: 8, weight: .heavy))
                 .tracking(0.7)
-                .foregroundStyle(Color(red: 0.78, green: 0.72, blue: 1.0))
+                .foregroundStyle(DS.Palette.brandLight)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
                 .background(
-                    Capsule().fill(Color(red: 0.63, green: 0.51, blue: 1.0).opacity(0.16))
+                    Capsule().fill(DS.Palette.brandPrimary.opacity(0.16))
                 )
                 .overlay(
-                    Capsule().stroke(Color(red: 0.63, green: 0.51, blue: 1.0).opacity(0.28), lineWidth: 1)
+                    Capsule().stroke(DS.Palette.brandPrimary.opacity(0.32), lineWidth: 1)
                 )
         case .optional:
             Text("onboarding.badge.optional")

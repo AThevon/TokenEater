@@ -62,17 +62,11 @@ struct NotificationsCard: View {
 
     private func notifPreview(title: String, body: String, time: String) -> some View {
         HStack(spacing: 7) {
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(LinearGradient(
-                    colors: [
-                        Color(red: 0.63, green: 0.51, blue: 1.0),
-                        Color(red: 0.42, green: 0.36, blue: 1.0),
-                        Color(red: 0.85, green: 0.27, blue: 0.94),
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ))
+            Image(nsImage: NSImage(named: "AppIcon") ?? NSApp.applicationIconImage)
+                .resizable()
+                .interpolation(.high)
                 .frame(width: 22, height: 22)
+                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)

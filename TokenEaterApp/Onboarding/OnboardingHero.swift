@@ -7,7 +7,7 @@ struct OnboardingHero: View {
     @ObservedObject var viewModel: OnboardingViewModel
     @EnvironmentObject private var settingsStore: SettingsStore
 
-    private let accent = Color(red: 0.63, green: 0.51, blue: 1.0)
+    private let accent = DS.Palette.brandPrimary
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -101,7 +101,7 @@ struct OnboardingHero: View {
     private var finishBackground: some View {
         if viewModel.canFinish {
             LinearGradient(
-                colors: [accent, Color(red: 0.31, green: 0.24, blue: 0.86)],
+                colors: [DS.Palette.brandPrimary, DS.Palette.brandPressed],
                 startPoint: .top, endPoint: .bottom
             )
         } else {

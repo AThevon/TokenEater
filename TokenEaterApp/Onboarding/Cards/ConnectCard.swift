@@ -1,13 +1,13 @@
 import SwiftUI
 
 /// Fourth card - gates the onboarding. Tapping Authorize fires the real
-/// macOS Keychain prompt; the scene shows a stylised mock of the prompt
-/// before tapping, then a spinner while authorising, then a checkmark
-/// (or X with retry) afterwards.
+/// macOS Keychain prompt; the scene shows a clear illustration of the
+/// upcoming permission request before tapping, then a spinner while
+/// authorising, then a checkmark (or X with retry) afterwards.
 struct ConnectCard: View {
     @ObservedObject var viewModel: OnboardingViewModel
 
-    private let accent = Color(red: 0.42, green: 0.36, blue: 1.0) // violet
+    private let accent = DS.Palette.brandPrimary
 
     var body: some View {
         OnboardingCard(
@@ -26,119 +26,82 @@ struct ConnectCard: View {
     private var scene: some View {
         switch viewModel.connectionStatus {
         case .idle:
-            keychainDialogMock.padding(10)
+            idleScene
 
         case .connecting:
-            VStack(spacing: 7) {
+            VStack(spacing: 8) {
                 ProgressView().tint(.white)
                 Text("onboarding.card.connect.connecting")
-                    .font(.system(size: 9))
+                    .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.55))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
         case .success, .rateLimited:
-            VStack(spacing: 6) {
+            VStack(spacing: 8) {
                 ZStack {
-                    Circle().fill(Color(red: 0.30, green: 0.81, blue: 0.50).opacity(0.16))
-                        .frame(width: 32, height: 32)
+                    Circle()
+                        .fill(DS.Palette.brandPrimary.opacity(0.16))
+                        .frame(width: 44, height: 44)
                     Image(systemName: "checkmark")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(Color(red: 0.30, green: 0.81, blue: 0.50))
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(DS.Palette.brandPrimary)
                 }
-                .shadow(color: Color(red: 0.30, green: 0.81, blue: 0.50).opacity(0.35), radius: 12)
+                .shadow(color: DS.Palette.brandPrimary.opacity(0.4), radius: 14)
                 Text("onboarding.card.connect.success.scene")
-                    .font(.system(size: 9))
+                    .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.7))
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
         case .failed(let message):
-            VStack(spacing: 6) {
+            VStack(spacing: 7) {
                 ZStack {
-                    Circle().fill(Color(red: 0.94, green: 0.27, blue: 0.27).opacity(0.16))
-                        .frame(width: 30, height: 30)
+                    Circle()
+                        .fill(DS.Palette.semanticError.opacity(0.16))
+                        .frame(width: 40, height: 40)
                     Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Color(red: 0.94, green: 0.27, blue: 0.27))
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(DS.Palette.semanticError)
                 }
                 Text("onboarding.card.connect.failed.scene")
-                    .font(.system(size: 9))
+                    .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.7))
                 Text(message)
-                    .font(.system(size: 8))
+                    .font(.system(size: 9))
                     .foregroundStyle(.white.opacity(0.4))
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, 14)
                     .lineLimit(2)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
-    private var keychainDialogMock: some View {
-        VStack(spacing: 6) {
+    /// Idle scene - no fake macOS dialog. Just a clear icon + a one-line
+    /// brief of what's about to happen, so the user isn't surprised by
+    /// the system prompt.
+    private var idleScene: some View {
+        VStack(spacing: 12) {
             ZStack {
                 Circle()
-                    .fill(RadialGradient(
-                        colors: [.white, Color(white: 0.78)],
-                        center: UnitPoint(x: 0.3, y: 0.3),
-                        startRadius: 0,
-                        endRadius: 14
-                    ))
-                    .frame(width: 22, height: 22)
-                Image(systemName: "lock.fill")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(Color(white: 0.25))
+                    .fill(accent.opacity(0.12))
+                    .frame(width: 56, height: 56)
+                Image(systemName: "key.fill")
+                    .font(.system(size: 24, weight: .medium))
+                    .foregroundStyle(accent)
+                    .rotationEffect(.degrees(-15))
             }
-            .shadow(color: .black.opacity(0.3), radius: 4, y: 2)
+            .shadow(color: accent.opacity(0.4), radius: 14)
 
-            Text("onboarding.card.connect.keychain.title")
-                .font(.system(size: 8.5, weight: .semibold))
-                .foregroundStyle(.white)
+            Text("onboarding.card.connect.idle.scene")
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.6))
                 .multilineTextAlignment(.center)
-                .lineLimit(1)
-            Text("onboarding.card.connect.keychain.sub")
-                .font(.system(size: 7.5))
-                .foregroundStyle(.white.opacity(0.55))
-                .multilineTextAlignment(.center)
-
-            HStack(spacing: 4) {
-                Text("onboarding.card.connect.keychain.deny")
-                    .font(.system(size: 8))
-                    .foregroundStyle(.white.opacity(0.8))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 4)
-                    .frame(maxWidth: .infinity)
-                    .background(RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.06)))
-                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.white.opacity(0.12), lineWidth: 1))
-
-                Text("onboarding.card.connect.keychain.allow")
-                    .font(.system(size: 8, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 4)
-                    .frame(maxWidth: .infinity)
-                    .background(
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(LinearGradient(colors: [accent, Color(red: 0.31, green: 0.24, blue: 0.86)],
-                                                 startPoint: .top, endPoint: .bottom))
-                    )
-                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(accent.opacity(0.5), lineWidth: 1))
-                    .shadow(color: accent.opacity(0.45), radius: 4)
-            }
+                .lineSpacing(2)
+                .padding(.horizontal, 16)
         }
-        .padding(11)
-        .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color(white: 0.16).opacity(0.92))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-        )
-        .rotationEffect(.degrees(-0.6))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
@@ -160,16 +123,19 @@ struct ConnectCard: View {
     private func actionButton(label: LocalizedStringResource, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
                 .background(
-                    Capsule().fill(LinearGradient(colors: [accent, Color(red: 0.31, green: 0.24, blue: 0.86)],
-                                                  startPoint: .top, endPoint: .bottom))
+                    Capsule().fill(LinearGradient(
+                        colors: [DS.Palette.brandPrimary, DS.Palette.brandPressed],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ))
                 )
                 .overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1))
-                .shadow(color: accent.opacity(0.4), radius: 6)
+                .shadow(color: DS.Palette.brandPrimary.opacity(0.4), radius: 7)
         }
         .buttonStyle(.plain)
     }
@@ -186,9 +152,9 @@ struct ConnectCard: View {
 
     private var statusColor: Color {
         switch viewModel.connectionStatus {
-        case .idle, .connecting: return accent
-        case .success, .rateLimited: return Color(red: 0.30, green: 0.81, blue: 0.50)
-        case .failed: return Color(red: 0.94, green: 0.27, blue: 0.27)
+        case .idle, .connecting: return DS.Palette.brandPrimary
+        case .success, .rateLimited: return DS.Palette.brandPrimary
+        case .failed: return DS.Palette.semanticError
         }
     }
 }

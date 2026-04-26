@@ -656,7 +656,4 @@
 "onboarding.card.connect.failed.scene" = "access denied";
 "onboarding.card.connect.authorize" = "Authorize";
 "onboarding.card.connect.retry" = "Retry";
-"onboarding.card.connect.keychain.title" = "\"TokenEater\" wants to access";
-"onboarding.card.connect.keychain.sub" = "your Claude Code login keychain.";
-"onboarding.card.connect.keychain.deny" = "Deny";
-"onboarding.card.connect.keychain.allow" = "Always Allow";
+"onboarding.card.connect.idle.scene" = "macOS will ask once.\nTap Always Allow when it does.";

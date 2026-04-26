@@ -656,7 +656,4 @@
 "onboarding.card.connect.failed.scene" = "accès refusé";
 "onboarding.card.connect.authorize" = "Autoriser";
 "onboarding.card.connect.retry" = "Réessayer";
-"onboarding.card.connect.keychain.title" = "\"TokenEater\" veut accéder à";
-"onboarding.card.connect.keychain.sub" = "ton trousseau Claude Code.";
-"onboarding.card.connect.keychain.deny" = "Refuser";
-"onboarding.card.connect.keychain.allow" = "Toujours autoriser";
+"onboarding.card.connect.idle.scene" = "macOS demande une fois.\nClique Toujours autoriser quand ça apparaît.";

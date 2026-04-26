@@ -512,14 +512,22 @@ final class StatusBarController: NSObject {
         observeOnboardingCompletion()
     }
 
+    /// Observe onboarding state in BOTH directions so the NSWindow stays
+    /// in sync with what the SwiftUI view is rendering. Without this, the
+    /// "replay onboarding" path leaves the window at the dashboard size
+    /// (940x700) while the SwiftUI body switches to onboardingContent,
+    /// producing the empty-margin ghost effect.
     private func observeOnboardingCompletion() {
         settingsStore.$hasCompletedOnboarding
             .dropFirst()
-            .filter { $0 }
-            .first()
+            .removeDuplicates()
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.transitionToMainWindow()
+            .sink { [weak self] completed in
+                if completed {
+                    self?.transitionToMainWindow()
+                } else {
+                    self?.transitionToOnboardingWindow()
+                }
             }
             .store(in: &cancellables)
     }
@@ -533,6 +541,24 @@ final class StatusBarController: NSObject {
         window.setFrameAutosaveName("TokenEaterMain")
         let mainSize = NSSize(width: 940, height: 700)
         window.setContentSize(mainSize)
+        window.center()
+    }
+
+    /// Inverse of `transitionToMainWindow`: shrink the dashboard window
+    /// back to the onboarding size when the user resets onboarding from
+    /// Settings.
+    private func transitionToOnboardingWindow() {
+        guard let window = dashboardWindow else { return }
+        window.styleMask.remove(.resizable)
+        let onboardingSize = NSSize(
+            width: DS.Layout.onboardingWindow.width,
+            height: DS.Layout.onboardingWindow.height
+        )
+        window.contentMinSize = onboardingSize
+        window.contentMaxSize = onboardingSize
+        window.minSize = onboardingSize
+        window.setFrameAutosaveName("")
+        window.setContentSize(onboardingSize)
         window.center()
     }
 
