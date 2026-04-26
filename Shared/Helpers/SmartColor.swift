@@ -74,13 +74,14 @@ enum SmartColor {
     /// signal wins - none can mask another's red flag. Hard-caps at 1.0
     /// when utilization >= 100%.
     ///
-    /// The absolute component is dampened by **projection health** so we
-    /// don't fire a "you've burnt a lot" alert when the current rate
-    /// projects a comfortable finish under the limit. Concretely:
+    /// The absolute component uses the profile's `absoluteLower` /
+    /// `absoluteUpper` smoothstep bounds (per-profile sensitivity) and
+    /// is then dampened by **projection health**:
     ///
     /// ```text
+    /// aRaw = smoothstep(params.absoluteLower, params.absoluteUpper, u)
     /// projectionHealth = smoothstep(0.7, 1.0, u / e)
-    /// a = absoluteRisk × projectionHealth
+    /// a = aRaw × projectionHealth
     /// ```
     ///
     /// At `u/e ≥ 1` (you'll hit or overshoot the limit), `projectionHealth`
@@ -90,13 +91,13 @@ enum SmartColor {
     /// false alarm at e.g. 72% with calm pacing where the v1+early-v2
     /// behaviour would have shown amber despite no real risk.
     ///
-    /// `combinedRisk` is the only place this dampening lives. The pure
-    /// `absoluteRisk` function stays untouched so the no-reset fallback
-    /// (`smartRisk` -> `absoluteRisk` directly) keeps the raw consumption
-    /// signal when no projection data is available.
-    static func combinedRisk(u: Double, e: Double, θw: Double, θc: Double, m: Double, params: SmartColorParameters = .default) -> Double {
+    /// In smart mode, the user's threshold sliders (warningPercent /
+    /// criticalPercent) no longer participate - the profile fully owns
+    /// the absolute calibration. The thresholds remain in scope only for
+    /// the threshold-mode fallback (when `smartColorEnabled == false`).
+    static func combinedRisk(u: Double, e: Double, m: Double, params: SmartColorParameters = .default) -> Double {
         if u >= 1.0 { return 1.0 }
-        let aRaw = absoluteRisk(u: u, θw: θw, θc: θc)
+        let aRaw = smoothstep(params.absoluteLower, params.absoluteUpper, u)
         let projectionHealth: Double = {
             guard e > 0.0001 else { return 1.0 }
             return smoothstep(0.7, 1.0, u / e)

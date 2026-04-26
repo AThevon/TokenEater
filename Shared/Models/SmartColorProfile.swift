@@ -29,6 +29,8 @@ enum SmartColorProfile: String, CaseIterable, Codable, Sendable {
             return SmartColorParameters(
                 k: 3.0,
                 projUpper: 1.6,
+                absoluteLower: 0.55,
+                absoluteUpper: 1.05,
                 chillThreshold: 0.38,
                 warningThreshold: 0.62,
                 hotThreshold: 0.85
@@ -37,6 +39,8 @@ enum SmartColorProfile: String, CaseIterable, Codable, Sendable {
             return SmartColorParameters(
                 k: 5.0,
                 projUpper: 1.4,
+                absoluteLower: 0.50,
+                absoluteUpper: 1.00,
                 chillThreshold: 0.30,
                 warningThreshold: 0.55,
                 hotThreshold: 0.78
@@ -45,6 +49,8 @@ enum SmartColorProfile: String, CaseIterable, Codable, Sendable {
             return SmartColorParameters(
                 k: 8.0,
                 projUpper: 1.2,
+                absoluteLower: 0.45,
+                absoluteUpper: 0.90,
                 chillThreshold: 0.22,
                 warningThreshold: 0.45,
                 hotThreshold: 0.68
@@ -60,9 +66,17 @@ enum SmartColorProfile: String, CaseIterable, Codable, Sendable {
 /// Concrete tuning knobs consumed by `SmartColor` primitives. Falling
 /// thresholds for hysteresis are derived as `rising - 0.05` so the
 /// 5-percentage-point buffer scales with the chosen profile.
+///
+/// `absoluteLower` / `absoluteUpper` are the smoothstep bounds for the
+/// absolute-risk component in smart mode. They replace the previous
+/// reuse of the user's threshold sliders so smart mode is fully
+/// self-calibrated by the chosen profile (the user's threshold sliders
+/// only drive the threshold-mode coloring now).
 struct SmartColorParameters: Equatable, Sendable {
     let k: Double
     let projUpper: Double
+    let absoluteLower: Double
+    let absoluteUpper: Double
     let chillThreshold: Double
     let warningThreshold: Double
     let hotThreshold: Double

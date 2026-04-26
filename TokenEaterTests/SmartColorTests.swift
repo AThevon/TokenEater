@@ -25,7 +25,11 @@ struct SmartColorTests {
     }
 
     private func risk(u: Double, e: Double, m: Double = 0.10) -> Double {
-        SmartColor.combinedRisk(u: u, e: e, θw: 0.60, θc: 0.85, m: m)
+        // Default profile (.balanced) drives the absolute bounds + k +
+        // projUpper. The user's threshold sliders no longer participate
+        // in smart mode since they were decoupled in v5.0 (profile owns
+        // calibration end-to-end).
+        SmartColor.combinedRisk(u: u, e: e, m: m)
     }
 
     // MARK: - Mathematical primitives
@@ -256,7 +260,7 @@ struct SmartColorTests {
         #expect(r >= 0.78, "98% util with 30min remaining must surface as hot (got \(r))")
     }
 
-    @Test("smartRisk falls back to threshold-only when resetDate is nil")
+    @Test("smartRisk falls back to absolute-only when resetDate is nil")
     func fallbackWithoutResetDate() {
         let theme = ThemeColors.default
         let r = theme.smartRisk(
@@ -267,7 +271,11 @@ struct SmartColorTests {
             pacingMargin: 10,
             now: Date()
         )
-        // u=0.90 with thresholds (0.60, 0.85) -> well past critical -> 1.0 (smoothstep clamped)
-        #expect(r >= 0.95)
+        // No reset date -> falls back to absolute-only via the profile's
+        // own bounds (balanced: 0.50 / 1.00). u=0.90 maps to
+        // smoothstep(0.50, 1.00, 0.90) ≈ 0.896, which lands solidly in
+        // the hot band on the gauge color (>= 0.78 hot threshold).
+        #expect(r >= 0.78, "u=0.90 with no reset must still surface as hot (got \(r))")
+        #expect(SmartColor.zoneForRisk(r) == .hot)
     }
 }

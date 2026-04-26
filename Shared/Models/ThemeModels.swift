@@ -175,12 +175,23 @@ struct ThemeColors: Codable, Equatable {
     ) -> Double {
         if utilization >= 100 { return 1.0 }
         let u = max(0, utilization) / 100
-        let θw = Double(thresholds.warningPercent) / 100
-        let θc = Double(thresholds.criticalPercent) / 100
         let params = profile.parameters
 
+        // Smart mode does NOT use the user's threshold sliders. Calibration
+        // is fully owned by the profile (`params.absoluteLower/Upper`).
+        // The `thresholds:` parameter is kept on the API for the legacy
+        // threshold-mode path the caller may share, but it does not flow
+        // into the smart calculation. See `docs/design/COLORING.md`.
+        _ = thresholds
+
         guard let resetDate, windowDuration > 0 else {
-            return SmartColor.absoluteRisk(u: u, θw: θw, θc: θc)
+            // No reset date -> fall back to absolute-only, still using
+            // the profile's bounds (not the user thresholds).
+            return SmartColor.absoluteRisk(
+                u: u,
+                θw: params.absoluteLower,
+                θc: params.absoluteUpper
+            )
         }
 
         let remaining = max(0, resetDate.timeIntervalSince(now))
@@ -188,7 +199,7 @@ struct ThemeColors: Codable, Equatable {
         let e = max(0.0, 1.0 - t)
         let m = pacingMargin / 100
 
-        return SmartColor.combinedRisk(u: u, e: e, θw: θw, θc: θc, m: m, params: params)
+        return SmartColor.combinedRisk(u: u, e: e, m: m, params: params)
     }
 
     /// Smart gauge color -> continuous interpolation across 4 stops

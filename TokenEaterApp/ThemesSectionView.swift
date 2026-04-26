@@ -88,28 +88,33 @@ struct ThemesSectionView: View {
                 }
             }
 
-            // Thresholds
-            glassCard {
-                VStack(alignment: .leading, spacing: 8) {
-                    cardLabel(String(localized: "settings.theme.thresholds"))
-                    thresholdSlider(label: String(localized: "settings.theme.warning"), value: $warningSlider, range: 10...90)
-                    thresholdSlider(label: String(localized: "settings.theme.critical"), value: $criticalSlider, range: 15...95)
+            // Thresholds (only relevant when Smart Color is OFF: smart
+            // mode owns its own absolute calibration via the chosen
+            // profile, so exposing these sliders alongside the profile
+            // picker would be a double-knob with no clear ownership).
+            if !settingsStore.smartColorEnabled {
+                glassCard {
+                    VStack(alignment: .leading, spacing: 8) {
+                        cardLabel(String(localized: "settings.theme.thresholds"))
+                        thresholdSlider(label: String(localized: "settings.theme.warning"), value: $warningSlider, range: 10...90)
+                        thresholdSlider(label: String(localized: "settings.theme.critical"), value: $criticalSlider, range: 15...95)
 
-                    Text(String(localized: "settings.theme.thresholds.hint"))
-                        .font(.system(size: 11))
-                        .foregroundStyle(.white.opacity(0.4))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 4)
+                        Text(String(localized: "settings.theme.thresholds.hint"))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.white.opacity(0.4))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 4)
 
-                    // Preview gauges
-                    HStack(spacing: 24) {
-                        Spacer()
-                        themePreviewGauge(pct: Double(max(themeStore.warningThreshold - 15, 5)), label: "Normal")
-                        themePreviewGauge(pct: Double(themeStore.warningThreshold + themeStore.criticalThreshold) / 2.0, label: "Warning")
-                        themePreviewGauge(pct: Double(min(themeStore.criticalThreshold + 5, 100)), label: "Critical")
-                        Spacer()
+                        // Preview gauges
+                        HStack(spacing: 24) {
+                            Spacer()
+                            themePreviewGauge(pct: Double(max(themeStore.warningThreshold - 15, 5)), label: "Normal")
+                            themePreviewGauge(pct: Double(themeStore.warningThreshold + themeStore.criticalThreshold) / 2.0, label: "Warning")
+                            themePreviewGauge(pct: Double(min(themeStore.criticalThreshold + 5, 100)), label: "Critical")
+                            Spacer()
+                        }
+                        .padding(.top, 8)
                     }
-                    .padding(.top, 8)
                 }
             }
 

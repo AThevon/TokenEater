@@ -50,13 +50,13 @@ The continuous score then drives the gauge color via linear RGBA interpolation a
 #### A. Absolute risk -> "How close to the limit ?"
 
 ```text
-absoluteRisk = smoothstep(θw, θc, u)
-  u  = utilization (0..1)
-  θw = warningPercent  / 100   (default 0.60)
-  θc = criticalPercent / 100   (default 0.85)
+absoluteRisk = smoothstep(absoluteLower, absoluteUpper, u)
+  u             = utilization (0..1)
+  absoluteLower = profile-defined bound (Balanced: 0.50)
+  absoluteUpper = profile-defined bound (Balanced: 1.00)
 ```
 
-Below `θw`, returns 0. Above `θc`, returns 1. Smoothly ramped (Hermite C¹ continuous) in between - no cliff at the threshold boundaries. Independent of pacing.
+The bounds are owned by the chosen profile, **not** by the user's threshold sliders (which only drive threshold-mode coloring now). Below `absoluteLower` returns 0; above `absoluteUpper` returns 1; smoothly ramped (Hermite C¹ continuous) in between - no cliff. Independent of pacing.
 
 This is what makes 98% used always feel red, regardless of how much time is left.
 
@@ -101,11 +101,11 @@ No discrete bands - the gauge ramps smoothly through the spectrum.
 
 Three presets ship in Settings -> Themes -> Smart Color -> Sensitivity. Each tunes the algorithm's parameters to match a different appetite for risk.
 
-| Profile | k (confidence) | projUpper | Zone thresholds (rising) | Feel |
-|---|---|---|---|---|
-| **Patient**  | 3.0 | 1.6 | 0.38 / 0.62 / 0.85 | Trusts bursts, alarms late |
-| **Balanced** | 5.0 | 1.4 | 0.30 / 0.55 / 0.78 | Default tuning, validated against the test matrix |
-| **Vigilant** | 8.0 | 1.2 | 0.22 / 0.45 / 0.68 | Reads early signals as risk, alarms sooner |
+| Profile | k (confidence) | projUpper | Absolute bounds | Zone thresholds (rising) | Feel |
+|---|---|---|---|---|---|
+| **Patient**  | 3.0 | 1.6 | 0.55 / 1.05 | 0.38 / 0.62 / 0.85 | Trusts bursts, alarms late |
+| **Balanced** | 5.0 | 1.4 | 0.50 / 1.00 | 0.30 / 0.55 / 0.78 | Default tuning, validated against the test matrix |
+| **Vigilant** | 8.0 | 1.2 | 0.45 / 0.90 | 0.22 / 0.45 / 0.68 | Reads early signals as risk, alarms sooner |
 
 `k` controls how fast the time-derived components gain confidence in the rate. `projUpper` controls how aggressively the projection saturates - a lower value means a smaller projected overflow already screams. Zone thresholds control where the discrete `PacingZone` mapping switches (used by notifications + the pacing pill).
 
@@ -229,6 +229,8 @@ The smart gauge interpolates between the three `gauge*` tokens on the [0, 1] ris
 `Settings -> Themes -> Smart Color` controls the smart vs threshold path globally. Default ON since v5.0.
 
 When ON, three card-style chips let the user choose between `Patient` / `Balanced` / `Vigilant` profiles. Each card carries an icon + label + tagline so the temperament reads at a glance. The popover info icon expands into a 3-signal breakdown (absolute / projection / pacing) + a `combined via max` note + a profile reminder.
+
+**Threshold sliders are hidden when smart is ON.** The profile owns full calibration in smart mode (k, projUpper, absolute bounds, zone thresholds). The threshold sliders only drive the threshold-mode coloring (when Smart Color is OFF) - which is conceptually correct, since "where exactly does red fire" is a threshold-mode concern. Smart users delegate that decision to their chosen profile.
 
 The toggle + profile are both mirrored to the shared file (`SharedFileService.smartColorEnabled` + `SharedFileService.smartColorProfile`) so the sandboxed widget reads the same state without round-tripping through the app process.
 
