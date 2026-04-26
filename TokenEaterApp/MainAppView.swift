@@ -117,11 +117,6 @@ struct MainAppView: View {
     private var onboardingContent: some View {
         OnboardingView()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: DS.Radius.modal)
-                    .fill(DS.Palette.bgElevated)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.modal))
-            .padding(4)
+            .background(DS.Palette.bgElevated)
     }
 }

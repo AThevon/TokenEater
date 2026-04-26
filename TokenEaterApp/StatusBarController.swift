@@ -482,12 +482,14 @@ final class StatusBarController: NSObject {
         window.hasShadow = true
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        // Keep drag limited to the titlebar area. With this on, clicking +
-        // holding on any padding / empty space in the sidebar, the settings
-        // panels, or the popover editor would drag the whole window by
-        // accident - now only the invisible titlebar strip (~28px up top,
-        // where the traffic lights sit) moves it.
-        window.isMovableByWindowBackground = false
+        // Keep drag limited to the titlebar area in dashboard mode. With
+        // this on for the dashboard, clicking + holding on any padding /
+        // empty space in the sidebar, the settings panels, or the popover
+        // editor would drag the whole window by accident. For onboarding,
+        // the user has a fixed-size panel without a sidebar - we let them
+        // drag from anywhere on the background so the window doesn't feel
+        // stuck behind the titlebar strip.
+        window.isMovableByWindowBackground = isOnboarding
         window.delegate = self
 
         let hostingController = NSHostingController(rootView: appView)
@@ -538,6 +540,7 @@ final class StatusBarController: NSObject {
         window.contentMinSize = NSSize(width: 600, height: 440)
         window.contentMaxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         window.minSize = NSSize(width: 600, height: 440)
+        window.isMovableByWindowBackground = false
         window.setFrameAutosaveName("TokenEaterMain")
         let mainSize = NSSize(width: 940, height: 700)
         window.setContentSize(mainSize)
@@ -557,6 +560,7 @@ final class StatusBarController: NSObject {
         window.contentMinSize = onboardingSize
         window.contentMaxSize = onboardingSize
         window.minSize = onboardingSize
+        window.isMovableByWindowBackground = true
         window.setFrameAutosaveName("")
         window.setContentSize(onboardingSize)
         window.center()
