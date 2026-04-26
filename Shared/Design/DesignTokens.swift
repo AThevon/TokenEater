@@ -95,6 +95,19 @@ enum DS {
         static let pill:   CGFloat = 100
     }
 
+    // MARK: - Layout
+
+    /// Hard-coded layout dimensions for top-level windows / panels.
+    /// Centralised so the onboarding (and future panels) read from a single
+    /// source instead of magic numbers in `MainAppView`.
+    enum Layout {
+        /// Onboarding window - 16:10 macbook-style ratio, smaller than fullscreen.
+        /// The user passes through this once at first launch (and again if they
+        /// reset onboarding from Settings). Designed to fit a 2x2 cards grid
+        /// next to a left-side hero column.
+        static let onboardingWindow = CGSize(width: 880, height: 550)
+    }
+
     // MARK: - Shadows
 
     /// Shadow token -> deep but soft, glass-compatible.
