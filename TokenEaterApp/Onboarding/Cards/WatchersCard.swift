@@ -21,6 +21,16 @@ struct WatchersCard: View {
             scene: { scene },
             control: { control }
         )
+        // The viewModel owns its own private SettingsStore (created in init
+        // because env objects aren't reachable from @StateObject init). To
+        // keep the actual app-wide overlay in sync, this card writes to the
+        // live env SettingsStore on toggle and mirrors back to the viewModel
+        // so progress / readyCount stay accurate. Without this, flipping
+        // off in onboarding would silently fail to disable the live overlay.
+        .onAppear { viewModel.watcherEnabled = settingsStore.overlayEnabled }
+        .onChange(of: settingsStore.overlayEnabled) { _, newValue in
+            viewModel.watcherEnabled = newValue
+        }
     }
 
     private var scene: some View {
@@ -32,14 +42,14 @@ struct WatchersCard: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-        .opacity(viewModel.watcherEnabled ? 1 : 0.42)
-        .saturation(viewModel.watcherEnabled ? 1 : 0.5)
+        .opacity(settingsStore.overlayEnabled ? 1 : 0.42)
+        .saturation(settingsStore.overlayEnabled ? 1 : 0.5)
     }
 
     private var control: some View {
         Toggle("", isOn: Binding(
-            get: { viewModel.watcherEnabled },
-            set: { viewModel.setWatcherEnabled($0) }
+            get: { settingsStore.overlayEnabled },
+            set: { settingsStore.overlayEnabled = $0 }
         ))
         .toggleStyle(SwitchToggleStyle(tint: DS.Palette.brandPrimary))
         .controlSize(.mini)
@@ -47,13 +57,13 @@ struct WatchersCard: View {
     }
 
     private var statusText: LocalizedStringResource {
-        viewModel.watcherEnabled
+        settingsStore.overlayEnabled
             ? "onboarding.card.watchers.status.on"
             : "onboarding.card.watchers.status.off"
     }
 
     private var statusColor: Color {
-        viewModel.watcherEnabled ? DS.Palette.brandPrimary : Color.white.opacity(0.3)
+        settingsStore.overlayEnabled ? DS.Palette.brandPrimary : Color.white.opacity(0.3)
     }
 
     /// Computed (not static) so each render gets fresh `lastUpdate` /
