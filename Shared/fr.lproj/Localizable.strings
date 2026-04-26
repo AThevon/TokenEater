@@ -611,8 +611,8 @@
 /* MARK: - Onboarding (rework 2026-04) */
 
 "onboarding.hero.label" = "INSTALLATION";
-"onboarding.hero.title" = "Hé, t'es là.";
-"onboarding.hero.subtitle" = "Deux permissions et TokenEater tourne.";
+"onboarding.hero.title" = "Hé, t'es là";
+"onboarding.hero.subtitle" = "deux permissions et TokenEater tourne";
 "onboarding.progress.label %lld %lld" = "%lld / %lld prêts";
 "onboarding.finish" = "Terminer";
 
