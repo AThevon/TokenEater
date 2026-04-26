@@ -611,9 +611,9 @@
 /* MARK: - Onboarding (rework 2026-04) */
 
 "onboarding.hero.label" = "INSTALLATION";
-"onboarding.hero.title" = "on te configure tout ca.";
-"onboarding.hero.subtitle" = "Deux obligatoires, deux optionnels. Active ce que tu veux, clique Terminer, ca prend 30 secondes.";
-"onboarding.progress.label %lld %lld" = "%lld / %lld prets";
+"onboarding.hero.title" = "on te configure tout ça.";
+"onboarding.hero.subtitle" = "Deux obligatoires, deux optionnels. Active ce que tu veux, clique Terminer, ça prend 30 secondes.";
+"onboarding.progress.label %lld %lld" = "%lld / %lld prêts";
 "onboarding.finish" = "Terminer";
 
 "onboarding.badge.required" = "REQUIS";
@@ -621,24 +621,24 @@
 
 /* Card 1 - Claude Code */
 "onboarding.card.claudecode.title" = "Claude Code";
-"onboarding.card.claudecode.checking" = "detection...";
-"onboarding.card.claudecode.status.checking" = "detection auto";
-"onboarding.card.claudecode.status.detected" = "detecte sur ta machine";
-"onboarding.card.claudecode.status.notfound" = "non trouve - installe + reessaie";
+"onboarding.card.claudecode.checking" = "détection...";
+"onboarding.card.claudecode.status.checking" = "détection auto";
+"onboarding.card.claudecode.status.detected" = "détecté sur ta machine";
+"onboarding.card.claudecode.status.notfound" = "non trouvé - installe + réessaie";
 "onboarding.card.claudecode.notfound.step1" = "installe via brew install claude";
 "onboarding.card.claudecode.notfound.step2" = "connecte-toi : lance claude";
-"onboarding.card.claudecode.notfound.step3" = "reviens ici, clique Reessayer";
-"onboarding.card.claudecode.retry" = "Reessayer";
+"onboarding.card.claudecode.notfound.step3" = "reviens ici, clique Réessayer";
+"onboarding.card.claudecode.retry" = "Réessayer";
 
 /* Card 2 - Notifications */
 "onboarding.card.notifications.title" = "Notifications";
 "onboarding.card.notifications.status.off" = "off - active pour autoriser";
-"onboarding.card.notifications.status.on" = "on - alertes activees";
-"onboarding.card.notifications.status.denied" = "bloque au niveau systeme";
+"onboarding.card.notifications.status.on" = "on - alertes activées";
+"onboarding.card.notifications.status.denied" = "bloqué au niveau système";
 "onboarding.card.notifications.authorized.scene" = "clique pour envoyer un test";
-"onboarding.card.notifications.denied.scene" = "bloque - ouvre les Reglages Notifications";
+"onboarding.card.notifications.denied.scene" = "bloqué - ouvre les Réglages Notifications";
 "onboarding.card.notifications.test" = "Envoyer un test";
-"onboarding.card.notifications.opensettings" = "Ouvrir les Reglages";
+"onboarding.card.notifications.opensettings" = "Ouvrir les Réglages";
 
 /* Card 3 - Watchers */
 "onboarding.card.watchers.title" = "Agent Watchers";
@@ -649,14 +649,14 @@
 "onboarding.card.connect.title" = "Connecter";
 "onboarding.card.connect.status.idle" = "clique pour autoriser";
 "onboarding.card.connect.status.connecting" = "discussion avec le keychain...";
-"onboarding.card.connect.status.success" = "connecte";
-"onboarding.card.connect.status.failed" = "acces refuse";
+"onboarding.card.connect.status.success" = "connecté";
+"onboarding.card.connect.status.failed" = "accès refusé";
 "onboarding.card.connect.connecting" = "autorisation...";
-"onboarding.card.connect.success.scene" = "connecte - bouton Terminer debloque";
-"onboarding.card.connect.failed.scene" = "acces refuse";
+"onboarding.card.connect.success.scene" = "connecté - bouton Terminer débloqué";
+"onboarding.card.connect.failed.scene" = "accès refusé";
 "onboarding.card.connect.authorize" = "Autoriser";
-"onboarding.card.connect.retry" = "Reessayer";
-"onboarding.card.connect.keychain.title" = "\"TokenEater\" veut acceder a";
+"onboarding.card.connect.retry" = "Réessayer";
+"onboarding.card.connect.keychain.title" = "\"TokenEater\" veut accéder à";
 "onboarding.card.connect.keychain.sub" = "ton trousseau Claude Code.";
 "onboarding.card.connect.keychain.deny" = "Refuser";
 "onboarding.card.connect.keychain.allow" = "Toujours autoriser";
