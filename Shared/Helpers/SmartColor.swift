@@ -154,25 +154,49 @@ enum SmartColor {
     private static func interpolate(_ a: Color, _ b: Color, t: Double) -> Color {
         let nsA = NSColor(a).usingColorSpace(.sRGB) ?? .gray
         let nsB = NSColor(b).usingColorSpace(.sRGB) ?? .gray
-        let f = CGFloat(max(0, min(1, t)))
-        return Color(
-            red:   Double(nsA.redComponent   + (nsB.redComponent   - nsA.redComponent)   * f),
-            green: Double(nsA.greenComponent + (nsB.greenComponent - nsA.greenComponent) * f),
-            blue:  Double(nsA.blueComponent  + (nsB.blueComponent  - nsA.blueComponent)  * f),
-            opacity: Double(nsA.alphaComponent + (nsB.alphaComponent - nsA.alphaComponent) * f)
-        )
+        return Color(interpolateHSBNS(nsA, nsB, t: CGFloat(max(0, min(1, t)))))
     }
 
     private static func interpolateNS(_ a: NSColor, _ b: NSColor, t: CGFloat) -> NSColor {
         let aRGB = a.usingColorSpace(.sRGB) ?? a
         let bRGB = b.usingColorSpace(.sRGB) ?? b
+        return interpolateHSBNS(aRGB, bRGB, t: max(0, min(1, t)))
+    }
+
+    /// HSB-space interpolation between two NSColors. Linear sRGB interp
+    /// produces muddy intermediates around the green->orange band (e.g.
+    /// midpoint of `#22C55E` and `#F97316` is ~`#8E9D3A` olive). HSB
+    /// rotates hue along the natural color wheel so the same midpoint
+    /// becomes a vivid yellow-green instead.
+    ///
+    /// Hue takes the SHORT angular path when the two anchors are within
+    /// half a turn of each other (always true for the gauge palette).
+    /// Saturation, brightness, and alpha lerp linearly. The user's theme
+    /// anchors stay intact - this only changes WHAT happens between
+    /// adjacent anchors, not the anchors themselves.
+    private static func interpolateHSBNS(_ a: NSColor, _ b: NSColor, t: CGFloat) -> NSColor {
         let f = max(0, min(1, t))
-        return NSColor(
-            srgbRed: aRGB.redComponent   + (bRGB.redComponent   - aRGB.redComponent)   * f,
-            green:   aRGB.greenComponent + (bRGB.greenComponent - aRGB.greenComponent) * f,
-            blue:    aRGB.blueComponent  + (bRGB.blueComponent  - aRGB.blueComponent)  * f,
-            alpha:   aRGB.alphaComponent + (bRGB.alphaComponent - aRGB.alphaComponent) * f
-        )
+        let h1 = a.hueComponent
+        let h2 = b.hueComponent
+        let dh = h2 - h1
+
+        // Short-path hue interpolation. NSColor hue is in [0, 1] (full
+        // rotation). For dh ∈ [-0.5, 0.5] we lerp directly; otherwise we
+        // wrap to take the short way around the wheel.
+        let h: CGFloat
+        if abs(dh) <= 0.5 {
+            h = (h1 + dh * f + 1.0).truncatingRemainder(dividingBy: 1.0)
+        } else if dh > 0.5 {
+            h = (h1 + (dh - 1.0) * f + 1.0).truncatingRemainder(dividingBy: 1.0)
+        } else {
+            h = (h1 + (dh + 1.0) * f + 1.0).truncatingRemainder(dividingBy: 1.0)
+        }
+
+        let s = a.saturationComponent + (b.saturationComponent - a.saturationComponent) * f
+        let br = a.brightnessComponent + (b.brightnessComponent - a.brightnessComponent) * f
+        let alpha = a.alphaComponent + (b.alphaComponent - a.alphaComponent) * f
+
+        return NSColor(hue: h, saturation: s, brightness: br, alpha: alpha)
     }
 
     // MARK: - Zone derivation
