@@ -307,7 +307,7 @@ struct AgentWatchersSectionView: View {
             }
         } label: {
             VStack(alignment: .leading, spacing: 8) {
-                stylePreviewTile(style)
+                WatcherTilePreview(style: style)
                     .frame(maxWidth: .infinity)
 
                 HStack(spacing: 6) {
@@ -333,83 +333,6 @@ struct AgentWatchersSectionView: View {
             .scaleEffect(isSelected ? 1.0 : 0.99)
         }
         .buttonStyle(.plain)
-    }
-
-    /// Fake watcher tile rendered in the candidate style. We keep the data
-    /// fixed (`TokenEater` / `feat/menu-bar`) so the user can compare the
-    /// two styles side-by-side without their eye flicking between them.
-    @ViewBuilder
-    private func stylePreviewTile(_ style: WatcherStyle) -> some View {
-        let working = Color(red: 0.95, green: 0.62, blue: 0.22) // "thinking" color
-
-        switch style {
-        case .frost:
-            HStack(spacing: 10) {
-                statusDot(color: working, neon: false)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("feat/menu-bar")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.white)
-                    Text("TokenEater")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.white.opacity(0.55))
-                }
-                Spacer()
-                Text("18%")
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(.white.opacity(0.7))
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(.white.opacity(0.10), lineWidth: 1)
-                    )
-            )
-
-        case .neon:
-            HStack(spacing: 10) {
-                statusDot(color: working, neon: true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("feat/menu-bar")
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .foregroundStyle(working)
-                    Text("TokenEater")
-                        .font(.system(size: 9, design: .monospaced))
-                        .foregroundStyle(working.opacity(0.55))
-                }
-                Spacer()
-                Text("18%")
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundStyle(working)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(.black.opacity(0.85))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .strokeBorder(working.opacity(0.7), lineWidth: 1)
-                    )
-            )
-            .shadow(color: working.opacity(0.5), radius: 6)
-        }
-    }
-
-    private func statusDot(color: Color, neon: Bool) -> some View {
-        Circle()
-            .fill(neon ? .clear : color)
-            .frame(width: 8, height: 8)
-            .overlay(
-                Circle()
-                    .stroke(color.opacity(neon ? 0.95 : 0), lineWidth: neon ? 1.5 : 0)
-            )
-            .shadow(color: color.opacity(neon ? 0.7 : 0), radius: 4)
     }
 
     // MARK: - Status legend row
