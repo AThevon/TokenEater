@@ -612,7 +612,6 @@
 
 "onboarding.hero.label" = "SETUP";
 "onboarding.hero.title" = "let's get you set up.";
-"onboarding.hero.subtitle" = "Two musts, two nice-to-haves. Toggle what you want, hit finish, takes about 30 seconds.";
 "onboarding.progress.label %lld %lld" = "%lld / %lld ready";
 "onboarding.finish" = "Finish";
 

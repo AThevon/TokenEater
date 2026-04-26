@@ -21,12 +21,6 @@ struct OnboardingHero: View {
 
             heroTitle
 
-            Text("onboarding.hero.subtitle")
-                .font(.system(size: 12))
-                .foregroundStyle(.white.opacity(0.5))
-                .lineSpacing(2)
-                .padding(.top, 6)
-
             Spacer(minLength: 0)
 
             HStack {

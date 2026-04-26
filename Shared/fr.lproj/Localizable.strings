@@ -612,7 +612,6 @@
 
 "onboarding.hero.label" = "INSTALLATION";
 "onboarding.hero.title" = "on te configure tout ça.";
-"onboarding.hero.subtitle" = "Deux obligatoires, deux optionnels. Active ce que tu veux, clique Terminer, ça prend 30 secondes.";
 "onboarding.progress.label %lld %lld" = "%lld / %lld prêts";
 "onboarding.finish" = "Terminer";
 
