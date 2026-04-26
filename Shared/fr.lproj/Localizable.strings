@@ -611,7 +611,8 @@
 /* MARK: - Onboarding (rework 2026-04) */
 
 "onboarding.hero.label" = "INSTALLATION";
-"onboarding.hero.title" = "on te configure tout ça.";
+"onboarding.hero.title" = "Bienvenue à bord.";
+"onboarding.hero.subtitle" = "Les cartes requises doivent passer au vert pour terminer. Les toggles optionnels se règlent dans Settings à tout moment.";
 "onboarding.progress.label %lld %lld" = "%lld / %lld prêts";
 "onboarding.finish" = "Terminer";
 

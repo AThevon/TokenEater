@@ -611,7 +611,8 @@
 /* MARK: - Onboarding (rework 2026-04) */
 
 "onboarding.hero.label" = "SETUP";
-"onboarding.hero.title" = "let's get you set up.";
+"onboarding.hero.title" = "Welcome aboard.";
+"onboarding.hero.subtitle" = "Required cards need to turn green before you can finish. Optional toggles are yours to flip whenever - tweak them later in Settings.";
 "onboarding.progress.label %lld %lld" = "%lld / %lld ready";
 "onboarding.finish" = "Finish";
 
