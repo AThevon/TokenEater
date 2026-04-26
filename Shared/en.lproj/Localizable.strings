@@ -611,8 +611,8 @@
 /* MARK: - Onboarding (rework 2026-04) */
 
 "onboarding.hero.label" = "SETUP";
-"onboarding.hero.title" = "Welcome aboard.";
-"onboarding.hero.subtitle" = "Required cards need to turn green before you can finish. Optional toggles are yours to flip whenever - tweak them later in Settings.";
+"onboarding.hero.title" = "Hey, you're here.";
+"onboarding.hero.subtitle" = "Couple of permissions and TokenEater is live.";
 "onboarding.progress.label %lld %lld" = "%lld / %lld ready";
 "onboarding.finish" = "Finish";
 
