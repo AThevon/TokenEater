@@ -123,6 +123,9 @@ struct MainAppView: View {
             )
             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.modal))
             .padding(4)
-            .frame(width: 700, height: 720)
+            .frame(
+                width: DS.Layout.onboardingWindow.width,
+                height: DS.Layout.onboardingWindow.height
+            )
     }
 }
