@@ -208,7 +208,7 @@ struct MonitoringView: View {
                     RoundedRectangle(cornerRadius: DS.Radius.cardLg)
                         .fill(
                             LinearGradient(
-                                colors: [accent.opacity(0.10), .clear],
+                                colors: [accent.opacity(heroHover ? 0.10 : 0.05), .clear],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
@@ -217,14 +217,7 @@ struct MonitoringView: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: DS.Radius.cardLg)
-                    .stroke(
-                        LinearGradient(
-                            colors: [accent.opacity(heroHover ? 0.35 : 0.15), accent.opacity(0.02)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
+                    .stroke(accent.opacity(heroHover ? 0.40 : 0.18), lineWidth: 1)
             )
             .dsShadow(heroHover ? DS.Shadow.lift : DS.Shadow.subtle)
         }
