@@ -516,6 +516,10 @@
 "history.chip.topModel.sub" = "%d%% du total";
 "history.chip.avgPerSession" = "Moy / session";
 "history.chip.avgPerSession.sub" = "%d sessions";
+
+/* Chart hover tooltip */
+"history.tooltip.tokens" = "tokens";
+"history.tooltip.sessions" = "%lld session(s)";
 "sidebar.display" = "Barre de menus";
 "sidebar.themes" = "Thèmes";
 "sidebar.popover" = "Popover";

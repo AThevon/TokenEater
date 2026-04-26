@@ -350,9 +350,42 @@ struct HistoryView: View {
                         }
                     }
                 }
+
+                // Vertical guideline + tooltip annotation pinned to the
+                // hovered bucket. RuleMark draws inside the chart's
+                // coordinate space so the line stays aligned to the bar
+                // even as the chart resizes. The annotation takes
+                // care of avoiding clipping at the chart edges.
+                if let bucket = hoveredBucket {
+                    RuleMark(x: .value("date", bucket.date, unit: store.range.isHourly ? .hour : .day))
+                        .foregroundStyle(DS.Palette.textPrimary.opacity(0.18))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                        .annotation(
+                            position: .top,
+                            spacing: 8,
+                            overflowResolution: .init(x: .fit(to: .chart), y: .disabled)
+                        ) {
+                            tooltipCard(for: bucket, visibleKinds: visibleKinds)
+                        }
+                }
             }
             .chartXScale(domain: domain.start...domain.end)
             .animation(DS.Motion.springLiquid, value: store.filter)
+            .chartOverlay { proxy in
+                GeometryReader { geo in
+                    Rectangle()
+                        .fill(Color.clear)
+                        .contentShape(Rectangle())
+                        .onContinuousHover { phase in
+                            switch phase {
+                            case .active(let location):
+                                handleChartHover(at: location, proxy: proxy, geo: geo, in: bucketsArray)
+                            case .ended:
+                                clearHover()
+                            }
+                        }
+                }
+            }
 
             if filteredTotal == 0 {
                 filterEmptyOverlay
@@ -383,6 +416,145 @@ struct HistoryView: View {
             }
         }
         .chartLegend(position: .top, alignment: .trailing, spacing: 12)
+        .onChange(of: store.filter) { _, _ in clearHover() }
+        .onChange(of: store.range)  { _, _ in clearHover() }
+    }
+
+    // MARK: - Hover tooltip
+
+    /// Picks the bucket whose date is closest to the cursor's X position. Uses
+    /// `proxy.value(atX:)` to map screen-space to chart-space, then a single
+    /// linear scan over the (small, sorted) bucket array. Snapping rather than
+    /// requiring pixel-perfect bar hit so the tooltip feels generous.
+    private func handleChartHover(
+        at location: CGPoint,
+        proxy: ChartProxy,
+        geo: GeometryProxy,
+        in buckets: [HistoryBucket]
+    ) {
+        guard !buckets.isEmpty,
+              let plotFrameAnchor = proxy.plotFrame else {
+            clearHover()
+            return
+        }
+        let plotRect = geo[plotFrameAnchor]
+        let xInPlot = location.x - plotRect.origin.x
+        guard xInPlot >= 0, xInPlot <= plotRect.size.width,
+              let date: Date = proxy.value(atX: xInPlot) else {
+            clearHover()
+            return
+        }
+        let nearest = buckets.min { lhs, rhs in
+            abs(lhs.date.timeIntervalSince(date)) < abs(rhs.date.timeIntervalSince(date))
+        }
+        guard let nearest else { return }
+        if hoveredBucket?.id != nearest.id {
+            withAnimation(reduceMotion ? .easeInOut(duration: 0.15) : .smooth(duration: 0.18)) {
+                hoveredBucket = nearest
+            }
+        }
+    }
+
+    private func clearHover() {
+        guard hoveredBucket != nil else { return }
+        withAnimation(reduceMotion ? .easeInOut(duration: 0.15) : .smooth(duration: 0.18)) {
+            hoveredBucket = nil
+        }
+    }
+
+    /// Floating tooltip rendered above the hovered bar. Carries:
+    /// - the bucket date (formatted for the active resolution),
+    /// - the total active tokens of the bucket as the headline number,
+    /// - per-model breakdown limited to the visibleKinds (so filters stay honest),
+    /// - a footer line with sessions count when present.
+    @ViewBuilder
+    private func tooltipCard(for bucket: HistoryBucket, visibleKinds: [ModelKind]) -> some View {
+        let kinds = visibleKinds.filter { (bucket.tokensByModel[$0] ?? 0) > 0 }
+        let total = kinds.reduce(0) { $0 + (bucket.tokensByModel[$1] ?? 0) }
+
+        VStack(alignment: .leading, spacing: 8) {
+            Text(formatTooltipDate(bucket.date))
+                .font(.system(size: 9, weight: .semibold))
+                .tracking(0.6)
+                .foregroundStyle(DS.Palette.textTertiary)
+                .textCase(.uppercase)
+
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(formatTokens(total))
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(DS.Palette.textPrimary)
+                    .monospacedDigit()
+                Text("history.tooltip.tokens")
+                    .font(.system(size: 10))
+                    .foregroundStyle(DS.Palette.textTertiary)
+            }
+
+            if !kinds.isEmpty {
+                Rectangle()
+                    .fill(DS.Palette.glassBorderLo)
+                    .frame(height: 1)
+                    .padding(.vertical, 1)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    ForEach(kinds, id: \.self) { kind in
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(gradient(for: kind))
+                                .frame(width: 6, height: 6)
+                                .shadow(color: gradient(for: kind).opacity(0.6), radius: 3)
+                            Text(kind.displayName)
+                                .font(.system(size: 11))
+                                .foregroundStyle(DS.Palette.textSecondary)
+                            Spacer(minLength: 16)
+                            Text(formatTokens(bucket.tokensByModel[kind] ?? 0))
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(DS.Palette.textPrimary)
+                                .monospacedDigit()
+                        }
+                    }
+                }
+            }
+
+            if bucket.sessionsCount > 0 {
+                HStack(spacing: 5) {
+                    Image(systemName: "circle.dashed")
+                        .font(.system(size: 9))
+                        .foregroundStyle(DS.Palette.textTertiary)
+                    Text(String(format: String(localized: "history.tooltip.sessions"), bucket.sessionsCount))
+                        .font(.system(size: 10))
+                        .foregroundStyle(DS.Palette.textTertiary)
+                        .monospacedDigit()
+                }
+                .padding(.top, 1)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(minWidth: 170, maxWidth: 240)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(DS.Palette.bgElevated)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(DS.Palette.glassBorder, lineWidth: 1)
+                )
+        )
+        .shadow(color: .black.opacity(0.42), radius: 18, x: 0, y: 8)
+        .shadow(color: .black.opacity(0.22), radius: 4, x: 0, y: 2)
+        .transition(
+            .asymmetric(
+                insertion: .scale(scale: 0.96, anchor: .bottom).combined(with: .opacity),
+                removal: .opacity
+            )
+        )
+    }
+
+    /// Tooltip date format -> "TUE, 14 APR" for daily, "14 APR · 14:00" for hourly.
+    private func formatTooltipDate(_ date: Date) -> String {
+        if store.range.isHourly {
+            return date.formatted(.dateTime.day().month(.abbreviated).hour(.defaultDigits(amPM: .omitted)).minute())
+        }
+        return date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
     }
 
     /// Date range the chart should always span, even when only one bucket has
