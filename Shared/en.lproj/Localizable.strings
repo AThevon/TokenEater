@@ -612,7 +612,7 @@
 
 "onboarding.hero.label" = "SETUP";
 "onboarding.hero.title" = "Hey, you're here";
-"onboarding.hero.subtitle" = "couple of permissions and TokenEater is live";
+"onboarding.hero.subtitle" = "Couple of permissions and TokenEater is live";
 "onboarding.progress.label %lld %lld" = "%lld / %lld ready";
 "onboarding.finish" = "Finish";
 
