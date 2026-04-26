@@ -466,7 +466,7 @@
 "settings.watchers.simple.idle" = "Idle - en attente d'une action";
 "settings.watchers.simple.working" = "Working - Claude travaille";
 "settings.watchers.behavior" = "Comportement";
-"settings.watchers.dock" = "Effet de loupe style Dock";
+"settings.watchers.dock" = "Effet Dock";
 "settings.watchers.leftside" = "Côté gauche";
 "settings.watchers.size" = "Taille des cartes";
 "settings.watchers.size.reset" = "Réinitialiser";
@@ -509,15 +509,14 @@
 "history.placeholder.subtitle" = "L'historique de tes sessions Claude Code s'affichera ici -> répartition des tokens par modèle, graphiques journaliers et patterns d'usage extraits de tes fichiers JSONL locaux.";
 
 /* History view */
-"history.title" = "TokenEater";
-"history.sessionsCount" = "%d sessions";
+"history.sessions.label" = "sessions";
 "history.range.24h" = "24h";
 "history.range.7d" = "7j";
 "history.range.30d" = "30j";
 "history.range.90d" = "90j";
 "history.filter.all" = "Tous";
 "history.hero.label" = "TOKENS ACTIFS";
-"history.hero.deltaSuffix" = "vs période précédente";
+"history.hero.deltaSuffix" = "vs %@";
 "history.hero.active" = "actifs";
 "history.hero.cached" = "en cache";
 "history.hero.cacheHit" = "cache hit";

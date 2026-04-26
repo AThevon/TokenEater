@@ -7,6 +7,12 @@ struct SessionTraitView: View {
     let proximity: CGFloat // 0 = collapsed capsule, 1 = fully expanded card
     var scale: CGFloat = 1.0
     var leftSide: Bool = false
+    /// When non-nil, overrides `settingsStore.watcherStyle` for this
+    /// instance only. Used by Settings > Watchers preview cards which
+    /// must show both Frost and Neon side by side regardless of which
+    /// style the user has selected. Live overlay rendering and onboarding
+    /// previews leave this nil so they follow the user's choice.
+    var forcedStyle: WatcherStyle? = nil
     var onTap: (() -> Void)?
 
     @EnvironmentObject private var settingsStore: SettingsStore
@@ -19,7 +25,7 @@ struct SessionTraitView: View {
     // MARK: - Display logic (simple vs detailed)
 
     private var isDetailed: Bool { settingsStore.watchersDetailedMode }
-    private var style: WatcherStyle { settingsStore.watcherStyle }
+    private var style: WatcherStyle { forcedStyle ?? settingsStore.watcherStyle }
     private var displayMode: WatcherDisplayMode { settingsStore.watcherDisplayMode }
 
     private var needsAttention: Bool {

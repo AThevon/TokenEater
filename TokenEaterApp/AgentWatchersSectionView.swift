@@ -295,10 +295,12 @@ struct AgentWatchersSectionView: View {
 
     // MARK: - Style preview cards
 
-    /// Realistic mini-tile demonstration of each WatcherStyle. Click anywhere
-    /// on the card to select. The fake tile shows a project name + branch +
-    /// status dot rendered in the actual style chrome so the difference is
-    /// readable at a glance.
+    /// Renders the actual `SessionTraitView` (the same component that drives
+    /// the live overlay) at proximity 1.0 with a forced style override. This
+    /// guarantees pixel-parity with what the user sees on screen, AND the
+    /// preview reactively updates when the user flips Display mode / Legend
+    /// detail / animations - because SessionTraitView reads those from
+    /// settingsStore directly.
     private func stylePreviewCard(_ style: WatcherStyle) -> some View {
         let isSelected = settingsStore.watcherStyle == style
         return Button {
@@ -307,8 +309,14 @@ struct AgentWatchersSectionView: View {
             }
         } label: {
             VStack(alignment: .leading, spacing: 8) {
-                WatcherTilePreview(style: style)
-                    .frame(maxWidth: .infinity)
+                SessionTraitView(
+                    session: previewSession,
+                    proximity: 1.0,
+                    scale: 0.92,
+                    forcedStyle: style
+                )
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .allowsHitTesting(false)
 
                 HStack(spacing: 6) {
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
@@ -333,6 +341,27 @@ struct AgentWatchersSectionView: View {
             .scaleEffect(isSelected ? 1.0 : 0.99)
         }
         .buttonStyle(.plain)
+    }
+
+    /// Synthetic session driving the style preview tiles. Mirrors the
+    /// onboarding mocks so users see the same realistic example. `lastUpdate`
+    /// uses `Date()` per render so the freshness check inside SessionTraitView
+    /// keeps the tile rendering "live" rather than going stale-faded.
+    private var previewSession: ClaudeSession {
+        let now = Date()
+        return ClaudeSession(
+            id: "settings-watcher-preview",
+            projectPath: "/Users/dev/tokeneater",
+            gitBranch: "feat/menu-bar",
+            model: "claude-sonnet-4-6",
+            state: .thinking,
+            lastUpdate: now,
+            startedAt: now.addingTimeInterval(-300),
+            processPid: 1,
+            sourceKind: .terminal,
+            contextTokens: 70_000,
+            contextMax: 200_000
+        )
     }
 
     // MARK: - Status legend row

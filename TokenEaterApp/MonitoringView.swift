@@ -16,8 +16,9 @@ struct MonitoringView: View {
 
     /// Lightweight 7d daily-buckets store dedicated to the back-of-card
     /// stats. Loaded once on appear, refreshed if older than 60s.
-    /// Independent from HistoryView's HistoryStore (different lifecycle).
-    @StateObject private var insightsStore = MonitoringInsightsStore()
+    /// Owned by `MainAppView` so its cache survives navigation away
+    /// (and back) from this space, avoiding the "values pop in" beat.
+    @ObservedObject var insightsStore: MonitoringInsightsStore
 
     @State private var lastUpdateText = ""
     @State private var heroHover = false

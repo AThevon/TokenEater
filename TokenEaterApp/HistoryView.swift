@@ -6,15 +6,26 @@ import Charts
 /// bar chart by model with model-family filter chips. Performance-sensitive:
 /// the underlying service caches per-file aggregates so repeat opens stay fast.
 struct HistoryView: View {
-    @StateObject private var store = HistoryStore()
+    /// Owned by `MainAppView` so the buckets survive navigation away from
+    /// History. Accepting it as a dependency rather than @StateObject-ing
+    /// it locally is what avoids the "values pop in a quart de seconde
+    /// after the transition" effect when re-entering this space.
+    @ObservedObject var store: HistoryStore
     @State private var hoveredBucket: HistoryBucket?
     @State private var chartReveal: Double = 1.0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// Single source of truth for the page-level progress bar. Mirrors the
+    /// roles of the two old in-place spinners (sessions badge + chart card
+    /// overlay) so the user sees ONE clear indicator across cold loads,
+    /// range changes, filter changes, and bucket reveals.
+    private var isLoaderActive: Bool {
+        store.isLoading || chartReveal < 1
+    }
+
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                header
                 heroCard
                 toolbar
                 chartCard
@@ -22,6 +33,13 @@ struct HistoryView: View {
             }
             .padding(DS.Spacing.md)
         }
+        .overlay(alignment: .top) {
+            if isLoaderActive {
+                LoadingProgressBar(reduceMotion: reduceMotion, tint: DS.Palette.accentHistory)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(DS.Motion.easeInOut, value: isLoaderActive)
         .onAppear {
             // Cache hit makes this a no-op when we already loaded recently.
             if !store.hasLoadedOnce {
@@ -64,31 +82,6 @@ struct HistoryView: View {
         return min(max((chartReveal - stagger) * 2.0, 0), 1)
     }
 
-    // MARK: - Header
-
-    private var header: some View {
-        HStack(alignment: .center, spacing: DS.Spacing.sm) {
-            HStack(spacing: 8) {
-                Image("Logo")
-                    .resizable()
-                    .interpolation(.high)
-                    .frame(width: 26, height: 26)
-                Text(String(localized: "history.title"))
-                    .font(DS.Typography.title1)
-                    .foregroundStyle(DS.Palette.textPrimary)
-            }
-            Spacer()
-            if store.isLoading {
-                ProgressView()
-                    .controlSize(.small)
-                    .frame(width: 14, height: 14)
-            }
-            Text(String(format: String(localized: "history.sessionsCount"), store.summary.sessionsCount))
-                .font(DS.Typography.label)
-                .foregroundStyle(DS.Palette.textTertiary)
-        }
-    }
-
     // MARK: - Hero card
 
     private var heroCard: some View {
@@ -117,25 +110,69 @@ struct HistoryView: View {
             .font(DS.Typography.label)
 
             if let delta {
-                deltaBadge(delta)
+                deltaBadge(delta, previous: store.summary.previousPeriodActive)
             }
 
-            Spacer(minLength: 0)
+            Spacer(minLength: DS.Spacing.sm)
+
+            sessionsBadge
         }
         .padding(DS.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
         .dsGlass(radius: DS.Radius.card)
     }
 
-    private func deltaBadge(_ percent: Double) -> some View {
+    /// Right-anchored badge inside the hero card carrying the sessions
+    /// count. The loading indicator that used to live here moved to the
+    /// page-level `LoadingProgressBar` so a single signal covers the
+    /// whole History view consistently.
+    private var sessionsBadge: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "circle.dashed")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(DS.Palette.accentHistory)
+                .frame(width: 18, height: 18)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("\(store.summary.sessionsCount)")
+                    .font(.system(size: 18, weight: .heavy, design: .rounded))
+                    .foregroundStyle(DS.Palette.textPrimary)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                Text(String(localized: "history.sessions.label"))
+                    .font(DS.Typography.micro)
+                    .tracking(0.8)
+                    .foregroundStyle(DS.Palette.textTertiary)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(DS.Palette.accentHistory.opacity(0.10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(DS.Palette.accentHistory.opacity(0.30), lineWidth: 0.8)
+                )
+        )
+        .animation(DS.Motion.easeInOut, value: store.summary.sessionsCount)
+    }
+
+    private func deltaBadge(_ percent: Double, previous: Int) -> some View {
         let positive = percent >= 0
         let symbol = positive ? "arrow.up.right" : "arrow.down.right"
         let color = positive ? DS.Palette.accentStats : DS.Palette.accentHistory
-        return HStack(spacing: 4) {
+        let sign = positive ? "+" : ""
+        return HStack(spacing: 5) {
             Image(systemName: symbol)
                 .font(.system(size: 9, weight: .bold))
-            Text(String(format: "%@%.0f%% %@", positive ? "+" : "", percent, String(localized: "history.hero.deltaSuffix")))
+            Text(String(format: "%@%.0f%%", sign, percent))
                 .font(.system(size: 10, weight: .semibold))
+                .monospacedDigit()
+            Text(String(format: String(localized: "history.hero.deltaSuffix"), formatTokens(previous)))
+                .font(.system(size: 10, weight: .medium))
+                .monospacedDigit()
+                .opacity(0.65)
         }
         .foregroundStyle(color)
         .padding(.horizontal, 8)
@@ -201,6 +238,13 @@ struct HistoryView: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 5)
                         .background(rangeBackground(active: r == store.range))
+                        // Without an explicit `.contentShape`, the plain
+                        // button only hit-tests where pixels are actually
+                        // drawn (the text). The padding becomes a dead
+                        // zone, so clicks just below the glyph silently
+                        // fail. Forcing a rectangular hit shape extends
+                        // the click target to the whole padded surface.
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
@@ -216,16 +260,18 @@ struct HistoryView: View {
         )
     }
 
-    @ViewBuilder
+    /// Background for each range pill. Always returns a concrete shape
+    /// (with a transparent fill when inactive) so the button has a
+    /// hit-testable surface across the full padded rectangle. Returning
+    /// an empty view from a `@ViewBuilder` here used to leave the bottom
+    /// strip of the inactive pill outside SwiftUI's hit area.
     private func rangeBackground(active: Bool) -> some View {
-        if active {
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(DS.Palette.glassFillHi)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .stroke(DS.Palette.glassBorder, lineWidth: 1)
-                )
-        }
+        RoundedRectangle(cornerRadius: 5, style: .continuous)
+            .fill(active ? DS.Palette.glassFillHi : Color.clear)
+            .overlay(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .stroke(active ? DS.Palette.glassBorder : .clear, lineWidth: 1)
+            )
     }
 
     private var divider: some View {
@@ -299,22 +345,11 @@ struct HistoryView: View {
     // MARK: - Chart
 
     private var chartCard: some View {
-        ZStack(alignment: .topTrailing) {
-            chart
-                .frame(height: 240)
-            if chartReveal < 1 {
-                ProgressView()
-                    .controlSize(.small)
-                    .tint(DS.Palette.accentHistory)
-                    .padding(.top, 4)
-                    .padding(.trailing, 4)
-                    .transition(.opacity.combined(with: .scale(scale: 0.85)))
-            }
-        }
-        .animation(DS.Motion.springSnap, value: chartReveal < 1)
-        .padding(DS.Spacing.md)
-        .frame(maxWidth: .infinity)
-        .dsGlass(radius: DS.Radius.card)
+        chart
+            .frame(height: 290)
+            .padding(DS.Spacing.md)
+            .frame(maxWidth: .infinity)
+            .dsGlass(radius: DS.Radius.card)
     }
 
     @ViewBuilder
@@ -829,6 +864,66 @@ struct HistoryView: View {
         case .sonnet: return Color(hex: "#5BC489")
         case .haiku:  return Color(hex: "#4FB7B0")
         case .other:  return Color(hex: "#9B8BD9")
+        }
+    }
+}
+
+// MARK: - Loading Progress Bar
+//
+// Page-level indeterminate progress bar pinned to the top of the History
+// view. Replaces the two in-place spinners (sessions badge + chart card
+// overlay) with a single coherent signal. Implementation: a low-opacity
+// base track + a translucent gradient band that translates left-to-right
+// in a 1.4s loop. Transform-only animation (`.offset(x:)`), so it stays
+// at 60fps with zero CPU pressure.
+//
+// Reduce-motion: the band is replaced by a static accent fill so the
+// signal stays visible without any motion.
+
+private struct LoadingProgressBar: View {
+    let reduceMotion: Bool
+    let tint: Color
+
+    @State private var phase: CGFloat = 0
+
+    private let cycle: Double = 1.4
+    private let bandRatio: CGFloat = 0.35
+
+    var body: some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            let bandWidth = width * bandRatio
+            let travel = width + bandWidth
+
+            ZStack(alignment: .leading) {
+                // Base track - a hairline tinted bed under the moving
+                // band so the user sees something even at the edges of
+                // the cycle when the band is off-screen.
+                Rectangle()
+                    .fill(tint.opacity(reduceMotion ? 0.55 : 0.10))
+
+                if !reduceMotion {
+                    LinearGradient(
+                        colors: [.clear, tint, .clear],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .frame(width: bandWidth)
+                    .offset(x: phase * travel - bandWidth)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 1, style: .continuous))
+        }
+        .frame(height: 2)
+        .onAppear {
+            guard !reduceMotion else { return }
+            // Reset then kick the perpetual cycle. Without the reset
+            // step the animation can fail to (re)start when the view
+            // is recreated with phase already at 1 from a prior pass.
+            phase = 0
+            withAnimation(.linear(duration: cycle).repeatForever(autoreverses: false)) {
+                phase = 1
+            }
         }
     }
 }
