@@ -16,8 +16,16 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
 
     /// Where the cache lives. Same dir as the shared usage file so it's easy
     /// to nuke during dev (`rm -rf ~/Library/Application Support/com.tokeneater.shared/`).
+    /// `urls(for:in:)` returns an empty array in some CI / sandboxed test
+    /// environments where the user domain isn't fully resolved, so we fall
+    /// back to `~/Library/Application Support` derived from `NSHomeDirectory()`
+    /// rather than crashing on a force-unwrap.
     private static var cacheURL: URL {
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let support = FileManager.default
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first
+            ?? URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+                .appendingPathComponent("Library/Application Support", isDirectory: true)
         return support
             .appendingPathComponent("com.tokeneater.shared", isDirectory: true)
             .appendingPathComponent("history-cache.json")
@@ -190,10 +198,20 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
                 sessionIds.insert(sessionId)
             }
 
-            // Project path resolved from the enclosing directory name. The
-            // directory is the project path with `/` replaced by `-`, so we
-            // un-encode lazily here.
-            let projectPath = decodedProject(from: url)
+            // Project path: prefer the per-event `cwd` field Claude Code
+            // writes alongside each turn (it's the actual filesystem path
+            // and survives round-tripping cleanly). Fall back to decoding
+            // the parent directory name only when `cwd` is missing - that
+            // path uses a lossy encoding (`/` -> `-`) and merges projects
+            // whose real names contain hyphens (e.g. `/a/b-c` and `/a/b/c`
+            // both decode to `/a/b/c`). Keep it as a safety net for older
+            // JSONL files that predate the `cwd` field.
+            let projectPath: String
+            if let cwd = obj["cwd"] as? String, !cwd.isEmpty {
+                projectPath = cwd
+            } else {
+                projectPath = decodedProject(from: url)
+            }
 
             // Pull message + usage payload.
             guard let message = obj["message"] as? [String: Any],
