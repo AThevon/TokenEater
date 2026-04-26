@@ -43,7 +43,7 @@ Three independent components, each producing a `[0, 1]` score, combined via `max
 
 The absolute component is dampened by `projectionHealth`: when the current rate projects a comfortable finish under the limit (`u/e ≤ 0.7`), the multiplier drops to 0 and the "you've burnt a lot" signal is suppressed. At `u/e ≥ 1.0` (you'll hit or overshoot), the multiplier saturates to 1 and absolute fires at full strength. This keeps the 98% / 30min hard flag intact while quieting the false alarm at e.g. 72% with calm pacing where `u/e ≈ 0.86` and the user is on track to finish ~86% — no real risk.
 
-The continuous score then drives the gauge color via linear RGBA interpolation across 4 anchor stops (chill / chill / warning / critical at 0.0 / 0.30 / 0.55 / 0.85), so the user sees a smooth color ramp rather than discrete bands.
+The continuous score then drives the gauge color via HSB interpolation across 4 anchor stops (chill / chill / warning / critical at 0.0 / 0.30 / 0.55 / 0.85), so the user sees a smooth color ramp rather than discrete bands.
 
 ### The three risk components
 
@@ -86,7 +86,7 @@ Same shape as projection but anchored on the absolute delta from the linear pace
 
 ### Color interpolation
 
-The continuous risk maps to a color via linear RGBA interpolation across 4 anchor stops :
+The continuous risk maps to a color via HSB interpolation across 4 anchor stops :
 
 ```text
 r ≤ 0.30   -> normal (chill)
@@ -96,6 +96,10 @@ r ≥ 0.85   -> critical
 ```
 
 No discrete bands - the gauge ramps smoothly through the spectrum.
+
+**Why HSB instead of sRGB linear** : interpolating linearly in sRGB between green (`#22C55E`) and orange (`#F97316`) lands at `~#8E9D3A` at the midpoint - a muddy olive that surfaces in the gauge whenever risk hovers around 0.5. Hue rotation in HSB takes the natural color-wheel path (green 138° -> yellow 78° -> orange 19° -> red 0°), turning the same midpoint into a vivid yellow-green that reads cleanly. Saturation, brightness, and alpha lerp linearly. Hue uses the short angular path so wraparound custom themes (e.g. blue -> red crossing 0/360°) still pick the closer rotation.
+
+The user's theme anchors stay intact - HSB only governs WHAT happens between adjacent anchors, not the anchors themselves. `gaugeNormal / gaugeWarning / gaugeCritical` (preset or custom) remain the colors at risk 0.0/0.30, 0.55, and 0.85/1.0.
 
 ### Profiles (user-facing temperaments)
 
@@ -250,7 +254,7 @@ The toggle + profile are both mirrored to the shared file (`SharedFileService.sm
 
 | File | Role |
 |---|---|
-| `Shared/Helpers/SmartColor.swift`         | Pure functional v2 risk model: smoothstep, confidence, the 3 components, max combinator, color interpolation, zone hysteresis, legacy 3-level mapping |
+| `Shared/Helpers/SmartColor.swift`         | Pure functional v2 risk model: smoothstep, confidence, the 3 components, max combinator, HSB color interpolation, zone hysteresis, legacy 3-level mapping |
 | `Shared/Models/SmartColorProfile.swift`   | `SmartColorProfile` enum + `SmartColorParameters` struct (k, projUpper, zone thresholds) |
 | `Shared/Models/PacingModels.swift`        | `PacingZone` enum (4 cases) |
 | `Shared/Helpers/PacingCalculator.swift`   | Pacing zone computation |
