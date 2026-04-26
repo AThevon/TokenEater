@@ -7,7 +7,7 @@ Reference doc for how colors are computed across the app. Three independent syst
 | System | Question it answers | Where it applies |
 |---|---|---|
 | **Threshold gauge** | "How full is this bucket right now?" | Fallback when smart is OFF, or when no `resetDate` is available |
-| **Smart gauge** | "Will I overshoot before the next reset?" | Default ON. Drives the gauge / percentage colors when `Smart Color` is enabled in Themes |
+| **Smart gauge v2** | "What's my real risk of overshooting before the next reset?" | Default ON. Drives the gauge / percentage colors when `Smart Color` is enabled in Themes |
 | **Pacing zone** | "Am I keeping up with the ideal pace?" | Pacing badges, dots, pacing track bars, sub-rows |
 
 Threshold and smart are alternatives (one or the other for a given gauge). Pacing is always its own thing, independent and complementary.
@@ -26,51 +26,119 @@ Default thresholds : `60` warning / `85` critical. Configurable in Settings -> T
 
 **Used when** : `smartColorEnabled = false`, or `resetDate` is missing.
 
-## 2. Smart gauge (composite : threshold + pacing, with reset-imminent override)
+## 2. Smart gauge v2 (continuous risk model)
 
-The default since v5.0. Couples the two independent severity signals (threshold band + pacing zone) and surfaces the worst of the two, while a short-cycle override pulls everything back to green when a reset is imminent.
+The default since v5.0. Replaces the v1 threshold+pacing/`max` combinator + reset-imminent override that produced cliffs and false negatives (e.g. 98% used / 30 min remaining stayed green because the override fired late). v2 is fully continuous across `[0, 1]` with no discrete decision points.
 
-### Decision tree
+### Architecture
 
 ```text
-1. utilization >= 100                          -> critical   (hard limit hit)
-2. remainingFraction < imminentThreshold       -> normal     (reset arriving, ignore band)
-   imminentThreshold = 0.10  on 5h windows     (last ~30 min)
-                     = 0.05  on 7d windows     (last ~8h)
-3. otherwise:
-   absolute = green (<warning%) | orange (>=warning%) | red (>=critical%)
-   pacing   = green (chill / onTrack)
-            | orange (delta in (margin, 2×margin])
-            | red    (delta > 2×margin)
-   smart    = max(absolute, pacing)
+risk = max(absoluteRisk, projectionRisk × confidence, pacingRisk × confidence)
 ```
 
-`absolute` reuses the threshold-gauge logic (system 1). `pacing` is computed inline from the same inputs the pacing system uses (delta = utilization - elapsedFraction × 100, vs the user's `pacingMargin`). `windowDuration` is the rolling window length:
-- `5h` for the `fiveHour` bucket
-- `7d` for `sevenDay`, `sevenDaySonnet`, `sevenDayDesign`
+Three independent components, each producing a `[0, 1]` score, combined via `max` so the worst signal always wins. The two time-derived components are weighted by a confidence factor that grows from 0 at window start to ~1 at window end, so a 5% used / 1% elapsed burst doesn't trigger a panic alarm.
 
-### Why this shape
+The continuous score then drives the gauge color via linear RGBA interpolation across 4 anchor stops (chill / chill / warning / critical at 0.0 / 0.30 / 0.55 / 0.85), so the user sees a smooth color ramp rather than discrete bands.
 
-The pre-v5.1 smart formula was `risk = utilization × remainingFraction` with breakpoints at 20 / 30. It tripped orange far too eagerly: at 33% util with 64% of the window remaining, risk = 21 -> orange while the user was calmly on track. The user-visible signal felt out of step with the pacing pill in the same view.
+### The three risk components
 
-Coupling threshold + pacing instead, with `max` as the combinator, keeps the safety net (high utilization or hot pacing always escalates) without the false positives in early-cycle low-util zones.
+#### A. Absolute risk -> "How close to the limit ?"
 
-### Cheat sheet for the 5h session
+```text
+absoluteRisk = smoothstep(θw, θc, u)
+  u  = utilization (0..1)
+  θw = warningPercent  / 100   (default 0.60)
+  θc = criticalPercent / 100   (default 0.85)
+```
 
-| Util | Time in cycle | Pacing zone | Absolute | Smart |
+Below `θw`, returns 0. Above `θc`, returns 1. Smoothly ramped (Hermite C¹ continuous) in between - no cliff at the threshold boundaries. Independent of pacing.
+
+This is what makes 98% used always feel red, regardless of how much time is left.
+
+#### B. Projection risk -> "Will I overshoot at this rate ?"
+
+```text
+projected     = u / e                       // where would I land if I kept this rate ?
+                                            // e = elapsed fraction (0..1)
+projectionRaw = smoothstep(1.0, projUpper, projected)
+projectionRisk = projectionRaw × confidence(e, k)
+```
+
+`projected` is the linear extrapolation of current usage to the end of the window. If `u/e <= 1`, you'll finish under the limit -> 0. As `projected` grows past 1, the risk ramps up; saturates at the profile-dependent `projUpper` (e.g. 1.4 means "you'll hit 140% of the limit" reads as full risk).
+
+`confidence(e, k) = 1 - exp(-k × e)` damps early-window noise. At `e = 0.01` (1% elapsed), even a wild `u/e = 5` ratio is multiplied by `confidence ≈ 0.05` (with default `k = 5`), so the projection risk stays near 0. By `e = 0.50` confidence is ~0.92, by `e = 1.0` it's ~0.99.
+
+#### C. Pacing risk -> "Am I burning faster than the linear pace, beyond my margin ?"
+
+```text
+delta       = u - e
+pacingRaw   = smoothstep(m, m + 0.15, delta)
+pacingRisk  = pacingRaw × confidence(e, k)
+  m = pacingMargin / 100   (default 0.10)
+```
+
+Same shape as projection but anchored on the absolute delta from the linear pace rather than the projected overflow. Inside the user-configured margin -> 0. Past the margin, ramps to 1 over a 15-percentage-point band. Same confidence damping as projection.
+
+### Color interpolation
+
+The continuous risk maps to a color via linear RGBA interpolation across 4 anchor stops :
+
+```text
+r ≤ 0.30   -> normal (chill)
+0.30..0.55 -> normal -> warning (smooth interpolation)
+0.55..0.85 -> warning -> critical (smooth interpolation)
+r ≥ 0.85   -> critical
+```
+
+No discrete bands - the gauge ramps smoothly through the spectrum.
+
+### Profiles (user-facing temperaments)
+
+Three presets ship in Settings -> Themes -> Smart Color -> Sensitivity. Each tunes the algorithm's parameters to match a different appetite for risk.
+
+| Profile | k (confidence) | projUpper | Zone thresholds (rising) | Feel |
 |---|---|---|---|---|
-| 33% | 1h49 in (36% elapsed) | onTrack | green (<60) | **green** |
-| 95% | 4h58 in (99% elapsed) | onTrack | red (>=85) | **green** (reset imminent) |
-| 100% | any | n/a | red | **red** (limit hit) |
-| 70% | 2h in (40% elapsed) | hot (delta +30) | orange | **red** |
-| 75% | 4h in (80% elapsed) | onTrack | orange | **orange** |
-| 30% | 30 min in (10% elapsed) | hot (delta +20) | green | **red** |
+| **Confident**  | 3.0 | 1.6 | 0.38 / 0.62 / 0.85 | Trusts bursts, alarms late |
+| **Balanced**   | 5.0 | 1.4 | 0.30 / 0.55 / 0.78 | Default tuning, validated against the test matrix |
+| **Suspicious** | 8.0 | 1.2 | 0.22 / 0.45 / 0.68 | Reads early signals as risk, alarms sooner |
+
+`k` controls how fast the time-derived components gain confidence in the rate. `projUpper` controls how aggressively the projection saturates - a lower value means a smaller projected overflow already screams. Zone thresholds control where the discrete `PacingZone` mapping switches (used by notifications + the pacing pill).
+
+Profiles are persisted in `UserDefaults` and mirrored to the shared file so the widget process picks up the same value (`SharedFileService.smartColorProfile`).
+
+### Hysteresis (zone discretization only)
+
+The continuous risk score is also discretized into 4 zones (chill / onTrack / warning / hot) for the pacing pill + notifications. This discretization uses a 5pp falling buffer to prevent flicker when the risk oscillates around a band boundary :
+
+```text
+rising thresholds:  chill < 0.30 <= onTrack < 0.55 <= warning < 0.78 <= hot   (Balanced profile)
+falling thresholds: keep onTrack until r < 0.25
+                    keep warning until r < 0.50
+                    keep hot     until r < 0.73
+```
+
+This only affects the discrete zone derivation. The continuous risk score itself has no hysteresis - the gauge color follows the score directly.
+
+### Validation matrix
+
+Edge cases the v2 algorithm gets right (and v1 did not). All scenarios assume `θw = 0.60`, `θc = 0.85`, `m = 0.10`, Balanced profile :
+
+| Scenario | u | e | Expected | v1 wrong because | v2 result |
+|---|---|---|---|---|---|
+| Just started, healthy burst | 0.05 | 0.01 | chill | n/a | risk ≈ 0.04 -> chill ✅ |
+| 80% used, 50% elapsed | 0.80 | 0.50 | hot | n/a | absolute = 0.90 -> red ✅ |
+| **98% used, 30 min left on 5h** | 0.98 | 0.90 | hot | reset-imminent override pulled it green | risk = 1.0 -> red ✅ |
+| **75% used at 1h01 vs 59min on 5h** | 0.75 | 0.79 / 0.80 | same band | discrete cliff between two adjacent samples | continuous, no cliff ✅ |
+| 50% used, 90% elapsed | 0.50 | 0.90 | chill | n/a | absolute = 0, no projection | risk ≈ 0 -> chill ✅ |
+| Hard cap | 1.0 | any | hot | n/a | risk = 1.0 (hard cap) ✅ |
+
+The v1 cliffs all came from `if`-based ladders (threshold band, pacing band, override gate). v2's smoothstep + max + continuous interpolation eliminates them by construction.
 
 ### When the formula is bypassed
 
-- `utilization >= 100` -> immediate critical (override).
-- `resetDate == nil` -> falls back to the threshold gauge (system 1).
-- `windowDuration <= 0` -> falls back to the threshold gauge.
+- `utilization >= 100` -> immediate `risk = 1.0` (hard cap, short-circuits all components).
+- `resetDate == nil` -> falls back to absolute-only (no projection, no pacing).
+- `windowDuration <= 0` -> falls back to absolute-only.
 
 ## 3. Pacing zones (delta-based, 4 zones)
 
@@ -83,10 +151,10 @@ elapsedFraction = elapsed / windowDuration   // 0..1
 expectedUsage   = elapsedFraction × 100      // ideal pace at this moment
 delta           = actualUsage − expectedUsage   // points
 
-delta < -margin            -> chill   (green) - ahead of pace, healthy
+delta < -margin             -> chill   (green) - ahead of pace, healthy
 -margin <= delta <= +margin -> onTrack (blue)  - at the ideal pace
 +margin <  delta <= 2×margin -> warning (orange) - drifting fast, watch out
-delta > 2×margin           -> hot     (red)   - burning much faster than ideal
+delta > 2×margin            -> hot     (red)   - burning much faster than ideal
 ```
 
 Default `margin` : 10 points. Configurable via the **Pacing Sensitivity** slider (Settings -> Themes -> Pacing margin, range 5..30 in steps of 5). The warning threshold is automatically `2 × margin` so a single slider drives both bounds.
@@ -107,13 +175,13 @@ The hare is the visual signal "you're going faster than ideal but not yet on fir
 They answer different questions :
 
 - **Pacing** : "Am I drifting from the ideal pace right now ?" -> based on `delta` vs `expected`.
-- **Smart** : "Will I run out before reset ?" -> based on projected risk.
+- **Smart** : "What's my real risk of overshooting ?" -> based on the continuous risk model (absolute + projection + pacing combined via `max`).
 
 Concrete example : 30% used in the first hour of a 7-day window.
-- Pacing: expected ~0.6%, delta = +29.4 -> **hot** (red).
-- Smart : risk = 30 × 0.99 = 29.7 -> **warning** (orange) close to red.
+- Pacing : expected ~0.6%, delta = +29.4 -> **hot** (red).
+- Smart : `absolute = 0` (well below threshold), `projection = u/e = 30 -> saturated raw 1.0` but `confidence(0.006, k=5) ≈ 0.03` -> projection ≈ 0.03. `pacing` similarly damped. Overall risk near 0 -> **chill** (green).
 
-Both make sense from their own angle. The Stats card shows pacing in the sub-row separately from the gauge color so the user can read both signals without conflict.
+Both make sense from their own angle. The v2 confidence weighting is what lets smart stay calm in this scenario where v1 would have screamed - the rate is unreliable so early in the window. The pacing pill shows the raw delta truthfully, the gauge reflects calibrated risk.
 
 ## Color tokens
 
@@ -121,15 +189,15 @@ Per-theme, defined in `ThemeColors`. Each preset (default / monochrome / neon / 
 
 | Token | Used by | Default preset value |
 |---|---|---|
-| `gaugeNormal`   | Threshold + smart (normal band)   | `#22C55E` |
-| `gaugeWarning`  | Threshold + smart (warning band)  | `#F97316` |
-| `gaugeCritical` | Threshold + smart (critical band) | `#EF4444` |
+| `gaugeNormal`   | Threshold + smart anchor 0.0 / 0.30 | `#22C55E` |
+| `gaugeWarning`  | Threshold + smart anchor 0.55       | `#F97316` |
+| `gaugeCritical` | Threshold + smart anchor 0.85 / 1.0 | `#EF4444` |
 | `pacingChill`   | Pacing chill    | `#32D74B` |
 | `pacingOnTrack` | Pacing onTrack  | `#0A84FF` |
 | `pacingWarning` | Pacing warning  | `#FF9500` |
 | `pacingHot`     | Pacing hot      | `#FF453A` |
 
-`pacingWarning` was added in v5.0 with the 4-zone extension. Older custom themes that omit it decode silently to `#FF9500` (handled by a custom `init(from:)` on `ThemeColors`).
+The smart gauge interpolates between the three `gauge*` tokens on the [0, 1] risk axis. `pacingWarning` was added in v5.0 with the 4-zone extension. Older custom themes that omit it decode silently to `#FF9500` (handled by a custom `init(from:)` on `ThemeColors`).
 
 ## Where each system applies
 
@@ -148,23 +216,25 @@ Per-theme, defined in `ThemeColors`. Each preset (default / monochrome / neon / 
 | Popover pacing rows / bars | n/a | n/a | yes |
 | Widget circular gauges | fallback | yes | n/a |
 | Widget large bars | fallback | yes | n/a |
-| Notification levels (orange / red banners) | yes | n/a | indirect |
+| Notification levels (orange / red banners) | fallback | yes (via legacy 3-level mapping) | indirect |
 
-## User-facing toggle
+## User-facing toggle + profile picker
 
-`Settings -> Themes -> Smart Color` controls the smart vs threshold path globally. Default ON since v5.0. The chrome of the toggle includes a popover (info icon) explaining the system with two visual examples (`95% / 2min` stays green, `50% / 5h` warns red).
+`Settings -> Themes -> Smart Color` controls the smart vs threshold path globally. Default ON since v5.0.
 
-The toggle is mirrored to the shared file (`SharedFileService.smartColorEnabled`) so the sandboxed widget reads the same state without round-tripping through the app process.
+When ON, a segmented `Sensitivity` picker lets the user choose between `Confident` / `Balanced` / `Suspicious` profiles, each with a contextual hint. The popover info icon expands into a 3-signal breakdown (absolute / projection / pacing) + a `combined via max` note + a profile reminder.
+
+The toggle + profile are both mirrored to the shared file (`SharedFileService.smartColorEnabled` + `SharedFileService.smartColorProfile`) so the sandboxed widget reads the same state without round-tripping through the app process.
 
 ## Edge cases & recoveries
 
-1. **No reset date returned by the API** : usage bucket without `resets_at`. Smart falls back to threshold-based color, pacing returns nil and the pacing UI degrades gracefully (zone glyph -> `sparkles`, no track).
+1. **No reset date returned by the API** : usage bucket without `resets_at`. Smart falls back to absolute-only (no projection / pacing component). Pacing returns nil and the pacing UI degrades gracefully (zone glyph -> `sparkles`, no track).
 
-2. **Window duration unknown / zero** : smart falls back to threshold.
+2. **Window duration unknown / zero** : smart falls back to absolute-only.
 
 3. **Custom theme without `pacingWarning`** : custom decoder substitutes `#FF9500`. The user can edit it later via the custom-theme color picker.
 
-4. **`utilization` exceeds 100** : both threshold and smart return critical (red). Pacing also lands hot due to `delta > 2×margin`.
+4. **`utilization` exceeds 100** : both threshold and smart return critical (red, hard cap). Pacing also lands hot due to `delta > 2×margin`.
 
 5. **Reduce-motion preference** : color transitions are still applied (this is information, not motion). Spring animations on value changes are reduced as documented in `MASTER.md`.
 
@@ -172,14 +242,17 @@ The toggle is mirrored to the shared file (`SharedFileService.smartColorEnabled`
 
 | File | Role |
 |---|---|
+| `Shared/Helpers/SmartColor.swift`         | Pure functional v2 risk model: smoothstep, confidence, the 3 components, max combinator, color interpolation, zone hysteresis, legacy 3-level mapping |
+| `Shared/Models/SmartColorProfile.swift`   | `SmartColorProfile` enum + `SmartColorParameters` struct (k, projUpper, zone thresholds) |
 | `Shared/Models/PacingModels.swift`        | `PacingZone` enum (4 cases) |
 | `Shared/Helpers/PacingCalculator.swift`   | Pacing zone computation |
-| `Shared/Models/ThemeModels.swift`         | `ThemeColors` + `gaugeColor` / `smartGaugeColor` / `pacingColor` |
-| `Shared/Helpers/MenuBarRenderer.swift`    | Menu bar coloring (NSColor variants) |
+| `Shared/Models/ThemeModels.swift`         | `ThemeColors` + the public smart wrappers (`smartRisk`, `smartGaugeColor`, `smartGaugeNSColor`, `smartGaugeGradient`, `smartLevel`, `smartZone`) |
+| `Shared/Helpers/MenuBarRenderer.swift`    | Menu bar coloring (NSColor variants, profile-aware) |
 | `TokenEaterApp/MonitoringView.swift`      | Stats hero + tiles + pacing sub-rows |
 | `TokenEaterApp/Popover/*.swift`           | Popover layouts (Classic / Compact / Focus) |
 | `TokenEaterWidget/UsageWidgetView.swift`  | Widget gauges + bars |
-| `Shared/Services/SharedFileService.swift` | `smartColorEnabled` propagation to the widget process |
+| `Shared/Services/SharedFileService.swift` | `smartColorEnabled` + `smartColorProfile` propagation to the widget process |
+| `TokenEaterTests/SmartColorTests.swift`   | Validation matrix (continuity, monotonicity, hysteresis, end-to-end via ThemeColors) |
 
 ## Related
 
