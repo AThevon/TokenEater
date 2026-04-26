@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// Left column of the onboarding. Static copy + a progress indicator + the
-/// Finish button. Finish is disabled until both gates (Claude Code + Connect)
-/// are green.
+/// Right column of the onboarding. Static copy + a progress indicator + the
+/// Finish CTA at the bottom-right. Title and subtitle are left-aligned in
+/// reading flow; the progress + Finish anchor to the trailing edge so the
+/// CTA sits naturally bottom-right of the page.
+/// Finish is disabled until both gates (Claude Code + Connect) are green.
 struct OnboardingHero: View {
     @ObservedObject var viewModel: OnboardingViewModel
     @EnvironmentObject private var settingsStore: SettingsStore
@@ -27,8 +29,14 @@ struct OnboardingHero: View {
 
             Spacer(minLength: 0)
 
-            progressBar
-            finishButton
+            HStack {
+                Spacer()
+                progressBar
+            }
+            HStack {
+                Spacer()
+                finishButton
+            }
         }
         .padding(.top, 4)
         .frame(maxHeight: .infinity, alignment: .topLeading)
