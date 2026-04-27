@@ -183,14 +183,29 @@ jobs:
         id: sha
         run: echo "sha256=$(shasum -a 256 TokenEater.dmg | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
+      - name: Detect prerelease (rc / beta / alpha)
+        id: prerelease
+        run: |
+          if [[ "$GITHUB_REF_NAME" == *-rc* || "$GITHUB_REF_NAME" == *-beta* || "$GITHUB_REF_NAME" == *-alpha* ]]; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "Prerelease tag detected -> skipping appcast / brew cask / Sparkle EdDSA publish"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Upload to GitHub Release
         run: |
+          PRERELEASE_FLAG=""
+          if [ "${{ steps.prerelease.outputs.is_prerelease }}" = "true" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
           if gh release view "$GITHUB_REF_NAME" &>/dev/null; then
             gh release upload "$GITHUB_REF_NAME" TokenEater.dmg --clobber
           else
             gh release create "$GITHUB_REF_NAME" TokenEater.dmg \
               --title "TokenEater ${{ steps.version.outputs.version }}" \
-              --generate-notes
+              --generate-notes \
+              $PRERELEASE_FLAG
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -207,6 +222,7 @@ jobs:
           echo "Asset verified (HTTP ${HTTP_STATUS})"
 
       - name: Sign DMG with EdDSA for Sparkle
+        if: steps.prerelease.outputs.is_prerelease != 'true'
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
@@ -224,6 +240,7 @@ jobs:
         id: sign
 
       - name: Update appcast.xml
+        if: steps.prerelease.outputs.is_prerelease != 'true'
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           DMG_URL="https://github.com/AThevon/TokenEater/releases/download/v${VERSION}/TokenEater.dmg"
@@ -237,6 +254,7 @@ jobs:
           sed -i '' "s|    </channel>|${ITEM}\n    </channel>|" docs/appcast.xml
 
       - name: Commit and push appcast
+        if: steps.prerelease.outputs.is_prerelease != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -253,6 +271,7 @@ jobs:
 
       # Keep Homebrew cask updated during transition period
       - name: Update Homebrew Cask
+        if: steps.prerelease.outputs.is_prerelease != 'true'
         env:
           TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           NEW_VERSION: ${{ steps.version.outputs.version }}
