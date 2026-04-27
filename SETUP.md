@@ -45,13 +45,12 @@ xcodebuild -project TokenEater.xcodeproj \
 cp -R "build/Build/Products/Release/TokenEater.app" /Applications/
 ```
 
-Then approve the app through macOS Gatekeeper:
-
-1. Double-click **TokenEater.app** in Applications — macOS will block it
-2. Open **System Settings → Privacy & Security** — scroll down to the message about TokenEater
-3. Click **Open Anyway** and confirm
-
-> **Do not** use `xattr -cr` to skip this — it bypasses Gatekeeper approval, which means the widget extension won't be authorized and macOS will flag it as malware in the widget gallery.
+> **Note** - this section covers building from source for local development. The build above is signed with your Apple Development cert (or ad-hoc) and is **not notarized**, so Gatekeeper will block the first launch:
+>
+> 1. Double-click **TokenEater.app** in Applications - macOS will block it
+> 2. Open **System Settings -> Privacy & Security** -> scroll to the TokenEater entry -> click **Open Anyway**
+>
+> If you want a frictionless install, **download the official notarized DMG from [Releases](https://github.com/AThevon/TokenEater/releases/latest)** instead - it opens directly without any Gatekeeper prompt.
 
 ## Configuration
 
@@ -104,5 +103,5 @@ The OAuth token is managed by Claude Code and refreshes automatically.
 | Widget shows error | Reopen the app and check connection in Settings |
 | Widget shows "Open app" | Launch the app and complete onboarding |
 | Build fails | Verify `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` points to Xcode.app |
-| Widget flagged as malware | You likely used `xattr -cr` to install. Reinstall: delete the app, copy it again from the DMG, and approve via System Settings → Privacy & Security → Open Anyway |
+| Widget flagged as malware | You're running an ad-hoc local build that stripped its quarantine attrs. Either reinstall via the official notarized DMG from [Releases](https://github.com/AThevon/TokenEater/releases/latest), or rebuild + approve via System Settings -> Privacy & Security -> Open Anyway |
 | Widget not visible | Disconnect/reconnect your session or restart |

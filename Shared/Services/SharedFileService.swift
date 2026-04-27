@@ -90,13 +90,23 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         }
 
         try? fm.createDirectory(at: container, withIntermediateDirectories: true)
+        var allCopiesOK = true
         for item in items {
             let dest = container.appendingPathComponent(item.lastPathComponent)
             if !fm.fileExists(atPath: dest.path) {
-                try? fm.copyItem(at: item, to: dest)
+                do {
+                    try fm.copyItem(at: item, to: dest)
+                } catch {
+                    allCopiesOK = false
+                }
             }
         }
-        try? fm.removeItem(at: legacyDir)
+        // Only remove the legacy directory if every file was successfully
+        // copied into the container. Removing prematurely would lose user
+        // data on permission/disk errors mid-migration.
+        if allCopiesOK {
+            try? fm.removeItem(at: legacyDir)
+        }
     }
 
     // MARK: - SharedData (same JSON format as SharedContainer for backward compat)

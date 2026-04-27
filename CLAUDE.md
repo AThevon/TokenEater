@@ -8,9 +8,18 @@
 ## Build & Test local
 
 ### Prérequis
-- **Xcode 16.4** (version identique au CI `macos-15`) — installé via `xcodes install 16.4`
+- **Xcode 16.4** (version identique au CI `macos-15`) - installé via `xcodes install 16.4`
 - XcodeGen (`brew install xcodegen`)
-- Le `DEVELOPMENT_TEAM` n'est pas dans `project.yml` — il est détecté automatiquement depuis le certificat Apple local
+- `DEVELOPMENT_TEAM=S7B8M9JYF4` est hardcodé dans `project.yml` (paid Apple Developer Program, post-cert v5.0)
+
+### Statut signing + notarisation (depuis v5.0)
+
+- **Local Release builds** (la commande mega-nuke ci-dessous) -> signés avec **Apple Development** cert via Automatic style, donc Gatekeeper bloque la première ouverture (normal pour un ad-hoc dev build)
+- **CI Release builds** (déclenchés par push d'un tag `v*`) -> signés avec **Developer ID Application** cert (importé depuis le secret `APPLE_CERT_P12_BASE64`) + hardened runtime + notarisés via `notarytool` + ticket staplé sur le DMG. Conséquence : les users qui téléchargent le DMG depuis Releases l'ouvrent **sans aucun prompt Gatekeeper**, peu importe le compte macOS
+- **Brew cask** (`brew install --cask tokeneater` depuis `AThevon/homebrew-tokeneater`) -> pointe vers le même DMG notarisé, donc même expérience zero-friction. Note : le repo cask doit avoir son `postflight` `xattr -cr` retiré (sinon il strip le ticket de notarisation à l'install)
+- **In-app updater** (UpdateService) -> télécharge le DMG depuis le release GitHub, vérifie sa signature EdDSA Sparkle (clé publique embarquée dans `Resources/SparklePublicKey.txt`), puis monte + copie vers `/Applications` via un AppleScript helper avec admin prompt (une fois)
+- **App Group** -> `group.com.tokeneater` enregistré dans Developer Portal, ajouté aux App IDs `com.tokeneater.app` + `com.tokeneater.app.widget`. L'entitlement `com.apple.security.application-groups` est dans les deux fichiers `.entitlements`. Path du container : `~/Library/Group Containers/S7B8M9JYF4.group.com.tokeneater/`
+- **SharedFileService fallback** -> si le container App Group n'est pas accessible (cas dev avec Personal Team), bascule sur `~/Library/Application Support/com.tokeneater.shared/` automatiquement
 
 ### Toolchain CI (iso-prod)
 
@@ -81,6 +90,8 @@ xcodebuild -project TokenEater.xcodeproj -scheme TokenEaterApp -configuration Re
 killall TokenEater 2>/dev/null; killall NotificationCenter 2>/dev/null; killall chronod 2>/dev/null; \
 rm -rf ~/Library/Application\ Support/com.tokeneater.shared && \
 rm -rf ~/Library/Application\ Support/com.claudeusagewidget.shared && \
+rm -rf ~/Library/Group\ Containers/S7B8M9JYF4.group.com.tokeneater && \
+rm -rf ~/Library/Group\ Containers/group.com.tokeneater && \
 rm -rf ~/Library/Group\ Containers/group.com.claudeusagewidget.shared && \
 rm -rf /private/var/folders/d6/*/0/com.apple.chrono 2>/dev/null; \
 rm -rf /private/var/folders/d6/*/T/com.apple.chrono 2>/dev/null; \

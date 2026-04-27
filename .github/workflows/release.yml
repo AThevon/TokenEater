@@ -28,15 +28,16 @@ jobs:
 
       # --- Import Developer ID cert (Apple Developer Program) ---
       #
-      # Secrets required in the repo:
+      # Secrets required in the repo for a valid release:
       #   APPLE_CERT_P12_BASE64 - base64 of the exported .p12 (Developer ID Application + private key)
       #   APPLE_CERT_PASSWORD   - password used when exporting the .p12
-      #   APPLE_TEAM_ID         - 10-char Team ID (e.g. ABCDE12345)
+      #   APPLE_TEAM_ID         - 10-char Team ID
       #   APPLE_ID              - Apple ID email used by notarytool
       #   APPLE_APP_PASSWORD    - app-specific password generated at appleid.apple.com
       #
-      # If APPLE_CERT_P12_BASE64 is empty, the workflow falls back to ad-hoc signing
-      # (CI test builds can still produce artefacts, just not notarized).
+      # All five must be set. The workflow fails loud if APPLE_CERT_P12_BASE64 is
+      # missing on a release tag - shipping unsigned/unnotarized DMGs to users via
+      # Sparkle / Brew would silently break Gatekeeper and the in-app updater.
       - name: Import signing cert
         id: import_cert
         env:
@@ -44,9 +45,8 @@ jobs:
           APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
         run: |
           if [ -z "$APPLE_CERT_P12_BASE64" ]; then
-            echo "signed=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::APPLE_CERT_P12_BASE64 not set, falling back to ad-hoc signing"
-            exit 0
+            echo "::error::APPLE_CERT_P12_BASE64 secret is not set. Releases must be signed + notarized."
+            exit 1
           fi
           KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
           KEYCHAIN_PASSWORD="$(uuidgen)"
@@ -62,8 +62,14 @@ jobs:
             -P "$APPLE_CERT_PASSWORD" \
             -A -t cert -f pkcs12 \
             -k "$KEYCHAIN_PATH"
-          security list-keychain -d user -s "$KEYCHAIN_PATH" "$(security default-keychain -d user | tr -d '"')"
+
+          # Add the temp keychain to the user search list (alongside login.keychain)
+          # so xcodebuild's automatic provisioning can find the cert + private key.
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain-db
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" >/dev/null
+
+          # Re-unlock after partition-list change (macos runner can re-lock).
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
           IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep "Developer ID Application" | head -1 | awk '{print $2}')
           if [ -z "$IDENTITY" ]; then
@@ -72,33 +78,41 @@ jobs:
           fi
           echo "identity=$IDENTITY" >> "$GITHUB_OUTPUT"
           echo "keychain=$KEYCHAIN_PATH" >> "$GITHUB_OUTPUT"
-          echo "signed=true" >> "$GITHUB_OUTPUT"
           echo "Imported Developer ID cert (SHA1=$IDENTITY)"
 
-      - name: Build
+      - name: Build (signed + hardened runtime)
         env:
-          SIGNED: ${{ steps.import_cert.outputs.signed }}
           IDENTITY: ${{ steps.import_cert.outputs.identity }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          if [ "$SIGNED" = "true" ]; then
-            xcodebuild \
-              -project TokenEater.xcodeproj \
-              -scheme TokenEaterApp \
-              -configuration Release \
-              -derivedDataPath build \
-              CODE_SIGN_STYLE=Manual \
-              CODE_SIGN_IDENTITY="$IDENTITY" \
-              DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-              OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime" \
-              build
-          else
-            xcodebuild \
-              -project TokenEater.xcodeproj \
-              -scheme TokenEaterApp \
-              -configuration Release \
-              -derivedDataPath build \
-              build
+          # Automatic style + -allowProvisioningUpdates lets xcodebuild create or
+          # refresh the provisioning profile required by the App Group entitlement.
+          # The cert in the temp keychain authenticates the request.
+          # CODE_SIGN_IDENTITY is overridden to force the Developer ID Application
+          # cert (Automatic would otherwise pick Apple Development for Release).
+          xcodebuild \
+            -project TokenEater.xcodeproj \
+            -scheme TokenEaterApp \
+            -configuration Release \
+            -derivedDataPath build \
+            -allowProvisioningUpdates \
+            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_IDENTITY="$IDENTITY" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime" \
+            build
+
+      - name: Verify codesign chain (app + widget)
+        run: |
+          APP_PATH="build/Build/Products/Release/TokenEater.app"
+          WIDGET_PATH="$APP_PATH/Contents/PlugIns/TokenEaterWidgetExtension.appex"
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          codesign -dvv "$APP_PATH" 2>&1 | grep -E "Authority|TeamIdentifier|flags"
+          codesign -dvv "$WIDGET_PATH" 2>&1 | grep -E "Authority|TeamIdentifier|flags"
+          # Verify the app has the hardened runtime flag (required for notarization).
+          if ! codesign -dv "$APP_PATH" 2>&1 | grep -q "runtime"; then
+            echo "::error::Hardened runtime flag missing on TokenEater.app"
+            exit 1
           fi
 
       - name: Install create-dmg
@@ -123,7 +137,6 @@ jobs:
           test -f TokenEater.dmg
 
       - name: Sign DMG with Developer ID
-        if: steps.import_cert.outputs.signed == 'true'
         env:
           IDENTITY: ${{ steps.import_cert.outputs.identity }}
         run: |
@@ -131,19 +144,36 @@ jobs:
           codesign --verify --strict TokenEater.dmg
 
       - name: Notarize + staple
-        if: steps.import_cert.outputs.signed == 'true'
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
-          xcrun notarytool submit TokenEater.dmg \
+          # Submit + capture the submission ID so we can fetch the log on failure.
+          SUBMIT_OUT=$(xcrun notarytool submit TokenEater.dmg \
             --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
             --password "$APPLE_APP_PASSWORD" \
-            --wait
+            --wait \
+            --output-format json) || NOTARIZE_FAILED=1
+
+          echo "$SUBMIT_OUT"
+          SUBMISSION_ID=$(echo "$SUBMIT_OUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || echo "")
+
+          if [ -n "${NOTARIZE_FAILED:-}" ] && [ -n "$SUBMISSION_ID" ]; then
+            echo "::error::Notarization failed - fetching log for submission $SUBMISSION_ID"
+            xcrun notarytool log "$SUBMISSION_ID" \
+              --apple-id "$APPLE_ID" \
+              --team-id "$APPLE_TEAM_ID" \
+              --password "$APPLE_APP_PASSWORD" || true
+            exit 1
+          fi
+
           xcrun stapler staple TokenEater.dmg
           xcrun stapler validate TokenEater.dmg
+
+          # Final Gatekeeper assertion - fails if anything's wrong with the chain.
+          spctl -a -t open --context context:primary-signature -vvv TokenEater.dmg
 
       - name: Extract version
         id: version
@@ -211,6 +241,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/appcast.xml
+          if git diff --cached --quiet; then
+            echo "No appcast changes to commit (likely a tag rerun)"
+            exit 0
+          fi
           git commit -m "chore: update appcast for v${{ steps.version.outputs.version }}"
           # Push to the branch the tag was created on (or main for release tags)
           BRANCH=$(git branch -r --contains "$GITHUB_REF_NAME" | grep -v HEAD | head -1 | sed 's|origin/||;s/^ *//')
