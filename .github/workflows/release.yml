@@ -151,22 +151,28 @@ jobs:
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
           # Submit + capture the submission ID so we can fetch the log on failure.
+          # notarytool exits 0 even when the verdict is Invalid, so we parse the
+          # status field from the JSON output and fail loud if not "Accepted".
           SUBMIT_OUT=$(xcrun notarytool submit TokenEater.dmg \
             --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
             --password "$APPLE_APP_PASSWORD" \
             --wait \
-            --output-format json) || NOTARIZE_FAILED=1
+            --output-format json)
 
           echo "$SUBMIT_OUT"
           SUBMISSION_ID=$(echo "$SUBMIT_OUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || echo "")
+          NOTARIZE_STATUS=$(echo "$SUBMIT_OUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('status',''))" 2>/dev/null || echo "")
 
-          if [ -n "${NOTARIZE_FAILED:-}" ] && [ -n "$SUBMISSION_ID" ]; then
-            echo "::error::Notarization failed - fetching log for submission $SUBMISSION_ID"
-            xcrun notarytool log "$SUBMISSION_ID" \
-              --apple-id "$APPLE_ID" \
-              --team-id "$APPLE_TEAM_ID" \
-              --password "$APPLE_APP_PASSWORD" || true
+          if [ "$NOTARIZE_STATUS" != "Accepted" ]; then
+            echo "::error::Notarization status: $NOTARIZE_STATUS (expected Accepted) for submission $SUBMISSION_ID"
+            if [ -n "$SUBMISSION_ID" ]; then
+              echo "Fetching Apple notarization log..."
+              xcrun notarytool log "$SUBMISSION_ID" \
+                --apple-id "$APPLE_ID" \
+                --team-id "$APPLE_TEAM_ID" \
+                --password "$APPLE_APP_PASSWORD" || true
+            fi
             exit 1
           fi
 
