@@ -2,11 +2,11 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>com.apple.security.network.client</key>
-    <true/>
-    <!-- App Group entitlement is added by scripts/enable-app-groups.sh once the paid
-         Developer Team cert is available and group.com.tokeneater is registered in
-         the Developer Portal. Personal Team (free) rejects this entitlement at build
-         time, so we gate it on the cert arrival. See docs/APPLE_DEV_MIGRATION.md. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.tokeneater</string>
+	</array>
+	<key>com.apple.security.network.client</key>
+	<true/>
 </dict>
 </plist>
