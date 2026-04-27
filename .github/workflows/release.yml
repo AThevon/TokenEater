@@ -85,20 +85,21 @@ jobs:
           IDENTITY: ${{ steps.import_cert.outputs.identity }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          # Automatic style + -allowProvisioningUpdates lets xcodebuild create or
-          # refresh the provisioning profile required by the App Group entitlement.
-          # The cert in the temp keychain authenticates the request.
-          # CODE_SIGN_IDENTITY is overridden to force the Developer ID Application
-          # cert (Automatic would otherwise pick Apple Development for Release).
+          # Manual signing with the Developer ID Application cert imported above.
+          # Mac apps distributed outside the App Store don't need a provisioning
+          # profile even with App Groups - PROVISIONING_PROFILE_SPECIFIER="" plus
+          # CODE_SIGN_REQUIRE_PROVISIONING_PROFILE=NO tells xcodebuild to skip
+          # the profile lookup that would otherwise fail in CI.
           xcodebuild \
             -project TokenEater.xcodeproj \
             -scheme TokenEaterApp \
             -configuration Release \
             -derivedDataPath build \
-            -allowProvisioningUpdates \
-            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="$IDENTITY" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            CODE_SIGN_REQUIRE_PROVISIONING_PROFILE=NO \
             OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime" \
             build
 
