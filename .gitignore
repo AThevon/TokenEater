@@ -20,3 +20,14 @@ Pods/
 .env*
 .superpowers/
 docs/superpowers/
+
+# Secrets / signing material
+*.p12
+*.pem
+*.key
+*.pfx
+*.cer
+*.mobileprovision
+*.provisionprofile
+secrets.*
+credentials.*

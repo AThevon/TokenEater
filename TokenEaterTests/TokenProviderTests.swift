@@ -115,7 +115,7 @@ struct TokenProviderTests {
     @Test("extracts token from UUID-based config.json format")
     func extractsUUIDFormat() {
         let uuidJSON: [String: Any] = [
-            "uuid:uuid:https://api.anthropic.com": ["token": "sk-ant-oat01-test123"]
+            "uuid:uuid:https://api.anthropic.com": ["token": "sk-ant-test-only-no-real-secret"]
         ]
         let jsonData = try! JSONSerialization.data(withJSONObject: uuidJSON)
 
@@ -128,7 +128,7 @@ struct TokenProviderTests {
             decryptedData: jsonData
         )
 
-        #expect(provider.currentToken() == "sk-ant-oat01-test123")
+        #expect(provider.currentToken() == "sk-ant-test-only-no-real-secret")
     }
 
     @Test("returns nil when no source available")
