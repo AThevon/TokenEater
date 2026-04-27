@@ -86,6 +86,13 @@
 "settings.proxy.host" = "Host";
 "settings.proxy.port" = "Port";
 "settings.proxy.hint" = "Example: ssh -D 1080 user@bastion then enable the proxy here.";
+"settings.about.title" = "About";
+"settings.about.repository" = "Source code";
+"settings.about.repository.hint" = "Browse the codebase on GitHub";
+"settings.about.issues" = "Report an issue";
+"settings.about.issues.hint" = "Bug reports and feature requests";
+"settings.about.releases" = "Release notes";
+"settings.about.releases.hint" = "Changelog and previous versions";
 "settings.connected" = "Connected";
 "settings.disconnected" = "Not connected";
 "settings.redetect" = "Re-detect";

@@ -219,6 +219,31 @@ struct SettingsSectionView: View {
                 }
             }
 
+            // About
+            glassCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    cardLabel(String(localized: "settings.about.title"))
+                    AboutLinkRow(
+                        icon: "chevron.left.forwardslash.chevron.right",
+                        title: String(localized: "settings.about.repository"),
+                        subtitle: String(localized: "settings.about.repository.hint"),
+                        url: URL(string: "https://github.com/AThevon/TokenEater")!
+                    )
+                    AboutLinkRow(
+                        icon: "exclamationmark.bubble.fill",
+                        title: String(localized: "settings.about.issues"),
+                        subtitle: String(localized: "settings.about.issues.hint"),
+                        url: URL(string: "https://github.com/AThevon/TokenEater/issues")!
+                    )
+                    AboutLinkRow(
+                        icon: "tag.fill",
+                        title: String(localized: "settings.about.releases"),
+                        subtitle: String(localized: "settings.about.releases.hint"),
+                        url: URL(string: "https://github.com/AThevon/TokenEater/releases")!
+                    )
+                }
+            }
+
             Spacer()
         }
         .padding(24)
@@ -292,6 +317,79 @@ struct SettingsSectionView: View {
                 importMessage = result.message
                 importSuccess = false
             }
+        }
+    }
+}
+
+// MARK: - About link row
+
+/// Single link inside the About card. Mirrors the hover pattern used by
+/// `MonitoringView.refreshButton` and `MainAppView.powerButton`: glassFill +
+/// accentSettings tint with springSnap, and a subtle -1pt lift.
+private struct AboutLinkRow: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let url: URL
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isHovering = false
+
+    var body: some View {
+        Button {
+            NSWorkspace.shared.open(url)
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(isHovering
+                              ? DS.Palette.accentSettings.opacity(0.18)
+                              : DS.Palette.glassFill)
+                        .overlay(
+                            Circle().stroke(
+                                isHovering
+                                    ? DS.Palette.accentSettings.opacity(0.55)
+                                    : DS.Palette.glassBorderLo,
+                                lineWidth: 1
+                            )
+                        )
+                        .frame(width: 30, height: 30)
+                    Image(systemName: icon)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(isHovering
+                                         ? DS.Palette.accentSettings
+                                         : .white.opacity(0.65))
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.white.opacity(isHovering ? 0.95 : 0.85))
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.45))
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(isHovering
+                                     ? DS.Palette.accentSettings
+                                     : .white.opacity(0.35))
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isHovering ? DS.Palette.glassFill : Color.clear)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .offset(y: (isHovering && !reduceMotion) ? -1 : 0)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(DS.Motion.springSnap) { isHovering = hovering }
         }
     }
 }

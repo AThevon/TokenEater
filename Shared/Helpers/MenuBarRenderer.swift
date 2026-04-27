@@ -205,6 +205,14 @@ enum MenuBarRenderer {
             default: return true
             }
         }
+
+        // If every pin got filtered out (no five-hour bucket yet, no weekly
+        // pacing, no design quota), fall back to the logo so the status item
+        // is always visible. Returning the empty-pipeline image produces a
+        // 2pt-wide icon that reads as "the menu bar item disappeared".
+        if ordered.isEmpty {
+            return renderLogoTemplate()
+        }
         for (i, metric) in ordered.enumerated() {
             if i > 0 {
                 str.append(NSAttributedString(string: separator, attributes: sepAttrs))
