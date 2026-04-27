@@ -199,29 +199,72 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
-          # Submit + capture the submission ID so we can fetch the log on failure.
-          # notarytool exits 0 even when the verdict is Invalid, so we parse the
-          # status field from the JSON output and fail loud if not "Accepted".
+          # Submit without --wait. notarytool's --wait does long polling but
+          # can lose network connectivity to Apple after ~hour-long sessions
+          # ("Code=-1009 internet appears offline") even when the runner is
+          # online. We poll explicitly with retries instead, which survives
+          # transient network blips on Apple's side.
           SUBMIT_OUT=$(xcrun notarytool submit TokenEater.dmg \
             --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" \
             --password "$APPLE_APP_PASSWORD" \
-            --wait \
             --output-format json)
 
           echo "$SUBMIT_OUT"
           SUBMISSION_ID=$(echo "$SUBMIT_OUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || echo "")
-          NOTARIZE_STATUS=$(echo "$SUBMIT_OUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('status',''))" 2>/dev/null || echo "")
+
+          if [ -z "$SUBMISSION_ID" ]; then
+            echo "::error::Failed to extract submission ID from notarytool output"
+            exit 1
+          fi
+
+          echo "Submission ID: $SUBMISSION_ID"
+          echo "Polling Apple for verdict (max 60 min, 20s interval)..."
+
+          NOTARIZE_STATUS=""
+          MAX_ATTEMPTS=180  # 60 min @ 20s
+          ATTEMPT=0
+          CONSECUTIVE_NET_ERRORS=0
+
+          while [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; do
+            ATTEMPT=$((ATTEMPT + 1))
+            INFO_OUT=$(xcrun notarytool info "$SUBMISSION_ID" \
+              --apple-id "$APPLE_ID" \
+              --team-id "$APPLE_TEAM_ID" \
+              --password "$APPLE_APP_PASSWORD" \
+              --output-format json 2>&1) || INFO_FAILED=1
+
+            if [ -n "${INFO_FAILED:-}" ]; then
+              CONSECUTIVE_NET_ERRORS=$((CONSECUTIVE_NET_ERRORS + 1))
+              echo "[$ATTEMPT] notarytool info failed (consecutive: $CONSECUTIVE_NET_ERRORS) - retrying in 20s"
+              if [ "$CONSECUTIVE_NET_ERRORS" -ge 6 ]; then
+                echo "::error::Too many consecutive network errors talking to Apple notary"
+                exit 1
+              fi
+              unset INFO_FAILED
+              sleep 20
+              continue
+            fi
+
+            CONSECUTIVE_NET_ERRORS=0
+            NOTARIZE_STATUS=$(echo "$INFO_OUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('status',''))" 2>/dev/null || echo "")
+            echo "[$ATTEMPT] status=$NOTARIZE_STATUS"
+
+            case "$NOTARIZE_STATUS" in
+              Accepted) break ;;
+              Invalid|Rejected) break ;;
+              "In Progress"|"") sleep 20 ;;
+              *) sleep 20 ;;
+            esac
+          done
 
           if [ "$NOTARIZE_STATUS" != "Accepted" ]; then
             echo "::error::Notarization status: $NOTARIZE_STATUS (expected Accepted) for submission $SUBMISSION_ID"
-            if [ -n "$SUBMISSION_ID" ]; then
-              echo "Fetching Apple notarization log..."
-              xcrun notarytool log "$SUBMISSION_ID" \
-                --apple-id "$APPLE_ID" \
-                --team-id "$APPLE_TEAM_ID" \
-                --password "$APPLE_APP_PASSWORD" || true
-            fi
+            echo "Fetching Apple notarization log..."
+            xcrun notarytool log "$SUBMISSION_ID" \
+              --apple-id "$APPLE_ID" \
+              --team-id "$APPLE_TEAM_ID" \
+              --password "$APPLE_APP_PASSWORD" || true
             exit 1
           fi
 
