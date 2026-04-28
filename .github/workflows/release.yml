@@ -219,10 +219,10 @@ jobs:
           fi
 
           echo "Submission ID: $SUBMISSION_ID"
-          echo "Polling Apple for verdict (max 60 min, 20s interval)..."
+          echo "Polling Apple for verdict (max 180 min, 20s interval)..."
 
           NOTARIZE_STATUS=""
-          MAX_ATTEMPTS=180  # 60 min @ 20s
+          MAX_ATTEMPTS=540  # 180 min @ 20s — Apple notary intermittently saturates and holds submissions in In Progress for 60+ min
           ATTEMPT=0
           CONSECUTIVE_NET_ERRORS=0
 
