@@ -1,0 +1,53 @@
+name: Check Notarization Status
+
+on:
+  workflow_dispatch:
+    inputs:
+      submission_ids:
+        description: "Optional comma-separated submission IDs to inspect (in addition to history listing)"
+        required: false
+        default: "7fb408f4-3880-42f5-863d-6b43136f0b56,d41ee284-6125-4d1a-8e77-6256f9cc5b76,df8c614b-3ded-42be-96ea-9e0157d40a83,d6cf755b-f806-4b44-a449-87a25fee2d2e"
+
+jobs:
+  check:
+    runs-on: macos-15
+    steps:
+      - name: Show recent notary history
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          echo "=== notarytool history (last 20 submissions on this account) ==="
+          xcrun notarytool history \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" || echo "history call failed"
+
+      - name: Inspect specific submission IDs
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          IDS: ${{ inputs.submission_ids }}
+        run: |
+          if [ -z "$IDS" ]; then
+            echo "No submission IDs provided"
+            exit 0
+          fi
+          IFS=',' read -ra ID_ARRAY <<< "$IDS"
+          for id in "${ID_ARRAY[@]}"; do
+            id=$(echo "$id" | xargs)  # trim
+            echo ""
+            echo "=== submission $id ==="
+            echo "--- info ---"
+            xcrun notarytool info "$id" \
+              --apple-id "$APPLE_ID" \
+              --team-id "$APPLE_TEAM_ID" \
+              --password "$APPLE_APP_PASSWORD" || echo "info failed for $id"
+            echo "--- log (Apple's verdict reasons if any) ---"
+            xcrun notarytool log "$id" \
+              --apple-id "$APPLE_ID" \
+              --team-id "$APPLE_TEAM_ID" \
+              --password "$APPLE_APP_PASSWORD" || echo "log not available for $id"
+          done
