@@ -8,9 +8,18 @@
 ## Build & Test local
 
 ### Prérequis
-- **Xcode 16.4** (version identique au CI `macos-15`) — installé via `xcodes install 16.4`
+- **Xcode 16.4** (version identique au CI `macos-15`) - installé via `xcodes install 16.4`
 - XcodeGen (`brew install xcodegen`)
-- Le `DEVELOPMENT_TEAM` n'est pas dans `project.yml` — il est détecté automatiquement depuis le certificat Apple local
+- `DEVELOPMENT_TEAM=S7B8M9JYF4` est hardcodé dans `project.yml` (paid Apple Developer Program, post-cert v5.0)
+
+### Statut signing + notarisation (depuis v5.0)
+
+- **Local Release builds** (la commande mega-nuke ci-dessous) -> signés avec **Apple Development** cert via Automatic style, donc Gatekeeper bloque la première ouverture (normal pour un ad-hoc dev build)
+- **CI Release builds** (déclenchés par push d'un tag `v*`) -> signés avec **Developer ID Application** cert (importé depuis le secret `APPLE_CERT_P12_BASE64`) + hardened runtime + notarisés via `notarytool` + ticket staplé sur le DMG. Conséquence : les users qui téléchargent le DMG depuis Releases l'ouvrent **sans aucun prompt Gatekeeper**, peu importe le compte macOS
+- **Brew cask** (`brew install --cask tokeneater` depuis `AThevon/homebrew-tokeneater`) -> pointe vers le même DMG notarisé, donc même expérience zero-friction. Note : le repo cask doit avoir son `postflight` `xattr -cr` retiré (sinon il strip le ticket de notarisation à l'install)
+- **In-app updater** (UpdateService) -> télécharge le DMG depuis le release GitHub, vérifie sa signature EdDSA Sparkle (clé publique embarquée dans `Resources/SparklePublicKey.txt`), puis monte + copie vers `/Applications` via un AppleScript helper avec admin prompt (une fois)
+- **App Group** -> `group.com.tokeneater` enregistré dans Developer Portal, ajouté aux App IDs `com.tokeneater.app` + `com.tokeneater.app.widget`. L'entitlement `com.apple.security.application-groups` est dans les deux fichiers `.entitlements`. Path du container : `~/Library/Group Containers/S7B8M9JYF4.group.com.tokeneater/`
+- **SharedFileService fallback** -> si le container App Group n'est pas accessible (cas dev avec Personal Team), bascule sur `~/Library/Application Support/com.tokeneater.shared/` automatiquement
 
 ### Toolchain CI (iso-prod)
 
@@ -81,6 +90,8 @@ xcodebuild -project TokenEater.xcodeproj -scheme TokenEaterApp -configuration Re
 killall TokenEater 2>/dev/null; killall NotificationCenter 2>/dev/null; killall chronod 2>/dev/null; \
 rm -rf ~/Library/Application\ Support/com.tokeneater.shared && \
 rm -rf ~/Library/Application\ Support/com.claudeusagewidget.shared && \
+rm -rf ~/Library/Group\ Containers/S7B8M9JYF4.group.com.tokeneater && \
+rm -rf ~/Library/Group\ Containers/group.com.tokeneater && \
 rm -rf ~/Library/Group\ Containers/group.com.claudeusagewidget.shared && \
 rm -rf /private/var/folders/d6/*/0/com.apple.chrono 2>/dev/null; \
 rm -rf /private/var/folders/d6/*/T/com.apple.chrono 2>/dev/null; \
@@ -99,6 +110,8 @@ xattr -cr /Applications/TokenEater.app && \
 sleep 2 && \
 open /Applications/TokenEater.app
 ```
+
+> Note v5.0+ : le `xattr -cr` ci-dessus est uniquement requis pour les ad-hoc dev builds locaux. Les releases officielles passent par `codesign Developer ID` + notarisation dans la CI (voir `release.yml`), donc les DMG livrés aux users ne sont PAS quarantainés et Gatekeeper les accepte au premier lancement sans `xattr` ni approbation manuelle.
 
 #### Ce que fait le nuke (pourquoi chaque étape est nécessaire)
 
@@ -132,10 +145,11 @@ Le codebase suit **MV Pattern + Repository Pattern + Protocol-Oriented Design** 
 - **Strategy pattern pour les thèmes** — presets ThemeColors + support thème custom
 
 ### Partage App/Widget
-- **App principale** (sandboxée) : lit le token OAuth depuis le Keychain Claude Code, appelle l'API, écrit les données dans `~/Library/Application Support/com.tokeneater.shared/shared.json`
-- **Widget** (sandboxé, read-only) : lit le fichier JSON partagé via `SharedFileService`, affiche les données. Ne touche ni au Keychain ni au réseau.
-- Le partage utilise des `temporary-exception` entitlements (pas d'App Groups — incompatible avec les comptes Apple Developer gratuits sur macOS Sequoia)
-- Migration automatique depuis l'ancien chemin `com.claudeusagewidget.shared/` — code de migration conservé indéfiniment pour les mises à jour tardives via Homebrew Cask
+- **App principale** (non-sandboxée depuis v5.0) : shell-out à `/usr/bin/security find-generic-password -s "Claude Code-credentials"` via `SecurityCLIReader` pour lire le token OAuth, appelle l'API, écrit les données dans le shared container (App Group si dispo, sinon fallback `~/Library/Application Support/com.tokeneater.shared/shared.json`)
+- **Widget** (sandboxé, read-only - WidgetKit l'impose) : lit le fichier JSON partagé via `SharedFileService`. Ne touche ni au Keychain ni au réseau.
+- Le partage utilise l'App Group `group.com.tokeneater` une fois le Developer Team payant activé (voir `scripts/enable-app-groups.sh` pour réinjecter l'entitlement après réception du cert). Fallback `~/Library/Application Support/com.tokeneater.shared/` tant que l'App Group n'est pas valide.
+- Migration automatique depuis l'ancien chemin `com.claudeusagewidget.shared/` → `com.tokeneater.shared/` → App Group. `SharedFileService.init()` gère les deux sauts au premier lancement.
+- `LegacyHelperCleanupService` au premier lancement d'une v5.0 désinstalle le LaunchAgent v4.x (`com.tokeneater.helper`) + supprime le binaire + nettoie `keychain-token.json`. Gated par un flag UserDefaults pour ne tourner qu'une fois.
 
 ## Règles SwiftUI — ne pas enfreindre
 
@@ -169,10 +183,10 @@ Leçons apprises à la dure. Chaque règle a causé un bug en production.
 
 ## Notes techniques
 
-- `UserDefaults(suiteName:)` ne fonctionne PAS pour le partage app/widget avec un compte Apple gratuit (Personal Team) — `cfprefsd` vérifie le provisioning profile
-- `FileManager.containerURL(forSecurityApplicationGroupIdentifier:)` retourne une URL sur macOS même sans provisioning valide, mais le sandbox bloque l'accès côté widget
-- `FileManager.default.homeDirectoryForCurrentUser` retourne le chemin sandbox container, pas le vrai home — utiliser `getpwuid(getuid())` pour le vrai chemin
-- WidgetKit exige `app-sandbox: true` — un widget sans sandbox ne s'affiche pas
+- `FileManager.containerURL(forSecurityApplicationGroupIdentifier:)` retourne l'URL du container App Group si l'entitlement est présent + Team ID valide, sinon nil. `SharedFileService` gère le fallback vers `~/Library/Application Support/com.tokeneater.shared/` pour permettre les dev builds (Personal Team) de fonctionner
+- `FileManager.default.homeDirectoryForCurrentUser` retourne le chemin sandbox container pour les vues sandboxées (le widget), pas le vrai home — utiliser `getpwuid(getuid())` pour le vrai chemin (cf. `SharedFileService`)
+- WidgetKit exige `app-sandbox: true` — un widget sans sandbox ne s'affiche pas. La main app peut désandboxer (v5.0+) mais pas le widget.
+- Planning migration Apple Developer Program : voir `docs/APPLE_DEV_MIGRATION.md` pour le plan complet des phases, ce qui reste à faire après activation du cert, et les secrets GitHub à créer (`APPLE_CERT_P12_BASE64`, `APPLE_CERT_PASSWORD`, `APPLE_ID`, `APPLE_APP_PASSWORD`, `APPLE_TEAM_ID`)
 
 ### @Observable interdit
 

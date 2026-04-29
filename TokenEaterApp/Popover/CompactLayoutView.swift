@@ -37,14 +37,20 @@ struct CompactLayoutView: View {
                     CompactExtraChip(
                         label: String(localized: "metric.sonnet"),
                         pct: usageStore.sonnetPct,
-                        theme: themeStore
+                        resetDate: usageStore.lastUsage?.sevenDaySonnet?.resetsAtDate,
+                        windowDuration: 7 * 86_400,
+                        theme: themeStore,
+                        settings: settingsStore
                     )
                 }
                 if showDesign {
                     CompactExtraChip(
                         label: String(localized: "metric.design"),
                         pct: usageStore.designPct,
-                        theme: themeStore
+                        resetDate: usageStore.lastUsage?.sevenDayDesign?.resetsAtDate,
+                        windowDuration: 7 * 86_400,
+                        theme: themeStore,
+                        settings: settingsStore
                     )
                 }
             }
@@ -164,16 +170,22 @@ struct CompactLayoutView: View {
         case .sessionChip:
             ChipView(
                 pct: usageStore.fiveHourPct,
+                resetDate: usageStore.lastUsage?.fiveHour?.resetsAtDate,
+                windowDuration: 5 * 3600,
                 label: String(localized: "metric.session"),
                 subtitle: sessionChipSubtitle,
-                theme: themeStore
+                theme: themeStore,
+                settings: settingsStore
             )
         case .weeklyChip:
             ChipView(
                 pct: usageStore.sevenDayPct,
+                resetDate: usageStore.lastUsage?.sevenDay?.resetsAtDate,
+                windowDuration: 7 * 86_400,
                 label: String(localized: "metric.weekly"),
                 subtitle: weeklyChipSubtitle,
-                theme: themeStore
+                theme: themeStore,
+                settings: settingsStore
             )
         default:
             EmptyView()
@@ -220,12 +232,15 @@ struct CompactLayoutView: View {
 
 private struct ChipView: View {
     let pct: Int
+    let resetDate: Date?
+    let windowDuration: TimeInterval
     let label: String
     let subtitle: String
     let theme: ThemeStore
+    let settings: SettingsStore
 
     var body: some View {
-        let color = PopoverColors.gauge(pct: pct, theme: theme)
+        let color = PopoverColors.gauge(pct: pct, resetDate: resetDate, windowDuration: windowDuration, theme: theme, settings: settings)
         HStack(spacing: 10) {
             ZStack {
                 Circle()
@@ -310,10 +325,13 @@ private struct PaceTileView: View {
 struct CompactExtraChip: View {
     let label: String
     let pct: Int
+    let resetDate: Date?
+    let windowDuration: TimeInterval
     let theme: ThemeStore
+    let settings: SettingsStore
 
     var body: some View {
-        let color = PopoverColors.gauge(pct: pct, theme: theme)
+        let color = PopoverColors.gauge(pct: pct, resetDate: resetDate, windowDuration: windowDuration, theme: theme, settings: settings)
         HStack(spacing: 8) {
             ZStack {
                 Circle()

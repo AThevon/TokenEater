@@ -39,9 +39,9 @@ struct BlockState: Codable, Equatable, Identifiable {
 
 struct VariantLayout: Codable, Equatable {
     var hero: [BlockState]
-    /// All non-hero blocks in a single ordered list. Merging what used to be
-    /// "middle" and "footer" into one zone lets the user intermix action
-    /// buttons (Open / Quit) with content rows freely.
+    /// All non-hero blocks in a single ordered list. Action buttons
+    /// (Open / Quit) and content rows share this zone so the user can
+    /// intermix them freely.
     var middle: [BlockState]
 }
 

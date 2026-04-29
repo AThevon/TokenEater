@@ -7,12 +7,34 @@ import SwiftUI
 
 @MainActor
 enum PopoverColors {
-    static func gauge(pct: Int, theme: ThemeStore) -> Color {
-        theme.current.gaugeColor(for: Double(pct), thresholds: theme.thresholds)
+    static func gauge(pct: Int, resetDate: Date?, windowDuration: TimeInterval, theme: ThemeStore, settings: SettingsStore) -> Color {
+        if settings.smartColorEnabled {
+            return theme.current.smartGaugeColor(
+                utilization: Double(pct),
+                resetDate: resetDate,
+                windowDuration: windowDuration,
+                thresholds: theme.thresholds,
+                pacingMargin: Double(settings.pacingMargin),
+                profile: settings.smartColorProfile
+            )
+        }
+        return theme.current.gaugeColor(for: Double(pct), thresholds: theme.thresholds)
     }
 
-    static func gaugeGradient(pct: Int, theme: ThemeStore) -> LinearGradient {
-        theme.current.gaugeGradient(
+    static func gaugeGradient(pct: Int, resetDate: Date?, windowDuration: TimeInterval, theme: ThemeStore, settings: SettingsStore) -> LinearGradient {
+        if settings.smartColorEnabled {
+            return theme.current.smartGaugeGradient(
+                utilization: Double(pct),
+                resetDate: resetDate,
+                windowDuration: windowDuration,
+                thresholds: theme.thresholds,
+                pacingMargin: Double(settings.pacingMargin),
+                startPoint: .leading,
+                endPoint: .trailing,
+                profile: settings.smartColorProfile
+            )
+        }
+        return theme.current.gaugeGradient(
             for: Double(pct),
             thresholds: theme.thresholds,
             startPoint: .leading,
@@ -59,21 +81,16 @@ struct PopoverHeader: View {
     }
 }
 
-// MARK: - Error banner + helper install CTA
+// MARK: - Error banner
 
 struct PopoverErrorBanner: View {
     @EnvironmentObject private var usageStore: UsageStore
-    @EnvironmentObject private var settingsStore: SettingsStore
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             switch usageStore.errorState {
             case .tokenUnavailable:
-                if case .notInstalled = settingsStore.helperStatus {
-                    helperInstallContent
-                } else {
-                    expiredContent
-                }
+                expiredContent
             case .rateLimited:
                 rateLimitedContent
             case .networkError:
@@ -138,32 +155,6 @@ struct PopoverErrorBanner: View {
         .padding(.top, 2)
     }
 
-    @ViewBuilder private var helperInstallContent: some View {
-        Label(String(localized: "helper.banner.title"), systemImage: "key.slash")
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.orange)
-        Text(String(localized: "helper.banner.description"))
-            .font(.system(size: 10))
-            .foregroundStyle(.white.opacity(0.5))
-            .fixedSize(horizontal: false, vertical: true)
-        Button {
-            Task {
-                await settingsStore.installHelper()
-                await usageStore.refresh(force: true)
-            }
-        } label: {
-            Text(String(localized: "helper.banner.install"))
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(.blue.opacity(0.3))
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .disabled(settingsStore.helperBusy)
-        .padding(.top, 2)
-    }
 }
 
 // MARK: - Watchers toggle
@@ -315,15 +306,18 @@ struct PopoverPacingRow: View {
 struct PopoverHeroRing: View {
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var themeStore: ThemeStore
+    @EnvironmentObject private var settingsStore: SettingsStore
 
     var body: some View {
         let pct = usageStore.fiveHourPct
-        let color = PopoverColors.gauge(pct: pct, theme: themeStore)
+        let resetDate = usageStore.lastUsage?.fiveHour?.resetsAtDate
+        let windowDuration: TimeInterval = 5 * 3600
+        let color = PopoverColors.gauge(pct: pct, resetDate: resetDate, windowDuration: windowDuration, theme: themeStore, settings: settingsStore)
         VStack(spacing: 8) {
             ZStack {
                 RingGauge(
                     percentage: pct,
-                    gradient: PopoverColors.gaugeGradient(pct: pct, theme: themeStore),
+                    gradient: PopoverColors.gaugeGradient(pct: pct, resetDate: resetDate, windowDuration: windowDuration, theme: themeStore, settings: settingsStore),
                     size: 100,
                     glowColor: color,
                     glowRadius: 6
@@ -353,17 +347,20 @@ struct PopoverHeroRing: View {
 /// `displaySonnet = true`.
 struct PopoverSatelliteRing: View {
     @EnvironmentObject private var themeStore: ThemeStore
+    @EnvironmentObject private var settingsStore: SettingsStore
 
     let label: String
     let pct: Int
+    let resetDate: Date?
+    let windowDuration: TimeInterval
 
     var body: some View {
-        let color = PopoverColors.gauge(pct: pct, theme: themeStore)
+        let color = PopoverColors.gauge(pct: pct, resetDate: resetDate, windowDuration: windowDuration, theme: themeStore, settings: settingsStore)
         VStack(spacing: 4) {
             ZStack {
                 RingGauge(
                     percentage: pct,
-                    gradient: PopoverColors.gaugeGradient(pct: pct, theme: themeStore),
+                    gradient: PopoverColors.gaugeGradient(pct: pct, resetDate: resetDate, windowDuration: windowDuration, theme: themeStore, settings: settingsStore),
                     size: 40,
                     glowColor: color,
                     glowRadius: 3
@@ -386,19 +383,22 @@ struct PopoverSatelliteRing: View {
 /// Sonnet). Includes an optional reset countdown below.
 struct PopoverEqualRing: View {
     @EnvironmentObject private var themeStore: ThemeStore
+    @EnvironmentObject private var settingsStore: SettingsStore
 
     let label: String
     let pct: Int
     /// Empty string = hide the row.
     let resetText: String
+    let resetDate: Date?
+    let windowDuration: TimeInterval
 
     var body: some View {
-        let color = PopoverColors.gauge(pct: pct, theme: themeStore)
+        let color = PopoverColors.gauge(pct: pct, resetDate: resetDate, windowDuration: windowDuration, theme: themeStore, settings: settingsStore)
         VStack(spacing: 8) {
             ZStack {
                 RingGauge(
                     percentage: pct,
-                    gradient: PopoverColors.gaugeGradient(pct: pct, theme: themeStore),
+                    gradient: PopoverColors.gaugeGradient(pct: pct, resetDate: resetDate, windowDuration: windowDuration, theme: themeStore, settings: settingsStore),
                     size: 70,
                     glowColor: color,
                     glowRadius: 4

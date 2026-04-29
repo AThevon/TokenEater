@@ -1,78 +1,10 @@
 import Foundation
 
+/// Time formatting helpers used by `NotificationService` to build notification
+/// bodies. Pre-v5.0 this enum also owned the body-string assembly logic, but
+/// the service now constructs strings directly so this stays focused on date
+/// rendering.
 enum NotificationBodyFormatter {
-
-    enum MetricType {
-        case session
-        case weekly
-    }
-
-    // MARK: - Escalation (orange / red)
-
-    static func escalationBody(
-        metricType: MetricType,
-        level: UsageLevel,
-        resetsAt: Date?,
-        pacingZone: PacingZone?,
-        thresholds: UsageThresholds,
-        now: Date = Date()
-    ) -> String {
-        guard let resetsAt, resetsAt.timeIntervalSince(now) > 0 else {
-            return fallbackEscalation(level: level, thresholds: thresholds)
-        }
-
-        switch (level, metricType) {
-        case (.orange, .session):
-            let countdown = formatCountdown(from: now, to: resetsAt)
-            let time = formatTime(resetsAt)
-            let key: String
-            switch pacingZone ?? .onTrack {
-            case .chill: key = "notif.orange.body.session.chill"
-            case .onTrack: key = "notif.orange.body.session.ontrack"
-            case .hot: key = "notif.orange.body.session.hot"
-            }
-            return String(format: String(localized: String.LocalizationValue(key)), countdown, time)
-
-        case (.orange, .weekly):
-            let dateTime = formatDateTime(resetsAt)
-            return String(format: String(localized: "notif.orange.body.weekly"), dateTime)
-
-        case (.red, .session):
-            let countdown = formatCountdown(from: now, to: resetsAt)
-            let time = formatTime(resetsAt)
-            return String(format: String(localized: "notif.red.body.session"), countdown, time)
-
-        case (.red, .weekly):
-            let dateTime = formatDateTime(resetsAt)
-            return String(format: String(localized: "notif.red.body.weekly"), dateTime)
-
-        case (.green, _):
-            return fallbackEscalation(level: level, thresholds: thresholds)
-        }
-    }
-
-    // MARK: - Recovery (green)
-
-    static func recoveryBody(
-        metricType: MetricType,
-        resetsAt: Date?,
-        now: Date = Date()
-    ) -> String {
-        guard let resetsAt, resetsAt.timeIntervalSince(now) > 0 else {
-            return String(localized: "notif.green.body")
-        }
-
-        switch metricType {
-        case .session:
-            let time = formatTime(resetsAt)
-            return String(format: String(localized: "notif.green.body.session"), time)
-        case .weekly:
-            let dateTime = formatDateTime(resetsAt)
-            return String(format: String(localized: "notif.green.body.weekly"), dateTime)
-        }
-    }
-
-    // MARK: - Time Formatting
 
     static func formatCountdown(from now: Date, to target: Date) -> String {
         let diff = target.timeIntervalSince(now)
@@ -116,18 +48,5 @@ enum NotificationBodyFormatter {
 
     static func formatDateTime(_ date: Date) -> String {
         dateTimeFormatter.string(from: date)
-    }
-
-    // MARK: - Fallback
-
-    private static func fallbackEscalation(level: UsageLevel, thresholds: UsageThresholds) -> String {
-        switch level {
-        case .orange:
-            return String(format: String(localized: "notif.orange.body"), thresholds.warningPercent)
-        case .red:
-            return String(localized: "notif.red.body")
-        case .green:
-            return ""
-        }
     }
 }

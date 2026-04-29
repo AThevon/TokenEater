@@ -5,8 +5,8 @@ import os.log
 private let logger = Logger(subsystem: "com.tokeneater.app", category: "TokenProvider")
 
 final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
+    private let securityCLIReader: SecurityCLIReaderProtocol
     private let credentialsFileReader: CredentialsFileReaderProtocol
-    private let keychainHelperReader: KeychainHelperReaderProtocol
     private let configReader: ClaudeConfigReaderProtocol
     private let decryptionService: ElectronDecryptionServiceProtocol
     private let keychainReader: KeychainTokenReader
@@ -19,14 +19,14 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     typealias KeychainTokenReader = (_ silent: Bool) -> String?
 
     init(
+        securityCLIReader: SecurityCLIReaderProtocol = SecurityCLIReader(),
         credentialsFileReader: CredentialsFileReaderProtocol = CredentialsFileReader(),
-        keychainHelperReader: KeychainHelperReaderProtocol = KeychainHelperReader(),
         configReader: ClaudeConfigReaderProtocol = ClaudeConfigReader(),
         decryptionService: ElectronDecryptionServiceProtocol = ElectronDecryptionService(),
         keychainReader: KeychainTokenReader? = nil
     ) {
+        self.securityCLIReader = securityCLIReader
         self.credentialsFileReader = credentialsFileReader
-        self.keychainHelperReader = keychainHelperReader
         self.configReader = configReader
         self.decryptionService = decryptionService
         self.keychainReader = keychainReader ?? Self.defaultKeychainReader
@@ -36,8 +36,8 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
 
     func hasTokenSource() -> Bool {
         if cachedToken != nil { return true }
+        if securityCLIReader.readToken() != nil { return true }
         if credentialsFileReader.readToken() != nil { return true }
-        if keychainHelperReader.readToken() != nil { return true }
         if configReader.readEncryptedToken() != nil { return true }
         if keychainReader(true) != nil { return true }
         return false
@@ -45,32 +45,34 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
 
     /// Returns the current token, using the in-memory cache if available.
     /// The Keychain is only read when the cache is empty (app start, or after `invalidateToken()`).
+    ///
+    /// Source priority (v5.0+):
+    /// 1. `/usr/bin/security` shell-out (primary - works for all modern Claude Code macOS users,
+    ///    no popups across app updates because `security` has a stable Apple signing identity)
+    /// 2. `.credentials.json` (legacy Claude Code fallback - still present on Linux/Windows and
+    ///    on very old macOS Claude Code installs)
+    /// 3. Claude Desktop `config.json` decryption (for users without Claude Code CLI at all)
+    /// 4. Direct `SecItemCopyMatching` (last resort - the Claude Code Keychain ACL doesn't
+    ///    whitelist us directly, but kept for defence-in-depth)
     func currentToken() -> String? {
         if let token = cachedToken { return token }
 
-        // Source 1: credentials file (legacy Claude Code that still wrote it)
+        if let token = securityCLIReader.readToken() {
+            cachedToken = token
+            logger.info("Token read via /usr/bin/security")
+            return token
+        }
+
         if let token = credentialsFileReader.readToken() {
             cachedToken = token
             return token
         }
 
-        // Source 2: helper-synced Keychain token (new Claude Code CLI). Reads a
-        // JSON file the helper LaunchAgent writes - no Keychain access from this
-        // process, so this path is sandbox-safe.
-        if let token = keychainHelperReader.readToken() {
-            cachedToken = token
-            logger.info("Token read from Keychain helper file")
-            return token
-        }
-
-        // Source 3: decrypt config.json (Claude Desktop)
         if let token = tokenFromConfigJSON() {
             cachedToken = token
             return token
         }
 
-        // Source 4: Keychain direct - almost never works for sandboxed ad-hoc
-        // signed apps (ACL blocks us) but kept as a last resort.
         if let token = keychainReader(true) {
             cachedToken = token
             logger.info("Token read from Keychain (silent) and cached in memory")

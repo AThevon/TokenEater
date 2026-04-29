@@ -5,7 +5,7 @@ struct ThemesSectionView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var usageStore: UsageStore
 
-    @State private var showResetAlert = false
+    @State private var showSmartColorPopover = false
     @State private var warningSlider: Double
     @State private var criticalSlider: Double
     @State private var marginSlider: Double
@@ -23,36 +23,39 @@ struct ThemesSectionView: View {
                 subtitle: String(localized: "sidebar.themes.subtitle")
             )
 
-            // Menu bar text appearance (monochrome + custom colors + smart reset)
+            // Smart Color (global toggle, drives gauges + countdowns coloring)
             glassCard {
-                VStack(alignment: .leading, spacing: 10) {
-                    cardLabel(String(localized: "settings.theme.menubar"))
-                    darkToggle(String(localized: "settings.theme.monochrome"), isOn: $themeStore.menuBarMonochrome)
-                    if !themeStore.menuBarMonochrome {
-                        Divider().opacity(0.15)
-                        menuBarColorRow(
-                            label: "settings.reset.color",
-                            hex: $settingsStore.resetTextColorHex,
-                            fallback: .white,
-                            disabled: settingsStore.smartResetColor
-                        )
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(alignment: .center, spacing: 12) {
                         VStack(alignment: .leading, spacing: 4) {
-                            darkToggle(
-                                String(localized: "settings.theme.smartreset"),
-                                isOn: $settingsStore.smartResetColor
-                            )
-                            Text(String(localized: "settings.theme.smartreset.hint"))
+                            HStack(spacing: 6) {
+                                cardLabel(String(localized: "settings.smartcolor.title"))
+                                Button {
+                                    showSmartColorPopover.toggle()
+                                } label: {
+                                    Image(systemName: "info.circle")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(.white.opacity(0.55))
+                                }
+                                .buttonStyle(.plain)
+                                .popover(isPresented: $showSmartColorPopover, arrowEdge: .bottom) {
+                                    smartColorInfoPopover
+                                }
+                            }
+                            Text(String(localized: "settings.smartcolor.hint"))
                                 .font(.system(size: 11))
-                                .foregroundStyle(.white.opacity(0.4))
+                                .foregroundStyle(.white.opacity(0.5))
                                 .fixedSize(horizontal: false, vertical: true)
-                                .padding(.leading, 48)
                         }
-                        menuBarColorRow(
-                            label: "settings.session.periodcolor",
-                            hex: $settingsStore.sessionPeriodColorHex,
-                            fallback: .white.opacity(0.4),
-                            disabled: false
-                        )
+                        Spacer()
+                        Toggle("", isOn: $settingsStore.smartColorEnabled)
+                            .toggleStyle(.switch)
+                            .tint(.blue)
+                            .labelsHidden()
+                    }
+
+                    if settingsStore.smartColorEnabled {
+                        smartColorProfilePicker
                     }
                 }
             }
@@ -85,71 +88,60 @@ struct ThemesSectionView: View {
                 }
             }
 
-            // Thresholds
-            glassCard {
-                VStack(alignment: .leading, spacing: 8) {
-                    cardLabel(String(localized: "settings.theme.thresholds"))
-                    thresholdSlider(label: String(localized: "settings.theme.warning"), value: $warningSlider, range: 10...90)
-                    thresholdSlider(label: String(localized: "settings.theme.critical"), value: $criticalSlider, range: 15...95)
+            // Thresholds (only relevant when Smart Color is OFF: smart
+            // mode owns its own absolute calibration via the chosen
+            // profile, so exposing these sliders alongside the profile
+            // picker would be a double-knob with no clear ownership).
+            if !settingsStore.smartColorEnabled {
+                glassCard {
+                    VStack(alignment: .leading, spacing: 8) {
+                        cardLabel(String(localized: "settings.theme.thresholds"))
+                        thresholdSlider(label: String(localized: "settings.theme.warning"), value: $warningSlider, range: 10...90)
+                        thresholdSlider(label: String(localized: "settings.theme.critical"), value: $criticalSlider, range: 15...95)
 
-                    // Preview gauges
-                    HStack(spacing: 24) {
-                        Spacer()
-                        themePreviewGauge(pct: Double(max(themeStore.warningThreshold - 15, 5)), label: "Normal")
-                        themePreviewGauge(pct: Double(themeStore.warningThreshold + themeStore.criticalThreshold) / 2.0, label: "Warning")
-                        themePreviewGauge(pct: Double(min(themeStore.criticalThreshold + 5, 100)), label: "Critical")
-                        Spacer()
-                    }
-                    .padding(.top, 8)
-                }
-            }
+                        Text(String(localized: "settings.theme.thresholds.hint"))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.white.opacity(0.4))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 4)
 
-            // Pacing indicator shape
-            glassCard {
-                VStack(alignment: .leading, spacing: 10) {
-                    cardLabel(String(localized: "settings.pacing.shape"))
-                    HStack(spacing: 8) {
-                        ForEach(PacingShape.allCases) { shape in
-                            pacingShapeButton(shape)
+                        // Preview gauges
+                        HStack(spacing: 24) {
+                            Spacer()
+                            themePreviewGauge(pct: Double(max(themeStore.warningThreshold - 15, 5)), label: "Normal")
+                            themePreviewGauge(pct: Double(themeStore.warningThreshold + themeStore.criticalThreshold) / 2.0, label: "Warning")
+                            themePreviewGauge(pct: Double(min(themeStore.criticalThreshold + 5, 100)), label: "Critical")
+                            Spacer()
                         }
+                        .padding(.top, 8)
                     }
                 }
             }
 
             // Pacing margin
             glassCard {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 10) {
                     cardLabel(String(localized: "settings.pacing.margin"))
-                    thresholdSlider(label: String(localized: "settings.pacing.margin.value"), value: $marginSlider, range: 1...30)
+                    thresholdSlider(label: String(localized: "settings.pacing.margin.value"), value: $marginSlider, range: 5...30)
+                    pacingZonesPreview
                     Text(String(localized: "settings.pacing.margin.hint"))
                         .font(.system(size: 11))
                         .foregroundStyle(.white.opacity(0.4))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
             // Reset
-            HStack {
-                Spacer()
-                Button(role: .destructive) {
-                    showResetAlert = true
-                } label: {
-                    Text(String(localized: "settings.theme.reset"))
-                        .font(.system(size: 12))
-                        .foregroundStyle(.red.opacity(0.7))
-                }
-                .buttonStyle(.plain)
-                .alert(String(localized: "settings.theme.reset.confirm"), isPresented: $showResetAlert) {
-                    Button(String(localized: "settings.theme.reset.cancel"), role: .cancel) { }
-                    Button(String(localized: "settings.theme.reset.action"), role: .destructive) {
-                        themeStore.resetToDefaults()
-                        // Reset is scoped to the Themes view, so it also clears the
-                        // menu-bar text colors displayed on this page.
-                        settingsStore.resetTextColorHex = ""
-                        settingsStore.sessionPeriodColorHex = ""
-                        settingsStore.smartResetColor = false
-                        themeStore.menuBarMonochrome = false
-                    }
-                }
+            ResetSectionButton(
+                confirmTitle: String(localized: "settings.theme.reset.confirm")
+            ) {
+                themeStore.resetToDefaults()
+                // Reset is scoped to the Themes view, so it also clears the
+                // menu-bar text colors displayed on this page.
+                settingsStore.resetTextColorHex = ""
+                settingsStore.sessionPeriodColorHex = ""
+                settingsStore.smartColorEnabled = true
+                themeStore.menuBarMonochrome = false
             }
 
             Spacer()
@@ -185,36 +177,282 @@ struct ThemesSectionView: View {
         }
     }
 
-    // MARK: - Preset Card
+    // MARK: - Smart Color profile picker
 
-    private func pacingShapeButton(_ shape: PacingShape) -> some View {
-        let isActive = settingsStore.pacingShape == shape
+    /// Three card-style chips, one per profile, with icon + label + tagline.
+    /// Selected card uses the brand-primary tint; others stay muted but
+    /// fully readable.
+    private var smartColorProfilePicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            cardLabel(String(localized: "settings.smartColor.profile.label"))
+            HStack(spacing: 8) {
+                ForEach(SmartColorProfile.allCases, id: \.self) { profile in
+                    profileCard(profile)
+                }
+            }
+        }
+    }
+
+    private func profileCard(_ profile: SmartColorProfile) -> some View {
+        let isActive = settingsStore.smartColorProfile == profile
+        let accent = DS.Palette.brandPrimary
         return Button {
-            withAnimation(.easeInOut(duration: 0.12)) {
-                settingsStore.pacingShape = shape
+            withAnimation(DS.Motion.springSnap) {
+                settingsStore.smartColorProfile = profile
             }
         } label: {
-            VStack(spacing: 6) {
-                Text(shape.glyph)
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(isActive ? .white : .white.opacity(0.55))
-                Text(shape.localizedLabel)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(isActive ? .white.opacity(0.9) : .white.opacity(0.5))
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: profileIcon(profile))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(isActive ? accent : DS.Palette.textTertiary)
+                        .frame(width: 16)
+                    Text(profileDisplayLabel(profile))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(isActive ? DS.Palette.textPrimary : DS.Palette.textSecondary)
+                    Spacer(minLength: 0)
+                    if isActive {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(accent)
+                            .transition(.scale.combined(with: .opacity))
+                    }
+                }
+                Text(profileHint(for: profile))
+                    .font(.system(size: 10))
+                    .foregroundStyle(DS.Palette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .topLeading)
             .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(isActive ? Color.blue.opacity(0.2) : Color.white.opacity(0.03))
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(isActive ? accent.opacity(0.14) : Color.white.opacity(0.03))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(isActive ? Color.blue.opacity(0.5) : Color.white.opacity(0.06), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(isActive ? accent.opacity(0.45) : Color.white.opacity(0.07), lineWidth: 1)
                     )
             )
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
     }
+
+    /// Icon language: progression on a "how readily the system reacts"
+    /// axis. Tortoise = takes its time. Equal-circle = balanced midpoint.
+    /// Eye = watchful, alerts on early signals.
+    private func profileIcon(_ profile: SmartColorProfile) -> String {
+        switch profile {
+        case .patient:  return "tortoise.fill"
+        case .balanced: return "equal.circle.fill"
+        case .vigilant: return "eye.fill"
+        }
+    }
+
+    private func profileDisplayLabel(_ profile: SmartColorProfile) -> String {
+        switch profile {
+        case .patient:  return String(localized: "settings.smartColor.profile.patient")
+        case .balanced: return String(localized: "settings.smartColor.profile.balanced")
+        case .vigilant: return String(localized: "settings.smartColor.profile.vigilant")
+        }
+    }
+
+    private func profileHint(for profile: SmartColorProfile) -> String {
+        switch profile {
+        case .patient:  return String(localized: "settings.smartColor.profile.patient.hint")
+        case .balanced: return String(localized: "settings.smartColor.profile.balanced.hint")
+        case .vigilant: return String(localized: "settings.smartColor.profile.vigilant.hint")
+        }
+    }
+
+    // MARK: - Smart Color popover
+
+    private var smartColorInfoPopover: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+            // Header
+            HStack(spacing: DS.Spacing.xs) {
+                Image(systemName: "wand.and.stars")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(DS.Palette.brandPrimary)
+                Text(String(localized: "settings.smartcolor.popover.title"))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(DS.Palette.textPrimary)
+            }
+
+            // Intro
+            Text(String(localized: "settings.smartcolor.popover.intro"))
+                .font(.system(size: 12))
+                .foregroundStyle(DS.Palette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .lineSpacing(2)
+
+            Divider().opacity(0.18)
+
+            // Example cards
+            VStack(spacing: DS.Spacing.sm) {
+                smartColorExample(
+                    glyph: "leaf.fill",
+                    pct: 95,
+                    resetText: "2 min",
+                    zoneLabel: String(localized: "settings.smartcolor.popover.example1.label"),
+                    color: Color(hex: themeStore.current.gaugeNormal),
+                    explanation: String(localized: "settings.smartcolor.popover.example1")
+                )
+                smartColorExample(
+                    glyph: "flame.fill",
+                    pct: 50,
+                    resetText: "5 h",
+                    zoneLabel: String(localized: "settings.smartcolor.popover.example2.label"),
+                    color: Color(hex: themeStore.current.gaugeCritical),
+                    explanation: String(localized: "settings.smartcolor.popover.example2")
+                )
+            }
+
+            Divider().opacity(0.18)
+
+            // The 3 risk signals
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                Text(String(localized: "settings.smartcolor.popover.signals.title"))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(DS.Palette.textPrimary)
+                    .padding(.bottom, 2)
+
+                signalRow(
+                    index: 1,
+                    title: String(localized: "settings.smartcolor.popover.signal.absolute.title"),
+                    desc: String(localized: "settings.smartcolor.popover.signal.absolute.desc"),
+                    tint: Color(hex: themeStore.current.gaugeCritical)
+                )
+                signalRow(
+                    index: 2,
+                    title: String(localized: "settings.smartcolor.popover.signal.projection.title"),
+                    desc: String(localized: "settings.smartcolor.popover.signal.projection.desc"),
+                    tint: Color(hex: themeStore.current.gaugeWarning)
+                )
+                signalRow(
+                    index: 3,
+                    title: String(localized: "settings.smartcolor.popover.signal.pacing.title"),
+                    desc: String(localized: "settings.smartcolor.popover.signal.pacing.desc"),
+                    tint: DS.Palette.brandPrimary
+                )
+
+                // Combination + profile note
+                HStack(alignment: .top, spacing: DS.Spacing.xs) {
+                    Image(systemName: "function")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(DS.Palette.textTertiary)
+                        .padding(.top, 1)
+                    Text(String(localized: "settings.smartcolor.popover.combine"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(DS.Palette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, 2)
+
+                HStack(alignment: .top, spacing: DS.Spacing.xs) {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(DS.Palette.textTertiary)
+                        .padding(.top, 1)
+                    Text(String(localized: "settings.smartcolor.popover.profile"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(DS.Palette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            // Formula footer
+            Text(String(localized: "settings.smartcolor.popover.formula"))
+                .font(.system(size: 10, weight: .regular, design: .monospaced))
+                .italic()
+                .foregroundStyle(DS.Palette.textTertiary)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, DS.Spacing.xxs)
+        }
+        .padding(DS.Spacing.lg)
+        .frame(width: 400)
+    }
+
+    private func signalRow(index: Int, title: String, desc: String, tint: Color) -> some View {
+        HStack(alignment: .top, spacing: DS.Spacing.sm) {
+            // Numbered badge
+            Text("\(index)")
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundStyle(tint)
+                .frame(width: 18, height: 18)
+                .background(
+                    Circle()
+                        .fill(tint.opacity(0.14))
+                        .overlay(Circle().stroke(tint.opacity(0.45), lineWidth: 0.6))
+                )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(DS.Palette.textPrimary)
+                Text(desc)
+                    .font(.system(size: 11))
+                    .foregroundStyle(DS.Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineSpacing(1.5)
+            }
+        }
+    }
+
+    private func smartColorExample(
+        glyph: String,
+        pct: Int,
+        resetText: String,
+        zoneLabel: String,
+        color: Color,
+        explanation: String
+    ) -> some View {
+        HStack(alignment: .center, spacing: DS.Spacing.md) {
+            // Left column -> glyph + value + reset
+            VStack(spacing: 4) {
+                Image(systemName: glyph)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(color)
+                    .shadow(color: color.opacity(0.45), radius: 6)
+                Text("\(pct)%")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(color)
+                Text(resetText)
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(DS.Palette.textTertiary)
+            }
+            .frame(width: 64)
+
+            // Right column -> zone label + explanation
+            VStack(alignment: .leading, spacing: 4) {
+                Text(zoneLabel.uppercased())
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(1.2)
+                    .foregroundStyle(color)
+                Text(explanation)
+                    .font(.system(size: 11))
+                    .foregroundStyle(DS.Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineSpacing(2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(DS.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
+                .fill(color.opacity(0.07))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
+                        .stroke(color.opacity(0.28), lineWidth: 1)
+                )
+        )
+    }
+
+    // MARK: - Preset Card
 
     private func presetCard(key: String, label: String, colors: ThemeColors) -> some View {
         let isSelected = themeStore.selectedPreset == key
@@ -269,47 +507,6 @@ struct ThemesSectionView: View {
 
     // MARK: - Helpers
 
-    /// Like `themeColorRow` but lets an empty hex fall through to a system
-    /// default color. Shows a revert-to-default button when the user has
-    /// picked a custom color.
-    private func menuBarColorRow(
-        label: LocalizedStringKey,
-        hex: Binding<String>,
-        fallback: Color,
-        disabled: Bool = false
-    ) -> some View {
-        let colorBinding = Binding<Color>(
-            get: {
-                hex.wrappedValue.isEmpty ? fallback : Color(hex: hex.wrappedValue)
-            },
-            set: { newColor in
-                let nsColor = NSColor(newColor).usingColorSpace(.sRGB) ?? NSColor(newColor)
-                hex.wrappedValue = nsColor.hexString()
-            }
-        )
-        return HStack {
-            Text(label)
-                .font(.system(size: 12))
-                .foregroundStyle(.white.opacity(disabled ? 0.35 : 0.7))
-            Spacer()
-            if !hex.wrappedValue.isEmpty && !disabled {
-                Button {
-                    hex.wrappedValue = ""
-                } label: {
-                    Image(systemName: "arrow.uturn.backward.circle.fill")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.white.opacity(0.35))
-                }
-                .buttonStyle(.plain)
-                .help(Text(String(localized: "settings.theme.menubar.resetColor")))
-            }
-            ColorPicker("", selection: colorBinding, supportsOpacity: false)
-                .labelsHidden()
-                .disabled(disabled)
-                .opacity(disabled ? 0.4 : 1)
-        }
-    }
-
     private func themeColorRow(_ labelKey: LocalizedStringKey, hex: Binding<String>) -> some View {
         let colorBinding = Binding<Color>(
             get: { Color(hex: hex.wrappedValue) },
@@ -344,6 +541,50 @@ struct ThemesSectionView: View {
                 .foregroundStyle(.white.opacity(0.5))
                 .frame(width: 40, alignment: .trailing)
         }
+    }
+
+    /// Live 4-zone preview reflecting the current pacing margin. The single
+    /// slider drives both the on-track / warning boundary (at ±margin) and the
+    /// warning / hot boundary (at +2x margin), so showing the four chips with
+    /// their actual ranges makes the relationship obvious.
+    private var pacingZonesPreview: some View {
+        let m = Int(marginSlider)
+        let chipColors: [(PacingZone, String)] = [
+            (.chill,   "< -\(m)%"),
+            (.onTrack, "\u{00B1}\(m)%"),
+            (.warning, "+\(m)..+\(m * 2)%"),
+            (.hot,     "> +\(m * 2)%"),
+        ]
+        return HStack(spacing: 6) {
+            ForEach(Array(chipColors.enumerated()), id: \.offset) { _, entry in
+                pacingZoneChip(zone: entry.0, range: entry.1)
+            }
+        }
+    }
+
+    private func pacingZoneChip(zone: PacingZone, range: String) -> some View {
+        let color = themeStore.current.pacingColor(for: zone)
+        let label = NSLocalizedString("pacing.zone.\(zone.rawValue.lowercased())", comment: "")
+        return VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(color)
+            Text(range)
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.6))
+                .monospacedDigit()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(color.opacity(0.15))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(color.opacity(0.45), lineWidth: 0.6)
+                )
+        )
     }
 
     private func themePreviewGauge(pct: Double, label: String) -> some View {

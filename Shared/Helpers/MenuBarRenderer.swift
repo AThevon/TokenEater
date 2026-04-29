@@ -23,6 +23,9 @@ enum MenuBarRenderer {
         let fiveHourReset: String
         let fiveHourResetAbsolute: String
         let fiveHourResetDate: Date?
+        let sevenDayResetDate: Date?
+        let sonnetResetDate: Date?
+        let designResetDate: Date?
         /// True when the API returned a `five_hour` bucket at all. Independent
         /// from whether `resets_at` was populated - Anthropic can return the
         /// bucket with `utilization: 0` and no `resets_at` when you're between
@@ -33,6 +36,8 @@ enum MenuBarRenderer {
         let resetTextColorHex: String
         let sessionPeriodColorHex: String
         let smartResetColor: Bool
+        let smartColorProfile: SmartColorProfile
+        let pacingMargin: Double
         let menuBarStyle: MenuBarStyle
         let pacingShape: PacingShape
         let designPct: Int
@@ -65,9 +70,37 @@ enum MenuBarRenderer {
 
     // MARK: - Color helpers
 
-    private static func colorForPct(_ pct: Int, data: RenderData) -> NSColor {
+    private static func colorForPct(_ pct: Int, resetDate: Date?, windowDuration: TimeInterval, data: RenderData) -> NSColor {
         if data.menuBarMonochrome { return .labelColor }
+        if data.smartResetColor {
+            return data.themeColors.smartGaugeNSColor(
+                utilization: Double(pct),
+                resetDate: resetDate,
+                windowDuration: windowDuration,
+                thresholds: data.thresholds,
+                pacingMargin: data.pacingMargin,
+                profile: data.smartColorProfile
+            )
+        }
         return data.themeColors.gaugeNSColor(for: Double(pct), thresholds: data.thresholds)
+    }
+
+    private static func resetDate(for metric: MetricID, data: RenderData) -> Date? {
+        switch metric {
+        case .fiveHour:    return data.fiveHourResetDate
+        case .sevenDay:    return data.sevenDayResetDate
+        case .sonnet:      return data.sonnetResetDate
+        case .design:      return data.designResetDate
+        default:           return nil
+        }
+    }
+
+    private static func windowDuration(for metric: MetricID) -> TimeInterval {
+        switch metric {
+        case .fiveHour: return 5 * 3600
+        case .sevenDay, .sonnet, .design: return 7 * 86_400
+        default: return 0
+        }
     }
 
     private static func colorForZone(_ zone: PacingZone, data: RenderData) -> NSColor {
@@ -91,11 +124,14 @@ enum MenuBarRenderer {
     ///   3. static: user-picked hex, falling back to the system label.
     private static func resetValueColor(_ data: RenderData) -> NSColor {
         if data.menuBarMonochrome { return NSColor.labelColor }
-        if data.smartResetColor, let reset = data.fiveHourResetDate {
-            return smartResetNSColor(
+        if data.smartResetColor {
+            return data.themeColors.smartGaugeNSColor(
                 utilization: Double(data.fiveHourPct),
-                resetDate: reset,
-                themeColors: data.themeColors
+                resetDate: data.fiveHourResetDate,
+                windowDuration: 5 * 3600,
+                thresholds: data.thresholds,
+                pacingMargin: data.pacingMargin,
+                profile: data.smartColorProfile
             )
         }
         return MenuBarTextColorResolver.resolve(
@@ -104,20 +140,26 @@ enum MenuBarRenderer {
         )
     }
 
-    /// Risk = utilization * remaining_minutes / 100. Thresholds mirror the
-    /// static gauge boundaries so the reset color lines up visually with the
-    /// 5-hour gauge elsewhere in the app.
-    private static func smartResetNSColor(
+    /// Thin wrapper kept for API compatibility with the existing tests.
+    /// Delegates to the shared `ThemeColors.smartGaugeNSColor` so the menu
+    /// bar reset color and the in-app smart gauges always stay in sync.
+    /// `windowDuration` defaults to 5h since this helper is historically
+    /// scoped to the 5-hour reset countdown.
+    static func smartResetNSColor(
         utilization: Double,
         resetDate: Date,
         themeColors: ThemeColors,
+        thresholds: UsageThresholds,
+        windowDuration: TimeInterval = 5 * 3600,
         now: Date = Date()
     ) -> NSColor {
-        let remainingMinutes = max(resetDate.timeIntervalSince(now), 0) / 60
-        let risk = utilization * remainingMinutes / 100
-        if risk > 100 { return themeColors.gaugeNSColor(for: 100, thresholds: .default) }
-        if risk > 70 { return themeColors.gaugeNSColor(for: 75, thresholds: .default) }
-        return themeColors.gaugeNSColor(for: 10, thresholds: .default)
+        themeColors.smartGaugeNSColor(
+            utilization: utilization,
+            resetDate: resetDate,
+            windowDuration: windowDuration,
+            thresholds: thresholds,
+            now: now
+        )
     }
 
     // MARK: - Rendering
@@ -163,6 +205,14 @@ enum MenuBarRenderer {
             default: return true
             }
         }
+
+        // If every pin got filtered out (no five-hour bucket yet, no weekly
+        // pacing, no design quota), fall back to the logo so the status item
+        // is always visible. Returning the empty-pipeline image produces a
+        // 2pt-wide icon that reads as "the menu bar item disappeared".
+        if ordered.isEmpty {
+            return renderLogoTemplate()
+        }
         for (i, metric) in ordered.enumerated() {
             if i > 0 {
                 str.append(NSAttributedString(string: separator, attributes: sepAttrs))
@@ -207,6 +257,8 @@ enum MenuBarRenderer {
                     to: str,
                     label: metric.shortLabel,
                     value: value,
+                    resetDate: resetDate(for: metric, data: data),
+                    windowDuration: windowDuration(for: metric),
                     data: data
                 )
             }
@@ -336,22 +388,22 @@ enum MenuBarRenderer {
             case .fiveHour:
                 return BadgePill(
                     text: "\(data.fiveHourPct)%",
-                    tint: colorForPct(data.fiveHourPct, data: data)
+                    tint: colorForPct(data.fiveHourPct, resetDate: data.fiveHourResetDate, windowDuration: 5 * 3600, data: data)
                 )
             case .sevenDay:
                 return BadgePill(
                     text: "\(data.sevenDayPct)%",
-                    tint: colorForPct(data.sevenDayPct, data: data)
+                    tint: colorForPct(data.sevenDayPct, resetDate: data.sevenDayResetDate, windowDuration: 7 * 86_400, data: data)
                 )
             case .sonnet:
                 return BadgePill(
                     text: "\(data.sonnetPct)%",
-                    tint: colorForPct(data.sonnetPct, data: data)
+                    tint: colorForPct(data.sonnetPct, resetDate: data.sonnetResetDate, windowDuration: 7 * 86_400, data: data)
                 )
             case .design:
                 return BadgePill(
                     text: "\(data.designPct)%",
-                    tint: colorForPct(data.designPct, data: data)
+                    tint: colorForPct(data.designPct, resetDate: data.designResetDate, windowDuration: 7 * 86_400, data: data)
                 )
             case .sessionPacing:
                 return pacingBadgePill(
@@ -439,9 +491,11 @@ enum MenuBarRenderer {
         to str: NSMutableAttributedString,
         label: String,
         value: Int,
+        resetDate: Date?,
+        windowDuration: TimeInterval,
         data: RenderData
     ) {
-        let valueColor = colorForPct(value, data: data)
+        let valueColor = colorForPct(value, resetDate: resetDate, windowDuration: windowDuration, data: data)
 
         switch data.menuBarStyle {
         case .classic:

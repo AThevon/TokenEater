@@ -7,6 +7,12 @@ struct SessionTraitView: View {
     let proximity: CGFloat // 0 = collapsed capsule, 1 = fully expanded card
     var scale: CGFloat = 1.0
     var leftSide: Bool = false
+    /// When non-nil, overrides `settingsStore.watcherStyle` for this
+    /// instance only. Used by Settings > Watchers preview cards which
+    /// must show both Frost and Neon side by side regardless of which
+    /// style the user has selected. Live overlay rendering and onboarding
+    /// previews leave this nil so they follow the user's choice.
+    var forcedStyle: WatcherStyle? = nil
     var onTap: (() -> Void)?
 
     @EnvironmentObject private var settingsStore: SettingsStore
@@ -19,7 +25,7 @@ struct SessionTraitView: View {
     // MARK: - Display logic (simple vs detailed)
 
     private var isDetailed: Bool { settingsStore.watchersDetailedMode }
-    private var style: WatcherStyle { settingsStore.watcherStyle }
+    private var style: WatcherStyle { forcedStyle ?? settingsStore.watcherStyle }
     private var displayMode: WatcherDisplayMode { settingsStore.watcherDisplayMode }
 
     private var needsAttention: Bool {
@@ -122,6 +128,15 @@ struct SessionTraitView: View {
     private var materialOpacity: Double { min(1, max(0, Double(proximity - 0.15) / 0.5)) }
     private var barWidth: CGFloat { lerp(5 * scale, 3 * scale, proximity) }
 
+    /// Trailing (or leading, in left-dock mode) padding used to keep the
+    /// source icon from visually overlapping truncated branch names. Only
+    /// applied in projectAndBranch mode where the branch sits on the row
+    /// the icon occupies; branchPriority mode puts the branch on the title
+    /// row above the icon and doesn't need it.
+    private var reservedIconPadding: CGFloat {
+        session.sourceKind != .unknown && proximity > 0.5 ? 14 * scale : 0
+    }
+
     /// Nudge: horizontal scale for the whole capsule (expands outward)
     private var nudgeScaleX: CGFloat {
         guard nudging, nudgePhase else { return 1.0 }
@@ -148,6 +163,7 @@ struct SessionTraitView: View {
             alignment: leftSide ? .trailing : .leading
         )
         .background { backgroundForStyle }
+        .overlay(alignment: .bottom) { neonContextProgressBar }
         .overlay(alignment: leftSide ? .bottomLeading : .bottomTrailing) { sourceIcon }
         .shadow(color: shadowColor, radius: shadowRadius, y: shadowY)
         .scaleEffect(x: nudgeScaleX, y: 1.0, anchor: leftSide ? .leading : .trailing)
@@ -284,16 +300,66 @@ struct SessionTraitView: View {
 
     // MARK: - Accent indicator
 
+    /// Context consumption ratio on 0.0 - 1.0 scale. Nil until the session has
+    /// produced at least one assistant message with token usage data.
+    private var contextFraction: CGFloat? {
+        session.contextFraction.map { CGFloat($0) }
+    }
+
     @ViewBuilder
     private var accentIndicator: some View {
         switch style {
         case .frost:
-            RoundedRectangle(cornerRadius: lerp(2.5, 1.5, proximity))
-                .fill(activeColor)
-                .frame(width: barWidth)
-                .opacity(session.state == .thinking ? (breathing ? 1.0 : 0.65) : 0.9)
+            // Vertical bottom-up bar: dim full-height track shows the status
+            // colour at reduced opacity; a bright filled segment from the
+            // bottom reflects context usage. When no context data is available
+            // yet (brand-new session), fall back to the original full-height
+            // solid bar so the state colour still reads at a glance.
+            GeometryReader { geo in
+                let radius = lerp(2.5, 1.5, proximity)
+                let liveOpacity = session.state == .thinking ? (breathing ? 1.0 : 0.65) : 0.9
+                ZStack(alignment: .bottom) {
+                    RoundedRectangle(cornerRadius: radius)
+                        .fill(activeColor.opacity(contextFraction == nil ? 1.0 : 0.22))
+                        .frame(width: barWidth, height: geo.size.height)
+                        .opacity(contextFraction == nil ? liveOpacity : 1.0)
+                    if let fraction = contextFraction {
+                        RoundedRectangle(cornerRadius: radius)
+                            .fill(activeColor)
+                            .frame(width: barWidth, height: geo.size.height * fraction)
+                            .opacity(liveOpacity)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .frame(width: barWidth)
         case .neon:
             EmptyView()
+        }
+    }
+
+    // MARK: - Context progress bar (Neon only)
+
+    /// Thin horizontal progress strip at the bottom edge. Neon-exclusive - the
+    /// Frost theme shows context via the vertical accent bar. Kept subtle at
+    /// rest so it doesn't compete with the tile content; a soft neon glow
+    /// makes it readable without a value label, matching the arcade-ish look.
+    @ViewBuilder
+    private var neonContextProgressBar: some View {
+        if style == .neon, let fraction = contextFraction, fraction > 0 {
+            GeometryReader { geo in
+                HStack(spacing: 0) {
+                    Rectangle()
+                        .fill(neonColor)
+                        .frame(width: geo.size.width * fraction)
+                        .shadow(color: neonColor.opacity(0.8), radius: 2)
+                    Spacer(minLength: 0)
+                }
+            }
+            .frame(height: 1.5)
+            .padding(.horizontal, 2)
+            .padding(.bottom, 1)
+            .opacity(min(1, max(0.4, Double(proximity))))
         }
     }
 
@@ -360,6 +426,11 @@ struct SessionTraitView: View {
                                 .truncationMode(.tail)
                         }
                     }
+                    // Reserve space for the source icon in the corner so a long
+                    // branch name doesn't get visually chewed by it. The icon
+                    // sits at bottom-leading or bottom-trailing depending on the
+                    // dock side, so pad the matching side of this inner row.
+                    .padding(leftSide ? .leading : .trailing, reservedIconPadding)
                 }
             }
             .opacity(textOpacity)

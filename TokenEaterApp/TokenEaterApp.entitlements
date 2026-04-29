@@ -2,21 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>com.apple.security.app-sandbox</key>
-    <true/>
-    <key>com.apple.security.network.client</key>
-    <true/>
-    <key>com.apple.security.temporary-exception.files.home-relative-path.read-write</key>
-    <array>
-        <string>/Library/Application Support/com.tokeneater.shared/</string>
-        <string>/Library/Application Support/com.claudeusagewidget.shared/</string>
-        <string>/Library/LaunchAgents/</string>
-        <string>/Library/Logs/TokenEater/</string>
-    </array>
-    <key>com.apple.security.temporary-exception.files.home-relative-path.read-only</key>
-    <array>
-        <string>/.claude/</string>
-        <string>/Library/Application Support/Claude/</string>
-    </array>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<!-- App Group entitlement deliberately omitted in v5.0 -> Xcode 16's build
+	     system insists on a matching provisioning profile when it's present, and
+	     CI doesn't have one yet. SharedFileService falls back to the home-relative
+	     path which is also entitled below on the widget. App Group activation is
+	     a v5.0.1 follow-up once a Developer ID provisioning profile is generated
+	     and committed as a secret. See docs/v5.0.1-followup.md. -->
 </dict>
 </plist>

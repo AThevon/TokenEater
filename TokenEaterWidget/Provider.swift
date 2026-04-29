@@ -21,7 +21,7 @@ struct StaticProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<UsageEntry>) -> Void) {
         let entry = fetchEntry()
-        // Re-request timeline after 5 minutes — WidgetKit will call getTimeline again
+        // Re-request timeline after 5 minutes - WidgetKit will call getTimeline again
         let nextUpdate = Calendar.current.date(byAdding: .minute, value: 5, to: Date()) ?? Date()
         completion(Timeline(entries: [entry], policy: .after(nextUpdate)))
     }
@@ -38,7 +38,7 @@ struct StaticProvider: TimelineProvider {
             let lastSync = sharedFile.lastSyncDate
             let isStale: Bool
             if let lastSync {
-                isStale = Date().timeIntervalSince(lastSync) > 900 // 15min — only stale if truly old
+                isStale = Date().timeIntervalSince(lastSync) > 900 // 15min - only stale if truly old
             } else {
                 isStale = true
             }

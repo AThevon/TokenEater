@@ -165,7 +165,9 @@ final class UpdateStore: ObservableObject {
         rm -rf /Applications/TokenEater.app
         cp -R "$MOUNT/TokenEater.app" /Applications/
         chown -R \(NSUserName()):staff /Applications/TokenEater.app
-        xattr -cr /Applications/TokenEater.app
+        # No xattr -cr: notarized + stapled DMGs pass Gatekeeper without manual
+        # unquarantine, and stripping attributes would also remove the stapled
+        # ticket on some macOS versions.
         hdiutil detach "$MOUNT" -quiet 2>/dev/null
 
         echo "Install OK"

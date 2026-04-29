@@ -2,11 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>com.apple.security.app-sandbox</key>
-    <true/>
-    <key>com.apple.security.temporary-exception.files.home-relative-path.read-only</key>
-    <array>
-        <string>/Library/Application Support/com.tokeneater.shared/</string>
-    </array>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.temporary-exception.files.home-relative-path.read-only</key>
+	<array>
+		<string>/Library/Application Support/com.tokeneater.shared/</string>
+	</array>
+	<!-- App Group entitlement deliberately omitted in v5.0 - see TokenEaterApp.entitlements
+	     for the rationale. The temporary-exception above grants the widget the read access
+	     it needs to the shared JSON. v5.0.1 will replace both with a proper App Group setup
+	     once provisioning profiles are wired up. -->
 </dict>
 </plist>

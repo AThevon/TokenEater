@@ -12,7 +12,8 @@ settings:
     SWIFT_VERSION: "5.9"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
     CODE_SIGN_STYLE: Automatic
-    MARKETING_VERSION: "4.12.2"
+    DEVELOPMENT_TEAM: "S7B8M9JYF4"
+    MARKETING_VERSION: "5.0.0-rc.1"
     CURRENT_PROJECT_VERSION: "1"
     ARCHS: "arm64 x86_64"
 
@@ -45,39 +46,10 @@ targets:
     preBuildScripts:
       - script: |
           osacompile -o "$BUILT_PRODUCTS_DIR/$PRODUCT_NAME.app/Contents/Resources/TokenEaterInstaller.app" "$SRCROOT/TokenEaterApp/Resources/installer.applescript"
-          osacompile -o "$BUILT_PRODUCTS_DIR/$PRODUCT_NAME.app/Contents/Resources/TokenEaterHelperInstaller.app" "$SRCROOT/TokenEaterApp/Resources/helper-installer.applescript"
         name: Compile installer applets
-    postBuildScripts:
-      - script: |
-          # Embed TokenEaterHelper in Contents/Library/LoginItems (idiomatic spot for
-          # login-style tools; app-sandbox-compatible because we are not embedding
-          # an .app bundle here, just a command-line executable).
-          mkdir -p "$BUILT_PRODUCTS_DIR/$PRODUCT_NAME.app/Contents/Library/LoginItems"
-          if [ -f "$BUILT_PRODUCTS_DIR/TokenEaterHelper" ]; then
-            cp "$BUILT_PRODUCTS_DIR/TokenEaterHelper" \
-              "$BUILT_PRODUCTS_DIR/$PRODUCT_NAME.app/Contents/Library/LoginItems/TokenEaterHelper"
-            chmod +x "$BUILT_PRODUCTS_DIR/$PRODUCT_NAME.app/Contents/Library/LoginItems/TokenEaterHelper"
-          fi
-        name: Embed Keychain helper binary
     dependencies:
       - target: TokenEaterWidgetExtension
         embed: true
-      - target: TokenEaterHelper
-        embed: false
-        link: false
-
-  TokenEaterHelper:
-    type: tool
-    platform: macOS
-    sources:
-      - path: TokenEaterHelper
-    settings:
-      base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.tokeneater.helper
-        PRODUCT_NAME: TokenEaterHelper
-        SKIP_INSTALL: "YES"
-        CODE_SIGN_IDENTITY: "-"
-        CODE_SIGNING_REQUIRED: "NO"
 
   TokenEaterTests:
     type: bundle.unit-test
@@ -85,6 +57,7 @@ targets:
     sources:
       - path: TokenEaterTests
       - path: Shared
+      - path: TokenEaterApp/OnboardingViewModel.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tokeneater.tests
@@ -107,6 +80,9 @@ targets:
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks"
     info:
       path: TokenEaterWidget/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
 
 schemes:
   TokenEaterTests:
@@ -123,7 +99,6 @@ schemes:
       targets:
         TokenEaterApp: all
         TokenEaterWidgetExtension: all
-        TokenEaterHelper: all
     run:
       config: Debug
     archive:
