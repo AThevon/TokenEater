@@ -10,18 +10,18 @@ struct TokenProviderTests {
     private static let noKeychain: TokenProvider.KeychainTokenReader = { _ in nil }
 
     private func makeSUT(
+        securityCLIToken: String? = nil,
         credentialsToken: String? = nil,
-        helperToken: String? = nil,
         keychainToken: String? = nil,
         encryptedToken: String? = nil,
         hasEncryptionKey: Bool = false,
         decryptedData: Data? = nil
-    ) -> (TokenProvider, MockCredentialsFileReader, MockClaudeConfigReader, MockElectronDecryptionService) {
+    ) -> (TokenProvider, MockSecurityCLIReader, MockCredentialsFileReader, MockClaudeConfigReader, MockElectronDecryptionService) {
+        let securityCLI = MockSecurityCLIReader()
+        securityCLI.token = securityCLIToken
+
         let credentials = MockCredentialsFileReader()
         credentials.storedToken = credentialsToken
-
-        let helperReader = MockKeychainHelperReader()
-        helperReader.token = helperToken
 
         let configReader = MockClaudeConfigReader()
         configReader.encryptedToken = encryptedToken
@@ -33,21 +33,22 @@ struct TokenProviderTests {
         let keychainReader: TokenProvider.KeychainTokenReader = { _ in keychainToken }
 
         let provider = TokenProvider(
+            securityCLIReader: securityCLI,
             credentialsFileReader: credentials,
-            keychainHelperReader: helperReader,
             configReader: configReader,
             decryptionService: decryption,
             keychainReader: keychainReader
         )
 
-        return (provider, credentials, configReader, decryption)
+        return (provider, securityCLI, credentials, configReader, decryption)
     }
 
     // MARK: - Tests
 
-    @Test("credentials file is tried first, keychain and decryption not called")
-    func credentialsFileFirst() {
-        let (provider, _, _, decryption) = makeSUT(
+    @Test("security CLI is the primary source")
+    func securityCLIFirst() {
+        let (provider, securityCLI, _, _, decryption) = makeSUT(
+            securityCLIToken: "security-token",
             credentialsToken: "creds-token",
             keychainToken: "keychain-token",
             encryptedToken: "some-encrypted",
@@ -56,13 +57,29 @@ struct TokenProviderTests {
 
         let token = provider.currentToken()
 
+        #expect(token == "security-token")
+        #expect(securityCLI.readCallCount == 1)
+        #expect(decryption.decryptCallCount == 0)
+    }
+
+    @Test("falls back to credentials file when security CLI returns nil")
+    func fallbackToCredentialsFile() {
+        let (provider, _, _, _, decryption) = makeSUT(
+            securityCLIToken: nil,
+            credentialsToken: "creds-token",
+            keychainToken: "keychain-token"
+        )
+
+        let token = provider.currentToken()
+
         #expect(token == "creds-token")
         #expect(decryption.decryptCallCount == 0)
     }
 
-    @Test("falls back to keychain when credentials file missing")
+    @Test("falls back to keychain when security CLI and credentials file miss")
     func fallbackToKeychain() {
-        let (provider, _, _, decryption) = makeSUT(
+        let (provider, _, _, _, decryption) = makeSUT(
+            securityCLIToken: nil,
             credentialsToken: nil,
             keychainToken: "keychain-token"
         )
@@ -73,14 +90,15 @@ struct TokenProviderTests {
         #expect(decryption.decryptCallCount == 0)
     }
 
-    @Test("falls back to config.json decryption when credentials file and keychain missing")
+    @Test("falls back to config.json decryption when earlier sources miss")
     func fallbackToConfigDecryption() {
         let oauthJSON: [String: Any] = [
             "claudeAiOauth": ["accessToken": "decrypted-token"]
         ]
         let jsonData = try! JSONSerialization.data(withJSONObject: oauthJSON)
 
-        let (provider, _, _, decryption) = makeSUT(
+        let (provider, _, _, _, decryption) = makeSUT(
+            securityCLIToken: nil,
             credentialsToken: nil,
             keychainToken: nil,
             encryptedToken: "encrypted-blob",
@@ -97,11 +115,12 @@ struct TokenProviderTests {
     @Test("extracts token from UUID-based config.json format")
     func extractsUUIDFormat() {
         let uuidJSON: [String: Any] = [
-            "uuid:uuid:https://api.anthropic.com": ["token": "sk-ant-oat01-test123"]
+            "uuid:uuid:https://api.anthropic.com": ["token": "sk-ant-test-only-no-real-secret"]
         ]
         let jsonData = try! JSONSerialization.data(withJSONObject: uuidJSON)
 
-        let (provider, _, _, _) = makeSUT(
+        let (provider, _, _, _, _) = makeSUT(
+            securityCLIToken: nil,
             credentialsToken: nil,
             keychainToken: nil,
             encryptedToken: "encrypted-blob",
@@ -109,35 +128,41 @@ struct TokenProviderTests {
             decryptedData: jsonData
         )
 
-        #expect(provider.currentToken() == "sk-ant-oat01-test123")
+        #expect(provider.currentToken() == "sk-ant-test-only-no-real-secret")
     }
 
     @Test("returns nil when no source available")
     func returnsNilWhenNoSource() {
-        let (provider, _, _, _) = makeSUT()
+        let (provider, _, _, _, _) = makeSUT()
 
         #expect(provider.currentToken() == nil)
     }
 
     @Test("isBootstrapped is always true")
     func isBootstrappedAlwaysTrue() {
-        let (provider, _, _, _) = makeSUT(hasEncryptionKey: false)
+        let (provider, _, _, _, _) = makeSUT(hasEncryptionKey: false)
         #expect(provider.isBootstrapped == true)
+    }
+
+    @Test("hasTokenSource returns true when security CLI has token")
+    func hasTokenSourceViaSecurityCLI() {
+        let (provider, _, _, _, _) = makeSUT(securityCLIToken: "some-token")
+        #expect(provider.hasTokenSource() == true)
     }
 
     @Test("hasTokenSource returns true when keychain has token")
     func hasTokenSourceViaKeychain() {
-        let (provider, _, _, _) = makeSUT(keychainToken: "some-token")
+        let (provider, _, _, _, _) = makeSUT(keychainToken: "some-token")
         #expect(provider.hasTokenSource() == true)
     }
 
     @Test("hasTokenSource returns false when nothing available")
     func hasTokenSourceReturnsFalse() {
-        let (provider, _, _, _) = makeSUT()
+        let (provider, _, _, _, _) = makeSUT()
         #expect(provider.hasTokenSource() == false)
     }
 
-    @Test("config.json decryption is tried before Keychain")
+    @Test("config.json decryption is tried before direct Keychain")
     func configJsonBeforeKeychain() {
         let oauthJSON: [String: Any] = [
             "claudeAiOauth": ["accessToken": "config-token"]
@@ -145,6 +170,7 @@ struct TokenProviderTests {
         let jsonData = try! JSONSerialization.data(withJSONObject: oauthJSON)
 
         var keychainWasCalled = false
+        let securityCLI = MockSecurityCLIReader()
         let credentials = MockCredentialsFileReader()
         credentials.storedToken = nil
 
@@ -161,8 +187,8 @@ struct TokenProviderTests {
         }
 
         let provider = TokenProvider(
+            securityCLIReader: securityCLI,
             credentialsFileReader: credentials,
-            keychainHelperReader: MockKeychainHelperReader(),
             configReader: configReader,
             decryptionService: decryption,
             keychainReader: keychainReader
@@ -181,6 +207,7 @@ struct TokenProviderTests {
         ]
         let jsonData = try! JSONSerialization.data(withJSONObject: oauthJSON)
 
+        let securityCLI = MockSecurityCLIReader()
         let credentials = MockCredentialsFileReader()
         let configReader = MockClaudeConfigReader()
         configReader.encryptedToken = "encrypted-blob"
@@ -191,8 +218,8 @@ struct TokenProviderTests {
         decryption.decryptedData = jsonData
 
         let provider = TokenProvider(
+            securityCLIReader: securityCLI,
             credentialsFileReader: credentials,
-            keychainHelperReader: MockKeychainHelperReader(),
             configReader: configReader,
             decryptionService: decryption,
             keychainReader: { _ in nil }
@@ -207,6 +234,7 @@ struct TokenProviderTests {
 
     @Test("falls back to Keychain when config.json unavailable and re-bootstrap fails")
     func fallbackToKeychainWhenConfigUnavailable() {
+        let securityCLI = MockSecurityCLIReader()
         let credentials = MockCredentialsFileReader()
         let configReader = MockClaudeConfigReader()
         configReader.encryptedToken = nil // no config.json
@@ -215,8 +243,8 @@ struct TokenProviderTests {
         decryption._hasEncryptionKey = false
 
         let provider = TokenProvider(
+            securityCLIReader: securityCLI,
             credentialsFileReader: credentials,
-            keychainHelperReader: MockKeychainHelperReader(),
             configReader: configReader,
             decryptionService: decryption,
             keychainReader: { _ in "keychain-fallback" }

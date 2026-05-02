@@ -67,14 +67,20 @@ struct FocusLayoutView: View {
                     CompactExtraChip(
                         label: String(localized: "metric.sonnet"),
                         pct: usageStore.sonnetPct,
-                        theme: themeStore
+                        resetDate: usageStore.lastUsage?.sevenDaySonnet?.resetsAtDate,
+                        windowDuration: 7 * 86_400,
+                        theme: themeStore,
+                        settings: settingsStore
                     )
                 }
                 if showDesign {
                     CompactExtraChip(
                         label: String(localized: "metric.design"),
                         pct: usageStore.designPct,
-                        theme: themeStore
+                        resetDate: usageStore.lastUsage?.sevenDayDesign?.resetsAtDate,
+                        windowDuration: 7 * 86_400,
+                        theme: themeStore,
+                        settings: settingsStore
                     )
                 }
             }
@@ -140,6 +146,7 @@ struct FocusLayoutView: View {
 private struct FocusHeroView: View {
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var themeStore: ThemeStore
+    @EnvironmentObject private var settingsStore: SettingsStore
 
     let hero: FocusHeroChoice
 
@@ -185,9 +192,21 @@ private struct FocusHeroView: View {
         case .sessionReset, .weeklyReset:
             return Color(red: 0.99, green: 0.90, blue: 0.54)
         case .sessionValue:
-            return PopoverColors.gauge(pct: usageStore.fiveHourPct, theme: themeStore)
+            return PopoverColors.gauge(
+                pct: usageStore.fiveHourPct,
+                resetDate: usageStore.lastUsage?.fiveHour?.resetsAtDate,
+                windowDuration: 5 * 3600,
+                theme: themeStore,
+                settings: settingsStore
+            )
         case .weeklyValue:
-            return PopoverColors.gauge(pct: usageStore.sevenDayPct, theme: themeStore)
+            return PopoverColors.gauge(
+                pct: usageStore.sevenDayPct,
+                resetDate: usageStore.lastUsage?.sevenDay?.resetsAtDate,
+                windowDuration: 7 * 86_400,
+                theme: themeStore,
+                settings: settingsStore
+            )
         }
     }
 
@@ -245,6 +264,7 @@ private struct FocusHeroView: View {
 private struct FocusSatelliteCard: View {
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var themeStore: ThemeStore
+    @EnvironmentObject private var settingsStore: SettingsStore
 
     let value: FocusHeroChoice
 
@@ -293,9 +313,21 @@ private struct FocusSatelliteCard: View {
         case .sessionReset, .weeklyReset:
             return Color(red: 0.99, green: 0.90, blue: 0.54)
         case .sessionValue:
-            return PopoverColors.gauge(pct: usageStore.fiveHourPct, theme: themeStore)
+            return PopoverColors.gauge(
+                pct: usageStore.fiveHourPct,
+                resetDate: usageStore.lastUsage?.fiveHour?.resetsAtDate,
+                windowDuration: 5 * 3600,
+                theme: themeStore,
+                settings: settingsStore
+            )
         case .weeklyValue:
-            return PopoverColors.gauge(pct: usageStore.sevenDayPct, theme: themeStore)
+            return PopoverColors.gauge(
+                pct: usageStore.sevenDayPct,
+                resetDate: usageStore.lastUsage?.sevenDay?.resetsAtDate,
+                windowDuration: 7 * 86_400,
+                theme: themeStore,
+                settings: settingsStore
+            )
         }
     }
 }

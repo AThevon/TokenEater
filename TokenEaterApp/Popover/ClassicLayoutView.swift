@@ -60,19 +60,25 @@ struct ClassicLayoutView: View {
                 if weeklyVisible {
                     PopoverSatelliteRing(
                         label: String(localized: "metric.weekly"),
-                        pct: usageStore.sevenDayPct
+                        pct: usageStore.sevenDayPct,
+                        resetDate: usageStore.lastUsage?.sevenDay?.resetsAtDate,
+                        windowDuration: 7 * 86_400
                     )
                 }
                 if showSonnetSat {
                     PopoverSatelliteRing(
                         label: String(localized: "metric.sonnet"),
-                        pct: usageStore.sonnetPct
+                        pct: usageStore.sonnetPct,
+                        resetDate: usageStore.lastUsage?.sevenDaySonnet?.resetsAtDate,
+                        windowDuration: 7 * 86_400
                     )
                 }
                 if showDesignSat {
                     PopoverSatelliteRing(
                         label: String(localized: "metric.design"),
-                        pct: usageStore.designPct
+                        pct: usageStore.designPct,
+                        resetDate: usageStore.lastUsage?.sevenDayDesign?.resetsAtDate,
+                        windowDuration: 7 * 86_400
                     )
                 }
             }
@@ -97,13 +103,17 @@ struct ClassicLayoutView: View {
             PopoverEqualRing(
                 label: String(localized: "metric.session"),
                 pct: usageStore.fiveHourPct,
-                resetText: usageStore.fiveHourReset
+                resetText: usageStore.fiveHourReset,
+                resetDate: usageStore.lastUsage?.fiveHour?.resetsAtDate,
+                windowDuration: 5 * 3600
             )
         case .weeklyRing:
             PopoverEqualRing(
                 label: String(localized: "metric.weekly"),
                 pct: usageStore.sevenDayPct,
-                resetText: usageStore.sevenDayReset
+                resetText: usageStore.sevenDayReset,
+                resetDate: usageStore.lastUsage?.sevenDay?.resetsAtDate,
+                windowDuration: 7 * 86_400
             )
         default:
             EmptyView()

@@ -1,8 +1,26 @@
 # Apple Developer Program migration
 
-Notes for future work, written 2026-04-16 at the time of the v5.0.0 release. The Personal Team (free Apple ID) drives every workaround below. Paying for the Apple Developer Program ($99/year) unlocks cleaner alternatives for most of them.
+Notes for future work. The Personal Team (free Apple ID) drove every workaround below in v4.x. Paying for the Apple Developer Program ($99/year) unlocks cleaner alternatives for most of them.
 
 **Who reads this:** future me (or whoever picks this up after the upgrade). The goal is to avoid re-deriving why each workaround exists and to make the cleanup incremental rather than a big-bang refactor.
+
+## Status (updated 2026-04-21, during v5.0 prep)
+
+- ✅ **Code-side migration already merged into v5.0 branch** (`feat/apple-dev-migration`):
+  - Main app desandboxed, widget still sandboxed
+  - `SecurityCLIReader` shell-out to `/usr/bin/security` is now the primary token source in `TokenProvider`
+  - `LegacyHelperCleanupService` unloads + deletes the v4.x LaunchAgent helper on first v5.0 launch
+  - TokenEaterHelper target + KeychainHelperReader + HelperManagerService + Credentials UI + helper-installer applet all deleted
+  - `SharedFileService` prefers `containerURL(forSecurityApplicationGroupIdentifier:)` with fallback to `~/Library/Application Support/com.tokeneater.shared/`, plus one-shot migration copy when the container becomes available
+  - `UpdateStore.installUpdate()` no longer applies `xattr -cr` (notarized DMGs carry a stapled Gatekeeper ticket)
+  - Release workflow has codesign + notarize + staple steps (skipped when the signing cert secrets aren't set)
+- ⏳ **Blocked on Apple Dev cert arrival**:
+  - Add GitHub Secrets: `APPLE_CERT_P12_BASE64`, `APPLE_CERT_PASSWORD`, `APPLE_ID`, `APPLE_APP_PASSWORD`, `APPLE_TEAM_ID`
+  - Register App Group `group.com.tokeneater` in the Developer Portal + attach to both App IDs
+  - Run `scripts/enable-app-groups.sh` to re-add the App Group entitlement to app + widget `.entitlements` files
+  - Update `project.yml` with the real `DEVELOPMENT_TEAM` + `CODE_SIGN_STYLE: Manual` + per-config `CODE_SIGN_IDENTITY`
+  - Trigger a test release to validate end-to-end signing, notarization, and stapling
+  - Final sweep: CLAUDE.md rewrite to drop the Personal Team workarounds once the happy path is verified
 
 ---
 

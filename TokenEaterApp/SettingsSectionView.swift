@@ -11,7 +11,6 @@ struct SettingsSectionView: View {
     @State private var isImporting = false
     @State private var importMessage: String?
     @State private var importSuccess = false
-    @State private var notifTestCooldown = false
     @State private var brewCopied = false
 
     var body: some View {
@@ -68,8 +67,94 @@ struct SettingsSectionView: View {
                 }
             }
 
-            // Credentials (Keychain helper)
-            credentialsCard
+            // Update (placed right under Connection so the user spots a
+            // pending version straight away).
+            glassCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("TokenEater v\(updateStore.currentVersion)")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.white.opacity(0.5))
+                        Spacer()
+                        if case .checking = updateStore.updateState {
+                            ProgressView()
+                                .scaleEffect(0.5)
+                                .frame(width: 16, height: 16)
+                        } else if case .upToDate = updateStore.updateState {
+                            Label(String(localized: "update.uptodate"), systemImage: "checkmark.circle.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.green)
+                        } else if let version = updateStore.updateState.availableVersion {
+                            Button(String(localized: "update.available.badge \(version)")) {
+                                updateStore.downloadUpdate()
+                            }
+                            .font(.system(size: 11, weight: .medium))
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.orange)
+                        } else {
+                            Button(String(localized: "update.check")) {
+                                updateStore.checkForUpdates()
+                            }
+                            .font(.system(size: 11))
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.blue)
+                        }
+                    }
+
+                    if updateStore.brewMigrationState == .detected {
+                        brewMigrationBanner
+                    }
+                }
+            }
+
+            // General (Launch at login + replay onboarding)
+            glassCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    cardLabel(String(localized: "settings.general.title"))
+                    darkToggle(String(localized: "settings.launchAtLogin"), isOn: $settingsStore.launchAtLoginEnabled)
+                    Text(String(localized: "settings.launchAtLogin.hint"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.4))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Divider().opacity(0.12)
+
+                    HStack(alignment: .center, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(String(localized: "settings.general.replayOnboarding"))
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.85))
+                            Text(String(localized: "settings.general.replayOnboarding.hint"))
+                                .font(.system(size: 11))
+                                .foregroundStyle(.white.opacity(0.4))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                        Button {
+                            settingsStore.hasCompletedOnboarding = false
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "arrow.counterclockwise")
+                                    .font(.system(size: 11, weight: .semibold))
+                                Text(String(localized: "settings.general.replayOnboarding.action"))
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                            .foregroundStyle(.white.opacity(0.9))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                    .fill(Color.blue.opacity(0.18))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                            .stroke(Color.blue.opacity(0.4), lineWidth: 1)
+                                    )
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
 
             // Proxy
             glassCard {
@@ -134,90 +219,28 @@ struct SettingsSectionView: View {
                 }
             }
 
-            // Notifications
-            glassCard {
-                VStack(alignment: .leading, spacing: 8) {
-                    cardLabel(String(localized: "settings.notifications.title"))
-                    HStack {
-                        switch settingsStore.notificationStatus {
-                        case .authorized:
-                            Label(String(localized: "settings.notifications.on"), systemImage: "checkmark.circle.fill")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.green)
-                        case .denied:
-                            Label(String(localized: "settings.notifications.off"), systemImage: "xmark.circle.fill")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.red)
-                        default:
-                            Label(String(localized: "settings.notifications.unknown"), systemImage: "questionmark.circle")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.white.opacity(0.5))
-                        }
-                        Spacer()
-                        if settingsStore.notificationStatus == .denied {
-                            Button(String(localized: "settings.notifications.open")) {
-                                NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings")!)
-                            }
-                            .font(.system(size: 11))
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.blue)
-                        }
-                        Button(String(localized: "settings.notifications.test")) {
-                            if settingsStore.notificationStatus != .authorized {
-                                settingsStore.requestNotificationPermission()
-                            }
-                            settingsStore.sendTestNotification()
-                            notifTestCooldown = true
-                            Task {
-                                try? await Task.sleep(for: .seconds(3))
-                                notifTestCooldown = false
-                                await settingsStore.refreshNotificationStatus()
-                            }
-                        }
-                        .font(.system(size: 11))
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.blue)
-                        .disabled(notifTestCooldown)
-                    }
-                }
-            }
-
             // About
             glassCard {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text("TokenEater v\(updateStore.currentVersion)")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.5))
-                        Spacer()
-                        if case .checking = updateStore.updateState {
-                            ProgressView()
-                                .scaleEffect(0.5)
-                                .frame(width: 16, height: 16)
-                        } else if case .upToDate = updateStore.updateState {
-                            Label(String(localized: "update.uptodate"), systemImage: "checkmark.circle.fill")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.green)
-                        } else if let version = updateStore.updateState.availableVersion {
-                            Button(String(localized: "update.available.badge \(version)")) {
-                                updateStore.downloadUpdate()
-                            }
-                            .font(.system(size: 11, weight: .medium))
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.orange)
-                        } else {
-                            Button(String(localized: "update.check")) {
-                                updateStore.checkForUpdates()
-                            }
-                            .font(.system(size: 11))
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.blue)
-                        }
-                    }
-
-                    if updateStore.brewMigrationState == .detected {
-                        brewMigrationBanner
-                    }
+                VStack(alignment: .leading, spacing: 12) {
+                    cardLabel(String(localized: "settings.about.title"))
+                    AboutLinkRow(
+                        icon: "chevron.left.forwardslash.chevron.right",
+                        title: String(localized: "settings.about.repository"),
+                        subtitle: String(localized: "settings.about.repository.hint"),
+                        url: URL(string: "https://github.com/AThevon/TokenEater")!
+                    )
+                    AboutLinkRow(
+                        icon: "exclamationmark.bubble.fill",
+                        title: String(localized: "settings.about.issues"),
+                        subtitle: String(localized: "settings.about.issues.hint"),
+                        url: URL(string: "https://github.com/AThevon/TokenEater/issues")!
+                    )
+                    AboutLinkRow(
+                        icon: "tag.fill",
+                        title: String(localized: "settings.about.releases"),
+                        subtitle: String(localized: "settings.about.releases.hint"),
+                        url: URL(string: "https://github.com/AThevon/TokenEater/releases")!
+                    )
                 }
             }
 
@@ -226,152 +249,6 @@ struct SettingsSectionView: View {
         .padding(24)
         .onAppear {
             Task { await settingsStore.refreshNotificationStatus() }
-            settingsStore.refreshHelperStatus()
-        }
-    }
-
-    // MARK: - Credentials card
-
-    private var credentialsCard: some View {
-        glassCard {
-            VStack(alignment: .leading, spacing: 10) {
-                cardLabel(String(localized: "credentials.helper.title"))
-                Text(String(localized: "credentials.helper.description"))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.5))
-                    .fixedSize(horizontal: false, vertical: true)
-
-                helperTrustCallout
-
-                helperStatusRow
-                helperActions
-
-                if let err = settingsStore.helperLastError {
-                    Label(err, systemImage: "exclamationmark.triangle.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.red.opacity(0.8))
-                }
-            }
-        }
-    }
-
-    private var helperTrustCallout: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "lock.shield")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.green.opacity(0.8))
-                    .padding(.top, 1)
-                Text(String(localized: "credentials.helper.trust"))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.65))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Button {
-                NSWorkspace.shared.open(
-                    URL(string: "https://github.com/AThevon/TokenEater/tree/main/TokenEaterHelper")!
-                )
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "arrow.up.right.square")
-                        .font(.system(size: 10))
-                    Text(String(localized: "credentials.helper.source"))
-                        .font(.system(size: 11, weight: .medium))
-                }
-                .foregroundStyle(.blue)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.green.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.green.opacity(0.15), lineWidth: 0.5)
-        )
-    }
-
-    @ViewBuilder
-    private var helperStatusRow: some View {
-        HStack(spacing: 8) {
-            switch settingsStore.helperStatus {
-            case .notInstalled:
-                Circle().fill(Color.white.opacity(0.2)).frame(width: 8, height: 8)
-                Text(String(localized: "credentials.helper.status.notinstalled"))
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.7))
-            case .binaryMissing:
-                Circle().fill(Color.red).frame(width: 8, height: 8)
-                Text(String(localized: "credentials.helper.status.binaryMissing"))
-                    .font(.system(size: 12))
-                    .foregroundStyle(.red)
-            case .installed(let lastSync, let error):
-                if let error, !error.isEmpty {
-                    Circle().fill(Color.orange).frame(width: 8, height: 8)
-                    Text(String(format: String(localized: "credentials.helper.status.error"), error))
-                        .font(.system(size: 12))
-                        .foregroundStyle(.orange.opacity(0.9))
-                        .lineLimit(2)
-                } else {
-                    Circle().fill(Color.green).frame(width: 8, height: 8)
-                    if let lastSync {
-                        let relative = lastSync.formatted(.relative(presentation: .named))
-                        Text(String(format: String(localized: "credentials.helper.status.active"), relative))
-                            .font(.system(size: 12))
-                            .foregroundStyle(.green.opacity(0.9))
-                    } else {
-                        Text(String(localized: "credentials.helper.status.active.nosync"))
-                            .font(.system(size: 12))
-                            .foregroundStyle(.green.opacity(0.9))
-                    }
-                }
-            case .error(let msg):
-                Circle().fill(Color.red).frame(width: 8, height: 8)
-                Text(msg)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.red)
-                    .lineLimit(2)
-            }
-            Spacer()
-            if settingsStore.helperBusy {
-                ProgressView().scaleEffect(0.5)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var helperActions: some View {
-        HStack(spacing: 10) {
-            switch settingsStore.helperStatus {
-            case .notInstalled:
-                Button(String(localized: "credentials.helper.install")) {
-                    Task { await settingsStore.installHelper() }
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.blue)
-                .disabled(settingsStore.helperBusy)
-            case .binaryMissing:
-                EmptyView()
-            case .installed, .error:
-                Button(String(localized: "credentials.helper.forcesync")) {
-                    Task { await settingsStore.forceHelperSync() }
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.blue)
-                .disabled(settingsStore.helperBusy)
-
-                Button(String(localized: "credentials.helper.uninstall")) {
-                    Task { await settingsStore.uninstallHelper() }
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: 12))
-                .foregroundStyle(.red.opacity(0.7))
-                .disabled(settingsStore.helperBusy)
-            }
-            Spacer()
         }
     }
 
@@ -440,6 +317,79 @@ struct SettingsSectionView: View {
                 importMessage = result.message
                 importSuccess = false
             }
+        }
+    }
+}
+
+// MARK: - About link row
+
+/// Single link inside the About card. Mirrors the hover pattern used by
+/// `MonitoringView.refreshButton` and `MainAppView.powerButton`: glassFill +
+/// accentSettings tint with springSnap, and a subtle -1pt lift.
+private struct AboutLinkRow: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    let url: URL
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isHovering = false
+
+    var body: some View {
+        Button {
+            NSWorkspace.shared.open(url)
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(isHovering
+                              ? DS.Palette.accentSettings.opacity(0.18)
+                              : DS.Palette.glassFill)
+                        .overlay(
+                            Circle().stroke(
+                                isHovering
+                                    ? DS.Palette.accentSettings.opacity(0.55)
+                                    : DS.Palette.glassBorderLo,
+                                lineWidth: 1
+                            )
+                        )
+                        .frame(width: 30, height: 30)
+                    Image(systemName: icon)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(isHovering
+                                         ? DS.Palette.accentSettings
+                                         : .white.opacity(0.65))
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.white.opacity(isHovering ? 0.95 : 0.85))
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.45))
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(isHovering
+                                     ? DS.Palette.accentSettings
+                                     : .white.opacity(0.35))
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isHovering ? DS.Palette.glassFill : Color.clear)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .offset(y: (isHovering && !reduceMotion) ? -1 : 0)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(DS.Motion.springSnap) { isHovering = hovering }
         }
     }
 }

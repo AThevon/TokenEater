@@ -60,7 +60,7 @@ final class ElectronDecryptionService: ElectronDecryptionServiceProtocol, @unche
             return
         }
 
-        // Migrate from Keychain (old path) — one-time, silent
+        // Migrate from Keychain (old path) - one-time, silent
         if let key = Self.loadCachedKeyFromKeychain() {
             Self.saveKeyToFile(key)
             Self.deleteCachedKeyFromKeychain()
@@ -92,7 +92,7 @@ final class ElectronDecryptionService: ElectronDecryptionServiceProtocol, @unche
     }
 
     func bootstrapEncryptionKey() throws {
-        // Interactive Keychain read — prompts user for permission
+        // Interactive Keychain read - prompts user for permission
         let password = try Self.readElectronPassword(silent: false)
         let key = Self.deriveKey(from: password)
         Self.saveKeyToFile(key)

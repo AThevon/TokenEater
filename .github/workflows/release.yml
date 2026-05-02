@@ -26,14 +26,144 @@ jobs:
             -json '{"NSExtensionPointIdentifier":"com.apple.widgetkit-extension"}' \
             TokenEaterWidget/Info.plist 2>/dev/null || true
 
-      - name: Build
+      # --- Import Developer ID cert (Apple Developer Program) ---
+      #
+      # Secrets required in the repo for a valid release:
+      #   APPLE_CERT_P12_BASE64 - base64 of the exported .p12 (Developer ID Application + private key)
+      #   APPLE_CERT_PASSWORD   - password used when exporting the .p12
+      #   APPLE_TEAM_ID         - 10-char Team ID
+      #   APPLE_ID              - Apple ID email used by notarytool
+      #   APPLE_APP_PASSWORD    - app-specific password generated at appleid.apple.com
+      #
+      # All five must be set. The workflow fails loud if APPLE_CERT_P12_BASE64 is
+      # missing on a release tag - shipping unsigned/unnotarized DMGs to users via
+      # Sparkle / Brew would silently break Gatekeeper and the in-app updater.
+      - name: Import signing cert
+        id: import_cert
+        env:
+          APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
         run: |
+          if [ -z "$APPLE_CERT_P12_BASE64" ]; then
+            echo "::error::APPLE_CERT_P12_BASE64 secret is not set. Releases must be signed + notarized."
+            exit 1
+          fi
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+
+          echo "$APPLE_CERT_P12_BASE64" | base64 --decode > "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security import "$CERT_PATH" \
+            -P "$APPLE_CERT_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+
+          # Add the temp keychain to the user search list (alongside login.keychain)
+          # so xcodebuild's automatic provisioning can find the cert + private key.
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" >/dev/null
+
+          # Re-unlock after partition-list change (macos runner can re-lock).
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep "Developer ID Application" | head -1 | awk '{print $2}')
+          if [ -z "$IDENTITY" ]; then
+            echo "::error::No Developer ID Application identity found in the imported cert"
+            exit 1
+          fi
+          echo "identity=$IDENTITY" >> "$GITHUB_OUTPUT"
+          echo "keychain=$KEYCHAIN_PATH" >> "$GITHUB_OUTPUT"
+          echo "Imported Developer ID cert (SHA1=$IDENTITY)"
+
+      - name: Build (signed + hardened runtime)
+        env:
+          IDENTITY: ${{ steps.import_cert.outputs.identity }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # Manual signing with the Developer ID Application cert imported above.
+          # Mac apps distributed outside the App Store don't need a provisioning
+          # profile - PROVISIONING_PROFILE_SPECIFIER="" plus
+          # CODE_SIGN_REQUIRE_PROVISIONING_PROFILE=NO tells xcodebuild to skip
+          # the profile lookup that would otherwise fail in CI.
+          # CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO prevents Xcode from injecting
+          # com.apple.security.get-task-allow (the dev "allow debugger to attach"
+          # entitlement) which Apple rejects during notarization.
+          # ENABLE_HARDENED_RUNTIME=YES sets the runtime flag on every signed
+          # binary, including nested ones.
           xcodebuild \
             -project TokenEater.xcodeproj \
             -scheme TokenEaterApp \
             -configuration Release \
             -derivedDataPath build \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="$IDENTITY" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            CODE_SIGN_REQUIRE_PROVISIONING_PROFILE=NO \
+            CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
+            ENABLE_HARDENED_RUNTIME=YES \
+            OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime" \
             build
+
+      - name: Re-sign AppleScript installer applet with hardened runtime
+        env:
+          IDENTITY: ${{ steps.import_cert.outputs.identity }}
+        run: |
+          # The 'Compile installer applets' build phase runs osacompile post-build,
+          # which produces a fresh AppleScript applet that xcodebuild's earlier
+          # codesign pass never touches. Without this re-sign, the applet ships
+          # with whatever signing osacompile applied (no hardened runtime),
+          # which Apple's notarization service rejects.
+          APPLET="build/Build/Products/Release/TokenEater.app/Contents/Resources/TokenEaterInstaller.app"
+          if [ -d "$APPLET" ]; then
+            codesign --force --sign "$IDENTITY" \
+              --timestamp --options=runtime \
+              "$APPLET/Contents/MacOS/applet"
+            codesign --force --sign "$IDENTITY" \
+              --timestamp --options=runtime \
+              "$APPLET"
+            echo "Re-signed installer applet with hardened runtime"
+          else
+            echo "::warning::Installer applet not found at $APPLET"
+          fi
+
+      - name: Re-sign main app to propagate hardened runtime through every nested bundle
+        env:
+          IDENTITY: ${{ steps.import_cert.outputs.identity }}
+        run: |
+          APP_PATH="build/Build/Products/Release/TokenEater.app"
+          # --deep walks every nested executable + bundle and applies the same
+          # signing settings. Combined with --options=runtime this guarantees
+          # the hardened runtime flag is set everywhere Apple checks.
+          codesign --force --deep --sign "$IDENTITY" \
+            --timestamp --options=runtime \
+            --entitlements TokenEaterApp/TokenEaterApp.entitlements \
+            "$APP_PATH"
+
+      - name: Verify codesign chain (app + widget)
+        run: |
+          APP_PATH="build/Build/Products/Release/TokenEater.app"
+          WIDGET_PATH="$APP_PATH/Contents/PlugIns/TokenEaterWidgetExtension.appex"
+          APPLET="$APP_PATH/Contents/Resources/TokenEaterInstaller.app"
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          codesign -dvv "$APP_PATH" 2>&1 | grep -E "Authority|TeamIdentifier|flags"
+          codesign -dvv "$WIDGET_PATH" 2>&1 | grep -E "Authority|TeamIdentifier|flags"
+          # Hardened runtime + no get-task-allow on every executable.
+          for bin in "$APP_PATH" "$WIDGET_PATH" "$APPLET"; do
+            if ! codesign -dv "$bin" 2>&1 | grep -q "runtime"; then
+              echo "::error::Hardened runtime flag missing on $bin"
+              exit 1
+            fi
+            if codesign -d --entitlements - "$bin" 2>&1 | grep -q "get-task-allow"; then
+              echo "::error::get-task-allow entitlement still present on $bin"
+              exit 1
+            fi
+          done
 
       - name: Install create-dmg
         run: brew install create-dmg
@@ -56,6 +186,94 @@ jobs:
           # create-dmg exits 2 on success when --no-internet-enable is used
           test -f TokenEater.dmg
 
+      - name: Sign DMG with Developer ID
+        env:
+          IDENTITY: ${{ steps.import_cert.outputs.identity }}
+        run: |
+          codesign --sign "$IDENTITY" --timestamp TokenEater.dmg
+          codesign --verify --strict TokenEater.dmg
+
+      - name: Notarize + staple
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          # Submit without --wait. notarytool's --wait does long polling but
+          # can lose network connectivity to Apple after ~hour-long sessions
+          # ("Code=-1009 internet appears offline") even when the runner is
+          # online. We poll explicitly with retries instead, which survives
+          # transient network blips on Apple's side.
+          SUBMIT_OUT=$(xcrun notarytool submit TokenEater.dmg \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --output-format json)
+
+          echo "$SUBMIT_OUT"
+          SUBMISSION_ID=$(echo "$SUBMIT_OUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || echo "")
+
+          if [ -z "$SUBMISSION_ID" ]; then
+            echo "::error::Failed to extract submission ID from notarytool output"
+            exit 1
+          fi
+
+          echo "Submission ID: $SUBMISSION_ID"
+          echo "Polling Apple for verdict (max 180 min, 20s interval)..."
+
+          NOTARIZE_STATUS=""
+          MAX_ATTEMPTS=540  # 180 min @ 20s — Apple notary intermittently saturates and holds submissions in In Progress for 60+ min
+          ATTEMPT=0
+          CONSECUTIVE_NET_ERRORS=0
+
+          while [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; do
+            ATTEMPT=$((ATTEMPT + 1))
+            INFO_OUT=$(xcrun notarytool info "$SUBMISSION_ID" \
+              --apple-id "$APPLE_ID" \
+              --team-id "$APPLE_TEAM_ID" \
+              --password "$APPLE_APP_PASSWORD" \
+              --output-format json 2>&1) || INFO_FAILED=1
+
+            if [ -n "${INFO_FAILED:-}" ]; then
+              CONSECUTIVE_NET_ERRORS=$((CONSECUTIVE_NET_ERRORS + 1))
+              echo "[$ATTEMPT] notarytool info failed (consecutive: $CONSECUTIVE_NET_ERRORS) - retrying in 20s"
+              if [ "$CONSECUTIVE_NET_ERRORS" -ge 6 ]; then
+                echo "::error::Too many consecutive network errors talking to Apple notary"
+                exit 1
+              fi
+              unset INFO_FAILED
+              sleep 20
+              continue
+            fi
+
+            CONSECUTIVE_NET_ERRORS=0
+            NOTARIZE_STATUS=$(echo "$INFO_OUT" | python3 -c "import json,sys; print(json.load(sys.stdin).get('status',''))" 2>/dev/null || echo "")
+            echo "[$ATTEMPT] status=$NOTARIZE_STATUS"
+
+            case "$NOTARIZE_STATUS" in
+              Accepted) break ;;
+              Invalid|Rejected) break ;;
+              "In Progress"|"") sleep 20 ;;
+              *) sleep 20 ;;
+            esac
+          done
+
+          if [ "$NOTARIZE_STATUS" != "Accepted" ]; then
+            echo "::error::Notarization status: $NOTARIZE_STATUS (expected Accepted) for submission $SUBMISSION_ID"
+            echo "Fetching Apple notarization log..."
+            xcrun notarytool log "$SUBMISSION_ID" \
+              --apple-id "$APPLE_ID" \
+              --team-id "$APPLE_TEAM_ID" \
+              --password "$APPLE_APP_PASSWORD" || true
+            exit 1
+          fi
+
+          xcrun stapler staple TokenEater.dmg
+          xcrun stapler validate TokenEater.dmg
+
+          # Final Gatekeeper assertion - fails if anything's wrong with the chain.
+          spctl -a -t open --context context:primary-signature -vvv TokenEater.dmg
+
       - name: Extract version
         id: version
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
@@ -64,14 +282,29 @@ jobs:
         id: sha
         run: echo "sha256=$(shasum -a 256 TokenEater.dmg | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
+      - name: Detect prerelease (rc / beta / alpha)
+        id: prerelease
+        run: |
+          if [[ "$GITHUB_REF_NAME" == *-rc* || "$GITHUB_REF_NAME" == *-beta* || "$GITHUB_REF_NAME" == *-alpha* ]]; then
+            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "Prerelease tag detected -> skipping appcast / brew cask / Sparkle EdDSA publish"
+          else
+            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Upload to GitHub Release
         run: |
+          PRERELEASE_FLAG=""
+          if [ "${{ steps.prerelease.outputs.is_prerelease }}" = "true" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
           if gh release view "$GITHUB_REF_NAME" &>/dev/null; then
             gh release upload "$GITHUB_REF_NAME" TokenEater.dmg --clobber
           else
             gh release create "$GITHUB_REF_NAME" TokenEater.dmg \
               --title "TokenEater ${{ steps.version.outputs.version }}" \
-              --generate-notes
+              --generate-notes \
+              $PRERELEASE_FLAG
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -88,6 +321,7 @@ jobs:
           echo "Asset verified (HTTP ${HTTP_STATUS})"
 
       - name: Sign DMG with EdDSA for Sparkle
+        if: steps.prerelease.outputs.is_prerelease != 'true'
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
@@ -105,6 +339,7 @@ jobs:
         id: sign
 
       - name: Update appcast.xml
+        if: steps.prerelease.outputs.is_prerelease != 'true'
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           DMG_URL="https://github.com/AThevon/TokenEater/releases/download/v${VERSION}/TokenEater.dmg"
@@ -118,10 +353,15 @@ jobs:
           sed -i '' "s|    </channel>|${ITEM}\n    </channel>|" docs/appcast.xml
 
       - name: Commit and push appcast
+        if: steps.prerelease.outputs.is_prerelease != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/appcast.xml
+          if git diff --cached --quiet; then
+            echo "No appcast changes to commit (likely a tag rerun)"
+            exit 0
+          fi
           git commit -m "chore: update appcast for v${{ steps.version.outputs.version }}"
           # Push to the branch the tag was created on (or main for release tags)
           BRANCH=$(git branch -r --contains "$GITHUB_REF_NAME" | grep -v HEAD | head -1 | sed 's|origin/||;s/^ *//')
@@ -130,6 +370,7 @@ jobs:
 
       # Keep Homebrew cask updated during transition period
       - name: Update Homebrew Cask
+        if: steps.prerelease.outputs.is_prerelease != 'true'
         env:
           TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           NEW_VERSION: ${{ steps.version.outputs.version }}

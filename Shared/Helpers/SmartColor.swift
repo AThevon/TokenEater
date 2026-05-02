@@ -1,0 +1,252 @@
+import Foundation
+import SwiftUI
+import AppKit
+
+/// Smart-color risk model. Pure functional layer - no UI, no I/O,
+/// no state. Tested directly in isolation (see `SmartColorTests`).
+///
+/// Invariants:
+/// - `risk` is a continuous score in [0, 1] derived from three
+///   independent sources (absolute, projection, pacing).
+/// - Each source uses `smoothstep` for C1 continuity.
+/// - Confidence weighting on the time-derived sources suppresses
+///   early-window noise.
+/// - The discrete zone (chill/onTrack/warning/hot) supports
+///   optional hysteresis to prevent flicker around band boundaries.
+enum SmartColor {
+
+    // MARK: - Mathematical primitives
+
+    /// Hermite-smoothed step function. Continuous (C1) clamp from a to b.
+    /// Returns 0 when x <= a, 1 when x >= b, smoothly interpolated in between.
+    static func smoothstep(_ a: Double, _ b: Double, _ x: Double) -> Double {
+        guard a < b else { return x >= b ? 1 : 0 }
+        let t = max(0, min(1, (x - a) / (b - a)))
+        return t * t * (3 - 2 * t)
+    }
+
+    /// Confidence in the rate estimate, growing from 0 to ~1 across the
+    /// window. Used to dampen projection / pacing risk early when the
+    /// rate computed from a few elapsed minutes is noisy. The growth
+    /// rate `k` is profile-tunable.
+    static func confidence(e: Double, k: Double = 5.0) -> Double {
+        1 - exp(-k * max(0, e))
+    }
+
+    // MARK: - Risk components
+
+    /// Component A - absolute risk: how close to the limit, irrespective
+    /// of pacing. Drives the "98% must always feel red" property.
+    static func absoluteRisk(u: Double, θw: Double, θc: Double) -> Double {
+        smoothstep(θw, θc, u)
+    }
+
+    /// Component B - projection risk: at the current consumption rate,
+    /// how much over the limit will we end the window? Saturates at the
+    /// profile-defined `projUpper`. Weighted by confidence so a high
+    /// rate computed from a few elapsed minutes doesn't scream.
+    static func projectionRisk(u: Double, e: Double, params: SmartColorParameters = .default) -> Double {
+        guard u > 0.0001, e > 0.0001 else { return 0 }
+        let projected = u / e
+        let raw = smoothstep(1.0, params.projUpper, projected)
+        return raw * confidence(e: e, k: params.k)
+    }
+
+    /// Component C - pacing risk: gap between actual utilization and the
+    /// linear pace. Only positive deltas (ahead of schedule) escalate.
+    /// 0 inside the user's `m` margin, ramps to 1 as delta grows 15pp
+    /// past m. Same confidence weighting as projection.
+    static func pacingRisk(u: Double, e: Double, m: Double, params: SmartColorParameters = .default) -> Double {
+        let delta = u - e
+        let raw = smoothstep(m, m + 0.15, delta)
+        return raw * confidence(e: e, k: params.k)
+    }
+
+    /// Combines the three components via `max`. The most conservative
+    /// signal wins - none can mask another's red flag. Hard-caps at 1.0
+    /// when utilization >= 100%.
+    ///
+    /// The absolute component uses the profile's `absoluteLower` /
+    /// `absoluteUpper` smoothstep bounds and is dampened by projection
+    /// health:
+    ///
+    /// ```text
+    /// aRaw = smoothstep(params.absoluteLower, params.absoluteUpper, u)
+    /// projectionHealth = smoothstep(0.7, 1.0, u / e)
+    /// a = aRaw × projectionHealth
+    /// ```
+    ///
+    /// At `u/e ≥ 1` (projected to overshoot), `projectionHealth` saturates
+    /// to 1 and absolute fires at full strength. At `u/e ≤ 0.7` (projected
+    /// well under), the multiplier drops to 0 and absolute is suppressed -
+    /// keeping calm pacing on a high absolute from triggering a false alarm.
+    ///
+    /// Profile owns the smart calibration end-to-end. The user's threshold
+    /// sliders only drive the threshold-mode fallback (when
+    /// `smartColorEnabled == false`).
+    static func combinedRisk(u: Double, e: Double, m: Double, params: SmartColorParameters = .default) -> Double {
+        if u >= 1.0 { return 1.0 }
+        let aRaw = smoothstep(params.absoluteLower, params.absoluteUpper, u)
+        let projectionHealth: Double = {
+            guard e > 0.0001 else { return 1.0 }
+            return smoothstep(0.7, 1.0, u / e)
+        }()
+        let a = aRaw * projectionHealth
+        let b = projectionRisk(u: u, e: e, params: params)
+        let c = pacingRisk(u: u, e: e, m: m, params: params)
+        return max(a, max(b, c))
+    }
+
+    // MARK: - Color interpolation
+
+    /// Continuous color across 4 anchor stops:
+    /// - 0.00 -> normal (chill)
+    /// - 0.30 -> normal (still chill)
+    /// - 0.55 -> warning (orange)
+    /// - 0.85 -> critical (red)
+    /// - 1.00 -> critical
+    /// HSB interpolation between adjacent stops keeps the gradient
+    /// readable through yellow-orange-red without muddy intermediates.
+    static func colorForRisk(_ risk: Double, theme: ThemeColors) -> Color {
+        let r = max(0, min(1, risk))
+        let normal = Color(hex: theme.gaugeNormal)
+        let warning = Color(hex: theme.gaugeWarning)
+        let critical = Color(hex: theme.gaugeCritical)
+
+        if r <= 0.30 { return normal }
+        if r >= 0.85 { return critical }
+        if r <= 0.55 {
+            let t = (r - 0.30) / 0.25
+            return interpolate(normal, warning, t: t)
+        }
+        let t = (r - 0.55) / 0.30
+        return interpolate(warning, critical, t: t)
+    }
+
+    /// NSColor variant for AppKit surfaces (menu bar, popover chrome).
+    static func nsColorForRisk(_ risk: Double, theme: ThemeColors) -> NSColor {
+        let r = max(0, min(1, risk))
+        let normal = NSColor(hex: theme.gaugeNormal)
+        let warning = NSColor(hex: theme.gaugeWarning)
+        let critical = NSColor(hex: theme.gaugeCritical)
+
+        if r <= 0.30 { return normal }
+        if r >= 0.85 { return critical }
+        if r <= 0.55 {
+            let t = CGFloat((r - 0.30) / 0.25)
+            return interpolateNS(normal, warning, t: t)
+        }
+        let t = CGFloat((r - 0.55) / 0.30)
+        return interpolateNS(warning, critical, t: t)
+    }
+
+    private static func interpolate(_ a: Color, _ b: Color, t: Double) -> Color {
+        let nsA = NSColor(a).usingColorSpace(.sRGB) ?? .gray
+        let nsB = NSColor(b).usingColorSpace(.sRGB) ?? .gray
+        return Color(interpolateHSBNS(nsA, nsB, t: CGFloat(max(0, min(1, t)))))
+    }
+
+    private static func interpolateNS(_ a: NSColor, _ b: NSColor, t: CGFloat) -> NSColor {
+        let aRGB = a.usingColorSpace(.sRGB) ?? a
+        let bRGB = b.usingColorSpace(.sRGB) ?? b
+        return interpolateHSBNS(aRGB, bRGB, t: max(0, min(1, t)))
+    }
+
+    /// HSB-space interpolation between two NSColors. Linear sRGB interp
+    /// produces muddy intermediates around the green->orange band (e.g.
+    /// midpoint of `#22C55E` and `#F97316` is ~`#8E9D3A` olive). HSB
+    /// rotates hue along the natural color wheel so the same midpoint
+    /// becomes a vivid yellow-green instead.
+    ///
+    /// Hue takes the SHORT angular path when the two anchors are within
+    /// half a turn of each other (always true for the gauge palette).
+    /// Saturation, brightness, and alpha lerp linearly. The user's theme
+    /// anchors stay intact - this only changes WHAT happens between
+    /// adjacent anchors, not the anchors themselves.
+    private static func interpolateHSBNS(_ a: NSColor, _ b: NSColor, t: CGFloat) -> NSColor {
+        let f = max(0, min(1, t))
+        let h1 = a.hueComponent
+        let h2 = b.hueComponent
+        let dh = h2 - h1
+
+        // Short-path hue interpolation. NSColor hue is in [0, 1] (full
+        // rotation). For dh ∈ [-0.5, 0.5] we lerp directly; otherwise we
+        // wrap to take the short way around the wheel.
+        let h: CGFloat
+        if abs(dh) <= 0.5 {
+            h = (h1 + dh * f + 1.0).truncatingRemainder(dividingBy: 1.0)
+        } else if dh > 0.5 {
+            h = (h1 + (dh - 1.0) * f + 1.0).truncatingRemainder(dividingBy: 1.0)
+        } else {
+            h = (h1 + (dh + 1.0) * f + 1.0).truncatingRemainder(dividingBy: 1.0)
+        }
+
+        let s = a.saturationComponent + (b.saturationComponent - a.saturationComponent) * f
+        let br = a.brightnessComponent + (b.brightnessComponent - a.brightnessComponent) * f
+        let alpha = a.alphaComponent + (b.alphaComponent - a.alphaComponent) * f
+
+        return NSColor(hue: h, saturation: s, brightness: br, alpha: alpha)
+    }
+
+    // MARK: - Zone derivation
+
+    /// Discrete zone for risk, with optional hysteresis. When `previous`
+    /// is provided, transitions in the falling direction need an extra
+    /// 5pp buffer to avoid flicker around a boundary.
+    ///
+    /// Rising thresholds (cold start):
+    ///   chill < 0.30 <= onTrack < 0.55 <= warning < 0.78 <= hot
+    ///
+    /// Falling thresholds (held by previous zone):
+    ///   keep hot until r < 0.73; keep warning until r < 0.50;
+    ///   keep onTrack until r < 0.25.
+    static func zoneForRisk(_ risk: Double, previous: PacingZone? = nil, params: SmartColorParameters = .default) -> PacingZone {
+        let r = max(0, min(1, risk))
+        let rising = (chill: params.chillThreshold, warning: params.warningThreshold, hot: params.hotThreshold)
+        let falling = (chill: params.fallingChill, warning: params.fallingWarning, hot: params.fallingHot)
+
+        guard let previous else {
+            return zoneFromRising(r, rising: rising)
+        }
+
+        switch previous {
+        case .chill:
+            return zoneFromRising(r, rising: rising)
+        case .onTrack:
+            if r >= rising.hot     { return .hot }
+            if r >= rising.warning { return .warning }
+            if r <  falling.chill  { return .chill }
+            return .onTrack
+        case .warning:
+            if r >= rising.hot     { return .hot }
+            if r <  falling.chill  { return .chill }
+            if r <  falling.warning { return .onTrack }
+            return .warning
+        case .hot:
+            if r <  falling.chill   { return .chill }
+            if r <  falling.warning { return .onTrack }
+            if r <  falling.hot     { return .warning }
+            return .hot
+        }
+    }
+
+    private static func zoneFromRising(_ r: Double, rising: (chill: Double, warning: Double, hot: Double)) -> PacingZone {
+        if r >= rising.hot     { return .hot }
+        if r >= rising.warning { return .warning }
+        if r >= rising.chill   { return .onTrack }
+        return .chill
+    }
+
+    // MARK: - Legacy 3-level mapping
+
+    /// Maps the continuous risk back to the legacy `SmartLevel` enum
+    /// used by `NotificationService` and other call sites that haven't
+    /// been migrated to the 4-zone system. Boundaries chosen so
+    /// `.warning` aligns with the orange band and `.critical` with the
+    /// red band.
+    static func legacyLevel(forRisk risk: Double) -> ThemeColors.SmartLevel {
+        if risk >= 0.78 { return .critical }
+        if risk >= 0.50 { return .warning }
+        return .normal
+    }
+}

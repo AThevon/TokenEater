@@ -28,12 +28,15 @@
 
 A native macOS menu bar app + desktop widgets + floating overlay that tracks your Claude AI usage in real-time.
 
-- **Menu bar** — Live percentages, color-coded thresholds, detailed popover dashboard
-- **Widgets** — Native WidgetKit widgets (usage gauges, progress bars, pacing) with reactive refresh
-- **Agent Watchers** — Floating overlay showing active Claude Code sessions with dock-like hover effect. Click to jump to the right terminal (Terminal.app, iTerm2, tmux, Kitty, WezTerm).
-- **Smart pacing** — Are you burning through tokens or cruising? Three zones: chill, on track, hot.
+- **Menu bar** — Live percentages, color-coded thresholds, detailed popover dashboard with three layout variants (Classic / Compact / Focus).
+- **Dashboard** — Three-space layout (Monitoring / History / Settings) with flippable tiles surfacing 7d sparklines, peak day, and a pacing-vs-equilibrium graph.
+- **History** — Tokens-over-time browser sourced from Claude Code's local JSONL logs. Filter by model family (Opus / Sonnet / Haiku), switch range (24h / 7d / 30d / 90d), hover bars for daily breakdown, identify your heaviest day and top project at a glance.
+- **Widgets** — Native WidgetKit widgets (usage gauges, progress bars, pacing) with reactive refresh.
+- **Agent Watchers** — Floating overlay showing active Claude Code sessions with dock-like hover effect. Click to jump to the right terminal (Terminal.app, iTerm2, tmux, Kitty, WezTerm). Frost or Neon style, with per-session context fraction.
+- **Smart Color** — Risk-aware coloring that combines absolute usage, projection rate, and pacing into a continuous risk score with early-window confidence damping. Three temperaments (Confident / Balanced / Suspicious) to dial sensitivity to your appetite for risk.
+- **Smart pacing** — Are you burning through tokens or cruising? Four zones: chill, on track, warning, hot.
 - **Themes** — 4 presets + full custom colors. Configurable warning/critical thresholds.
-- **Notifications** — Alerts at warning, critical, and reset.
+- **Notifications** — Granular per-surface (5h / 7d / Sonnet / Design) and per-event toggles (escalation, recovery, pacing, scheduled reset reminders, extra credits, token expiry).
 
 See all features in detail on the [website](https://tokeneater.vercel.app).
 
@@ -43,13 +46,7 @@ See all features in detail on the [website](https://tokeneater.vercel.app).
 
 **[Download TokenEater.dmg](https://github.com/AThevon/TokenEater/releases/latest/download/TokenEater.dmg)**
 
-Open the DMG, drag TokenEater to Applications, then:
-
-1. Double-click TokenEater in Applications — macOS will block it
-2. Open **System Settings → Privacy & Security** — scroll down to find the message about TokenEater
-3. Click **Open Anyway** and confirm
-
-> **Important:** Do not use `xattr -cr` to bypass this step — it prevents macOS from approving the widget extension, which will then be flagged as malware in the widget gallery.
+Open the DMG, drag TokenEater to Applications, and launch it. The DMG is signed with a Developer ID and notarized by Apple, so Gatekeeper lets it run on first launch without any extra steps.
 
 ### Homebrew
 
@@ -94,7 +91,6 @@ plutil -insert NSExtension -json '{"NSExtensionPointIdentifier":"com.apple.widge
 xcodebuild -project TokenEater.xcodeproj -scheme TokenEaterApp \
   -configuration Release -derivedDataPath build build
 cp -R "build/Build/Products/Release/TokenEater.app" /Applications/
-# Then approve via System Settings → Privacy & Security → Open Anyway
 ```
 
 ## Architecture
@@ -104,10 +100,10 @@ TokenEaterApp/           App host (settings, OAuth, menu bar, overlay)
 TokenEaterWidget/        Widget Extension (WidgetKit, reactive refresh)
 Shared/                  Shared code (services, stores, models, pacing)
   ├── Models/            Pure Codable structs
-  ├── Services/          Protocol-based I/O (API, TokenProvider, SharedFile, Notification, SessionMonitor)
+  ├── Services/          Protocol-based I/O (API, TokenProvider, SharedFile, Notification, SessionMonitor, SessionHistory)
   ├── Repositories/      Orchestration (UsageRepository)
-  ├── Stores/            ObservableObject state containers
-  └── Helpers/           Pure functions (PacingCalculator, MenuBarRenderer, JSONLParser)
+  ├── Stores/            ObservableObject state containers (Usage, Theme, Settings, History, MonitoringInsights, Session, Update)
+  └── Helpers/           Pure functions (PacingCalculator, MenuBarRenderer, JSONLParser, SmartColor)
 ```
 
 The app reads Claude Code's OAuth token silently from the macOS Keychain (`kSecUseAuthenticationUISkip`), calls the Anthropic usage API, and writes results to a shared JSON file. A `TokenFileMonitor` watches for credential changes via FSEvents and triggers immediate refresh. The widget reads the shared file — it never touches the network or Keychain. The Agent Watchers overlay scans running Claude Code processes every 2s using macOS system APIs and tail-reads their JSONL logs.
@@ -134,7 +130,7 @@ TokenEater reads an **OAuth access token** from the Claude Code keychain entry -
 
 The token never leaves your machine except for these two API calls to `api.anthropic.com`. The widget reads a local JSON file and has no network or keychain access at all.
 
-Anthropic does not currently offer a third-party OAuth flow or scoped API tokens - reading the existing token from the keychain is the only option. If scoped tokens become available, TokenEater will adopt them immediately. The entire codebase is open source and auditable: keychain access is in [`KeychainService.swift`](Shared/Services/KeychainService.swift), API calls in [`APIClient.swift`](Shared/Services/APIClient.swift).
+Anthropic does not currently offer a third-party OAuth flow or scoped API tokens - reading the existing token from the keychain is the only option. If scoped tokens become available, TokenEater will adopt them immediately. The entire codebase is open source and auditable: keychain access is in [`SecurityCLIReader.swift`](Shared/Services/SecurityCLIReader.swift) (primary) and [`KeychainService.swift`](Shared/Services/KeychainService.swift) (fallback), API calls in [`APIClient.swift`](Shared/Services/APIClient.swift).
 
 ## Troubleshooting
 
@@ -143,9 +139,8 @@ Anthropic does not currently offer a third-party OAuth flow or scoped API tokens
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | "Rate limited" or "API unavailable" | Your OAuth token has hit its per-token request limit | Run `claude /login` in your terminal for a fresh token - TokenEater detects the change and recovers automatically within seconds |
-| Keychain popup every few hours | macOS re-validates app signatures after updates | Click **Always Allow** - if it persists, run a clean reset |
+| Keychain popup asking to access "Claude Code-credentials" | First run on a new install needs to authorize `/usr/bin/security` to read your Claude Code token | Click **Always Allow** once - it sticks across future app updates |
 | Widget stuck / not updating | macOS caches widget extensions aggressively | Remove the widget, run a clean reset, re-add the widget |
-| App flagged as malware in widget gallery | `xattr -cr` was used instead of System Settings approval | Run a clean reset, reinstall, and approve via **System Settings > Privacy & Security > Open Anyway** |
 
 ### Clean reset
 

@@ -8,7 +8,25 @@ struct PopoverSectionView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var usageStore: UsageStore
 
+    /// Width threshold below which the two-column layout becomes unreadable
+    /// (toggle labels collapse into vertical word-stacks). When the host
+    /// window goes narrower than this, we collapse to a single column with
+    /// the preview pinned at the top.
+    private let horizontalThreshold: CGFloat = 680
+
     var body: some View {
+        GeometryReader { geo in
+            if geo.size.width >= horizontalThreshold {
+                horizontalLayout
+            } else {
+                verticalLayout
+            }
+        }
+    }
+
+    // MARK: - Horizontal layout (wide window)
+
+    private var horizontalLayout: some View {
         HStack(alignment: .top, spacing: 16) {
             // Left column (50%) - header, variant picker, scrollable editor list.
             VStack(alignment: .leading, spacing: 16) {
@@ -36,6 +54,36 @@ struct PopoverSectionView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(.trailing, 24)
             .padding(.top, 24)
+        }
+    }
+
+    // MARK: - Vertical layout (narrow window)
+
+    /// Single-column fallback : header, variant picker, **preview pinned at the
+    /// top** (so the user sees the result of their changes immediately), then
+    /// the toggle / editor stack scrolls below. Avoids the toggle-label
+    /// vertical-collapse seen when the right preview eats half the width on a
+    /// narrow window.
+    private var verticalLayout: some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+
+                VariantPickerView()
+
+                VStack(alignment: .center, spacing: 14) {
+                    LivePopoverPreview()
+                    resetButton
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+
+                generalOptions
+                variantEditor
+                Spacer(minLength: 12)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 20)
         }
     }
 

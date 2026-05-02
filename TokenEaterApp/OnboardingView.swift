@@ -1,46 +1,59 @@
 import SwiftUI
 
+/// Single-page onboarding. Brand header + body split: left = 2x2 grid of
+/// cards (the actions to take), right = hero with description, progress,
+/// and the Finish CTA. Each of the 4 cards owns a state machine that
+/// talks to `OnboardingViewModel`.
+///
+/// The chrome (rounded background, modal radius) is provided by the parent
+/// `MainAppView.onboardingContent`; this view stays transparent on top.
 struct OnboardingView: View {
     @StateObject private var viewModel = OnboardingViewModel()
 
     var body: some View {
-        ZStack {
-            AnimatedGradient(baseColors: [
-                Color(red: 0.10, green: 0.10, blue: 0.12),
-                Color(red: 0.14, green: 0.10, blue: 0.18),
-            ])
+        VStack(spacing: 16) {
+            brandBar
+            bodyContent
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 22)
+        .padding(.bottom, 18)
+    }
 
-            VStack(spacing: 0) {
-                Group {
-                    switch viewModel.currentStep {
-                    case .welcome:
-                        WelcomeStep(viewModel: viewModel)
-                    case .prerequisites:
-                        PrerequisiteStep(viewModel: viewModel)
-                    case .notifications:
-                        NotificationStep(viewModel: viewModel)
-                    case .agentWatchers:
-                        AgentWatchersStep(viewModel: viewModel)
-                    case .connection:
-                        ConnectionStep(viewModel: viewModel)
-                    }
-                }
-                .frame(maxHeight: .infinity)
-                .transition(.asymmetric(
-                    insertion: .move(edge: viewModel.isNavigatingForward ? .trailing : .leading).combined(with: .opacity),
-                    removal: .move(edge: viewModel.isNavigatingForward ? .leading : .trailing).combined(with: .opacity)
-                ))
-                .id(viewModel.currentStep)
+    private var brandBar: some View {
+        HStack(spacing: 8) {
+            Image(nsImage: NSImage(named: "AppIcon") ?? NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 22, height: 22)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
 
-                HStack(spacing: 8) {
-                    ForEach(OnboardingStep.allCases, id: \.rawValue) { step in
-                        Circle()
-                            .fill(step == viewModel.currentStep ? Color.white : Color.white.opacity(0.2))
-                            .frame(width: 6, height: 6)
-                    }
-                }
-                .padding(.top, 4)
-                .padding(.bottom, 28)
+            Text("TokenEater")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.6))
+
+            Spacer()
+        }
+    }
+
+    private var bodyContent: some View {
+        HStack(alignment: .top, spacing: 22) {
+            cardsGrid
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            OnboardingHero(viewModel: viewModel)
+                .frame(width: 280)
+        }
+    }
+
+    private var cardsGrid: some View {
+        Grid(horizontalSpacing: 12, verticalSpacing: 12) {
+            GridRow {
+                ClaudeCodeCard(viewModel: viewModel)
+                ConnectCard(viewModel: viewModel)
+            }
+            GridRow {
+                WatchersCard(viewModel: viewModel)
+                NotificationsCard(viewModel: viewModel)
             }
         }
     }

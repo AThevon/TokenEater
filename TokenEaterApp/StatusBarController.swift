@@ -127,6 +127,27 @@ final class StatusBarController: NSObject {
         usageStore.proxyConfig = settingsStore.proxyConfig
         usageStore.pacingMargin = settingsStore.pacingMargin
         usageStore.refreshIntervalSeconds = TimeInterval(settingsStore.refreshInterval)
+        usageStore.notifTogglesProvider = { [weak self] in
+            guard let self else { return nil }
+            return NotificationToggles(
+                masterEnabled: self.settingsStore.notificationsEnabled,
+                trackFiveHour: self.settingsStore.notifTrackFiveHour,
+                trackWeekly: self.settingsStore.notifTrackWeekly,
+                trackSonnet: self.settingsStore.notifTrackSonnet,
+                trackDesign: self.settingsStore.notifTrackDesign,
+                sendRecovery: self.settingsStore.notifSendRecovery,
+                pacingHot: self.settingsStore.notifPacingHot,
+                pacingWarning: self.settingsStore.notifPacingWarning,
+                resetReminderSession: self.settingsStore.notifResetReminderSession,
+                resetReminderWeekly: self.settingsStore.notifResetReminderWeekly,
+                extraCredits: self.settingsStore.notifExtraCredits,
+                tokenExpired: self.settingsStore.notifTokenExpired,
+                smartColorEnabled: self.settingsStore.smartColorEnabled,
+                smartColorProfile: self.settingsStore.smartColorProfile,
+                pacingMargin: Double(self.settingsStore.pacingMargin),
+                thresholds: self.themeStore.thresholds
+            )
+        }
         usageStore.reloadConfig(thresholds: themeStore.thresholds)
         usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
         themeStore.syncToSharedFile()
@@ -195,8 +216,14 @@ final class StatusBarController: NSObject {
         showDashboard()
 
         if let section = notification.userInfo?["section"] as? String,
-           let target = AppSection(rawValue: section) {
-            NotificationCenter.default.post(name: .navigateToSection, object: nil, userInfo: ["section": target.rawValue])
+           let target = NavigationTarget.parse(section) {
+            let payload: String
+            if let sub = target.settingsSection {
+                payload = "settings.\(sub.rawValue)"
+            } else {
+                payload = target.space.rawValue
+            }
+            NotificationCenter.default.post(name: .navigateToSection, object: nil, userInfo: ["section": payload])
         }
     }
 
@@ -225,11 +252,16 @@ final class StatusBarController: NSObject {
             fiveHourReset: usageStore.fiveHourReset,
             fiveHourResetAbsolute: usageStore.fiveHourResetAbsolute,
             fiveHourResetDate: usageStore.lastUsage?.fiveHour?.resetsAtDate,
+            sevenDayResetDate: usageStore.lastUsage?.sevenDay?.resetsAtDate,
+            sonnetResetDate: usageStore.lastUsage?.sevenDaySonnet?.resetsAtDate,
+            designResetDate: usageStore.lastUsage?.sevenDayDesign?.resetsAtDate,
             hasFiveHourBucket: usageStore.lastUsage?.fiveHour != nil,
             resetDisplayFormat: settingsStore.resetDisplayFormat,
             resetTextColorHex: settingsStore.resetTextColorHex,
             sessionPeriodColorHex: settingsStore.sessionPeriodColorHex,
-            smartResetColor: settingsStore.smartResetColor,
+            smartResetColor: settingsStore.smartColorEnabled,
+            smartColorProfile: settingsStore.smartColorProfile,
+            pacingMargin: Double(settingsStore.pacingMargin),
             menuBarStyle: settingsStore.menuBarStyle,
             pacingShape: settingsStore.pacingShape,
             designPct: usageStore.designPct,
@@ -332,14 +364,14 @@ final class StatusBarController: NSObject {
             keyEquivalent: ""
         )
         let settingsSub = NSMenu()
-        for section in AppSection.allCases where section != .dashboard {
+        for section in SettingsSection.allCases {
             let item = NSMenuItem(
                 title: section.label,
                 action: #selector(contextOpenSection(_:)),
                 keyEquivalent: ""
             )
             item.target = self
-            item.representedObject = section.rawValue
+            item.representedObject = "settings.\(section.rawValue)"
             settingsSub.addItem(item)
         }
         settingsItem.submenu = settingsSub
@@ -435,7 +467,11 @@ final class StatusBarController: NSObject {
             .environmentObject(sessionStore)
 
         let isOnboarding = !settingsStore.hasCompletedOnboarding
-        let size = isOnboarding ? NSSize(width: 700, height: 720) : NSSize(width: 860, height: 760)
+        let onboardingSize = NSSize(
+            width: DS.Layout.onboardingWindow.width,
+            height: DS.Layout.onboardingWindow.height
+        )
+        let size = isOnboarding ? onboardingSize : NSSize(width: 940, height: 700)
         var styleMask: NSWindow.StyleMask = [.titled, .closable, .fullSizeContentView]
         if !isOnboarding { styleMask.insert(.resizable) }
 
@@ -450,12 +486,14 @@ final class StatusBarController: NSObject {
         window.hasShadow = true
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        // Keep drag limited to the titlebar area. With this on, clicking +
-        // holding on any padding / empty space in the sidebar, the settings
-        // panels, or the popover editor would drag the whole window by
-        // accident - now only the invisible titlebar strip (~28px up top,
-        // where the traffic lights sit) moves it.
-        window.isMovableByWindowBackground = false
+        // Keep drag limited to the titlebar area in dashboard mode. With
+        // this on for the dashboard, clicking + holding on any padding /
+        // empty space in the sidebar, the settings panels, or the popover
+        // editor would drag the whole window by accident. For onboarding,
+        // the user has a fixed-size panel without a sidebar - we let them
+        // drag from anywhere on the background so the window doesn't feel
+        // stuck behind the titlebar strip.
+        window.isMovableByWindowBackground = isOnboarding
         window.delegate = self
 
         let hostingController = NSHostingController(rootView: appView)
@@ -468,7 +506,8 @@ final class StatusBarController: NSObject {
             window.minSize = size
             window.maxSize = size
         } else {
-            window.minSize = NSSize(width: 760, height: 560)
+            window.minSize = NSSize(width: 600, height: 440)
+            window.contentMinSize = NSSize(width: 600, height: 440)
             window.setFrameAutosaveName("TokenEaterMain")
         }
 
@@ -479,14 +518,22 @@ final class StatusBarController: NSObject {
         observeOnboardingCompletion()
     }
 
+    /// Observe onboarding state in BOTH directions so the NSWindow stays
+    /// in sync with what the SwiftUI view is rendering. Without this, the
+    /// "replay onboarding" path leaves the window at the dashboard size
+    /// (940x700) while the SwiftUI body switches to onboardingContent,
+    /// producing the empty-margin ghost effect.
     private func observeOnboardingCompletion() {
         settingsStore.$hasCompletedOnboarding
             .dropFirst()
-            .filter { $0 }
-            .first()
+            .removeDuplicates()
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.transitionToMainWindow()
+            .sink { [weak self] completed in
+                if completed {
+                    self?.transitionToMainWindow()
+                } else {
+                    self?.transitionToOnboardingWindow()
+                }
             }
             .store(in: &cancellables)
     }
@@ -494,12 +541,32 @@ final class StatusBarController: NSObject {
     private func transitionToMainWindow() {
         guard let window = dashboardWindow else { return }
         window.styleMask.insert(.resizable)
-        window.contentMinSize = NSSize(width: 760, height: 560)
+        window.contentMinSize = NSSize(width: 600, height: 440)
         window.contentMaxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        window.minSize = NSSize(width: 760, height: 560)
+        window.minSize = NSSize(width: 600, height: 440)
+        window.isMovableByWindowBackground = false
         window.setFrameAutosaveName("TokenEaterMain")
-        let mainSize = NSSize(width: 860, height: 760)
+        let mainSize = NSSize(width: 940, height: 700)
         window.setContentSize(mainSize)
+        window.center()
+    }
+
+    /// Inverse of `transitionToMainWindow`: shrink the dashboard window
+    /// back to the onboarding size when the user resets onboarding from
+    /// Settings.
+    private func transitionToOnboardingWindow() {
+        guard let window = dashboardWindow else { return }
+        window.styleMask.remove(.resizable)
+        let onboardingSize = NSSize(
+            width: DS.Layout.onboardingWindow.width,
+            height: DS.Layout.onboardingWindow.height
+        )
+        window.contentMinSize = onboardingSize
+        window.contentMaxSize = onboardingSize
+        window.minSize = onboardingSize
+        window.isMovableByWindowBackground = true
+        window.setFrameAutosaveName("")
+        window.setContentSize(onboardingSize)
         window.center()
     }
 
@@ -527,7 +594,7 @@ extension StatusBarController: NSWindowDelegate {
     nonisolated func windowShouldClose(_ sender: NSWindow) -> Bool {
         MainActor.assumeIsolated {
             if !self.settingsStore.hasCompletedOnboarding {
-                // User closed during onboarding — quit the app so they're not stuck
+                // User closed during onboarding - quit the app so they're not stuck
                 // (LSUIElement app has no Dock icon, no Force Quit entry)
                 NSApp.terminate(nil)
                 return
@@ -537,6 +604,17 @@ extension StatusBarController: NSWindowDelegate {
             self.dashboardWindow = nil
         }
         return false
+    }
+
+    /// Hard-clamp the resize so AppKit can't honor a frame smaller than our
+    /// declared min, even if `setFrameAutosaveName` restored a stale frame
+    /// or the user drags the resize grip past the floor. Belt-and-braces
+    /// for the `minSize` / `contentMinSize` properties.
+    nonisolated func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        NSSize(
+            width: max(frameSize.width, 600),
+            height: max(frameSize.height, 440)
+        )
     }
 }
 

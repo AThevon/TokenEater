@@ -31,6 +31,20 @@ struct UsageStoreTests {
         return (store, repo, tokenProvider, notif, sharedFile)
     }
 
+    private func fixtureToggles() -> NotificationToggles {
+        NotificationToggles(
+            masterEnabled: true,
+            trackFiveHour: true, trackWeekly: true, trackSonnet: true, trackDesign: true,
+            sendRecovery: true, pacingHot: true, pacingWarning: false,
+            resetReminderSession: false, resetReminderWeekly: false,
+            extraCredits: true, tokenExpired: true,
+            smartColorEnabled: false,
+            smartColorProfile: .default,
+            pacingMargin: 10,
+            thresholds: .default
+        )
+    }
+
     // MARK: - refresh — no token
 
     @Test("refresh sets tokenUnavailable when tokenProvider returns nil")
@@ -101,15 +115,16 @@ struct UsageStoreTests {
         #expect(store.isLoading == false)
     }
 
-    @Test("refresh checks notification thresholds on success")
+    @Test("refresh evaluates notifications on success")
     func refreshChecksNotificationThresholds() async {
         let (store, _, _, notif, _) = makeSUT(usage: .fixture(fiveHourUtil: 42, sevenDayUtil: 65, sonnetUtil: 30))
+        store.notifTogglesProvider = { fixtureToggles() }
 
         await store.refresh()
 
-        #expect(notif.lastThresholdCheck?.fiveHour.pct == 42)
-        #expect(notif.lastThresholdCheck?.sevenDay.pct == 65)
-        #expect(notif.lastThresholdCheck?.sonnet.pct == 30)
+        #expect(notif.lastEvaluation?.fiveHour.pct == 42)
+        #expect(notif.lastEvaluation?.sevenDay.pct == 65)
+        #expect(notif.lastEvaluation?.sonnet.pct == 30)
     }
 
     @Test("refresh sets hasConfig true when token available")

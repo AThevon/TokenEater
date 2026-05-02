@@ -1,9 +1,10 @@
 import Foundation
 
 enum PacingZone: String {
-    case chill
-    case onTrack
-    case hot
+    case chill    // safely below the ideal pace
+    case onTrack  // within ±margin of the ideal pace
+    case warning  // running ahead by more than the margin but below the hot threshold
+    case hot      // running ahead by more than 2x the margin
 }
 
 enum PacingBucket: String, CaseIterable {

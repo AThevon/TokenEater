@@ -1,5 +1,6 @@
 import SwiftUI
 import UserNotifications
+import ServiceManagement
 
 @MainActor
 final class SettingsStore: ObservableObject {
@@ -16,8 +17,25 @@ final class SettingsStore: ObservableObject {
     /// When true, the reset countdown text is coloured based on a risk score
     /// (utilization x remaining minutes) rather than the static user-picked
     /// hex. Useful to signal urgency without constantly watching the number.
-    @Published var smartResetColor: Bool {
-        didSet { UserDefaults.standard.set(smartResetColor, forKey: "smartResetColor") }
+    /// Global "Smart Color" theming. When ON, color codes throughout the app
+    /// (gauges, reset countdowns) integrate the time-to-reset factor instead of
+    /// raw thresholds. Example: 95% utilization with 2 minutes left to reset
+    /// stays green rather than going red. Falls back to threshold-based coloring
+    /// when no reset date is available.
+    @Published var smartColorEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(smartColorEnabled, forKey: "smartColorEnabled")
+            sharedFileService.updateSmartColorEnabled(smartColorEnabled)
+        }
+    }
+    /// User-selected temperament for the smart color algorithm. Shifts
+    /// when the gauge transitions from chill -> warning -> hot. See
+    /// `SmartColorProfile` for the parameter mapping.
+    @Published var smartColorProfile: SmartColorProfile {
+        didSet {
+            UserDefaults.standard.set(smartColorProfile.rawValue, forKey: "smartColorProfile")
+            sharedFileService.updateSmartColorProfile(smartColorProfile)
+        }
     }
     /// Typography / separator style for the pinned metrics in the menu bar.
     @Published var menuBarStyle: MenuBarStyle {
@@ -104,14 +122,8 @@ final class SettingsStore: ObservableObject {
     }
 
     // Performance
-    @Published var animatedGradientEnabled: Bool {
-        didSet { UserDefaults.standard.set(animatedGradientEnabled, forKey: "animatedGradientEnabled") }
-    }
     @Published var watcherAnimationsEnabled: Bool {
         didSet { UserDefaults.standard.set(watcherAnimationsEnabled, forKey: "watcherAnimationsEnabled") }
-    }
-    @Published var sessionMonitorEnabled: Bool {
-        didSet { UserDefaults.standard.set(sessionMonitorEnabled, forKey: "sessionMonitorEnabled") }
     }
 
     // Pacing
@@ -119,7 +131,53 @@ final class SettingsStore: ObservableObject {
         didSet { UserDefaults.standard.set(pacingMargin, forKey: "pacingMargin") }
     }
 
-    // Refresh interval (seconds) — minimum 180 (3min), default 300 (5min)
+    // Notifications - master switch and per-event toggles.
+    // When `notificationsEnabled` is false, NotificationService.evaluate
+    // bails out before touching the per-event toggles. The user keeps their
+    // granular config while silencing the whole pipeline.
+    @Published var notificationsEnabled: Bool {
+        didSet { UserDefaults.standard.set(notificationsEnabled, forKey: "notificationsEnabled") }
+    }
+    @Published var notifTrackFiveHour: Bool {
+        didSet { UserDefaults.standard.set(notifTrackFiveHour, forKey: "notifTrackFiveHour") }
+    }
+    @Published var notifTrackWeekly: Bool {
+        didSet { UserDefaults.standard.set(notifTrackWeekly, forKey: "notifTrackWeekly") }
+    }
+    @Published var notifTrackSonnet: Bool {
+        didSet { UserDefaults.standard.set(notifTrackSonnet, forKey: "notifTrackSonnet") }
+    }
+    @Published var notifTrackDesign: Bool {
+        didSet { UserDefaults.standard.set(notifTrackDesign, forKey: "notifTrackDesign") }
+    }
+    /// When false, only escalations (orange / red) fire. Recovery to green stays silent.
+    @Published var notifSendRecovery: Bool {
+        didSet { UserDefaults.standard.set(notifSendRecovery, forKey: "notifSendRecovery") }
+    }
+    /// Pacing zone transitions
+    @Published var notifPacingHot: Bool {
+        didSet { UserDefaults.standard.set(notifPacingHot, forKey: "notifPacingHot") }
+    }
+    @Published var notifPacingWarning: Bool {
+        didSet { UserDefaults.standard.set(notifPacingWarning, forKey: "notifPacingWarning") }
+    }
+    /// Scheduled reminders (15min before 5h reset, 1h before weekly reset)
+    @Published var notifResetReminderSession: Bool {
+        didSet { UserDefaults.standard.set(notifResetReminderSession, forKey: "notifResetReminderSession") }
+    }
+    @Published var notifResetReminderWeekly: Bool {
+        didSet { UserDefaults.standard.set(notifResetReminderWeekly, forKey: "notifResetReminderWeekly") }
+    }
+    /// Paid extra credits pool transitions
+    @Published var notifExtraCredits: Bool {
+        didSet { UserDefaults.standard.set(notifExtraCredits, forKey: "notifExtraCredits") }
+    }
+    /// Token expired / authentication issues
+    @Published var notifTokenExpired: Bool {
+        didSet { UserDefaults.standard.set(notifTokenExpired, forKey: "notifTokenExpired") }
+    }
+
+    // Refresh interval (seconds) - minimum 180 (3min), default 300 (5min)
     @Published var refreshInterval: Int {
         didSet { UserDefaults.standard.set(refreshInterval, forKey: "refreshInterval") }
     }
@@ -173,26 +231,27 @@ final class SettingsStore: ObservableObject {
     // Notifications
     @Published var notificationStatus: UNAuthorizationStatus = .notDetermined
 
-    // Keychain helper
-    @Published var helperStatus: HelperStatus = .notInstalled
-    @Published var helperBusy: Bool = false
-    @Published var helperLastError: String?
-    @Published var helperSyncInterval: Int {
-        didSet { UserDefaults.standard.set(helperSyncInterval, forKey: "helperSyncInterval") }
+    // Launch at Login - toggle + reflect actual SMAppService.mainApp status
+    @Published var launchAtLoginEnabled: Bool {
+        didSet {
+            guard launchAtLoginEnabled != oldValue else { return }
+            UserDefaults.standard.set(launchAtLoginEnabled, forKey: "launchAtLoginEnabled")
+            applyLaunchAtLogin(launchAtLoginEnabled)
+        }
     }
 
     private let notificationService: NotificationServiceProtocol
     private let tokenProvider: TokenProviderProtocol
-    private let helperManager: HelperManagerProtocol
+    private let sharedFileService: SharedFileServiceProtocol
 
     init(
         notificationService: NotificationServiceProtocol = NotificationService(),
         tokenProvider: TokenProviderProtocol = TokenProvider(),
-        helperManager: HelperManagerProtocol = HelperManagerService()
+        sharedFileService: SharedFileServiceProtocol = SharedFileService()
     ) {
         self.notificationService = notificationService
         self.tokenProvider = tokenProvider
-        self.helperManager = helperManager
+        self.sharedFileService = sharedFileService
 
         self.showMenuBar = UserDefaults.standard.object(forKey: "showMenuBar") as? Bool ?? true
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
@@ -216,23 +275,68 @@ final class SettingsStore: ObservableObject {
         self.watcherDisplayMode = WatcherDisplayMode(
             rawValue: UserDefaults.standard.string(forKey: "watcherDisplayMode") ?? "branchPriority"
         ) ?? .branchPriority
-        self.animatedGradientEnabled = UserDefaults.standard.object(forKey: "animatedGradientEnabled") as? Bool ?? true
         self.watcherAnimationsEnabled = UserDefaults.standard.object(forKey: "watcherAnimationsEnabled") as? Bool ?? true
-        self.sessionMonitorEnabled = UserDefaults.standard.object(forKey: "sessionMonitorEnabled") as? Bool ?? true
+        // Reconcile the stored toggle with the actual SMAppService state - user
+        // might have flipped it from System Settings without going through the
+        // app, and we must not diverge from macOS's view of the world.
+        let storedLaunchAtLogin = UserDefaults.standard.object(forKey: "launchAtLoginEnabled") as? Bool ?? false
+        let systemLaunchAtLogin = SMAppService.mainApp.status == .enabled
+        self.launchAtLoginEnabled = systemLaunchAtLogin || storedLaunchAtLogin
+        if storedLaunchAtLogin != systemLaunchAtLogin {
+            // Persist the reconciled value without re-triggering the didSet
+            // (we only want to register/unregister when the user flips the
+            // toggle; the init path just mirrors the OS state).
+            UserDefaults.standard.set(systemLaunchAtLogin, forKey: "launchAtLoginEnabled")
+        }
         self.pacingMargin = {
             let val = UserDefaults.standard.integer(forKey: "pacingMargin")
-            return val > 0 ? val : 10
+            let raw = val > 0 ? val : 10
+            let snapped = (Int((Double(raw) / 5.0).rounded()) * 5)
+            return min(30, max(5, snapped))
         }()
         self.refreshInterval = {
             let val = UserDefaults.standard.integer(forKey: "refreshInterval")
             return val >= 180 ? val : 300
         }()
+
+        // Notification toggles. Defaults below apply only on first launch
+        // (no value yet in UserDefaults) - per `boolDefault` semantics.
+        self.notificationsEnabled = Self.boolDefault(key: "notificationsEnabled", default: true)
+        self.notifTrackFiveHour = Self.boolDefault(key: "notifTrackFiveHour", default: true)
+        self.notifTrackWeekly = Self.boolDefault(key: "notifTrackWeekly", default: true)
+        self.notifTrackSonnet = Self.boolDefault(key: "notifTrackSonnet", default: false)
+        self.notifTrackDesign = Self.boolDefault(key: "notifTrackDesign", default: true)
+        self.notifSendRecovery = Self.boolDefault(key: "notifSendRecovery", default: true)
+        self.notifPacingHot = Self.boolDefault(key: "notifPacingHot", default: true)
+        self.notifPacingWarning = Self.boolDefault(key: "notifPacingWarning", default: false)
+        self.notifResetReminderSession = Self.boolDefault(key: "notifResetReminderSession", default: false)
+        self.notifResetReminderWeekly = Self.boolDefault(key: "notifResetReminderWeekly", default: false)
+        self.notifExtraCredits = Self.boolDefault(key: "notifExtraCredits", default: true)
+        self.notifTokenExpired = Self.boolDefault(key: "notifTokenExpired", default: false)
         self.resetDisplayFormat = ResetDisplayFormat(
             rawValue: UserDefaults.standard.string(forKey: "resetDisplayFormat") ?? "relative"
         ) ?? .relative
         self.resetTextColorHex = UserDefaults.standard.string(forKey: "resetTextColorHex") ?? ""
         self.sessionPeriodColorHex = UserDefaults.standard.string(forKey: "sessionPeriodColorHex") ?? ""
-        self.smartResetColor = UserDefaults.standard.bool(forKey: "smartResetColor")
+        // Default ON. Migration: if the user had explicitly set the legacy
+        // "smartResetColor" key, respect that decision; otherwise opt them into
+        // smart coloring globally.
+        let initialSmartColor: Bool = {
+            if let v = UserDefaults.standard.object(forKey: "smartColorEnabled") as? Bool { return v }
+            if let legacy = UserDefaults.standard.object(forKey: "smartResetColor") as? Bool { return legacy }
+            return true
+        }()
+        self.smartColorEnabled = initialSmartColor
+        // Push the resolved value to the shared file so the (sandboxed) widget
+        // sees the same setting on first launch without waiting for a toggle.
+        sharedFileService.updateSmartColorEnabled(initialSmartColor)
+        let initialProfile = SmartColorProfile(
+            rawValue: UserDefaults.standard.string(forKey: "smartColorProfile") ?? SmartColorProfile.default.rawValue
+        ) ?? .default
+        self.smartColorProfile = initialProfile
+        // Mirror the resolved profile to the shared file so the (sandboxed)
+        // widget picks it up at first paint without waiting for a toggle.
+        sharedFileService.updateSmartColorProfile(initialProfile)
         self.menuBarStyle = MenuBarStyle(
             rawValue: UserDefaults.standard.string(forKey: "menuBarStyle") ?? "classic"
         ) ?? .classic
@@ -252,11 +356,6 @@ final class SettingsStore: ObservableObject {
         self.weeklyPacingDisplayMode = PacingDisplayMode(
             rawValue: UserDefaults.standard.string(forKey: "weeklyPacingDisplayMode") ?? legacyMode.rawValue
         ) ?? legacyMode
-        self.helperSyncInterval = {
-            let raw = UserDefaults.standard.integer(forKey: "helperSyncInterval")
-            return raw >= 30 ? raw : Int(HelperManagerService.defaultSyncInterval)
-        }()
-        self.helperStatus = helperManager.currentStatus()
         var legacyPinned: Set<MetricID>
         if let saved = UserDefaults.standard.stringArray(forKey: "pinnedMetrics") {
             // Migrate legacy "pacing" (covered weekly only) to the explicit weeklyPacing id.
@@ -304,6 +403,17 @@ final class SettingsStore: ObservableObject {
     private func savePopoverConfig() {
         guard let data = try? JSONEncoder().encode(popoverConfig) else { return }
         UserDefaults.standard.set(data, forKey: "popoverConfig")
+    }
+
+    /// Reads a Bool from UserDefaults but distinguishes "absent" from "false".
+    /// `UserDefaults.bool(forKey:)` returns false for missing keys, which would
+    /// silently override our intended default. Using `object(forKey:)` lets us
+    /// fall back only when the key has never been written.
+    private static func boolDefault(key: String, default fallback: Bool) -> Bool {
+        if let stored = UserDefaults.standard.object(forKey: key) as? Bool {
+            return stored
+        }
+        return fallback
     }
 
     /// Ensures a decoded config still satisfies the validation rules (at least
@@ -356,53 +466,31 @@ final class SettingsStore: ObservableObject {
         tokenProvider.currentToken() != nil
     }
 
-    // MARK: - Keychain helper
+    // MARK: - Launch at Login
 
-    func refreshHelperStatus() {
-        helperStatus = helperManager.currentStatus()
-    }
-
-    func installHelper() async {
-        helperBusy = true
-        helperLastError = nil
-        defer {
-            helperBusy = false
-            refreshHelperStatus()
-        }
+    private func applyLaunchAtLogin(_ enabled: Bool) {
+        let service = SMAppService.mainApp
         do {
-            try helperManager.install(syncInterval: TimeInterval(helperSyncInterval))
-            tokenProvider.invalidateToken()
+            if enabled {
+                if service.status != .enabled {
+                    try service.register()
+                }
+            } else {
+                if service.status == .enabled {
+                    try service.unregister()
+                }
+            }
         } catch {
-            helperLastError = error.localizedDescription
+            // Revert the published state if the OS refused the call (usually
+            // because the user denied it in Background Items prefs). Avoids a
+            // UI that claims the toggle is on while launchd disagrees.
+            DispatchQueue.main.async {
+                let actual = SMAppService.mainApp.status == .enabled
+                if self.launchAtLoginEnabled != actual {
+                    self.launchAtLoginEnabled = actual
+                }
+            }
         }
     }
 
-    func uninstallHelper() async {
-        helperBusy = true
-        helperLastError = nil
-        defer {
-            helperBusy = false
-            refreshHelperStatus()
-        }
-        do {
-            try helperManager.uninstall()
-            tokenProvider.invalidateToken()
-        } catch {
-            helperLastError = error.localizedDescription
-        }
-    }
-
-    func forceHelperSync() async {
-        helperBusy = true
-        helperLastError = nil
-        defer {
-            helperBusy = false
-            refreshHelperStatus()
-        }
-        do {
-            try helperManager.forceSync()
-        } catch {
-            helperLastError = error.localizedDescription
-        }
-    }
 }
