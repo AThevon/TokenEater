@@ -110,16 +110,29 @@ jobs:
             OTHER_CODE_SIGN_FLAGS="--timestamp --options=runtime" \
             build
 
-      - name: Re-sign AppleScript installer applet with hardened runtime
+      - name: Re-sign nested bundles with their own entitlements
         env:
           IDENTITY: ${{ steps.import_cert.outputs.identity }}
         run: |
-          # The 'Compile installer applets' build phase runs osacompile post-build,
-          # which produces a fresh AppleScript applet that xcodebuild's earlier
-          # codesign pass never touches. Without this re-sign, the applet ships
-          # with whatever signing osacompile applied (no hardened runtime),
-          # which Apple's notarization service rejects.
-          APPLET="build/Build/Products/Release/TokenEater.app/Contents/Resources/TokenEaterInstaller.app"
+          # Sign nested bundles FIRST with their own entitlements. The previous
+          # workflow used `codesign --deep --entitlements TokenEaterApp.entitlements`
+          # on the parent .app, which clobbered the widget's required
+          # `com.apple.security.app-sandbox` entitlement (WidgetKit refuses to
+          # register a widget without it -> the widget gallery shows nothing).
+          APP_PATH="build/Build/Products/Release/TokenEater.app"
+          WIDGET="$APP_PATH/Contents/PlugIns/TokenEaterWidgetExtension.appex"
+          APPLET="$APP_PATH/Contents/Resources/TokenEaterInstaller.app"
+
+          # Widget extension - sandboxed + temporary-exception for shared file access
+          codesign --force --sign "$IDENTITY" \
+            --timestamp --options=runtime \
+            --entitlements TokenEaterWidget/TokenEaterWidget.entitlements \
+            "$WIDGET"
+          echo "Re-signed widget extension with its own entitlements"
+
+          # AppleScript installer applet - osacompile produces it post-build
+          # without hardened runtime, so re-sign manually here. No specific
+          # entitlements (defaults are fine for an installer applet).
           if [ -d "$APPLET" ]; then
             codesign --force --sign "$IDENTITY" \
               --timestamp --options=runtime \
@@ -132,15 +145,15 @@ jobs:
             echo "::warning::Installer applet not found at $APPLET"
           fi
 
-      - name: Re-sign main app to propagate hardened runtime through every nested bundle
+      - name: Re-sign main app last (parent seal must come after nested)
         env:
           IDENTITY: ${{ steps.import_cert.outputs.identity }}
         run: |
+          # Sign the parent .app WITHOUT --deep so we don't overwrite the nested
+          # bundle entitlements we just set. The parent app gets its own
+          # entitlements file applied here.
           APP_PATH="build/Build/Products/Release/TokenEater.app"
-          # --deep walks every nested executable + bundle and applies the same
-          # signing settings. Combined with --options=runtime this guarantees
-          # the hardened runtime flag is set everywhere Apple checks.
-          codesign --force --deep --sign "$IDENTITY" \
+          codesign --force --sign "$IDENTITY" \
             --timestamp --options=runtime \
             --entitlements TokenEaterApp/TokenEaterApp.entitlements \
             "$APP_PATH"
@@ -164,6 +177,12 @@ jobs:
               exit 1
             fi
           done
+          # WidgetKit will refuse to register the widget without app-sandbox.
+          # Catch the regression here instead of at runtime on user's Mac.
+          if ! codesign -d --entitlements - "$WIDGET_PATH" 2>&1 | grep -q "com.apple.security.app-sandbox"; then
+            echo "::error::Widget extension is missing app-sandbox entitlement -> WidgetKit will refuse to register it. Did the parent app re-sign step clobber the widget entitlements ?"
+            exit 1
+          fi
 
       - name: Install create-dmg
         run: brew install create-dmg

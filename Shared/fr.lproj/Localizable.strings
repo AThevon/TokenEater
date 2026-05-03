@@ -42,6 +42,25 @@
 "widget.refresh.button" = "Rafraîchir";
 "widget.description.usage" = "Affiche votre consommation Claude en temps réel";
 "widget.description.pacing" = "Votre rythme de consommation Claude";
+"widget.title.sessionRing" = "Session Ring";
+"widget.description.sessionRing" = "Grosse jauge en anneau pour votre fenêtre 5h, en Smart Color";
+"widget.title.pacingGraph" = "Graphique de pacing";
+"widget.description.pacingGraph" = "Voyez votre rythme face à la trajectoire idéale en un coup d'œil";
+"widget.title.historySparkline" = "Historique tokens";
+"widget.description.historySparkline" = "Les 7 derniers jours d'utilisation, totaux quotidiens et tendance";
+"widget.title.usage" = "Vue d'ensemble";
+"widget.title.pacingGlance" = "Coup d'œil pacing";
+"widget.pacing.title" = "Rythme hebdo";
+"widget.pacing.session" = "5h";
+"widget.pacing.weekly" = "7j";
+"widget.design" = "Design";
+"widget.history.title" = "Historique";
+"widget.history.last7days" = "7 derniers jours";
+"widget.history.total" = "Total";
+"widget.history.vsYesterday" = "vs hier";
+"widget.history.stale" = "Ouvrez l'app pour rafraîchir";
+"widget.history.empty.title" = "Pas encore d'historique";
+"widget.history.empty.body" = "Ouvrez TokenEater pour qu'il indexe vos sessions";
 
 /* Settings */
 "settings.subtitle" = "Surveillez votre consommation Claude";

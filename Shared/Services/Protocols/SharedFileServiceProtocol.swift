@@ -9,11 +9,14 @@ protocol SharedFileServiceProtocol: Sendable {
     var thresholds: UsageThresholds { get }
     var smartColorEnabled: Bool { get }
     var smartColorProfile: SmartColorProfile { get }
+    var lastWeekDailyTotals: [Int]? { get }
+    var lastWeekTotalsRefreshedAt: Date? { get }
 
     func invalidateCache()
     func updateAfterSync(usage: CachedUsage, syncDate: Date)
     func updateTheme(_ theme: ThemeColors, thresholds: UsageThresholds)
     func updateSmartColorEnabled(_ enabled: Bool)
     func updateSmartColorProfile(_ profile: SmartColorProfile)
+    func updateLastWeekDailyTotals(_ totals: [Int], refreshedAt: Date)
     func clear()
 }

@@ -18,12 +18,17 @@ final class MonitoringInsightsStore: ObservableObject {
     @Published private(set) var hasLoaded: Bool = false
 
     private let service: SessionHistoryServiceProtocol
+    private let sharedFile: SharedFileServiceProtocol
     private var loadTask: Task<Void, Never>?
     private var lastLoaded: Date?
     private static let staleAfter: TimeInterval = 60
 
-    init(service: SessionHistoryServiceProtocol = SessionHistoryService()) {
+    init(
+        service: SessionHistoryServiceProtocol = SessionHistoryService(),
+        sharedFile: SharedFileServiceProtocol = SharedFileService()
+    ) {
         self.service = service
+        self.sharedFile = sharedFile
     }
 
     /// Kicks a background load if no data has been loaded yet, or if the
@@ -53,6 +58,11 @@ final class MonitoringInsightsStore: ObservableObject {
                     self.previousWeekTotal = previous
                     self.hasLoaded = true
                     self.lastLoaded = Date()
+                    // Mirror the daily totals to the shared file so the
+                    // History Sparkline widget renders without re-parsing
+                    // JSONL from the sandboxed widget process.
+                    let totals = buckets.map { $0.totalActive }
+                    self.sharedFile.updateLastWeekDailyTotals(totals, refreshedAt: Date())
                 }
             } catch {
                 // Silent fail - back-of-card content just stays minimal.

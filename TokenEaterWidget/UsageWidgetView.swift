@@ -60,19 +60,8 @@ struct UsageWidgetView: View {
 
     private func mediumUsageContent(_ usage: UsageResponse) -> some View {
         VStack(spacing: 0) {
-            // Header
-            HStack(spacing: 5) {
-                Image("WidgetLogo")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 12, height: 12)
-                Text("TokenEater")
-                    .font(.system(size: 10, weight: .heavy))
-                    .tracking(0.3)
-                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.5))
-                Spacer()
-            }
-            .padding(.bottom, 16)
+            WidgetHeader("widget.title.usage")
+                .padding(.bottom, 14)
 
             // Circular gauges
             HStack(spacing: 0) {
@@ -127,114 +116,77 @@ struct UsageWidgetView: View {
 
     private func largeUsageContent(_ usage: UsageResponse) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Header
-            HStack(alignment: .center) {
-                Image("WidgetLogo")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 16, height: 16)
-                Text("TokenEater")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.95))
-                Spacer()
-            }
-            .padding(.bottom, 8)
+            WidgetHeader("widget.title.usage")
 
-            // Session (5h)
+            // Bars - just the essentials per row : icon | label | % | reset
             if let fiveHour = usage.fiveHour {
                 LargeUsageBarView(
                     icon: "timer",
                     label: String(localized: "widget.session"),
-                    subtitle: String(localized: "widget.session.subtitle"),
                     resetInfo: formatResetTime(fiveHour.resetsAtDate),
                     utilization: fiveHour.utilization,
                     resetDate: fiveHour.resetsAtDate,
                     windowDuration: 5 * 3600
                 )
             }
-
-            // Weekly - All models
             if let sevenDay = usage.sevenDay {
                 LargeUsageBarView(
                     icon: "chart.bar.fill",
                     label: String(localized: "widget.weekly.full"),
-                    subtitle: String(localized: "widget.weekly.subtitle"),
                     resetInfo: formatResetDate(sevenDay.resetsAtDate),
                     utilization: sevenDay.utilization,
                     resetDate: sevenDay.resetsAtDate,
                     windowDuration: 7 * 86_400
                 )
             }
-
-            // Weekly - Sonnet
             if let sonnet = usage.sevenDaySonnet {
                 LargeUsageBarView(
                     icon: "wand.and.stars",
                     label: String(localized: "widget.sonnet"),
-                    subtitle: String(localized: "widget.sonnet.subtitle"),
                     resetInfo: formatResetDate(sonnet.resetsAtDate),
                     utilization: sonnet.utilization,
                     resetDate: sonnet.resetsAtDate,
                     windowDuration: 7 * 86_400
                 )
             }
-
-            // Pacing
-            if let pacing = PacingCalculator.calculate(from: usage) {
+            if let design = usage.sevenDayDesign {
                 LargeUsageBarView(
-                    icon: "gauge.with.needle",
-                    label: String(localized: "pacing.label"),
-                    subtitle: pacing.message,
-                    resetInfo: {
-                        guard let r = pacing.resetDate, r.timeIntervalSinceNow > 0 else { return "" }
-                        let d = Int(r.timeIntervalSinceNow) / 86400
-                        let h = (Int(r.timeIntervalSinceNow) % 86400) / 3600
-                        return d > 0 ? String(format: String(localized: "duration.days.hours"), d, h) : "\(h)h"
-                    }(),
-                    utilization: pacing.actualUsage,
-                    colorOverride: theme.pacingColor(for: pacing.zone),
-                    displayText: "\(pacing.delta >= 0 ? "+" : "")\(Int(pacing.delta))%"
+                    icon: "paintbrush.pointed.fill",
+                    label: String(localized: "widget.design"),
+                    resetInfo: formatResetDate(design.resetsAtDate),
+                    utilization: design.utilization,
+                    resetDate: design.resetsAtDate,
+                    windowDuration: 7 * 86_400
+                )
+            }
+
+            // Subtle divider between usage bars and pacing bars
+            Rectangle()
+                .fill(Color(hex: theme.widgetText).opacity(0.07))
+                .frame(height: 1)
+                .padding(.vertical, 2)
+
+            // Session pacing as a usage bar with an ideal marker
+            if let sessionPacing = PacingCalculator.calculate(from: usage, bucket: .fiveHour) {
+                LargePacingBarView(
+                    icon: "timer",
+                    label: String(localized: "widget.pacing.session"),
+                    pacing: sessionPacing,
+                    theme: theme
+                )
+            }
+            // Weekly pacing as a usage bar with an ideal marker
+            if let weeklyPacing = PacingCalculator.calculate(from: usage, bucket: .sevenDay) {
+                LargePacingBarView(
+                    icon: "chart.bar.fill",
+                    label: String(localized: "widget.pacing.weekly"),
+                    pacing: weeklyPacing,
+                    theme: theme
                 )
             }
 
             Spacer(minLength: 0)
-
-            // Footer
-            Rectangle()
-                .fill(.white.opacity(0.06))
-                .frame(height: 1)
-                .padding(.bottom, 4)
-
-            HStack {
-                if let lastSync = entry.lastSync {
-                    Text(String(format: String(localized: "widget.updated"), lastSync.relativeFormatted))
-                        .font(.system(size: 9, design: .rounded))
-                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
-                } else {
-                    Text(String(format: String(localized: "widget.updated"), entry.date.relativeFormatted))
-                        .font(.system(size: 9, design: .rounded))
-                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
-                }
-                Spacer()
-                if entry.isStale {
-                    HStack(spacing: 3) {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .font(.system(size: 9))
-                    }
-                    .foregroundStyle(.orange.opacity(0.6))
-                } else {
-                    HStack(spacing: 3) {
-                        Circle()
-                            .fill(.green.opacity(0.6))
-                            .frame(width: 4, height: 4)
-                        Text(String(localized: "widget.refresh.interval"))
-                            .font(.system(size: 9, design: .rounded))
-                            .foregroundStyle(Color(hex: theme.widgetText).opacity(0.25))
-                    }
-                }
-            }
         }
-        .padding(4)
     }
 
     // MARK: - Error View
@@ -412,12 +364,74 @@ struct CircularPacingView: View {
     }
 }
 
+// MARK: - Large Pacing Bar (matches LargeUsageBarView style)
+
+/// Same row layout as LargeUsageBarView (icon + label + value + bar) but the
+/// progress bar shows the user's actual usage AND has a vertical needle
+/// marker at the ideal position (elapsed fraction). Makes pacing read at a
+/// glance : if the fill ends past the needle, you're ahead of pace ; if
+/// short, you're behind.
+struct LargePacingBarView: View {
+    let icon: String
+    let label: String
+    let pacing: PacingResult
+    let theme: ThemeColors
+
+    var body: some View {
+        let color = theme.pacingColor(for: pacing.zone)
+        let sign = pacing.delta >= 0 ? "+" : ""
+        let actualFraction = min(1, max(0, pacing.actualUsage / 100))
+        let idealFraction = min(1, max(0, pacing.expectedUsage / 100))
+
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(color.opacity(0.85))
+                    .frame(width: 14)
+
+                Text(label)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.9))
+
+                Spacer()
+
+                Text("\(sign)\(Int(pacing.delta))%")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(color)
+            }
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    // Track
+                    RoundedRectangle(cornerRadius: 2.5)
+                        .fill(.white.opacity(0.06))
+                    // Fill - actual usage in pacing zone color
+                    RoundedRectangle(cornerRadius: 2.5)
+                        .fill(LinearGradient(
+                            colors: [color.opacity(0.85), color],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ))
+                        .frame(width: max(0, geo.size.width * actualFraction))
+                    // Ideal needle - vertical line at expected position
+                    Rectangle()
+                        .fill(Color(hex: theme.widgetText).opacity(0.65))
+                        .frame(width: 2, height: 9)
+                        .position(x: geo.size.width * idealFraction, y: 2.5)
+                }
+            }
+            .frame(height: 5)
+        }
+    }
+}
+
 // MARK: - Large Usage Bar View
 
 struct LargeUsageBarView: View {
     let icon: String
     let label: String
-    let subtitle: String
     let resetInfo: String
     let utilization: Double
     var colorOverride: Color? = nil
@@ -462,46 +476,41 @@ struct LargeUsageBarView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .center) {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
                 Image(systemName: icon)
-                    .font(.system(size: 11))
-                    .foregroundStyle(accentColor.opacity(0.8))
-                    .frame(width: 16)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(accentColor.opacity(0.85))
+                    .frame(width: 14)
 
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(label)
-                        .font(.system(size: 13, weight: .bold))
-                        .tracking(0.2)
-                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.9))
-                    Text(subtitle)
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.35))
-                }
+                Text(label)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color(hex: theme.widgetText).opacity(0.9))
 
                 Spacer()
 
-                VStack(alignment: .trailing, spacing: 1) {
-                    Text(displayText ?? "\(Int(utilization))%")
-                        .font(.system(size: 16, weight: .black, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(accentColor)
-                    Text(String(format: String(localized: "widget.reset"), resetInfo))
-                        .font(.system(size: 8, weight: .medium))
-                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.3))
+                Text(displayText ?? "\(Int(utilization))%")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(accentColor)
+
+                if !resetInfo.isEmpty {
+                    Text(resetInfo)
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
                 }
             }
 
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(.white.opacity(0.08))
-                    RoundedRectangle(cornerRadius: 3)
+                    RoundedRectangle(cornerRadius: 2.5)
+                        .fill(.white.opacity(0.06))
+                    RoundedRectangle(cornerRadius: 2.5)
                         .fill(barGradient)
                         .frame(width: max(0, geo.size.width * min(utilization, 100) / 100))
                 }
             }
-            .frame(height: 6)
+            .frame(height: 5)
         }
     }
 }
