@@ -42,6 +42,21 @@
 "widget.refresh.button" = "Refresh";
 "widget.description.usage" = "Monitor your Claude usage in real time";
 "widget.description.pacing" = "Your Claude usage pace";
+"widget.title.sessionRing" = "Session Ring";
+"widget.description.sessionRing" = "Big ring gauge for your 5h session window with Smart Color";
+"widget.title.pacingGraph" = "Pacing Graph";
+"widget.description.pacingGraph" = "See your pace versus the ideal trajectory in one glance";
+"widget.title.historySparkline" = "Tokens History";
+"widget.description.historySparkline" = "Last 7 days of token usage with daily totals and trend";
+"widget.title.pacingGlance" = "Pacing Glance";
+"widget.pacing.title" = "Pacing";
+"widget.history.title" = "History";
+"widget.history.last7days" = "Last 7 days";
+"widget.history.total" = "Total";
+"widget.history.vsYesterday" = "vs yesterday";
+"widget.history.stale" = "Open the app to refresh";
+"widget.history.empty.title" = "No history yet";
+"widget.history.empty.body" = "Open TokenEater so it can index your sessions";
 
 /* Settings */
 "settings.subtitle" = "Monitor your Claude usage";

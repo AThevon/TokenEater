@@ -46,7 +46,8 @@ struct StaticProvider: TimelineProvider {
                 date: Date(),
                 usage: cached.usage,
                 isStale: isStale,
-                lastSync: lastSync
+                lastSync: lastSync,
+                lastWeekDailyTotals: sharedFile.lastWeekDailyTotals
             )
         }
 
