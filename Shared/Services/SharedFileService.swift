@@ -123,6 +123,14 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         /// `init?(rawValue:)` so an unknown future value falls back to nil
         /// (and the getter returns `.default`).
         var smartColorProfile: String?
+        /// Last 7 days of token totals (oldest first, today last). Powers the
+        /// History Sparkline widget without forcing the widget process to
+        /// re-parse JSONL files. Updated by MonitoringInsightsStore once a
+        /// day after its 7d bucketing computes.
+        var lastWeekDailyTotals: [Int]?
+        /// Date the lastWeekDailyTotals were last refreshed. Lets the widget
+        /// degrade gracefully if data is older than 36h (label "stale").
+        var lastWeekTotalsRefreshedAt: Date?
     }
 
     /// In-memory cache - avoids redundant disk reads within the same process.
@@ -218,6 +226,22 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
     func updateSmartColorProfile(_ profile: SmartColorProfile) {
         var data = load()
         data.smartColorProfile = profile.rawValue
+        save(data)
+    }
+
+    /// Last 7 daily token totals (oldest first). nil until first MonitoringInsightsStore refresh.
+    var lastWeekDailyTotals: [Int]? {
+        load().lastWeekDailyTotals
+    }
+
+    var lastWeekTotalsRefreshedAt: Date? {
+        load().lastWeekTotalsRefreshedAt
+    }
+
+    func updateLastWeekDailyTotals(_ totals: [Int], refreshedAt: Date = Date()) {
+        var data = load()
+        data.lastWeekDailyTotals = totals
+        data.lastWeekTotalsRefreshedAt = refreshedAt
         save(data)
     }
 
