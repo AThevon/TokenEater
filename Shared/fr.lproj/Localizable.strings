@@ -48,8 +48,12 @@
 "widget.description.pacingGraph" = "Voyez votre rythme face à la trajectoire idéale en un coup d'œil";
 "widget.title.historySparkline" = "Historique tokens";
 "widget.description.historySparkline" = "Les 7 derniers jours d'utilisation, totaux quotidiens et tendance";
+"widget.title.usage" = "Vue d'ensemble";
 "widget.title.pacingGlance" = "Coup d'œil pacing";
-"widget.pacing.title" = "Pacing";
+"widget.pacing.title" = "Rythme hebdo";
+"widget.pacing.session" = "5h";
+"widget.pacing.weekly" = "7j";
+"widget.design" = "Design";
 "widget.history.title" = "Historique";
 "widget.history.last7days" = "7 derniers jours";
 "widget.history.total" = "Total";

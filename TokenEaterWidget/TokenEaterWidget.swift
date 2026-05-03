@@ -19,7 +19,7 @@ struct PacingWidget: Widget {
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: StaticProvider()) { entry in
-            PacingWidgetView(entry: entry)
+            PacingGlanceWidgetView(entry: entry)
         }
         .configurationDisplayName(String(localized: "widget.title.pacingGlance"))
         .description(String(localized: "widget.description.pacing"))

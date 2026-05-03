@@ -48,8 +48,12 @@
 "widget.description.pacingGraph" = "See your pace versus the ideal trajectory in one glance";
 "widget.title.historySparkline" = "Tokens History";
 "widget.description.historySparkline" = "Last 7 days of token usage with daily totals and trend";
+"widget.title.usage" = "Overview";
 "widget.title.pacingGlance" = "Pacing Glance";
-"widget.pacing.title" = "Pacing";
+"widget.pacing.title" = "Weekly Pace";
+"widget.pacing.session" = "5h";
+"widget.pacing.weekly" = "7d";
+"widget.design" = "Design";
 "widget.history.title" = "History";
 "widget.history.last7days" = "Last 7 days";
 "widget.history.total" = "Total";
