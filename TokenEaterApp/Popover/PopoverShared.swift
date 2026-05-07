@@ -56,28 +56,97 @@ enum PopoverColors {
 struct PopoverHeader: View {
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var settingsStore: SettingsStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var refreshHovering: Bool = false
+
+    private var showBadge: Bool {
+        settingsStore.popoverConfig.showPlanBadge && usageStore.planType != .unknown
+    }
+
+    private var showButton: Bool {
+        settingsStore.popoverConfig.showRefreshButton
+    }
+
+    /// Top breathing room when both header items are hidden.
+    /// Tuned per variant - each layout has different visual density above
+    /// the hero zone, so a flat value would feel cramped on Classic and
+    /// excessive on Focus.
+    private var emptyHeaderHeight: CGFloat {
+        switch settingsStore.popoverConfig.activeVariant {
+        case .classic: return 16
+        case .compact: return 12
+        case .focus: return 6
+        }
+    }
+
+    /// Bottom padding under the header when at least one item is shown.
+    /// Focus has a tighter hero zone - 14 leaves an awkward gap there.
+    private var headerBottomPadding: CGFloat {
+        switch settingsStore.popoverConfig.activeVariant {
+        case .classic, .compact: return 14
+        case .focus: return 4
+        }
+    }
 
     var body: some View {
-        HStack {
-            if settingsStore.popoverConfig.showPlanBadge && usageStore.planType != .unknown {
-                Text(usageStore.planType.displayLabel)
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(usageStore.planType.badgeColor.opacity(0.3))
-                    .clipShape(Capsule())
+        if !showBadge && !showButton {
+            Color.clear.frame(height: emptyHeaderHeight)
+        } else {
+            HStack(spacing: 0) {
+                if showBadge {
+                    Text(usageStore.planType.displayLabel)
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(usageStore.planType.badgeColor.opacity(0.3))
+                        .clipShape(Capsule())
+                }
+                Spacer(minLength: 0)
+                if showButton {
+                    refreshButton
+                }
             }
-            Spacer()
-            if usageStore.isLoading {
-                ProgressView()
-                    .scaleEffect(0.5)
-                    .frame(width: 16, height: 16)
-            }
+            .frame(height: 22)
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, headerBottomPadding)
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 14)
+    }
+
+    @ViewBuilder private var refreshButton: some View {
+        Button {
+            Task { await usageStore.refresh(force: true) }
+        } label: {
+            Group {
+                if usageStore.isLoading {
+                    ProgressView()
+                        .scaleEffect(0.5)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(refreshHovering ? Color.blue : .white.opacity(0.55))
+                }
+            }
+            .frame(width: 22, height: 22)
+            .background(
+                Circle()
+                    .fill(refreshHovering ? Color.blue.opacity(0.18) : .white.opacity(0.04))
+                    .overlay(
+                        Circle().stroke(
+                            refreshHovering ? Color.blue.opacity(0.55) : .white.opacity(0.08),
+                            lineWidth: 1
+                        )
+                    )
+            )
+            .scaleEffect(refreshHovering && !reduceMotion ? 1.05 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .disabled(usageStore.isLoading)
+        .help(String(localized: "contextmenu.refresh"))
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) { refreshHovering = hovering }
+        }
     }
 }
 

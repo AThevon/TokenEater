@@ -54,6 +54,9 @@ struct PopoverConfig: Codable, Equatable {
     /// Shows the PRO / MAX / TEAM badge in the popover header. On by default.
     /// Stored at the root because the header is variant-agnostic.
     var showPlanBadge: Bool
+    /// Shows a manual refresh button on the right side of the popover header.
+    /// On by default. Stored at the root because the header is variant-agnostic.
+    var showRefreshButton: Bool
 
     init(
         activeVariant: PopoverVariant,
@@ -61,7 +64,8 @@ struct PopoverConfig: Codable, Equatable {
         compact: VariantLayout,
         focus: VariantLayout,
         focusHero: FocusHeroChoice,
-        showPlanBadge: Bool = true
+        showPlanBadge: Bool = true,
+        showRefreshButton: Bool = true
     ) {
         self.activeVariant = activeVariant
         self.classic = classic
@@ -69,10 +73,11 @@ struct PopoverConfig: Codable, Equatable {
         self.focus = focus
         self.focusHero = focusHero
         self.showPlanBadge = showPlanBadge
+        self.showRefreshButton = showRefreshButton
     }
 
-    // Custom decoder so upgrading from a config stored without `showPlanBadge`
-    // doesn't throw - we default the missing field to `true`.
+    // Custom decoder so upgrading from a config stored without the optional
+    // header toggles doesn't throw - we default any missing field to `true`.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         activeVariant = try c.decode(PopoverVariant.self, forKey: .activeVariant)
@@ -81,6 +86,7 @@ struct PopoverConfig: Codable, Equatable {
         focus = try c.decode(VariantLayout.self, forKey: .focus)
         focusHero = try c.decode(FocusHeroChoice.self, forKey: .focusHero)
         showPlanBadge = try c.decodeIfPresent(Bool.self, forKey: .showPlanBadge) ?? true
+        showRefreshButton = try c.decodeIfPresent(Bool.self, forKey: .showRefreshButton) ?? true
     }
 
     /// Fresh defaults that reproduce the v4.10.x popover visually when `activeVariant == .classic`.

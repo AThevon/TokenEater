@@ -589,6 +589,7 @@
 "popover.zone.hero" = "Hero";
 "popover.zone.content" = "Contenu";
 "popover.option.showPlanBadge" = "Afficher le badge du plan (PRO / MAX / TEAM)";
+"popover.option.showRefreshButton" = "Afficher le bouton de rafraîchissement manuel";
 "popover.option.showSonnet" = "Afficher l'anneau Sonnet (variant Classic)";
 "popover.option.showDesign" = "Afficher l'anneau Design (variant Classic)";
 "settings.group.extra" = "Métriques supplémentaires dans la barre de menus";

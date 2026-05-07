@@ -121,6 +121,10 @@ struct PopoverSectionView: View {
                 label: String(localized: "popover.option.showPlanBadge")
             )
             generalToggleRow(
+                isOn: $settingsStore.popoverConfig.showRefreshButton,
+                label: String(localized: "popover.option.showRefreshButton")
+            )
+            generalToggleRow(
                 isOn: $settingsStore.displaySonnet,
                 label: String(localized: "popover.option.showSonnet")
             )

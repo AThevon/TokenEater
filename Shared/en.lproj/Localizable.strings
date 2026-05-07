@@ -589,6 +589,7 @@
 "popover.zone.hero" = "Hero";
 "popover.zone.content" = "Content";
 "popover.option.showPlanBadge" = "Show plan badge (PRO / MAX / TEAM)";
+"popover.option.showRefreshButton" = "Show manual refresh button";
 "popover.option.showSonnet" = "Show Sonnet ring (Classic variant)";
 "popover.option.showDesign" = "Show Design ring (Classic variant)";
 "settings.group.extra" = "Extra metrics in menu bar";
