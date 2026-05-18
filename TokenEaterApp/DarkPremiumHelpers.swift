@@ -43,7 +43,7 @@ func darkToggle(_ label: String, isOn: Binding<Bool>) -> some View {
     HStack {
         Toggle("", isOn: isOn)
             .toggleStyle(.switch)
-            .tint(.blue)
+            .tint(DS.Palette.accentSettings)
             .labelsHidden()
         Text(label)
             .font(.system(size: 13))

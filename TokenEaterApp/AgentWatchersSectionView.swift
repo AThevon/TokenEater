@@ -148,7 +148,7 @@ struct AgentWatchersSectionView: View {
                             .font(.system(size: 9))
                             .foregroundStyle(.white.opacity(0.3))
                         Slider(value: $settingsStore.overlayScale, in: 0.6...1.6, step: 0.05)
-                            .tint(.blue)
+                            .tint(DS.Palette.accentSettings)
                         Image(systemName: "plus")
                             .font(.system(size: 9))
                             .foregroundStyle(.white.opacity(0.3))
