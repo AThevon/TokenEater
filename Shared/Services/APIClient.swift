@@ -41,41 +41,55 @@ final class APIClient: APIClientProtocol, @unchecked Sendable {
 
     func fetchUsage(token: String, proxyConfig: ProxyConfig?) async throws -> UsageResponse {
         let request = makeRequest(token: token)
-        let (data, response) = try await session(proxyConfig: proxyConfig).data(for: request)
+        let endpoint = oauthURL.path
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session(proxyConfig: proxyConfig).data(for: request)
+        } catch {
+            throw APIError.networkError(endpoint: endpoint, underlying: error.localizedDescription)
+        }
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
+            throw APIError.invalidResponse(endpoint: endpoint)
         }
 
         switch httpResponse.statusCode {
         case 200:
             return try JSONDecoder().decode(UsageResponse.self, from: data)
         case 401, 403:
-            throw APIError.tokenExpired
+            throw APIError.tokenExpired(endpoint: endpoint, statusCode: httpResponse.statusCode)
         case 429:
-            let retryAfter = httpResponse.value(forHTTPHeaderField: "Retry-After")
-                .flatMap(TimeInterval.init)
-            throw APIError.rateLimited(retryAfter: retryAfter)
+            let retryAfterRaw = httpResponse.value(forHTTPHeaderField: "Retry-After")
+            let retryAfter = retryAfterRaw.flatMap(TimeInterval.init)
+            throw APIError.rateLimited(retryAfter: retryAfter, retryAfterRaw: retryAfterRaw, endpoint: endpoint)
         default:
-            throw APIError.httpError(httpResponse.statusCode)
+            throw APIError.httpError(statusCode: httpResponse.statusCode, endpoint: endpoint)
         }
     }
 
     func fetchProfile(token: String, proxyConfig: ProxyConfig?) async throws -> ProfileResponse {
         let request = makeProfileRequest(token: token)
-        let (data, response) = try await session(proxyConfig: proxyConfig).data(for: request)
+        let endpoint = profileURL.path
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session(proxyConfig: proxyConfig).data(for: request)
+        } catch {
+            throw APIError.networkError(endpoint: endpoint, underlying: error.localizedDescription)
+        }
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
+            throw APIError.invalidResponse(endpoint: endpoint)
         }
 
         switch httpResponse.statusCode {
         case 200:
             return try JSONDecoder().decode(ProfileResponse.self, from: data)
         case 401, 403:
-            throw APIError.tokenExpired
+            throw APIError.tokenExpired(endpoint: endpoint, statusCode: httpResponse.statusCode)
         default:
-            throw APIError.httpError(httpResponse.statusCode)
+            throw APIError.httpError(statusCode: httpResponse.statusCode, endpoint: endpoint)
         }
     }
 

@@ -163,9 +163,7 @@ struct PopoverErrorBanner: View {
             case .rateLimited:
                 rateLimitedContent
             case .networkError:
-                Label(String(localized: "error.network.generic"), systemImage: "wifi.slash")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.orange)
+                networkErrorContent
             case .none:
                 EmptyView()
             }
@@ -185,18 +183,12 @@ struct PopoverErrorBanner: View {
         Text(String(localized: "error.banner.expired.hint"))
             .font(.system(size: 10))
             .foregroundStyle(.white.opacity(0.5))
-        Button {
-            Task { await usageStore.reauthenticate() }
-        } label: {
-            Text(String(localized: "error.banner.reauth.button"))
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(.orange.opacity(0.3))
-                .clipShape(Capsule())
+        HStack(spacing: 6) {
+            primaryActionButton(title: String(localized: "error.banner.reauth.button")) {
+                Task { await usageStore.reauthenticate() }
+            }
+            CopyDiagnosticButton()
         }
-        .buttonStyle(.plain)
         .padding(.top, 2)
     }
 
@@ -207,11 +199,43 @@ struct PopoverErrorBanner: View {
         Text(String(localized: "error.banner.apiunavailable.hint"))
             .font(.system(size: 10))
             .foregroundStyle(.white.opacity(0.5))
-        Button {
-            usageStore.handleTokenChange()
-            Task { await usageStore.refresh(force: true) }
-        } label: {
-            Text(String(localized: "error.banner.retry.button"))
+        HStack(spacing: 6) {
+            primaryActionButton(
+                title: String(localized: "error.banner.retry.button"),
+                disabled: usageStore.isLoading
+            ) {
+                usageStore.handleTokenChange()
+                Task { await usageStore.refresh(force: true) }
+            }
+            CopyDiagnosticButton()
+        }
+        .padding(.top, 2)
+    }
+
+    @ViewBuilder private var networkErrorContent: some View {
+        Label(String(localized: "error.network.generic"), systemImage: "wifi.slash")
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.orange)
+        HStack(spacing: 6) {
+            primaryActionButton(
+                title: String(localized: "error.banner.retry.button"),
+                disabled: usageStore.isLoading
+            ) {
+                Task { await usageStore.refresh(force: true) }
+            }
+            CopyDiagnosticButton()
+        }
+        .padding(.top, 2)
+    }
+
+    @ViewBuilder
+    private func primaryActionButton(
+        title: String,
+        disabled: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 10)
@@ -220,10 +244,49 @@ struct PopoverErrorBanner: View {
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
-        .disabled(usageStore.isLoading)
-        .padding(.top, 2)
+        .disabled(disabled)
     }
+}
 
+/// Secondary action that copies a Markdown diagnostic report to the clipboard.
+/// Appears next to the primary action in `PopoverErrorBanner` for every error
+/// state, so users can paste raw debug context into GitHub issues.
+struct CopyDiagnosticButton: View {
+    @EnvironmentObject private var usageStore: UsageStore
+    @EnvironmentObject private var settingsStore: SettingsStore
+    @State private var copied = false
+
+    var body: some View {
+        Button {
+            let report = DiagnosticReporter.makeReport(
+                usageStore: usageStore,
+                settingsStore: settingsStore
+            )
+            let pasteboard = NSPasteboard.general
+            pasteboard.clearContents()
+            pasteboard.setString(report, forType: .string)
+            copied = true
+            Task {
+                try? await Task.sleep(for: .seconds(2))
+                copied = false
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: copied ? "checkmark" : "doc.on.clipboard")
+                    .font(.system(size: 9))
+                Text(copied
+                     ? String(localized: "error.banner.diagnostic.copied")
+                     : String(localized: "error.banner.diagnostic.button"))
+                    .font(.system(size: 10, weight: .semibold))
+            }
+            .foregroundStyle(.white.opacity(0.75))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Color.white.opacity(0.08))
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
 }
 
 // MARK: - Watchers toggle

@@ -140,6 +140,8 @@ final class StatusBarController: NSObject {
                 pacingWarning: self.settingsStore.notifPacingWarning,
                 resetReminderSession: self.settingsStore.notifResetReminderSession,
                 resetReminderWeekly: self.settingsStore.notifResetReminderWeekly,
+                resetReminderSessionOffsetMinutes: self.settingsStore.notifResetReminderSessionOffset,
+                resetReminderWeeklyOffsetMinutes: self.settingsStore.notifResetReminderWeeklyOffset,
                 extraCredits: self.settingsStore.notifExtraCredits,
                 tokenExpired: self.settingsStore.notifTokenExpired,
                 smartColorEnabled: self.settingsStore.smartColorEnabled,

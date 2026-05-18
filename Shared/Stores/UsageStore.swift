@@ -40,6 +40,9 @@ final class UsageStore: ObservableObject {
     @Published var rateLimitTier: String?
     @Published var organizationName: String?
     @Published private(set) var lastUsage: UsageResponse?
+    /// Snapshot of the most recent API failure for the diagnostic report.
+    /// Cleared on every successful refresh.
+    @Published private(set) var lastAPIError: LastAPIError?
 
     var hasError: Bool { errorState != .none }
 
@@ -137,6 +140,7 @@ final class UsageStore: ObservableObject {
             let usage = try await repository.refreshUsage(token: token, proxyConfig: proxyConfig)
             updateUI(from: usage)
             errorState = .none
+            lastAPIError = nil
             lastUpdate = Date()
             // Reset slow speed on success
             if currentSpeed == .slow {
@@ -146,6 +150,7 @@ final class UsageStore: ObservableObject {
             WidgetReloader.scheduleReload()
             evaluateNotifications(usage: usage)
         } catch let error as APIError {
+            lastAPIError = error.diagnosticSnapshot
             switch error {
             case .tokenExpired, .noToken:
                 // Invalidate cached token so next read re-checks Keychain for a fresh one
@@ -156,6 +161,7 @@ final class UsageStore: ObservableObject {
                         let usage = try await repository.refreshUsage(token: freshToken, proxyConfig: proxyConfig)
                         updateUI(from: usage)
                         errorState = .none
+                        lastAPIError = nil
                         lastUpdate = Date()
                         if currentSpeed == .slow {
                             currentSpeed = .normal
@@ -172,7 +178,7 @@ final class UsageStore: ObservableObject {
                 if let toggles = notifTogglesProvider?() {
                     notificationService.notifyTokenExpired(toggle: toggles.tokenExpired)
                 }
-            case .rateLimited(let retryAfter):
+            case .rateLimited(let retryAfter, _, _):
                 currentSpeed = .slow
                 // /api/oauth/usage returns retry-after: 0 when the token has hit its per-token
                 // request limit (not a transient throttle). A value of 0 or a missing header
@@ -185,6 +191,13 @@ final class UsageStore: ObservableObject {
                 errorState = .networkError
             }
         } catch {
+            lastAPIError = LastAPIError(
+                httpStatusCode: nil,
+                retryAfterHeader: nil,
+                endpoint: "(unknown)",
+                timestamp: Date(),
+                underlyingError: error.localizedDescription
+            )
             errorState = .networkError
         }
     }

@@ -77,6 +77,13 @@ xcodebuild -project TokenEater.xcodeproj -scheme TokenEaterTests \
 
 For SwiftUI or widget changes, manual testing matters more, build a Release version and try it. The *Build + Nuke + Install* one-liner in [`CLAUDE.md`](CLAUDE.md) is what I use locally
 
+> **External contributors**: that one-liner hardcodes my Apple Developer Team ID (`DEVELOPMENT_TEAM=S7B8M9JYF4`), so it won't work on your machine as-is. Two options:
+>
+> - Skip signing entirely with `CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO` (same flags as the test command above). Builds fine, but macOS Gatekeeper will block the first launch, just right-click -> Open the first time
+> - Use your own free Personal Team: replace `DEVELOPMENT_TEAM=S7B8M9JYF4` with your own team ID (find it in Xcode > Settings > Accounts)
+>
+> If you can't build a Release version at all, that's OK too. Push your changes, mention it in the PR, and I'll do the visual validation on my side before merging
+
 CI runs the tests automatically on PRs so you'll see if anything broke
 
 ## Questions

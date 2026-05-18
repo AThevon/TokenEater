@@ -300,7 +300,8 @@ final class NotificationService: NotificationServiceProtocol {
             "reminder_session", "reminder_weekly",
         ])
 
-        if toggles.resetReminderSession, let target = sessionResetsAt?.addingTimeInterval(-15 * 60),
+        if toggles.resetReminderSession,
+           let target = sessionResetsAt?.addingTimeInterval(-Double(toggles.resetReminderSessionOffsetMinutes) * 60),
            target.timeIntervalSinceNow > 0 {
             schedule(
                 id: "reminder_session",
@@ -309,7 +310,8 @@ final class NotificationService: NotificationServiceProtocol {
                 fireDate: target
             )
         }
-        if toggles.resetReminderWeekly, let target = weeklyResetsAt?.addingTimeInterval(-3600),
+        if toggles.resetReminderWeekly,
+           let target = weeklyResetsAt?.addingTimeInterval(-Double(toggles.resetReminderWeeklyOffsetMinutes) * 60),
            target.timeIntervalSinceNow > 0 {
             schedule(
                 id: "reminder_weekly",

@@ -55,6 +55,8 @@ struct NotificationsSectionView: View {
         settingsStore.notifPacingWarning = false
         settingsStore.notifResetReminderSession = false
         settingsStore.notifResetReminderWeekly = false
+        settingsStore.notifResetReminderSessionOffset = 15
+        settingsStore.notifResetReminderWeeklyOffset = 60
         settingsStore.notifExtraCredits = true
         settingsStore.notifTokenExpired = false
     }
@@ -177,9 +179,48 @@ struct NotificationsSectionView: View {
                     .foregroundStyle(.white.opacity(0.4))
                     .fixedSize(horizontal: false, vertical: true)
                 darkToggle(String(localized: "settings.notifications.reset.session"), isOn: $settingsStore.notifResetReminderSession)
+                reminderOffsetPicker(
+                    selection: $settingsStore.notifResetReminderSessionOffset,
+                    options: [5, 10, 15, 30, 60],
+                    enabled: settingsStore.notifResetReminderSession
+                )
                 darkToggle(String(localized: "settings.notifications.reset.weekly"), isOn: $settingsStore.notifResetReminderWeekly)
+                reminderOffsetPicker(
+                    selection: $settingsStore.notifResetReminderWeeklyOffset,
+                    options: [30, 60, 120, 180, 360],
+                    enabled: settingsStore.notifResetReminderWeekly
+                )
             }
         }
+    }
+
+    @ViewBuilder
+    private func reminderOffsetPicker(selection: Binding<Int>, options: [Int], enabled: Bool) -> some View {
+        HStack(spacing: 6) {
+            Text(String(localized: "settings.notifications.reset.offset.label"))
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(enabled ? 0.6 : 0.25))
+            Spacer()
+            Picker("", selection: selection) {
+                ForEach(options, id: \.self) { value in
+                    Text(formatOffsetMinutes(value)).tag(value)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .tint(DS.Palette.accentSettings)
+            .disabled(!enabled)
+            .frame(width: 110)
+        }
+        .padding(.leading, 12)
+    }
+
+    private func formatOffsetMinutes(_ minutes: Int) -> String {
+        if minutes >= 60, minutes % 60 == 0 {
+            let hours = minutes / 60
+            return String(format: String(localized: "settings.notifications.reset.offset.hours"), hours)
+        }
+        return String(format: String(localized: "settings.notifications.reset.offset.minutes"), minutes)
     }
 
     // MARK: - Extra credits

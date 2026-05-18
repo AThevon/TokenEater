@@ -37,6 +37,10 @@ struct NotificationToggles {
     let pacingWarning: Bool
     let resetReminderSession: Bool
     let resetReminderWeekly: Bool
+    /// Minutes before the 5h reset that the session reminder should fire.
+    let resetReminderSessionOffsetMinutes: Int
+    /// Minutes before the weekly reset that the weekly reminder should fire.
+    let resetReminderWeeklyOffsetMinutes: Int
     let extraCredits: Bool
     let tokenExpired: Bool
     let smartColorEnabled: Bool

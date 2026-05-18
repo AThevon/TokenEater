@@ -161,12 +161,22 @@ final class SettingsStore: ObservableObject {
     @Published var notifPacingWarning: Bool {
         didSet { UserDefaults.standard.set(notifPacingWarning, forKey: "notifPacingWarning") }
     }
-    /// Scheduled reminders (15min before 5h reset, 1h before weekly reset)
+    /// Scheduled reminders (user-configurable offset before reset).
     @Published var notifResetReminderSession: Bool {
         didSet { UserDefaults.standard.set(notifResetReminderSession, forKey: "notifResetReminderSession") }
     }
     @Published var notifResetReminderWeekly: Bool {
         didSet { UserDefaults.standard.set(notifResetReminderWeekly, forKey: "notifResetReminderWeekly") }
+    }
+    /// Minutes before the 5h session resets at which to fire the reminder.
+    /// Defaults to 15. Allowed values are validated by the picker, not enforced here.
+    @Published var notifResetReminderSessionOffset: Int {
+        didSet { UserDefaults.standard.set(notifResetReminderSessionOffset, forKey: "notifResetReminderSessionOffset") }
+    }
+    /// Minutes before the weekly bucket resets at which to fire the reminder.
+    /// Defaults to 60.
+    @Published var notifResetReminderWeeklyOffset: Int {
+        didSet { UserDefaults.standard.set(notifResetReminderWeeklyOffset, forKey: "notifResetReminderWeeklyOffset") }
     }
     /// Paid extra credits pool transitions
     @Published var notifExtraCredits: Bool {
@@ -311,6 +321,8 @@ final class SettingsStore: ObservableObject {
         self.notifPacingWarning = Self.boolDefault(key: "notifPacingWarning", default: false)
         self.notifResetReminderSession = Self.boolDefault(key: "notifResetReminderSession", default: false)
         self.notifResetReminderWeekly = Self.boolDefault(key: "notifResetReminderWeekly", default: false)
+        self.notifResetReminderSessionOffset = Self.intDefault(key: "notifResetReminderSessionOffset", default: 15)
+        self.notifResetReminderWeeklyOffset = Self.intDefault(key: "notifResetReminderWeeklyOffset", default: 60)
         self.notifExtraCredits = Self.boolDefault(key: "notifExtraCredits", default: true)
         self.notifTokenExpired = Self.boolDefault(key: "notifTokenExpired", default: false)
         self.resetDisplayFormat = ResetDisplayFormat(
@@ -411,6 +423,15 @@ final class SettingsStore: ObservableObject {
     /// fall back only when the key has never been written.
     private static func boolDefault(key: String, default fallback: Bool) -> Bool {
         if let stored = UserDefaults.standard.object(forKey: key) as? Bool {
+            return stored
+        }
+        return fallback
+    }
+
+    /// Same idea as `boolDefault` but for Int. `UserDefaults.integer(forKey:)`
+    /// returns 0 for missing keys, which we can't distinguish from a stored 0.
+    private static func intDefault(key: String, default fallback: Int) -> Int {
+        if let stored = UserDefaults.standard.object(forKey: key) as? Int {
             return stored
         }
         return fallback

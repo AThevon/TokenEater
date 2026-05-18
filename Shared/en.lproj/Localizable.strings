@@ -161,6 +161,8 @@
 "error.banner.apiunavailable.hint" = "Your Claude Code OAuth token has hit its API request limit. Will retry in ~6h - or run \"claude /login\" in Claude Code for a fresh token.";
 "error.banner.apiunavailable.settings" = "Usage API rate limited - will retry in ~6h, or run \"claude /login\" in Claude Code for a fresh token";
 "error.banner.retry.button" = "Retry now";
+"error.banner.diagnostic.button" = "Copy diagnostic";
+"error.banner.diagnostic.copied" = "Copied";
 
 /* Connection Test */
 "test.success" = "Connected - Session: %d%%";
@@ -304,8 +306,11 @@
 "settings.notifications.pacing.warning" = "Drifting fast";
 "settings.notifications.group.reset" = "Reset reminders";
 "settings.notifications.group.reset.hint" = "Heads up before the current cycle ends.";
-"settings.notifications.reset.session" = "15 min before session reset";
-"settings.notifications.reset.weekly" = "1 hour before weekly reset";
+"settings.notifications.reset.session" = "Before session reset";
+"settings.notifications.reset.weekly" = "Before weekly reset";
+"settings.notifications.reset.offset.label" = "Fire";
+"settings.notifications.reset.offset.minutes" = "%d min before";
+"settings.notifications.reset.offset.hours" = "%d h before";
 "settings.notifications.group.extra" = "Extra credits";
 "settings.notifications.group.extra.hint" = "Only fires if the paid pool is enabled in your Anthropic plan.";
 "settings.notifications.extra" = "Pool warning / critical";

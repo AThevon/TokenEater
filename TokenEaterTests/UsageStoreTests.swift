@@ -15,7 +15,7 @@ struct UsageStoreTests {
     ) -> (store: UsageStore, repo: MockUsageRepository, tokenProvider: MockTokenProvider, notif: MockNotificationService, sharedFile: MockSharedFileService) {
         let repo = MockUsageRepository()
         if shouldFail {
-            repo.stubbedError = failWith ?? .invalidResponse
+            repo.stubbedError = failWith ?? .invalidResponse(endpoint: "/api/oauth/usage")
         }
         repo.stubbedUsage = usage
         let tokenProvider = MockTokenProvider()
@@ -37,6 +37,7 @@ struct UsageStoreTests {
             trackFiveHour: true, trackWeekly: true, trackSonnet: true, trackDesign: true,
             sendRecovery: true, pacingHot: true, pacingWarning: false,
             resetReminderSession: false, resetReminderWeekly: false,
+            resetReminderSessionOffsetMinutes: 15, resetReminderWeeklyOffsetMinutes: 60,
             extraCredits: true, tokenExpired: true,
             smartColorEnabled: false,
             smartColorProfile: .default,
@@ -143,7 +144,7 @@ struct UsageStoreTests {
         let (store, repo, tokenProvider, _, _) = makeSUT(
             token: "old-token",
             shouldFail: true,
-            failWith: .tokenExpired
+            failWith: .tokenExpired(endpoint: "/api/oauth/usage", statusCode: 401)
         )
 
         // After the first call fails with tokenExpired, tokenProvider should return a new token
@@ -162,7 +163,7 @@ struct UsageStoreTests {
         // Since MockTokenProvider always returns the same token, the retry won't fire
         // unless we give it a different token. Let's test the no-retry path instead.
         tokenProvider.token = "old-token"
-        repo.stubbedError = APIError.tokenExpired
+        repo.stubbedError = APIError.tokenExpired(endpoint: "/api/oauth/usage", statusCode: 401)
 
         await store.refresh()
 
@@ -172,7 +173,7 @@ struct UsageStoreTests {
 
     @Test("refresh sets rateLimited and switches to slow on 429")
     func refreshSetsRateLimitedAndSlow() async {
-        let (store, _, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: 30))
+        let (store, _, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: 30, retryAfterRaw: "30", endpoint: "/api/oauth/usage"))
 
         await store.refresh()
 
@@ -183,7 +184,7 @@ struct UsageStoreTests {
 
     @Test("retry-after: 0 defaults to 6-hour backoff")
     func rateLimitedWithZeroRetryAfterDefaultsToSixHours() async {
-        let (store, _, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: 0))
+        let (store, _, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: 0, retryAfterRaw: "0", endpoint: "/api/oauth/usage"))
 
         await store.refresh()
 
@@ -196,7 +197,7 @@ struct UsageStoreTests {
 
     @Test("absent retry-after header defaults to 6-hour backoff")
     func rateLimitedWithNilRetryAfterDefaultsToSixHours() async {
-        let (store, _, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: nil))
+        let (store, _, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: nil, retryAfterRaw: nil, endpoint: "/api/oauth/usage"))
 
         await store.refresh()
 
@@ -209,7 +210,7 @@ struct UsageStoreTests {
 
     @Test("refresh skips API call while Retry-After window is active")
     func refreshRespectsRetryAfterDate() async {
-        let (store, repo, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: 3600))
+        let (store, repo, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: 3600, retryAfterRaw: "3600", endpoint: "/api/oauth/usage"))
 
         // First call: 429 with Retry-After 1 hour → sets retryAfterDate
         await store.refresh()
@@ -228,7 +229,7 @@ struct UsageStoreTests {
 
     @Test("refresh sets networkError on generic API error")
     func refreshSetsNetworkError() async {
-        let (store, _, _, _, _) = makeSUT(shouldFail: true, failWith: .invalidResponse)
+        let (store, _, _, _, _) = makeSUT(shouldFail: true, failWith: .invalidResponse(endpoint: "/api/oauth/usage"))
 
         await store.refresh()
 
@@ -237,7 +238,7 @@ struct UsageStoreTests {
 
     @Test("refresh clears error state on success after previous failure")
     func refreshClearsErrorOnSuccess() async {
-        let (store, repo, _, _, _) = makeSUT(shouldFail: true, failWith: .invalidResponse)
+        let (store, repo, _, _, _) = makeSUT(shouldFail: true, failWith: .invalidResponse(endpoint: "/api/oauth/usage"))
 
         await store.refresh()
         #expect(store.hasError == true)
@@ -255,7 +256,7 @@ struct UsageStoreTests {
 
     @Test("on success after being in slow mode, speed resets to normal")
     func refreshResetsSpeedAfterSlowSuccess() async {
-        let (store, repo, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: nil))
+        let (store, repo, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: nil, retryAfterRaw: nil, endpoint: "/api/oauth/usage"))
 
         // First call: 429 → slow
         await store.refresh()
@@ -498,7 +499,7 @@ struct UsageStoreTests {
 
     @Test("reloadConfig resets error state and triggers refresh")
     func reloadConfigResetsAndRefreshes() async throws {
-        let (store, repo, tokenProvider, notif, _) = makeSUT(token: "dead", shouldFail: true, failWith: .tokenExpired)
+        let (store, repo, tokenProvider, notif, _) = makeSUT(token: "dead", shouldFail: true, failWith: .tokenExpired(endpoint: "/api/oauth/usage", statusCode: 401))
 
         // First: put store in error state
         await store.refresh()
@@ -554,7 +555,7 @@ struct UsageStoreTests {
     @Test("refreshProfile failure does not set error state")
     func refreshProfileFailureSilent() async {
         let (store, repo, _, _, _) = makeSUT()
-        repo.stubbedProfileError = APIError.invalidResponse
+        repo.stubbedProfileError = APIError.invalidResponse(endpoint: "/api/oauth/profile")
 
         await store.refreshProfile()
 
@@ -586,7 +587,7 @@ struct UsageStoreTests {
 
     @Test("handleTokenChange clears retryAfterDate")
     func handleTokenChangeClearsRetryAfter() async {
-        let (store, _, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: 3600))
+        let (store, _, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: 3600, retryAfterRaw: "3600", endpoint: "/api/oauth/usage"))
 
         // Put store in rate-limited state
         await store.refresh()
@@ -611,7 +612,7 @@ struct UsageStoreTests {
         let (store, repo, tokenProvider, _, _) = makeSUT(
             token: "exhausted-token",
             shouldFail: true,
-            failWith: .rateLimited(retryAfter: nil)
+            failWith: .rateLimited(retryAfter: nil, retryAfterRaw: nil, endpoint: "/api/oauth/usage")
         )
 
         // Step 1: get rate-limited with the old token

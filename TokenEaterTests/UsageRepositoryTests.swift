@@ -37,7 +37,7 @@ struct UsageRepositoryTests {
     @Test("refreshUsage throws API errors through")
     func refreshUsageThrowsAPIErrors() async {
         let (repo, api, _) = makeSUT()
-        api.stubbedError = APIError.invalidResponse
+        api.stubbedError = APIError.invalidResponse(endpoint: "/api/oauth/usage")
 
         do {
             _ = try await repo.refreshUsage(token: "tok", proxyConfig: nil)
@@ -55,7 +55,7 @@ struct UsageRepositoryTests {
     @Test("refreshUsage does not write to shared file on failure")
     func refreshUsageDoesNotWriteOnFailure() async {
         let (repo, api, sharedFile) = makeSUT()
-        api.stubbedError = APIError.tokenExpired
+        api.stubbedError = APIError.tokenExpired(endpoint: "/api/oauth/usage", statusCode: 401)
 
         _ = try? await repo.refreshUsage(token: "tok", proxyConfig: nil)
 
@@ -77,7 +77,7 @@ struct UsageRepositoryTests {
     @Test("fetchProfile throws API errors through")
     func fetchProfileThrowsAPIErrors() async {
         let (repo, api, _) = makeSUT()
-        api.stubbedError = APIError.tokenExpired
+        api.stubbedError = APIError.tokenExpired(endpoint: "/api/oauth/profile", statusCode: 401)
 
         do {
             _ = try await repo.fetchProfile(token: "tok", proxyConfig: nil)
