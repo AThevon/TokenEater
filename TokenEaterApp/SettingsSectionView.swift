@@ -206,6 +206,7 @@ struct SettingsSectionView: View {
                         in: 180...900,
                         step: 60
                     )
+                    .tint(DS.Palette.accentSettings)
                     if settingsStore.refreshInterval < 300 {
                         Label {
                             Text(String(localized: "settings.refresh.warning"))
