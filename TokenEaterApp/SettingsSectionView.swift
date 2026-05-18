@@ -198,15 +198,15 @@ struct SettingsSectionView: View {
                             .font(.system(size: 12, design: .monospaced))
                             .foregroundStyle(.white.opacity(0.9))
                     }
-                    Slider(
+                    TokenEaterSlider(
                         value: Binding(
                             get: { Double(settingsStore.refreshInterval) },
                             set: { settingsStore.refreshInterval = Int($0) }
                         ),
                         in: 180...900,
-                        step: 60
+                        step: 60,
+                        showsTicks: true
                     )
-                    .tint(DS.Palette.accentSettings)
                     if settingsStore.refreshInterval < 300 {
                         Label {
                             Text(String(localized: "settings.refresh.warning"))

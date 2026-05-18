@@ -1,6 +1,5 @@
 import Testing
 import Foundation
-@testable import TokenEater
 
 @MainActor
 @Suite("Diagnostic Reporter")

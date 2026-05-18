@@ -141,7 +141,7 @@ struct PopoverSectionView: View {
         HStack(spacing: 10) {
             Toggle("", isOn: isOn)
                 .toggleStyle(.switch)
-                .tint(.blue)
+                .tint(DS.Palette.accentSettings)
                 .labelsHidden()
             Text(label)
                 .font(.system(size: 12))
