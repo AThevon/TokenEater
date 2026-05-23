@@ -208,6 +208,24 @@ struct PopoverErrorBanner: View {
                 Task { await usageStore.refresh(force: true) }
             }
             CopyDiagnosticButton()
+            Button {
+                if let url = URL(string: "https://github.com/anthropics/claude-code/issues/31637") {
+                    NSWorkspace.shared.open(url)
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.up.right.square")
+                        .font(.system(size: 9))
+                    Text(String(localized: "error.banner.apiunavailable.learnmore"))
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .foregroundStyle(.white.opacity(0.6))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Color.white.opacity(0.06))
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
         }
         .padding(.top, 2)
     }

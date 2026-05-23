@@ -70,6 +70,12 @@ final class UsageStore: ObservableObject {
     /// Retry-After date from last 429 response
     private(set) var retryAfterDate: Date?
 
+    /// Number of consecutive 429s we've received. Drives the exponential
+    /// backoff because anthropic's /api/oauth/usage endpoint returns 429 with
+    /// no useful Retry-After header (known issue on their side, see
+    /// anthropics/claude-code#31637 and #31021). Reset on every success.
+    private var consecutiveRateLimits: Int = 0
+
     /// Effective interval based on current speed + user setting
     var effectiveInterval: TimeInterval {
         switch currentSpeed {
@@ -147,6 +153,7 @@ final class UsageStore: ObservableObject {
                 currentSpeed = .normal
             }
             retryAfterDate = nil
+            consecutiveRateLimits = 0
             WidgetReloader.scheduleReload()
             evaluateNotifications(usage: usage)
         } catch let error as APIError {
@@ -167,6 +174,7 @@ final class UsageStore: ObservableObject {
                             currentSpeed = .normal
                         }
                         retryAfterDate = nil
+                        consecutiveRateLimits = 0
                         WidgetReloader.scheduleReload()
                         evaluateNotifications(usage: usage)
                         return
@@ -180,11 +188,30 @@ final class UsageStore: ObservableObject {
                 }
             case .rateLimited(let retryAfter, _, _):
                 currentSpeed = .slow
-                // /api/oauth/usage returns retry-after: 0 when the token has hit its per-token
-                // request limit (not a transient throttle). A value of 0 or a missing header
-                // both signal the same "token exhausted" state - default to 6 hours so we stop
-                // hammering the endpoint every 20 minutes.
-                let backoff: TimeInterval = retryAfter.flatMap { $0 > 0 ? $0 : nil } ?? (6 * 3600)
+                // /api/oauth/usage returns 429 with Retry-After: 0 (or no header)
+                // when the throttle kicks in. Anthropic has known issues making
+                // this endpoint return persistent 429s for hours with no useful
+                // Retry-After (see anthropics/claude-code#31637 + #31021).
+                //
+                // Strategy: if the server gives us a real positive Retry-After
+                // we honor it. Otherwise use exponential backoff capped at 6h.
+                // Earlier passes (30 min, 1h, 2h, 4h) recover quickly when the
+                // throttle lifts on its own.
+                let backoff: TimeInterval
+                if let r = retryAfter, r > 0 {
+                    backoff = r
+                } else {
+                    consecutiveRateLimits += 1
+                    let exponential: [TimeInterval] = [
+                        30 * 60,   // 30 min
+                        60 * 60,   // 1 h
+                        2 * 3600,  // 2 h
+                        4 * 3600,  // 4 h
+                        6 * 3600   // 6 h cap
+                    ]
+                    let idx = min(consecutiveRateLimits - 1, exponential.count - 1)
+                    backoff = exponential[idx]
+                }
                 retryAfterDate = Date().addingTimeInterval(backoff)
                 errorState = .rateLimited
             default:

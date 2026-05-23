@@ -182,27 +182,30 @@ struct UsageStoreTests {
         #expect(store.retryAfterDate != nil)
     }
 
-    @Test("retry-after: 0 defaults to 6-hour backoff")
-    func rateLimitedWithZeroRetryAfterDefaultsToSixHours() async {
+    @Test("retry-after: 0 starts at 30-min exponential backoff")
+    func rateLimitedWithZeroRetryAfterUsesExponentialBackoff() async {
         let (store, _, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: 0, retryAfterRaw: "0", endpoint: "/api/oauth/usage"))
 
         await store.refresh()
 
         if let retryAfterDate = store.retryAfterDate {
-            #expect(retryAfterDate.timeIntervalSinceNow > 6 * 3600 - 5) // ~6h, allow 5s tolerance
+            // First 429 should back off ~30 min (1800s)
+            #expect(retryAfterDate.timeIntervalSinceNow > 1800 - 5)
+            #expect(retryAfterDate.timeIntervalSinceNow < 1800 + 5)
         } else {
             Issue.record("retryAfterDate should not be nil after retry-after: 0")
         }
     }
 
-    @Test("absent retry-after header defaults to 6-hour backoff")
-    func rateLimitedWithNilRetryAfterDefaultsToSixHours() async {
+    @Test("absent retry-after header starts at 30-min exponential backoff")
+    func rateLimitedWithNilRetryAfterUsesExponentialBackoff() async {
         let (store, _, _, _, _) = makeSUT(shouldFail: true, failWith: .rateLimited(retryAfter: nil, retryAfterRaw: nil, endpoint: "/api/oauth/usage"))
 
         await store.refresh()
 
         if let retryAfterDate = store.retryAfterDate {
-            #expect(retryAfterDate.timeIntervalSinceNow > 6 * 3600 - 5) // ~6h, allow 5s tolerance
+            #expect(retryAfterDate.timeIntervalSinceNow > 1800 - 5)
+            #expect(retryAfterDate.timeIntervalSinceNow < 1800 + 5)
         } else {
             Issue.record("retryAfterDate should not be nil when Retry-After header is absent")
         }
