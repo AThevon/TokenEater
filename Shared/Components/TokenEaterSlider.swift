@@ -147,7 +147,12 @@ struct TokenEaterSlider: View {
                 }
             }
         }
-        .frame(height: thumbSize * dragScale)
+        // The slider's GeometryReader + ZStack centering renders the track at
+        // a slightly lower visual position than adjacent text/icon baselines
+        // in an HStack. Lift the rendering up by a few points without changing
+        // the layout frame so the track aligns with the -/+ icons.
+        .frame(height: thumbSize)
+        .offset(y: -9)
     }
 
     private func updateValue(cursorX: CGFloat, trackWidth: CGFloat) {
