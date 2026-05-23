@@ -218,10 +218,12 @@
 "notif.title.pacing.warning" = "Drifting fast";
 "notif.body.pacing.warning" = "A touch faster than ideal, keep an eye";
 
-"notif.title.reminder.session" = "Session resets in 15";
+"notif.title.reminder.session" = "Session resets in %@";
 "notif.body.reminder.session" = "Save your spot or send it";
-"notif.title.reminder.weekly" = "Weekly resets in 1h";
+"notif.title.reminder.weekly" = "Weekly resets in %@";
 "notif.body.reminder.weekly" = "Last lap on the cycle";
+"notif.duration.minutes" = "%d min";
+"notif.duration.hours" = "%d h";
 
 /* Notifications - 5h session */
 "notif.title.fivehour.orange.chill" = "Pace check";

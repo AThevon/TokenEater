@@ -303,29 +303,44 @@ final class NotificationService: NotificationServiceProtocol {
         if toggles.resetReminderSession,
            let target = sessionResetsAt?.addingTimeInterval(-Double(toggles.resetReminderSessionOffsetMinutes) * 60),
            target.timeIntervalSinceNow > 0 {
+            let duration = formatReminderDuration(minutes: toggles.resetReminderSessionOffsetMinutes)
+            let titleTemplate = NSLocalizedString("notif.title.reminder.session", comment: "")
             schedule(
                 id: "reminder_session",
-                titleKey: "notif.title.reminder.session",
-                bodyKey: "notif.body.reminder.session",
+                title: String(format: titleTemplate, duration),
+                body: NSLocalizedString("notif.body.reminder.session", comment: ""),
                 fireDate: target
             )
         }
         if toggles.resetReminderWeekly,
            let target = weeklyResetsAt?.addingTimeInterval(-Double(toggles.resetReminderWeeklyOffsetMinutes) * 60),
            target.timeIntervalSinceNow > 0 {
+            let duration = formatReminderDuration(minutes: toggles.resetReminderWeeklyOffsetMinutes)
+            let titleTemplate = NSLocalizedString("notif.title.reminder.weekly", comment: "")
             schedule(
                 id: "reminder_weekly",
-                titleKey: "notif.title.reminder.weekly",
-                bodyKey: "notif.body.reminder.weekly",
+                title: String(format: titleTemplate, duration),
+                body: NSLocalizedString("notif.body.reminder.weekly", comment: ""),
                 fireDate: target
             )
         }
     }
 
-    private func schedule(id: String, titleKey: String, bodyKey: String, fireDate: Date) {
+    /// Renders a human-readable duration matching the picker labels in the
+    /// settings UI: "1 h", "2 h" for round-hour values, "5 min", "30 min" for
+    /// minute-resolution offsets.
+    private func formatReminderDuration(minutes: Int) -> String {
+        if minutes >= 60, minutes % 60 == 0 {
+            let hours = minutes / 60
+            return String(format: NSLocalizedString("notif.duration.hours", comment: ""), hours)
+        }
+        return String(format: NSLocalizedString("notif.duration.minutes", comment: ""), minutes)
+    }
+
+    private func schedule(id: String, title: String, body: String, fireDate: Date) {
         let content = UNMutableNotificationContent()
-        content.title = NSLocalizedString(titleKey, comment: "")
-        content.body = NSLocalizedString(bodyKey, comment: "")
+        content.title = title
+        content.body = body
         content.sound = .default
 
         let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: fireDate)

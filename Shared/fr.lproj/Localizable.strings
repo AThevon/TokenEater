@@ -218,10 +218,12 @@
 "notif.title.pacing.warning" = "Ça dérive";
 "notif.body.pacing.warning" = "Un poil rapide, garde l'œil";
 
-"notif.title.reminder.session" = "Reset session dans 15";
+"notif.title.reminder.session" = "Reset session dans %@";
 "notif.body.reminder.session" = "Sauve ton truc ou envoie";
-"notif.title.reminder.weekly" = "Reset hebdo dans 1h";
+"notif.title.reminder.weekly" = "Reset hebdo dans %@";
 "notif.body.reminder.weekly" = "Dernier tour sur le cycle";
+"notif.duration.minutes" = "%d min";
+"notif.duration.hours" = "%dh";
 
 /* Notifications - 5h session */
 "notif.title.fivehour.orange.chill" = "Petit point rythme";
