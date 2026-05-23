@@ -405,6 +405,10 @@
 /* Smart Color (global toggle in Themes) */
 "settings.smartcolor.title" = "Smart Color";
 "settings.smartcolor.hint" = "Color codes adapt to time-to-reset, not just absolute usage.";
+"settings.glow.title" = "Neon glow";
+"settings.glow.hint" = "Halo around gauges and metrics in the popover and monitoring view. Turn off for a cleaner, flatter look.";
+"settings.glow.mode.glow" = "Glow";
+"settings.glow.mode.flat" = "Flat";
 "settings.smartcolor.popover.title" = "How Smart Color works";
 "settings.smartcolor.popover.intro" = "Smart Color factors in the time you have left before the next reset. Same percentage gets a different color depending on how soon you'll be reset.";
 "settings.smartcolor.popover.example1.label" = "Low risk";

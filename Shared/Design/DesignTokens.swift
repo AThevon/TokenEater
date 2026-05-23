@@ -135,6 +135,32 @@ enum DS {
         static let strong = ShadowToken(radius: 24, y: 0, alpha: 0.40)
     }
 
+    /// Binary toggle for the popover and monitoring glow / halo effect.
+    /// `.glow` keeps the default neon look, `.flat` removes every shadow on
+    /// gauges, metric text, and pacing tiles. Driven via a single environment
+    /// value so toggling the setting applies everywhere immediately.
+    enum GlowIntensity: String, CaseIterable, Identifiable, Hashable {
+        case glow
+        case flat
+
+        public var id: String { rawValue }
+
+        var radiusMultiplier: CGFloat {
+            self == .glow ? 1.0 : 0.0
+        }
+
+        var opacityMultiplier: Double {
+            self == .glow ? 1.0 : 0.0
+        }
+
+        var localizedLabel: String {
+            switch self {
+            case .glow: return String(localized: "settings.glow.mode.glow")
+            case .flat: return String(localized: "settings.glow.mode.flat")
+            }
+        }
+    }
+
     // MARK: - Motion
 
     enum Duration {

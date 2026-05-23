@@ -37,6 +37,11 @@ final class SettingsStore: ObservableObject {
             sharedFileService.updateSmartColorProfile(smartColorProfile)
         }
     }
+    /// Controls the global glow / halo intensity in the popover and monitoring
+    /// views. Drives a single environment value read by every `.dsGlow()` call.
+    @Published var glowIntensity: DS.GlowIntensity {
+        didSet { UserDefaults.standard.set(glowIntensity.rawValue, forKey: "glowIntensity") }
+    }
     /// Typography / separator style for the pinned metrics in the menu bar.
     @Published var menuBarStyle: MenuBarStyle {
         didSet { UserDefaults.standard.set(menuBarStyle.rawValue, forKey: "menuBarStyle") }
@@ -349,6 +354,9 @@ final class SettingsStore: ObservableObject {
         // Mirror the resolved profile to the shared file so the (sandboxed)
         // widget picks it up at first paint without waiting for a toggle.
         sharedFileService.updateSmartColorProfile(initialProfile)
+        self.glowIntensity = DS.GlowIntensity(
+            rawValue: UserDefaults.standard.string(forKey: "glowIntensity") ?? DS.GlowIntensity.glow.rawValue
+        ) ?? .glow
         self.menuBarStyle = MenuBarStyle(
             rawValue: UserDefaults.standard.string(forKey: "menuBarStyle") ?? "classic"
         ) ?? .classic

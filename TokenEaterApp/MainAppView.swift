@@ -27,11 +27,14 @@ struct MainAppView: View {
     @StateObject private var insightsStore = MonitoringInsightsStore()
 
     var body: some View {
-        if settingsStore.hasCompletedOnboarding {
-            mainContent
-        } else {
-            onboardingContent
+        Group {
+            if settingsStore.hasCompletedOnboarding {
+                mainContent
+            } else {
+                onboardingContent
+            }
         }
+        .environment(\.glowIntensity, settingsStore.glowIntensity)
     }
 
     // MARK: - Main

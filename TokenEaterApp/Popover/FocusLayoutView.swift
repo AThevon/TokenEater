@@ -157,7 +157,7 @@ private struct FocusHeroView: View {
                 Text(heroValue)
                     .font(.system(size: 38, weight: .black, design: .rounded))
                     .foregroundStyle(heroColor)
-                    .shadow(color: heroColor.opacity(0.35), radius: 10)
+                    .dsGlow(heroColor, radius: 10, opacity: 0.35)
                 Text(heroLabel.uppercased())
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.5))
@@ -253,7 +253,7 @@ private struct FocusHeroView: View {
                 path
                     .trim(from: 0, to: heroProgress)
                     .stroke(heroColor, style: StrokeStyle(lineWidth: strokeW, lineCap: .round))
-                    .shadow(color: heroColor.opacity(0.5), radius: 8)
+                    .dsGlow(heroColor, radius: 8, opacity: 0.5)
             }
         }
     }

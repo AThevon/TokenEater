@@ -28,6 +28,7 @@ struct MonitoringView: View {
     @State private var heroBlurProgress: CGFloat = 0
     @State private var heroFlipping: Bool = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.glowIntensity) private var glowIntensity
 
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
@@ -230,7 +231,7 @@ struct MonitoringView: View {
                     Circle()
                         .fill(gaugeColor)
                         .frame(width: 6, height: 6)
-                        .shadow(color: gaugeColor.opacity(0.6), radius: 4)
+                        .dsGlow(gaugeColor, radius: 4, opacity: 0.6)
                     Text(String(localized: "dashboard.hero.session.label").uppercased())
                         .font(DS.Typography.micro)
                         .tracking(1.5)
@@ -242,7 +243,7 @@ struct MonitoringView: View {
                         .font(.system(size: 64, weight: .bold, design: .rounded))
                         .monospacedDigit()
                         .foregroundStyle(gaugeColor)
-                        .shadow(color: gaugeColor.opacity(0.45), radius: 10)
+                        .dsGlow(gaugeColor, radius: 10, opacity: 0.45)
                         .contentTransition(.numericText(value: Double(pct)))
                         .animation(DS.Motion.springLiquid, value: pct)
                     Text("%")
@@ -276,15 +277,17 @@ struct MonitoringView: View {
 
             // Right -> ring + zone glyph
             ZStack {
-                RadialGradient(
-                    colors: [gaugeColor.opacity(0.20), gaugeColor.opacity(0.04), .clear],
-                    center: .center,
-                    startRadius: 10,
-                    endRadius: 90
-                )
-                .frame(width: 200, height: 200)
-                .blur(radius: 14)
-                .allowsHitTesting(false)
+                if glowIntensity == .glow {
+                    RadialGradient(
+                        colors: [gaugeColor.opacity(0.20), gaugeColor.opacity(0.04), .clear],
+                        center: .center,
+                        startRadius: 10,
+                        endRadius: 90
+                    )
+                    .frame(width: 200, height: 200)
+                    .blur(radius: 14)
+                    .allowsHitTesting(false)
+                }
 
                 RingGauge(
                     percentage: pct,
@@ -297,7 +300,7 @@ struct MonitoringView: View {
                 Image(systemName: zoneGlyph(for: zone))
                     .font(.system(size: 40, weight: .semibold))
                     .foregroundStyle(zone.map { themeStore.current.pacingColor(for: $0) } ?? gaugeColor)
-                    .shadow(color: (zone.map { themeStore.current.pacingColor(for: $0) } ?? gaugeColor).opacity(0.55), radius: 10)
+                    .dsGlow(zone.map { themeStore.current.pacingColor(for: $0) } ?? gaugeColor, radius: 10, opacity: 0.55)
                     .animation(DS.Motion.springLiquid, value: zone)
             }
             .frame(width: 160, height: 160)
@@ -320,7 +323,7 @@ struct MonitoringView: View {
                     Circle()
                         .fill(gaugeColor)
                         .frame(width: 6, height: 6)
-                        .shadow(color: gaugeColor.opacity(0.6), radius: 4)
+                        .dsGlow(gaugeColor, radius: 4, opacity: 0.6)
                     Text(String(localized: "dashboard.hero.session.label").uppercased() + " · PACING")
                         .font(DS.Typography.micro)
                         .tracking(1.5)
@@ -558,7 +561,7 @@ struct MonitoringView: View {
                         Circle()
                             .fill(tint)
                             .frame(width: 5, height: 5)
-                            .shadow(color: tint, radius: 3)
+                            .dsGlow(tint, radius: 3, opacity: 1.0)
                         Text(zoneLabel(pacing.zone))
                             .font(.system(size: 9, weight: .bold))
                             .tracking(1.2)
@@ -570,7 +573,7 @@ struct MonitoringView: View {
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(tint)
-                    .shadow(color: tint.opacity(0.45), radius: 5)
+                    .dsGlow(tint, radius: 5, opacity: 0.45)
                     .contentTransition(.numericText(value: pacing.delta))
                     .animation(DS.Motion.springLiquid, value: pacing.delta)
             }
@@ -618,12 +621,12 @@ struct MonitoringView: View {
                 RoundedRectangle(cornerRadius: 3)
                     .fill(LinearGradient(colors: [tint.opacity(0.7), tint], startPoint: .leading, endPoint: .trailing))
                     .frame(width: geo.size.width * CGFloat(clampedActual) / 100, height: 6)
-                    .shadow(color: tint.opacity(0.4), radius: 4)
+                    .dsGlow(tint, radius: 4, opacity: 0.4)
                 Rectangle()
                     .fill(Color.white.opacity(0.85))
                     .frame(width: 2, height: 12)
                     .offset(x: geo.size.width * CGFloat(clampedExpected) / 100 - 1, y: -3)
-                    .shadow(color: .white.opacity(0.4), radius: 2)
+                    .dsGlow(.white, radius: 2, opacity: 0.4)
             }
         }
         .frame(height: 12)
@@ -652,7 +655,7 @@ struct MonitoringView: View {
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(tint)
-                    .shadow(color: tint.opacity(0.45), radius: 4)
+                    .dsGlow(tint, radius: 4, opacity: 0.45)
             }
             if limit > 0 {
                 GeometryReader { geo in
@@ -922,7 +925,7 @@ private struct MetricTile: View {
                     RoundedRectangle(cornerRadius: 1.5)
                         .fill(LinearGradient(colors: [color.opacity(0.65), color], startPoint: .leading, endPoint: .trailing))
                         .frame(width: geo.size.width * clamped, height: 3)
-                        .shadow(color: color.opacity(0.5), radius: 3)
+                        .dsGlow(color, radius: 3, opacity: 0.5)
                 }
             }
             .frame(height: 3)
@@ -1252,7 +1255,7 @@ private struct HeroPacingGraph: View {
                 Circle()
                     .fill(trajectoryColor)
                     .frame(width: 8, height: 8)
-                    .shadow(color: trajectoryColor.opacity(0.6), radius: 5)
+                    .dsGlow(trajectoryColor, radius: 5, opacity: 0.6)
                     .position(actualPoint)
             }
         }

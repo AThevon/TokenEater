@@ -22,6 +22,7 @@ struct MenuBarPopoverView: View {
             }
         }
         .animation(.easeInOut(duration: 0.12), value: settingsStore.popoverConfig.activeVariant)
+        .environment(\.glowIntensity, settingsStore.glowIntensity)
     }
 
     private var transition: AnyTransition {

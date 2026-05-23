@@ -405,6 +405,10 @@
 /* Smart Color (toggle global dans Themes) */
 "settings.smartcolor.title" = "Smart Color";
 "settings.smartcolor.hint" = "Les couleurs s'adaptent au temps restant avant reset, pas juste au pourcentage absolu.";
+"settings.glow.title" = "Effet néon";
+"settings.glow.hint" = "Halo autour des jauges et métriques dans le popover et le monitoring. Désactive pour un look plus plat et clean.";
+"settings.glow.mode.glow" = "Glow";
+"settings.glow.mode.flat" = "Flat";
 "settings.smartcolor.popover.title" = "Comment fonctionne Smart Color";
 "settings.smartcolor.popover.intro" = "Smart Color intègre le temps qu'il te reste avant le prochain reset. Même pourcentage, couleur différente selon la proximité du reset.";
 "settings.smartcolor.popover.example1.label" = "Risque faible";

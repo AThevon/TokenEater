@@ -35,7 +35,7 @@ struct RingGauge: View {
                 .trim(from: 0, to: animatedPct / 100)
                 .stroke(gradient, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-                .shadow(color: glowColor.opacity(0.6), radius: glowRadius)
+                .dsGlow(glowColor, radius: glowRadius, opacity: 0.6)
         }
         .frame(width: size, height: size)
         .onAppear {

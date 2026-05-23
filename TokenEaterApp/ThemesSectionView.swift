@@ -60,6 +60,27 @@ struct ThemesSectionView: View {
                 }
             }
 
+            // Glow intensity
+            glassCard {
+                HStack(alignment: .center) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        cardLabel(String(localized: "settings.glow.title"))
+                        Text(String(localized: "settings.glow.hint"))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.white.opacity(0.5))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { settingsStore.glowIntensity == .glow },
+                        set: { settingsStore.glowIntensity = $0 ? .glow : .flat }
+                    ))
+                    .toggleStyle(.switch)
+                    .tint(DS.Palette.accentSettings)
+                    .labelsHidden()
+                }
+            }
+
             // Presets
             glassCard {
                 VStack(alignment: .leading, spacing: 12) {

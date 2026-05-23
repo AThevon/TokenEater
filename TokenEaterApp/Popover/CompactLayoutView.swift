@@ -251,7 +251,7 @@ private struct ChipView: View {
                     .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
                     .frame(width: 38, height: 38)
                     .rotationEffect(.degrees(-90))
-                    .shadow(color: color.opacity(0.4), radius: 3)
+                    .dsGlow(color, radius: 3, opacity: 0.4)
             }
             VStack(alignment: .leading, spacing: 1) {
                 Text(label.uppercased())
@@ -342,7 +342,7 @@ struct CompactExtraChip: View {
                     .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                     .frame(width: 28, height: 28)
                     .rotationEffect(.degrees(-90))
-                    .shadow(color: color.opacity(0.4), radius: 2)
+                    .dsGlow(color, radius: 2, opacity: 0.4)
             }
             VStack(alignment: .leading, spacing: 0) {
                 Text(label.uppercased())

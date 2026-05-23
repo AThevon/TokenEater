@@ -17,6 +17,6 @@ struct GlowText: View {
         Text(text)
             .font(font)
             .foregroundStyle(color)
-            .shadow(color: color.opacity(0.5), radius: glowRadius)
+            .dsGlow(color, radius: glowRadius, opacity: 0.5)
     }
 }
