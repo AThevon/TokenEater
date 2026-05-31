@@ -445,26 +445,35 @@ struct MonitoringView: View {
     // MARK: - Metrics grid
 
     private var metricsGrid: some View {
-        let tiles = secondaryTiles
-        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: DS.Spacing.sm), count: 3), spacing: DS.Spacing.sm) {
-            ForEach(tiles, id: \.id) { tile in
-                MetricTile(
-                    id: tile.id,
-                    label: tile.label,
-                    icon: tile.icon,
-                    pct: tile.pct,
-                    resetText: tile.resetText,
-                    resetDate: tile.resetDate,
-                    windowDuration: tile.windowDuration,
-                    smartEnabled: settingsStore.smartColorEnabled,
-                    pacingMargin: Double(settingsStore.pacingMargin),
-                    smartProfile: settingsStore.smartColorProfile,
-                    themeStore: themeStore,
-                    insights: hasRichBack(tileId: tile.id)
-                        ? insightsStore.snapshot(for: tileFamily(for: tile.id))
-                        : nil,
-                    insightsLoaded: insightsStore.hasLoaded
-                )
+        // Width-filling rows instead of a fixed 3-column grid: the number of
+        // secondary tiles varies (Design/Opus/Cowork are shown only when their
+        // API bucket exists), so a fixed grid left an empty trailing cell when
+        // the count was not a multiple of 3. Each row's tiles stretch to fill
+        // the full width, so there is never a hole regardless of tile count.
+        let rows = MetricsGridLayout.rows(secondaryTiles)
+        return VStack(spacing: DS.Spacing.sm) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                HStack(spacing: DS.Spacing.sm) {
+                    ForEach(row, id: \.id) { tile in
+                        MetricTile(
+                            id: tile.id,
+                            label: tile.label,
+                            icon: tile.icon,
+                            pct: tile.pct,
+                            resetText: tile.resetText,
+                            resetDate: tile.resetDate,
+                            windowDuration: tile.windowDuration,
+                            smartEnabled: settingsStore.smartColorEnabled,
+                            pacingMargin: Double(settingsStore.pacingMargin),
+                            smartProfile: settingsStore.smartColorProfile,
+                            themeStore: themeStore,
+                            insights: hasRichBack(tileId: tile.id)
+                                ? insightsStore.snapshot(for: tileFamily(for: tile.id))
+                                : nil,
+                            insightsLoaded: insightsStore.hasLoaded
+                        )
+                    }
+                }
             }
         }
     }
