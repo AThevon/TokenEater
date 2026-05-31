@@ -37,4 +37,14 @@ final class SessionStore: ObservableObject {
         monitorService.stopMonitoring()
         cancellable = nil
     }
+
+    /// Push the user's watcher scan cadence to the monitor service.
+    func setScanInterval(_ seconds: TimeInterval) {
+        monitorService.setScanInterval(seconds)
+    }
+
+    /// Push the user's watcher visibility window to the monitor service.
+    func setVisibility(_ seconds: TimeInterval) {
+        monitorService.setVisibility(seconds)
+    }
 }

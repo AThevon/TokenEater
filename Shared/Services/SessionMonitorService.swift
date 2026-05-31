@@ -9,8 +9,10 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
 
     private var timer: DispatchSourceTimer?
     private let queue = DispatchQueue(label: "com.tokeneater.session-monitor", qos: .utility)
-    private let scanInterval: TimeInterval
-    private let projectDirFreshness: TimeInterval
+    // Mutated only on `queue` (see setScanInterval/setVisibility) so they stay
+    // race-free despite the @unchecked Sendable conformance.
+    private var scanInterval: TimeInterval
+    private var projectDirFreshness: TimeInterval
     private let claudeProjectsDirOverride: URL?
     private let processProvider: @Sendable () -> [ClaudeProcessInfo]
 
@@ -38,9 +40,21 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
     }
 
     func startMonitoring() {
-        timer?.cancel()
-        timer = nil
+        queue.async { [weak self] in self?.startTimerLocked() }
+    }
 
+    func stopMonitoring() {
+        queue.async { [weak self] in
+            self?.timer?.cancel()
+            self?.timer = nil
+            self?.sessionsSubject.send([])
+        }
+    }
+
+    /// Builds (or rebuilds) the repeating scan timer. MUST run on `queue`,
+    /// which owns `timer`, `scanInterval` and `projectDirFreshness`.
+    private func startTimerLocked() {
+        timer?.cancel()
         let timer = DispatchSource.makeTimerSource(queue: queue)
         timer.schedule(deadline: .now(), repeating: scanInterval)
         timer.setEventHandler { [weak self] in
@@ -50,10 +64,22 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
         self.timer = timer
     }
 
-    func stopMonitoring() {
-        timer?.cancel()
-        timer = nil
-        sessionsSubject.send([])
+    /// Change the scan cadence at runtime. Rebuilds the live timer when
+    /// monitoring is active; otherwise the new value is picked up by the next
+    /// `startMonitoring`. Routed through `queue` to stay ordered with start/stop.
+    func setScanInterval(_ interval: TimeInterval) {
+        queue.async { [weak self] in
+            guard let self, interval != self.scanInterval else { return }
+            self.scanInterval = interval
+            if self.timer != nil { self.startTimerLocked() }
+        }
+    }
+
+    /// Change how long a cold session stays inside the scan window at runtime.
+    func setVisibility(_ freshness: TimeInterval) {
+        queue.async { [weak self] in
+            self?.projectDirFreshness = freshness
+        }
     }
 
     /// Internal for perf tests. Must stay safe to call synchronously off the timer queue.

@@ -523,6 +523,8 @@
 "settings.watchers.display" = "Mode d'affichage";
 "settings.watchers.display.branchPriority" = "Branche prioritaire";
 "settings.watchers.display.projectAndBranch" = "Projet + Branche";
+"settings.watchers.scanrate" = "Fréquence de scan";
+"settings.watchers.visibility" = "Visibilité";
 "settings.watchers.display.branchPriority.hint" = "Affiche la branche git en titre quand elle n'est pas par défaut, sinon le nom du projet.";
 "settings.watchers.display.projectAndBranch.hint" = "Affiche toujours le nom du projet en titre, avec la branche à côté du statut.";
 

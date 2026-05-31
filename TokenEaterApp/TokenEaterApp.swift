@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarController: StatusBarController?
     private var overlayWindowController: OverlayWindowController?
     private var monitorCancellable: AnyCancellable?
+    private var cancellables = Set<AnyCancellable>()
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
@@ -40,6 +41,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             updateStore: updateStore,
             sessionStore: sessionStore
         )
+        // Apply persisted watcher scan settings before the first tick uses them.
+        sessionStore.setScanInterval(settingsStore.watcherScanInterval.seconds)
+        sessionStore.setVisibility(settingsStore.watcherVisibility.seconds)
         if settingsStore.overlayEnabled {
             sessionStore.startMonitoring()
         }
@@ -61,6 +65,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.sessionStore.stopMonitoring()
                 }
             }
+
+        settingsStore.$watcherScanInterval
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] interval in
+                self?.sessionStore.setScanInterval(interval.seconds)
+            }
+            .store(in: &cancellables)
+
+        settingsStore.$watcherVisibility
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] visibility in
+                self?.sessionStore.setVisibility(visibility.seconds)
+            }
+            .store(in: &cancellables)
     }
 }
 

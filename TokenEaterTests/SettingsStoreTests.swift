@@ -5,7 +5,7 @@ import UserNotifications
 private let settingsKeys = [
     "showMenuBar", "pinnedMetrics", "pacingDisplayMode",
     "hasCompletedOnboarding", "proxyEnabled", "proxyHost", "proxyPort",
-    "overlayEnabled", "watcherStyle"
+    "overlayEnabled", "watcherStyle", "watcherScanInterval", "watcherVisibility"
 ]
 
 private func cleanDefaults() {
@@ -52,6 +52,34 @@ struct SettingsStoreTests {
         #expect(config.enabled == false)
         #expect(config.host == "127.0.0.1")
         #expect(config.port == 1080)
+    }
+
+    // MARK: - Watcher scan settings
+
+    @Test("watcher scan interval defaults to 2s and visibility to 30 min")
+    func watcherScanDefaults() {
+        let (store, _, _) = makeStore()
+        #expect(store.watcherScanInterval == .twoSeconds)
+        #expect(store.watcherVisibility == .thirtyMinutes)
+    }
+
+    @Test("watcher scan interval persists across store instances")
+    func watcherScanIntervalPersists() {
+        let (store, _, _) = makeStore()
+        store.watcherScanInterval = .tenSeconds
+
+        // A fresh store (same UserDefaults) must read the persisted value.
+        let reloaded = SettingsStore(notificationService: MockNotificationService(), tokenProvider: MockTokenProvider())
+        #expect(reloaded.watcherScanInterval == .tenSeconds)
+    }
+
+    @Test("watcher visibility persists across store instances")
+    func watcherVisibilityPersists() {
+        let (store, _, _) = makeStore()
+        store.watcherVisibility = .sevenDays
+
+        let reloaded = SettingsStore(notificationService: MockNotificationService(), tokenProvider: MockTokenProvider())
+        #expect(reloaded.watcherVisibility == .sevenDays)
     }
 
     // MARK: - Toggle Metric

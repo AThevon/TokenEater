@@ -91,6 +91,36 @@ struct AgentWatchersSectionView: View {
                     }
                 }
 
+                // Scan rate -> chips (how often the watcher rescans)
+                groupLabel("settings.watchers.scanrate")
+                    .padding(.top, 4)
+                HStack(spacing: 6) {
+                    ForEach(WatcherScanInterval.allCases, id: \.self) { interval in
+                        BinaryChoiceChip(
+                            label: interval.label,
+                            icon: "arrow.clockwise",
+                            isActive: settingsStore.watcherScanInterval == interval
+                        ) {
+                            settingsStore.watcherScanInterval = interval
+                        }
+                    }
+                }
+
+                // Visibility -> chips (how long a session stays shown when idle)
+                groupLabel("settings.watchers.visibility")
+                    .padding(.top, 4)
+                HStack(spacing: 6) {
+                    ForEach(WatcherVisibility.allCases, id: \.self) { visibility in
+                        BinaryChoiceChip(
+                            label: visibility.label,
+                            icon: "eye",
+                            isActive: settingsStore.watcherVisibility == visibility
+                        ) {
+                            settingsStore.watcherVisibility = visibility
+                        }
+                    }
+                }
+
                 // Side + dock effect + animations -> chip row
                 HStack(spacing: 8) {
                     ClickChip(
@@ -289,6 +319,8 @@ struct AgentWatchersSectionView: View {
         settingsStore.watchersDetailedMode = true
         settingsStore.watcherStyle = .frost
         settingsStore.watcherDisplayMode = .branchPriority
+        settingsStore.watcherScanInterval = .twoSeconds
+        settingsStore.watcherVisibility = .thirtyMinutes
         settingsStore.watcherAnimationsEnabled = true
     }
 

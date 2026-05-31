@@ -125,6 +125,12 @@ final class SettingsStore: ObservableObject {
     @Published var watcherDisplayMode: WatcherDisplayMode {
         didSet { UserDefaults.standard.set(watcherDisplayMode.rawValue, forKey: "watcherDisplayMode") }
     }
+    @Published var watcherScanInterval: WatcherScanInterval {
+        didSet { UserDefaults.standard.set(watcherScanInterval.rawValue, forKey: "watcherScanInterval") }
+    }
+    @Published var watcherVisibility: WatcherVisibility {
+        didSet { UserDefaults.standard.set(watcherVisibility.rawValue, forKey: "watcherVisibility") }
+    }
 
     // Performance
     @Published var watcherAnimationsEnabled: Bool {
@@ -290,6 +296,10 @@ final class SettingsStore: ObservableObject {
         self.watcherDisplayMode = WatcherDisplayMode(
             rawValue: UserDefaults.standard.string(forKey: "watcherDisplayMode") ?? "branchPriority"
         ) ?? .branchPriority
+        self.watcherScanInterval = (UserDefaults.standard.object(forKey: "watcherScanInterval") as? Int)
+            .flatMap(WatcherScanInterval.init(rawValue:)) ?? .twoSeconds
+        self.watcherVisibility = (UserDefaults.standard.object(forKey: "watcherVisibility") as? Int)
+            .flatMap(WatcherVisibility.init(rawValue:)) ?? .thirtyMinutes
         self.watcherAnimationsEnabled = UserDefaults.standard.object(forKey: "watcherAnimationsEnabled") as? Bool ?? true
         // Reconcile the stored toggle with the actual SMAppService state - user
         // might have flipped it from System Settings without going through the
