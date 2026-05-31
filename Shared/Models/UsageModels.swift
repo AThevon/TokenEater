@@ -9,9 +9,11 @@ struct UsageResponse: Codable {
     let sevenDayOauthApps: UsageBucket?
     let sevenDayOpus: UsageBucket?
     let sevenDayCowork: UsageBucket?
-    /// Claude Design (codenamed `seven_day_omelette` in the API during rollout).
-    /// Same structure as the other 7-day buckets. We rename it to `sevenDayDesign`
-    /// internally for readability and label it "Design" in the UI.
+    /// Claude Design. Anthropic codenamed it `seven_day_omelette` during the
+    /// initial rollout, then moved the quota under `omelette_promotional` (the
+    /// legacy key now returns null on migrated accounts). We read both and keep
+    /// whichever is populated so the Design card survives the rename. Exposed as
+    /// `sevenDayDesign` internally and labelled "Design" in the UI.
     let sevenDayDesign: UsageBucket?
     /// New paid-credits pool that surfaced alongside Design. Rendered as a
     /// dedicated card rather than a ring, only visible when `isEnabled` is true.
@@ -26,6 +28,13 @@ struct UsageResponse: Codable {
         case sevenDayCowork = "seven_day_cowork"
         case sevenDayDesign = "seven_day_omelette"
         case extraUsage = "extra_usage"
+    }
+
+    /// Keys with no backing stored property, read in `init(from:)` only. Kept
+    /// out of `CodingKeys` so the synthesized `Encodable` stays property-aligned.
+    private enum FallbackKeys: String, CodingKey {
+        /// Post-rollout home of the Claude Design quota (was `seven_day_omelette`).
+        case sevenDayDesignPromo = "omelette_promotional"
     }
 
     init(
@@ -57,7 +66,12 @@ struct UsageResponse: Codable {
         sevenDayOauthApps = try? container.decode(UsageBucket.self, forKey: .sevenDayOauthApps)
         sevenDayOpus = try? container.decode(UsageBucket.self, forKey: .sevenDayOpus)
         sevenDayCowork = try? container.decode(UsageBucket.self, forKey: .sevenDayCowork)
-        sevenDayDesign = try? container.decode(UsageBucket.self, forKey: .sevenDayDesign)
+        // Prefer the legacy key, fall back to the promotional one Anthropic
+        // migrated the quota to. Either may be null/absent on a given account.
+        let designLegacy = try? container.decode(UsageBucket.self, forKey: .sevenDayDesign)
+        let fallback = try? decoder.container(keyedBy: FallbackKeys.self)
+        let designPromo = fallback.flatMap { try? $0.decode(UsageBucket.self, forKey: .sevenDayDesignPromo) }
+        sevenDayDesign = designLegacy ?? designPromo
         extraUsage = try? container.decode(ExtraUsage.self, forKey: .extraUsage)
     }
 }
@@ -102,6 +116,11 @@ struct ExtraUsage: Codable, Equatable {
     let utilization: Double?
     /// ISO 4217 code (e.g. "USD") for formatting monetary values.
     let currency: String?
+    /// Why the extra-usage lane is off when `isEnabled` is false. Known values:
+    /// `org_level_disabled`, `org_level_disabled_until` (spending cap reached),
+    /// `member_level_disabled`, `overage_not_provisioned`. Null when enabled or
+    /// when the API omits it.
+    let disabledReason: String?
 
     enum CodingKeys: String, CodingKey {
         case isEnabled = "is_enabled"
@@ -109,6 +128,7 @@ struct ExtraUsage: Codable, Equatable {
         case usedCredits = "used_credits"
         case utilization
         case currency
+        case disabledReason = "disabled_reason"
     }
 }
 

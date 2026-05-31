@@ -60,8 +60,9 @@ final class MonitoringInsightsStore: ObservableObject {
                     self.lastLoaded = Date()
                     // Mirror the daily totals to the shared file so the
                     // History Sparkline widget renders without re-parsing
-                    // JSONL from the sandboxed widget process.
-                    let totals = buckets.map { $0.totalActive }
+                    // JSONL from the sandboxed widget process. Densify to one
+                    // slot per calendar day so empty days stay aligned (#179).
+                    let totals = Self.dailyTotalsByDay(from: buckets, today: Date())
                     self.sharedFile.updateLastWeekDailyTotals(totals, refreshedAt: Date())
                 }
             } catch {
@@ -102,6 +103,31 @@ final class MonitoringInsightsStore: ObservableObject {
             heaviestDay: heaviest,
             deltaPercent: deltaPercent
         )
+    }
+
+    /// Maps sparse daily buckets onto a dense, calendar-aligned array of
+    /// `days` slots (oldest first, today last), zero-filling days with no
+    /// activity. The History Sparkline widget labels each bar by its position
+    /// relative to today, so a missing day must be an explicit zero rather
+    /// than skipped - otherwise every later bar shifts under the wrong weekday
+    /// (issue #179). Returns `[]` when there is no history at all so the widget
+    /// keeps showing its empty state.
+    nonisolated static func dailyTotalsByDay(
+        from buckets: [HistoryBucket],
+        days: Int = 7,
+        today: Date,
+        calendar: Calendar = .current
+    ) -> [Int] {
+        guard !buckets.isEmpty else { return [] }
+        let totalsByDay = Dictionary(
+            buckets.map { (calendar.startOfDay(for: $0.date), $0.totalActive) },
+            uniquingKeysWith: +
+        )
+        let startToday = calendar.startOfDay(for: today)
+        return (0..<days).reversed().map { offset in
+            let day = calendar.date(byAdding: .day, value: -offset, to: startToday) ?? startToday
+            return totalsByDay[day] ?? 0
+        }
     }
 
     private func tokensFor(_ family: ModelFamily?, in bucket: HistoryBucket) -> Int {
