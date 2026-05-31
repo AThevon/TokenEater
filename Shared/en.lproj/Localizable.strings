@@ -147,6 +147,7 @@
 "error.http" = "HTTP error %d";
 "error.ratelimited" = "Rate limited";
 "error.network" = "Network error: %@";
+"error.network.generic" = "Network error - couldn't reach the usage API. Check your connection.";
 "error.invalidresponse.short" = "Invalid response";
 "error.keychainlocked" = "Keychain locked - will retry automatically";
 "error.unsupportedplan" = "Usage data not available - Claude Pro or Team plan required";
@@ -158,9 +159,10 @@
 "error.banner.reauth.hint" = "Token expired and automatic recovery failed";
 "error.banner.reauth.button" = "Re-authorize";
 "error.banner.apiunavailable" = "Usage API throttled by Anthropic";
-"error.banner.apiunavailable.hint" = "Known issue on the /api/oauth/usage endpoint (anthropics/claude-code#31637). Will retry automatically with exponential backoff (30 min → 6 h).";
-"error.banner.apiunavailable.settings" = "Usage API throttled by Anthropic (anthropics/claude-code#31637). Retrying automatically.";
+"error.banner.apiunavailable.hint" = "This is a rate limit on Anthropic's usage API, not your token or setup. Nothing for you to fix - TokenEater keeps retrying and refreshes as soon as the limit clears (known issue: anthropics/claude-code#31637).";
+"error.banner.apiunavailable.settings" = "This is on Anthropic's side (their usage API), not your token or setup. TokenEater retries automatically and recovers when the limit clears.";
 "error.banner.apiunavailable.learnmore" = "Learn more";
+"error.banner.lastupdate" = "Last successful update: %@";
 "error.banner.retry.button" = "Retry now";
 "error.banner.diagnostic.button" = "Copy diagnostic";
 "error.banner.diagnostic.copied" = "Copied";

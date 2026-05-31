@@ -199,6 +199,12 @@ struct PopoverErrorBanner: View {
         Text(String(localized: "error.banner.apiunavailable.hint"))
             .font(.system(size: 10))
             .foregroundStyle(.white.opacity(0.5))
+        if let last = usageStore.lastUpdate {
+            Text(String(format: String(localized: "error.banner.lastupdate"),
+                        last.formatted(.relative(presentation: .named))))
+                .font(.system(size: 10))
+                .foregroundStyle(.white.opacity(0.45))
+        }
         HStack(spacing: 6) {
             primaryActionButton(
                 title: String(localized: "error.banner.retry.button"),

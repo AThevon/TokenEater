@@ -50,14 +50,22 @@ struct SettingsSectionView: View {
                             .foregroundStyle(importSuccess ? .green : .orange)
                     }
                     if usageStore.errorState == .rateLimited {
-                        Label {
-                            Text("error.banner.apiunavailable.settings")
-                                .font(.system(size: 11))
-                        } icon: {
-                            Image(systemName: "icloud.slash")
-                                .font(.system(size: 10))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Label {
+                                Text("error.banner.apiunavailable.settings")
+                                    .font(.system(size: 11))
+                            } icon: {
+                                Image(systemName: "icloud.slash")
+                                    .font(.system(size: 10))
+                            }
+                            .foregroundStyle(.orange.opacity(0.8))
+                            if let last = usageStore.lastUpdate {
+                                Text(String(format: String(localized: "error.banner.lastupdate"),
+                                            last.formatted(.relative(presentation: .named))))
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.white.opacity(0.4))
+                            }
                         }
-                        .foregroundStyle(.orange.opacity(0.8))
                     }
                     if let result = testResult {
                         Text(result.message)
