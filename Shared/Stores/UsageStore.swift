@@ -250,6 +250,24 @@ final class UsageStore: ObservableObject {
         switchToFastMode()
     }
 
+    /// Detects an OAuth token rotation that the file watcher cannot see: on
+    /// modern macOS the active token lives in the Keychain, so a `cswap` /
+    /// `claude login` account swap rotates it with no filesystem event and the
+    /// cached token (hence the displayed usage and plan badge) keeps belonging
+    /// to the previous account until a 401. Polling the token source on each
+    /// auto-refresh tick closes that gap. When a rotation is detected, the
+    /// stale state is dropped: clear the rate-limit backoff, force a profile
+    /// re-fetch, and switch to fast mode so the new account's data shows up
+    /// promptly. Returns true when the caller should force a usage refresh.
+    func reconcileTokenIfChanged() -> Bool {
+        guard tokenProvider.refreshTokenIfChanged() else { return false }
+        retryAfterDate = nil
+        consecutiveRateLimits = 0
+        lastProfileFetch = nil
+        switchToFastMode()
+        return true
+    }
+
     func loadCached() {
         if let cached = cachedUsage {
             updateUI(from: cached.usage)
@@ -285,7 +303,11 @@ final class UsageStore: ObservableObject {
             if let self { await self.refreshProfile() }
             while !Task.isCancelled {
                 guard let self else { return }
-                await self.refresh(thresholds: thresholds)
+                // Catch account swaps (cswap / claude login) the file watcher
+                // misses because the token rotates in the Keychain.
+                let rotated = self.reconcileTokenIfChanged()
+                await self.refresh(thresholds: thresholds, force: rotated)
+                if rotated { await self.refreshProfile() }
                 let delay = self.effectiveInterval
                 try? await Task.sleep(for: .seconds(delay))
             }

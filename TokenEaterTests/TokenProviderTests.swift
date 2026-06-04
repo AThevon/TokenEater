@@ -254,4 +254,51 @@ struct TokenProviderTests {
 
         #expect(token == "keychain-fallback")
     }
+
+    // MARK: - refreshTokenIfChanged (account swap detection)
+
+    @Test("refreshTokenIfChanged detects a rotated Keychain token and updates the cache")
+    func refreshTokenIfChangedDetectsRotation() {
+        let (provider, securityCLI, _, _, _) = makeSUT(securityCLIToken: "tok-A")
+
+        // Prime the cache with account A's token.
+        #expect(provider.currentToken() == "tok-A")
+
+        // cswap rotates the Keychain item to account B's token.
+        securityCLI.token = "tok-B"
+
+        #expect(provider.refreshTokenIfChanged() == true)
+        #expect(provider.currentToken() == "tok-B")
+    }
+
+    @Test("refreshTokenIfChanged returns false when the token is unchanged")
+    func refreshTokenIfChangedNoChange() {
+        let (provider, _, _, _, _) = makeSUT(securityCLIToken: "tok-A")
+
+        #expect(provider.currentToken() == "tok-A")
+        #expect(provider.refreshTokenIfChanged() == false)
+        #expect(provider.currentToken() == "tok-A")
+    }
+
+    @Test("refreshTokenIfChanged keeps the cached token when all sources momentarily miss")
+    func refreshTokenIfChangedKeepsCacheOnTransientMiss() {
+        let (provider, securityCLI, _, _, _) = makeSUT(securityCLIToken: "tok-A")
+
+        #expect(provider.currentToken() == "tok-A")
+
+        // A transient read failure (no source available) must not drop a
+        // working token.
+        securityCLI.token = nil
+        #expect(provider.refreshTokenIfChanged() == false)
+        #expect(provider.currentToken() == "tok-A")
+    }
+
+    @Test("refreshTokenIfChanged treats first population as not-a-rotation")
+    func refreshTokenIfChangedFirstReadIsNotRotation() {
+        let (provider, _, _, _, _) = makeSUT(securityCLIToken: "tok-A")
+
+        // No prior currentToken() call, so the cache is empty: the first read
+        // establishes a baseline rather than signalling a swap.
+        #expect(provider.refreshTokenIfChanged() == false)
+    }
 }

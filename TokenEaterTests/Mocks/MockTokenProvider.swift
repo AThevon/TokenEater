@@ -8,6 +8,10 @@ final class MockTokenProvider: TokenProviderProtocol, @unchecked Sendable {
     var bootstrapCallCount = 0
     var currentTokenCallCount = 0
     var invalidateCallCount = 0
+    var refreshTokenIfChangedCallCount = 0
+    /// What `refreshTokenIfChanged()` returns. Tests flip this to simulate an
+    /// account swap detected on the Keychain.
+    var tokenDidChange = false
 
     var isBootstrapped: Bool { _isBootstrapped }
 
@@ -22,6 +26,11 @@ final class MockTokenProvider: TokenProviderProtocol, @unchecked Sendable {
 
     func invalidateToken() {
         invalidateCallCount += 1
+    }
+
+    func refreshTokenIfChanged() -> Bool {
+        refreshTokenIfChangedCallCount += 1
+        return tokenDidChange
     }
 
     func bootstrap() throws {

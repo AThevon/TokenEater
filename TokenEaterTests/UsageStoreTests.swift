@@ -637,4 +637,40 @@ struct UsageStoreTests {
         #expect(store.fiveHourPct == 42)
         #expect(tokenProvider.invalidateCallCount == 1)
     }
+
+    // MARK: - reconcileTokenIfChanged (account swap detection)
+
+    @Test("reconcileTokenIfChanged clears stale state and signals a forced refresh on swap")
+    func reconcileTokenIfChangedDetectsSwap() async {
+        let (store, _, tokenProvider, _, _) = makeSUT(
+            shouldFail: true,
+            failWith: .rateLimited(retryAfter: 3600, retryAfterRaw: "3600", endpoint: "/api/oauth/usage")
+        )
+
+        // Put the store into a rate-limited, backed-off state on account A.
+        await store.refresh()
+        #expect(store.retryAfterDate != nil)
+
+        // The underlying Keychain token rotates to account B.
+        tokenProvider.tokenDidChange = true
+
+        let rotated = store.reconcileTokenIfChanged()
+
+        #expect(rotated == true)
+        #expect(store.retryAfterDate == nil)
+        #expect(store.currentSpeed == .fast)
+        #expect(tokenProvider.refreshTokenIfChangedCallCount == 1)
+    }
+
+    @Test("reconcileTokenIfChanged is a no-op when the token is unchanged")
+    func reconcileTokenIfChangedNoChange() {
+        let (store, _, tokenProvider, _, _) = makeSUT()
+        tokenProvider.tokenDidChange = false
+
+        let rotated = store.reconcileTokenIfChanged()
+
+        #expect(rotated == false)
+        #expect(store.currentSpeed == .normal)
+        #expect(tokenProvider.refreshTokenIfChangedCallCount == 1)
+    }
 }

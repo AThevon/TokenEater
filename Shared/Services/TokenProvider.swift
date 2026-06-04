@@ -56,30 +56,54 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     ///    whitelist us directly, but kept for defence-in-depth)
     func currentToken() -> String? {
         if let token = cachedToken { return token }
+        let token = readFromSources()
+        cachedToken = token
+        return token
+    }
 
+    /// Reads the token from all sources in priority order, bypassing the
+    /// in-memory cache. Returns the freshest token currently on the system.
+    private func readFromSources() -> String? {
         if let token = securityCLIReader.readToken() {
-            cachedToken = token
             logger.info("Token read via /usr/bin/security")
             return token
         }
 
         if let token = credentialsFileReader.readToken() {
-            cachedToken = token
             return token
         }
 
         if let token = tokenFromConfigJSON() {
-            cachedToken = token
             return token
         }
 
         if let token = keychainReader(true) {
-            cachedToken = token
-            logger.info("Token read from Keychain (silent) and cached in memory")
+            logger.info("Token read from Keychain (silent)")
             return token
         }
 
         return nil
+    }
+
+    /// Re-reads the token from its sources and updates the cache when it
+    /// changed. The file watcher only sees `config.json` / `.credentials.json`,
+    /// but on modern macOS the active token lives in the Keychain - so a
+    /// `cswap`/`claude login` account swap rotates the Keychain item with no
+    /// filesystem event and the cache would otherwise keep serving the previous
+    /// account's token until a 401. Polling here (on the auto-refresh tick)
+    /// closes that gap. Returns true only on an actual change between two
+    /// non-nil tokens; first population and transient read failures return false
+    /// so a working token is never dropped.
+    func refreshTokenIfChanged() -> Bool {
+        guard let fresh = readFromSources() else { return false }
+        let previous = cachedToken
+        cachedToken = fresh
+        guard let previous else { return false }
+        if previous != fresh {
+            logger.info("Token changed on Keychain/disk - cache refreshed for new account")
+            return true
+        }
+        return false
     }
 
     /// Try to decrypt config.json. If key is missing, attempt silent re-bootstrap.
