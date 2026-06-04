@@ -843,6 +843,7 @@ struct HistoryView: View {
     /// better readability for back-to-back stacked segments.
     private func gradient(for kind: ModelKind) -> Color {
         switch kind {
+        case .opus48: return Color(hex: "#F2B968")
         case .opus47: return Color(hex: "#E8A24A")
         case .opus46: return Color(hex: "#C2792B")
         case .sonnet: return Color(hex: "#5BC489")
