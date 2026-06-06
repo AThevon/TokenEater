@@ -28,6 +28,9 @@ struct StaticProvider: TimelineProvider {
 
     private func fetchEntry() -> UsageEntry {
         sharedFile.invalidateCache()
+        // The views read theme + pacing schedule via WidgetTheme's own shared
+        // instance; invalidate it too so workweek / theme changes propagate.
+        WidgetTheme.invalidate()
         logger.info("fetchEntry: fileURL=\(self.sharedFile.fileURL.path, privacy: .public), isConfigured=\(self.sharedFile.isConfigured)")
         guard sharedFile.isConfigured else {
             logger.error("Widget: not configured")

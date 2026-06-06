@@ -11,6 +11,13 @@ enum WidgetTheme {
     static var smartColorEnabled: Bool { shared.smartColorEnabled }
     static var smartColorProfile: SmartColorProfile { shared.smartColorProfile }
     static var pacingSchedule: PacingSchedule { shared.pacingSchedule }
+
+    /// Drop the cached read so the next access re-reads shared.json. The timeline
+    /// provider owns its own SharedFileService and invalidates that one; this
+    /// static instance (read by the views for theme + pacing schedule) must be
+    /// invalidated too, otherwise theme / workweek changes never reach the
+    /// widget while its process stays alive.
+    static func invalidate() { shared.invalidateCache() }
 }
 
 // MARK: - Widget Background (macOS 13 compat)
