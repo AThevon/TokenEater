@@ -6,13 +6,19 @@ struct PacingBar: View {
     let zone: PacingZone
     let gradient: LinearGradient
     let compact: Bool
+    /// Off-day spans (x-fractions of the calendar window) to hatch on the track.
+    let offDayRanges: [ClosedRange<Double>]
+    /// True when "now" falls on an off-day - mutes the ideal marker.
+    let nowInOffDay: Bool
 
-    init(actual: Double, expected: Double, zone: PacingZone, gradient: LinearGradient, compact: Bool = false) {
+    init(actual: Double, expected: Double, zone: PacingZone, gradient: LinearGradient, compact: Bool = false, offDayRanges: [ClosedRange<Double>] = [], nowInOffDay: Bool = false) {
         self.actual = actual
         self.expected = expected
         self.zone = zone
         self.gradient = gradient
         self.compact = compact
+        self.offDayRanges = offDayRanges
+        self.nowInOffDay = nowInOffDay
     }
 
     @State private var animatedActual: Double = 0
@@ -25,6 +31,11 @@ struct PacingBar: View {
                     .fill(Color.white.opacity(0.06))
                     .frame(height: compact ? 4 : 8)
 
+                if !offDayRanges.isEmpty {
+                    OffDayHatch(ranges: offDayRanges, cornerRadius: compact ? 2 : 4)
+                        .frame(height: compact ? 4 : 8)
+                }
+
                 RoundedRectangle(cornerRadius: compact ? 2 : 4)
                     .fill(gradient)
                     .frame(width: max(0, geo.size.width * CGFloat(min(animatedActual, 100)) / 100), height: compact ? 4 : 8)
@@ -34,9 +45,9 @@ struct PacingBar: View {
 
                 if !compact {
                     Circle()
-                        .fill(Color.white)
+                        .fill(nowInOffDay ? Color.white.opacity(0.45) : Color.white)
                         .frame(width: 10, height: 10)
-                        .shadow(color: .white.opacity(0.5), radius: pulsing ? 6 : 2)
+                        .shadow(color: .white.opacity(nowInOffDay ? 0.2 : 0.5), radius: pulsing ? 6 : 2)
                         .offset(x: geo.size.width * CGFloat(min(animatedActual, 100)) / 100 - 5)
                 }
             }
@@ -67,7 +78,7 @@ struct PacingBar: View {
             path.addLine(to: CGPoint(x: 0, y: size))
             path.closeSubpath()
         }
-        .fill(Color.white.opacity(0.5))
+        .fill(Color.white.opacity(nowInOffDay ? 0.25 : 0.5))
         .frame(width: size, height: size)
     }
 }

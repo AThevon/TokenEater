@@ -75,4 +75,39 @@ struct PacingSchedule: Equatable, Sendable {
         guard isActive else { return false }
         return !effectiveActiveDays.contains(calendar.component(.weekday, from: date))
     }
+
+    /// Off-day spans within the window `[resetDate - period, resetDate]`, as
+    /// x-fractions (0...1) of the calendar window, with contiguous off-days
+    /// merged (a Sat+Sun weekend becomes one band). Empty unless the schedule is
+    /// active. Used to hatch the off zones on the pacing track.
+    func offDayRanges(resetDate: Date, period: TimeInterval = 7 * 24 * 3600, calendar: Calendar = .current) -> [ClosedRange<Double>] {
+        guard isActive else { return [] }
+        let windowStart = resetDate.addingTimeInterval(-period)
+        var ranges: [ClosedRange<Double>] = []
+        var current: (start: Double, end: Double)?
+        var cursor = windowStart
+        var guardCount = 0
+        while cursor < resetDate && guardCount < 400 {
+            guardCount += 1
+            let dayStart = calendar.startOfDay(for: cursor)
+            let nextMidnight = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? resetDate
+            let segEnd = min(nextMidnight, resetDate)
+            let s = cursor.timeIntervalSince(windowStart) / period
+            let e = segEnd.timeIntervalSince(windowStart) / period
+            if !effectiveActiveDays.contains(calendar.component(.weekday, from: cursor)) {
+                if let cur = current, abs(cur.end - s) < 0.0001 {
+                    current = (cur.start, e)
+                } else {
+                    if let cur = current { ranges.append(cur.start...cur.end) }
+                    current = (s, e)
+                }
+            } else if let cur = current {
+                ranges.append(cur.start...cur.end)
+                current = nil
+            }
+            cursor = segEnd
+        }
+        if let cur = current { ranges.append(cur.start...cur.end) }
+        return ranges
+    }
 }

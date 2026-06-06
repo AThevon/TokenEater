@@ -554,6 +554,11 @@ struct MonitoringView: View {
     private func pacingCard(pacing: PacingResult, label: String, icon: String, showWorkweekBadge: Bool = false) -> some View {
         let tint = themeStore.current.pacingColor(for: pacing.zone)
         let sign = pacing.delta >= 0 ? "+" : ""
+        let schedule = settingsStore.pacingSchedule
+        let offRanges: [ClosedRange<Double>] = (showWorkweekBadge && schedule.isActive)
+            ? (pacing.resetDate.map { schedule.offDayRanges(resetDate: $0) } ?? [])
+            : []
+        let nowInOffDay = showWorkweekBadge && schedule.isOffDay(Date())
         return VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             HStack(alignment: .top, spacing: DS.Spacing.xs) {
                 VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
@@ -590,7 +595,7 @@ struct MonitoringView: View {
                     .animation(DS.Motion.springLiquid, value: pacing.delta)
             }
 
-            pacingTrack(actual: pacing.actualUsage, expected: pacing.expectedUsage, tint: tint)
+            pacingTrack(actual: pacing.actualUsage, expected: pacing.expectedUsage, tint: tint, offDayRanges: offRanges, nowInOffDay: nowInOffDay)
 
             if !pacing.message.isEmpty {
                 Text(pacing.message)
@@ -622,7 +627,7 @@ struct MonitoringView: View {
         .dsShadow(DS.Shadow.subtle)
     }
 
-    private func pacingTrack(actual: Double, expected: Double, tint: Color) -> some View {
+    private func pacingTrack(actual: Double, expected: Double, tint: Color, offDayRanges: [ClosedRange<Double>] = [], nowInOffDay: Bool = false) -> some View {
         let clampedActual = min(max(actual, 0), 100)
         let clampedExpected = min(max(expected, 0), 100)
         return GeometryReader { geo in
@@ -630,15 +635,19 @@ struct MonitoringView: View {
                 RoundedRectangle(cornerRadius: 3)
                     .fill(DS.Palette.glassFillHi)
                     .frame(height: 6)
+                if !offDayRanges.isEmpty {
+                    OffDayHatch(ranges: offDayRanges, cornerRadius: 3)
+                        .frame(height: 6)
+                }
                 RoundedRectangle(cornerRadius: 3)
                     .fill(LinearGradient(colors: [tint.opacity(0.7), tint], startPoint: .leading, endPoint: .trailing))
                     .frame(width: geo.size.width * CGFloat(clampedActual) / 100, height: 6)
                     .dsGlow(tint, radius: 4, opacity: 0.4)
                 Rectangle()
-                    .fill(Color.white.opacity(0.85))
+                    .fill(Color.white.opacity(nowInOffDay ? 0.4 : 0.85))
                     .frame(width: 2, height: 12)
                     .offset(x: geo.size.width * CGFloat(clampedExpected) / 100 - 1, y: -3)
-                    .dsGlow(.white, radius: 2, opacity: 0.4)
+                    .dsGlow(.white, radius: 2, opacity: nowInOffDay ? 0.15 : 0.4)
             }
         }
         .frame(height: 12)

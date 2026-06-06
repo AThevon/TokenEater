@@ -429,7 +429,12 @@ struct PopoverPacingRow: View {
 
     var body: some View {
         let sign = pacing.delta >= 0 ? "+" : ""
-        VStack(alignment: .leading, spacing: 4) {
+        let schedule = settingsStore.pacingSchedule
+        let offRanges: [ClosedRange<Double>] = (showWorkweekBadge && schedule.isActive)
+            ? (pacing.resetDate.map { schedule.offDayRanges(resetDate: $0) } ?? [])
+            : []
+        let nowInOffDay = showWorkweekBadge && schedule.isOffDay(Date())
+        return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 5) {
                 Text(label)
                     .font(.system(size: 10, weight: .medium))
@@ -445,7 +450,9 @@ struct PopoverPacingRow: View {
                     expected: pacing.expectedUsage,
                     zone: pacing.zone,
                     gradient: PopoverColors.zoneGradient(pacing.zone, theme: themeStore),
-                    compact: true
+                    compact: true,
+                    offDayRanges: offRanges,
+                    nowInOffDay: nowInOffDay
                 )
                 .frame(maxWidth: .infinity)
 
