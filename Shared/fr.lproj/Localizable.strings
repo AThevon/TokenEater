@@ -210,6 +210,7 @@
 "settings.pacing.margin.hint" = "Bande de tolérance autour du rythme idéal. On track reste dans ±marge, warning quand tu dépasses, hot au-delà de 2x la marge.";
 "settings.pacing.workweek" = "Rythme jours ouvrés";
 "settings.pacing.workweek.hint" = "Le rythme ne compte que tes jours actifs, donc tes jours off ne te font plus paraître en avance. S'applique aux jauges hebdo et Sonnet, pas à la session 5h.";
+"settings.pacing.workweek.hours" = "Heures actives";
 "pacing.workweek.badge.active" = "Rythme jours ouvrés actif";
 "pacing.workweek.badge.offday" = "Jour off, rythme en pause jusqu'au reset";
 "settings.workweek.popover.title" = "Rythme jours ouvrés";
@@ -596,6 +597,8 @@
 "history.tooltip.sessions" = "%lld session(s)";
 "sidebar.display" = "Barre de menus";
 "sidebar.themes" = "Thèmes";
+"sidebar.pacing" = "Pacing";
+"sidebar.pacing.subtitle" = "Smart Color, sensibilité et ton rythme jours ouvrés.";
 "sidebar.popover" = "Popover";
 "sidebar.agentWatchers" = "Watchers";
 "sidebar.notifications" = "Notifications";
@@ -608,7 +611,7 @@
 
 /* Section subtitles */
 "sidebar.display.subtitle" = "Choisissez les métriques qui s'affichent dans la barre de menus et leur apparence.";
-"sidebar.themes.subtitle" = "Couleurs, seuils et style visuel.";
+"sidebar.themes.subtitle" = "Couleurs et style visuel.";
 "sidebar.agentWatchers.subtitle" = "Overlay flottant pour vos sessions Claude Code actives.";
 "sidebar.performance.subtitle" = "Réglez la consommation CPU en désactivant ce dont vous n'avez pas besoin.";
 "sidebar.settings.subtitle" = "Proxy, intervalle de rafraîchissement et autres préférences globales.";

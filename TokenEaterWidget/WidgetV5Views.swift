@@ -146,7 +146,7 @@ struct SessionRingWidgetView: View {
             if entry.error != nil, entry.usage == nil {
                 ErrorContent(message: entry.error ?? String(localized: "error.nodata"))
             } else if let usage = entry.usage, let fiveHour = usage.fiveHour {
-                ringContent(fiveHour, pacing: PacingCalculator.calculate(from: usage, activeDays: WidgetTheme.pacingSchedule.effectiveActiveDays))
+                ringContent(fiveHour, pacing: PacingCalculator.calculate(from: usage, activeDays: WidgetTheme.pacingSchedule.effectiveActiveDays, activeHours: WidgetTheme.pacingSchedule.effectiveHours))
             } else {
                 PlaceholderContent()
             }
@@ -222,7 +222,7 @@ struct PacingGraphWidgetView: View {
             if entry.error != nil, entry.usage == nil {
                 ErrorContent(message: entry.error ?? String(localized: "error.nodata"))
             } else if let usage = entry.usage,
-                      let pacing = PacingCalculator.calculate(from: usage, bucket: .sevenDay, activeDays: WidgetTheme.pacingSchedule.effectiveActiveDays),
+                      let pacing = PacingCalculator.calculate(from: usage, bucket: .sevenDay, activeDays: WidgetTheme.pacingSchedule.effectiveActiveDays, activeHours: WidgetTheme.pacingSchedule.effectiveHours),
                       let bucket = usage.sevenDay {
                 graphContent(pacing: pacing, bucket: bucket)
             } else {
@@ -544,7 +544,7 @@ struct PacingGlanceWidgetView: View {
 
     var body: some View {
         Group {
-            if let usage = entry.usage, let pacing = PacingCalculator.calculate(from: usage, activeDays: WidgetTheme.pacingSchedule.effectiveActiveDays) {
+            if let usage = entry.usage, let pacing = PacingCalculator.calculate(from: usage, activeDays: WidgetTheme.pacingSchedule.effectiveActiveDays, activeHours: WidgetTheme.pacingSchedule.effectiveHours) {
                 glanceContent(pacing)
             } else if entry.error != nil, entry.usage == nil {
                 ErrorContent(message: entry.error ?? String(localized: "error.nodata"))

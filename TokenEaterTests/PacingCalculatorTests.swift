@@ -470,4 +470,43 @@ struct PacingCalculatorTests {
         let workweek = PacingCalculator.calculate(from: usage, bucket: .fiveHour, now: now, activeDays: PacingSchedule.workweek)
         #expect(classic?.expectedUsage == workweek?.expectedUsage)
     }
+
+    // MARK: - Active hours
+
+    @Test("activeSeconds with hours counts only the work-hour window")
+    func activeSecondsWithHours() {
+        let cal = Self.utcCalendar
+        let start = cal.startOfDay(for: Date(timeIntervalSince1970: 1_700_000_000))
+        let end = start.addingTimeInterval(7 * 86_400)
+        // Mon-Fri, 9-18 = 9h on each of 5 weekdays.
+        let secs = PacingCalculator.activeSeconds(from: start, to: end, activeDays: PacingSchedule.workweek, hours: (9, 18), calendar: cal)
+        #expect(abs(secs - 5 * 9 * 3600) < 1)
+    }
+
+    @Test("effectiveHours is nil unless enabled with a valid range")
+    func effectiveHoursSemantics() {
+        #expect(PacingSchedule(enabled: true, activeDays: PacingSchedule.workweek, hoursEnabled: false, startHour: 9, endHour: 18).effectiveHours == nil)
+        #expect(PacingSchedule(enabled: true, activeDays: PacingSchedule.workweek, hoursEnabled: true, startHour: 18, endHour: 9).effectiveHours == nil)
+        let h = PacingSchedule(enabled: true, activeDays: PacingSchedule.workweek, hoursEnabled: true, startHour: 9, endHour: 18).effectiveHours
+        #expect(h?.start == 9)
+        #expect(h?.end == 18)
+    }
+
+    @Test("hours narrowing makes the schedule active even with all seven days")
+    func isActiveWithHoursAllDays() {
+        let s = PacingSchedule(enabled: true, activeDays: PacingSchedule.allDays, hoursEnabled: true, startHour: 9, endHour: 18)
+        #expect(s.isActive == true)
+    }
+
+    @Test("isOffDay flags off-hours on an active day")
+    func isOffDayHonorsHours() {
+        let cal = Self.utcCalendar
+        let s = PacingSchedule(enabled: true, activeDays: PacingSchedule.workweek, hoursEnabled: true, startHour: 9, endHour: 18)
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let monday = cal.startOfDay(for: cal.nextDate(after: base, matching: DateComponents(weekday: 2), matchingPolicy: .nextTime)!)
+        let mon7 = cal.date(bySettingHour: 7, minute: 0, second: 0, of: monday)!
+        let mon12 = cal.date(bySettingHour: 12, minute: 0, second: 0, of: monday)!
+        #expect(s.isOffDay(mon7, calendar: cal) == true)
+        #expect(s.isOffDay(mon12, calendar: cal) == false)
+    }
 }

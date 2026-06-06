@@ -210,6 +210,7 @@
 "settings.pacing.margin.hint" = "Tolerance band around the ideal pace. On track stays within ±margin, warning fires once you drift further, hot kicks in beyond 2x the margin.";
 "settings.pacing.workweek" = "Workweek pacing";
 "settings.pacing.workweek.hint" = "Pace only counts your active days, so off-days don't make you look ahead of pace. Applies to the weekly and Sonnet gauges, not the 5h session.";
+"settings.pacing.workweek.hours" = "Active hours";
 "pacing.workweek.badge.active" = "Workweek pacing on";
 "pacing.workweek.badge.offday" = "Off day, pacing resting until reset";
 "settings.workweek.popover.title" = "Workweek pacing";
@@ -596,6 +597,8 @@
 "history.tooltip.sessions" = "%lld session(s)";
 "sidebar.display" = "Menu bar";
 "sidebar.themes" = "Themes";
+"sidebar.pacing" = "Pacing";
+"sidebar.pacing.subtitle" = "Smart Color, sensitivity, and your workweek schedule.";
 "sidebar.popover" = "Popover";
 "sidebar.agentWatchers" = "Watchers";
 "sidebar.notifications" = "Notifications";
@@ -608,7 +611,7 @@
 
 /* Section subtitles */
 "sidebar.display.subtitle" = "Choose which metrics appear in the menu bar and how they look.";
-"sidebar.themes.subtitle" = "Colours, thresholds, and visual style.";
+"sidebar.themes.subtitle" = "Colours and visual style.";
 "sidebar.agentWatchers.subtitle" = "Floating overlay for your live Claude Code sessions.";
 "sidebar.performance.subtitle" = "Fine-tune CPU usage by disabling features you don't need.";
 "sidebar.settings.subtitle" = "Proxy, refresh interval, and other global preferences.";

@@ -84,7 +84,7 @@ struct UsageWidgetView: View {
                         windowDuration: 7 * 86_400
                     )
                 }
-                if let pacing = PacingCalculator.calculate(from: usage, activeDays: WidgetTheme.pacingSchedule.effectiveActiveDays) {
+                if let pacing = PacingCalculator.calculate(from: usage, activeDays: WidgetTheme.pacingSchedule.effectiveActiveDays, activeHours: WidgetTheme.pacingSchedule.effectiveHours) {
                     CircularPacingView(pacing: pacing)
                 }
             }
@@ -177,7 +177,7 @@ struct UsageWidgetView: View {
                 )
             }
             // Weekly pacing as a usage bar with an ideal marker
-            if let weeklyPacing = PacingCalculator.calculate(from: usage, bucket: .sevenDay, activeDays: WidgetTheme.pacingSchedule.effectiveActiveDays) {
+            if let weeklyPacing = PacingCalculator.calculate(from: usage, bucket: .sevenDay, activeDays: WidgetTheme.pacingSchedule.effectiveActiveDays, activeHours: WidgetTheme.pacingSchedule.effectiveHours) {
                 LargePacingBarView(
                     icon: "chart.bar.fill",
                     label: String(localized: "widget.pacing.weekly"),

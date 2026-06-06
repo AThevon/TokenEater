@@ -141,6 +141,11 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         /// Active weekday numbers (Gregorian 1=Sun ... 7=Sat) when workweek
         /// pacing is on. nil -> Mon-Fri default in the getter.
         var pacingActiveDays: [Int]?
+        /// Active-hours narrowing within the active days (optional, backward
+        /// compatible). nil -> full days.
+        var pacingHoursEnabled: Bool?
+        var pacingStartHour: Int?
+        var pacingEndHour: Int?
     }
 
     /// In-memory cache - avoids redundant disk reads within the same process.
@@ -256,13 +261,22 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         let data = load()
         let enabled = data.pacingWorkweekEnabled ?? false
         let days = data.pacingActiveDays.map(Set.init) ?? PacingSchedule.workweek
-        return PacingSchedule(enabled: enabled, activeDays: days)
+        return PacingSchedule(
+            enabled: enabled,
+            activeDays: days,
+            hoursEnabled: data.pacingHoursEnabled ?? false,
+            startHour: data.pacingStartHour ?? 9,
+            endHour: data.pacingEndHour ?? 18
+        )
     }
 
     func updatePacingSchedule(_ schedule: PacingSchedule) {
         var data = loadFresh()
         data.pacingWorkweekEnabled = schedule.enabled
         data.pacingActiveDays = Array(schedule.activeDays).sorted()
+        data.pacingHoursEnabled = schedule.hoursEnabled
+        data.pacingStartHour = schedule.startHour
+        data.pacingEndHour = schedule.endHour
         save(data)
     }
 

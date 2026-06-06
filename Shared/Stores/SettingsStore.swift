@@ -157,10 +157,37 @@ final class SettingsStore: ObservableObject {
             sharedFileService.updatePacingSchedule(pacingSchedule)
         }
     }
+    /// When on, workweek pacing is further narrowed to active hours of the day.
+    @Published var pacingHoursEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(pacingHoursEnabled, forKey: "pacingHoursEnabled")
+            sharedFileService.updatePacingSchedule(pacingSchedule)
+        }
+    }
+    /// Start hour (0...23) of the active window, applied to every active day.
+    @Published var pacingStartHour: Int {
+        didSet {
+            UserDefaults.standard.set(pacingStartHour, forKey: "pacingStartHour")
+            sharedFileService.updatePacingSchedule(pacingSchedule)
+        }
+    }
+    /// End hour (1...24) of the active window, applied to every active day.
+    @Published var pacingEndHour: Int {
+        didSet {
+            UserDefaults.standard.set(pacingEndHour, forKey: "pacingEndHour")
+            sharedFileService.updatePacingSchedule(pacingSchedule)
+        }
+    }
 
     /// The resolved schedule handed to the pacing calculator + widget.
     var pacingSchedule: PacingSchedule {
-        PacingSchedule(enabled: pacingWorkweekEnabled, activeDays: pacingActiveDays)
+        PacingSchedule(
+            enabled: pacingWorkweekEnabled,
+            activeDays: pacingActiveDays,
+            hoursEnabled: pacingHoursEnabled,
+            startHour: pacingStartHour,
+            endHour: pacingEndHour
+        )
     }
 
     // Notifications - master switch and per-event toggles.
@@ -348,12 +375,24 @@ final class SettingsStore: ObservableObject {
             }
             return PacingSchedule.workweek
         }()
+        let initialHoursEnabled = Self.boolDefault(key: "pacingHoursEnabled", default: false)
+        let initialStartHour = Self.intDefault(key: "pacingStartHour", default: 9)
+        let initialEndHour = Self.intDefault(key: "pacingEndHour", default: 18)
         self.pacingWorkweekEnabled = initialWorkweekEnabled
         self.pacingActiveDays = initialActiveDays
+        self.pacingHoursEnabled = initialHoursEnabled
+        self.pacingStartHour = initialStartHour
+        self.pacingEndHour = initialEndHour
         // Mirror the resolved schedule to the shared file so the (sandboxed)
         // widget computes pacing identically on first paint.
         sharedFileService.updatePacingSchedule(
-            PacingSchedule(enabled: initialWorkweekEnabled, activeDays: initialActiveDays)
+            PacingSchedule(
+                enabled: initialWorkweekEnabled,
+                activeDays: initialActiveDays,
+                hoursEnabled: initialHoursEnabled,
+                startHour: initialStartHour,
+                endHour: initialEndHour
+            )
         )
         self.refreshInterval = {
             let val = UserDefaults.standard.integer(forKey: "refreshInterval")

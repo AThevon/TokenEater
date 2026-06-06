@@ -108,30 +108,26 @@ final class StatusBarController: NSObject {
             }
             .store(in: &cancellables)
 
-        // Workweek pacing: a change to either the toggle or the active-day set
-        // re-bases the expected pace, so recompute and reload the widget (which
-        // reads the schedule from the shared file the settingsStore just wrote).
-        // @Published fires in willSet, so each sink pairs the incoming value
-        // with the other (still-current) property to build the schedule.
-        settingsStore.$pacingWorkweekEnabled
-            .removeDuplicates()
-            .sink { [weak self] enabled in
-                guard let self else { return }
-                self.usageStore.pacingSchedule = PacingSchedule(enabled: enabled, activeDays: self.settingsStore.pacingActiveDays)
-                self.usageStore.recalculatePacing()
-                WidgetReloader.scheduleReload()
-            }
-            .store(in: &cancellables)
-
-        settingsStore.$pacingActiveDays
-            .removeDuplicates()
-            .sink { [weak self] days in
-                guard let self else { return }
-                self.usageStore.pacingSchedule = PacingSchedule(enabled: self.settingsStore.pacingWorkweekEnabled, activeDays: days)
-                self.usageStore.recalculatePacing()
-                WidgetReloader.scheduleReload()
-            }
-            .store(in: &cancellables)
+        // Any workweek-schedule change (toggle / days / hours) re-bases the
+        // expected pace. Deferred to the main run loop so the schedule is read
+        // AFTER @Published's willSet has committed every new value, then
+        // recompute and reload the widget (which reads the schedule from the
+        // shared file the settingsStore wrote in its didSet).
+        Publishers.MergeMany(
+            settingsStore.$pacingWorkweekEnabled.map { _ in () }.eraseToAnyPublisher(),
+            settingsStore.$pacingActiveDays.map { _ in () }.eraseToAnyPublisher(),
+            settingsStore.$pacingHoursEnabled.map { _ in () }.eraseToAnyPublisher(),
+            settingsStore.$pacingStartHour.map { _ in () }.eraseToAnyPublisher(),
+            settingsStore.$pacingEndHour.map { _ in () }.eraseToAnyPublisher()
+        )
+        .receive(on: RunLoop.main)
+        .sink { [weak self] _ in
+            guard let self else { return }
+            self.usageStore.pacingSchedule = self.settingsStore.pacingSchedule
+            self.usageStore.recalculatePacing()
+            WidgetReloader.scheduleReload()
+        }
+        .store(in: &cancellables)
 
         settingsStore.$refreshInterval
             .removeDuplicates()

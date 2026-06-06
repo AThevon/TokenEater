@@ -32,6 +32,7 @@ enum AppSpace: String, CaseIterable {
 enum SettingsSection: String, CaseIterable {
     case general
     case themes
+    case pacing
     case display
     case popover
     case agentWatchers
@@ -42,6 +43,7 @@ enum SettingsSection: String, CaseIterable {
         case .general:       "sidebar.general"
         case .display:       "sidebar.display"
         case .themes:        "sidebar.themes"
+        case .pacing:        "sidebar.pacing"
         case .popover:       "sidebar.popover"
         case .agentWatchers: "sidebar.agentWatchers"
         case .notifications: "sidebar.notifications"
@@ -55,6 +57,7 @@ enum SettingsSection: String, CaseIterable {
         case .general:       "slider.horizontal.3"
         case .display:       "menubar.rectangle"
         case .themes:        "paintpalette.fill"
+        case .pacing:        "speedometer"
         case .popover:       "menubar.dock.rectangle"
         case .agentWatchers: "waveform.path.ecg"
         case .notifications: "bell.fill"

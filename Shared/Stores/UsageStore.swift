@@ -385,7 +385,7 @@ final class UsageStore: ObservableObject {
 
         refreshResetCountdown()
 
-        applyPacing(PacingCalculator.calculateAll(from: usage, margin: Double(pacingMargin), activeDays: pacingSchedule.effectiveActiveDays))
+        applyPacing(PacingCalculator.calculateAll(from: usage, margin: Double(pacingMargin), activeDays: pacingSchedule.effectiveActiveDays, activeHours: pacingSchedule.effectiveHours))
     }
 
     func refreshResetCountdown() {
@@ -408,7 +408,7 @@ final class UsageStore: ObservableObject {
 
     func recalculatePacing() {
         guard let usage = lastUsage else { return }
-        applyPacing(PacingCalculator.calculateAll(from: usage, margin: Double(pacingMargin), activeDays: pacingSchedule.effectiveActiveDays))
+        applyPacing(PacingCalculator.calculateAll(from: usage, margin: Double(pacingMargin), activeDays: pacingSchedule.effectiveActiveDays, activeHours: pacingSchedule.effectiveHours))
     }
 
     /// Builds metric snapshots + pacing zones from the latest API response and

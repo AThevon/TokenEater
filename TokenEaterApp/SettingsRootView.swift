@@ -37,8 +37,10 @@ struct SettingsRootView: View {
         case .display:
             scrolling { DisplaySectionView(initialMetrics: settingsStore.pinnedMetrics) }
         case .themes:
+            scrolling { ThemesSectionView() }
+        case .pacing:
             scrolling {
-                ThemesSectionView(
+                PacingSectionView(
                     initialWarning: themeStore.warningThreshold,
                     initialCritical: themeStore.criticalThreshold,
                     initialMargin: settingsStore.pacingMargin
