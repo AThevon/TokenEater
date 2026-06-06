@@ -264,6 +264,12 @@
 "notif.title.weekly.orange" = "Weekly filling up";
 "notif.title.weekly.red" = "Weekly almost capped";
 "notif.title.weekly.green" = "Weekly reset";
+"notif.title.weekly.pace" = "Ahead of weekly pace";
+"notif.title.sonnet.pace" = "Ahead of Sonnet pace";
+"notif.title.design.pace" = "Ahead of Design pace";
+"notif.body.weekly.pace" = "You're ahead of an even weekly burn rate, not near the cap. Fine if intentional.";
+"notif.body.sonnet.pace" = "You're ahead of an even Sonnet burn rate, not near the cap. Fine if intentional.";
+"notif.body.design.pace" = "You're ahead of an even Design burn rate, not near the cap. Fine if intentional.";
 "notif.body.weekly.orange" = "Resets %@";
 "notif.body.weekly.orange.fallback" = "Past the weekly warning";
 "notif.body.weekly.red" = "Take it slow until %@";

@@ -166,6 +166,7 @@ final class NotificationService: NotificationServiceProtocol {
         let key = "lastLevel_\(surface.rawValue)"
         let previousRaw = UserDefaults.standard.integer(forKey: key)
         let previous = UsageLevel(rawValue: previousRaw) ?? .green
+        let absoluteLevel: UsageLevel = .from(pct: snapshot.pct, thresholds: toggles.thresholds)
         let current: UsageLevel = toggles.smartColorEnabled
             ? .from(smartUtilization: snapshot.utilization,
                     resetDate: snapshot.resetsAt,
@@ -173,13 +174,19 @@ final class NotificationService: NotificationServiceProtocol {
                     thresholds: toggles.thresholds,
                     pacingMargin: toggles.pacingMargin,
                     profile: toggles.smartColorProfile)
-            : .from(pct: snapshot.pct, thresholds: toggles.thresholds)
+            : absoluteLevel
 
         guard current != previous else { return }
         UserDefaults.standard.set(current.rawValue, forKey: key)
 
+        // When Smart Color escalates ABOVE the raw-threshold level, the alert is
+        // driven by rate/projection, not by nearing the cap. The copy then says
+        // "ahead of pace" instead of "almost capped", so a moderate % doesn't
+        // read as a hard ceiling (see issue #187).
+        let paceDriven = toggles.smartColorEnabled && current > absoluteLevel
+
         if current > previous {
-            notifyEscalation(surface: surface, level: current, snapshot: snapshot, pacing: pacing)
+            notifyEscalation(surface: surface, level: current, snapshot: snapshot, pacing: pacing, paceDriven: paceDriven)
         } else if current == .green && previous > .green && toggles.sendRecovery {
             notifyRecovery(surface: surface, snapshot: snapshot)
         }
@@ -189,12 +196,13 @@ final class NotificationService: NotificationServiceProtocol {
         surface: Surface,
         level: UsageLevel,
         snapshot: MetricSnapshot,
-        pacing: PacingZone?
+        pacing: PacingZone?,
+        paceDriven: Bool
     ) {
         let content = UNMutableNotificationContent()
         content.sound = .default
-        content.title = title(for: surface, level: level, pacing: pacing)
-        content.body = body(for: surface, level: level, snapshot: snapshot, pacing: pacing)
+        content.title = title(for: surface, level: level, pacing: pacing, paceDriven: paceDriven)
+        content.body = body(for: surface, level: level, snapshot: snapshot, pacing: pacing, paceDriven: paceDriven)
         send(id: "escalation_\(surface.rawValue)", content: content)
     }
 
@@ -351,13 +359,19 @@ final class NotificationService: NotificationServiceProtocol {
 
     // MARK: - Title / body lookups
 
-    private func title(for surface: Surface, level: UsageLevel, pacing: PacingZone?) -> String {
+    private func title(for surface: Surface, level: UsageLevel, pacing: PacingZone?, paceDriven: Bool) -> String {
         // Runtime-composed keys must go through `NSLocalizedString` to actually
         // hit the .strings file. `String(localized: String.LocalizationValue(_))`
         // takes a runtime String as a default value rather than as a key, so it
         // happily returns the literal "notif.title.fivehour.green" if used here.
         // PacingZone.onTrack has rawValue "onTrack" (camelCase) but the strings
         // use lowercase to keep keys stylistically aligned, so we normalise.
+
+        // 7-day buckets escalated by pace (not raw usage): rate-oriented title
+        // instead of the absolute "almost capped" wording.
+        if paceDriven, level != .green, surface != .fiveHour {
+            return NSLocalizedString("notif.title.\(surface.bodyFamily).pace", comment: "")
+        }
         if surface == .fiveHour, level == .orange, let pacing {
             return NSLocalizedString("notif.title.fivehour.orange.\(pacing.rawValue.lowercased())", comment: "")
         }
@@ -365,7 +379,12 @@ final class NotificationService: NotificationServiceProtocol {
         return NSLocalizedString("notif.title.\(surface.bodyFamily).\(levelKey)", comment: "")
     }
 
-    private func body(for surface: Surface, level: UsageLevel, snapshot: MetricSnapshot, pacing: PacingZone?) -> String {
+    private func body(for surface: Surface, level: UsageLevel, snapshot: MetricSnapshot, pacing: PacingZone?, paceDriven: Bool) -> String {
+        // Pace-driven escalation on a 7-day bucket: a rate-oriented body that
+        // doesn't imply a hard ceiling. No date arg (format ignores extras).
+        if paceDriven, level != .green, surface != .fiveHour {
+            return NSLocalizedString("notif.body.\(surface.bodyFamily).pace", comment: "")
+        }
         let resetsAt = snapshot.resetsAt
         switch surface {
         case .fiveHour:

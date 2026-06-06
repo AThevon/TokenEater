@@ -264,6 +264,12 @@
 "notif.title.weekly.orange" = "Semaine qui se remplit";
 "notif.title.weekly.red" = "Semaine presque pleine";
 "notif.title.weekly.green" = "Semaine relancée";
+"notif.title.weekly.pace" = "En avance sur le rythme hebdo";
+"notif.title.sonnet.pace" = "En avance sur le rythme Sonnet";
+"notif.title.design.pace" = "En avance sur le rythme Design";
+"notif.body.weekly.pace" = "Tu es au-dessus d'un rythme hebdo régulier, pas proche du plafond. Rien d'alarmant si c'est voulu.";
+"notif.body.sonnet.pace" = "Tu es au-dessus d'un rythme Sonnet régulier, pas proche du plafond. Rien d'alarmant si c'est voulu.";
+"notif.body.design.pace" = "Tu es au-dessus d'un rythme Design régulier, pas proche du plafond. Rien d'alarmant si c'est voulu.";
 "notif.body.weekly.orange" = "Reset %@";
 "notif.body.weekly.orange.fallback" = "Au-delà du seuil hebdo";
 "notif.body.weekly.red" = "Tranquille jusqu'au %@";
