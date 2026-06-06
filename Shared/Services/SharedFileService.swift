@@ -135,6 +135,12 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         /// Date the lastWeekDailyTotals were last refreshed. Lets the widget
         /// degrade gracefully if data is older than 36h (label "stale").
         var lastWeekTotalsRefreshedAt: Date?
+        /// Workweek pacing: whether the feature is on. Optional so older widget
+        /// builds decode the rest of the JSON cleanly (getter falls back).
+        var pacingWorkweekEnabled: Bool?
+        /// Active weekday numbers (Gregorian 1=Sun ... 7=Sat) when workweek
+        /// pacing is on. nil -> Mon-Fri default in the getter.
+        var pacingActiveDays: [Int]?
     }
 
     /// In-memory cache - avoids redundant disk reads within the same process.
@@ -155,6 +161,17 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         }
         cachedData = result
         return result
+    }
+
+    /// Reads the latest on-disk state, bypassing the in-memory cache. The app
+    /// holds one `SharedFileService` per store (UsageStore / SettingsStore /
+    /// ThemeStore), each with its own `cachedData`. A read-modify-write off a
+    /// stale per-instance cache silently reverts fields another instance just
+    /// wrote (e.g. a usage refresh clobbering the pacing schedule the settings
+    /// store saved). Update paths read fresh so writes MERGE instead of clobber.
+    private func loadFresh() -> SharedData {
+        cachedData = nil
+        return load()
     }
 
     private func save(_ shared: SharedData) {
@@ -208,28 +225,44 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
     }
 
     func updateAfterSync(usage: CachedUsage, syncDate: Date) {
-        var data = load()
+        var data = loadFresh()
         data.cachedUsage = usage
         data.lastSyncDate = syncDate
         save(data)
     }
 
     func updateTheme(_ theme: ThemeColors, thresholds: UsageThresholds) {
-        var data = load()
+        var data = loadFresh()
         data.theme = theme
         data.thresholds = thresholds
         save(data)
     }
 
     func updateSmartColorEnabled(_ enabled: Bool) {
-        var data = load()
+        var data = loadFresh()
         data.smartColorEnabled = enabled
         save(data)
     }
 
     func updateSmartColorProfile(_ profile: SmartColorProfile) {
-        var data = load()
+        var data = loadFresh()
         data.smartColorProfile = profile.rawValue
+        save(data)
+    }
+
+    /// Workweek pacing schedule. The widget reads this so it computes pacing
+    /// identically to the app. Falls back to Mon-Fri days / disabled when absent.
+    var pacingSchedule: PacingSchedule {
+        let data = load()
+        let enabled = data.pacingWorkweekEnabled ?? false
+        let days = data.pacingActiveDays.map(Set.init) ?? PacingSchedule.workweek
+        return PacingSchedule(enabled: enabled, activeDays: days)
+    }
+
+    func updatePacingSchedule(_ schedule: PacingSchedule) {
+        var data = loadFresh()
+        data.pacingWorkweekEnabled = schedule.enabled
+        data.pacingActiveDays = Array(schedule.activeDays).sorted()
         save(data)
     }
 
@@ -243,7 +276,7 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
     }
 
     func updateLastWeekDailyTotals(_ totals: [Int], refreshedAt: Date = Date()) {
-        var data = load()
+        var data = loadFresh()
         data.lastWeekDailyTotals = totals
         data.lastWeekTotalsRefreshedAt = refreshedAt
         save(data)
