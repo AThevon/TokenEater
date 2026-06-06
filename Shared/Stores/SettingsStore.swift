@@ -141,6 +141,27 @@ final class SettingsStore: ObservableObject {
     @Published var pacingMargin: Int {
         didSet { UserDefaults.standard.set(pacingMargin, forKey: "pacingMargin") }
     }
+    /// Workweek pacing: when on, the expected pace only advances over the user's
+    /// active days, so off-days don't make them look ahead of pace.
+    @Published var pacingWorkweekEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(pacingWorkweekEnabled, forKey: "pacingWorkweekEnabled")
+            sharedFileService.updatePacingSchedule(pacingSchedule)
+        }
+    }
+    /// Active weekday numbers (Gregorian 1=Sun ... 7=Sat) used when workweek
+    /// pacing is on. Persisted as a sorted array.
+    @Published var pacingActiveDays: Set<Int> {
+        didSet {
+            UserDefaults.standard.set(Array(pacingActiveDays).sorted(), forKey: "pacingActiveDays")
+            sharedFileService.updatePacingSchedule(pacingSchedule)
+        }
+    }
+
+    /// The resolved schedule handed to the pacing calculator + widget.
+    var pacingSchedule: PacingSchedule {
+        PacingSchedule(enabled: pacingWorkweekEnabled, activeDays: pacingActiveDays)
+    }
 
     // Notifications - master switch and per-event toggles.
     // When `notificationsEnabled` is false, NotificationService.evaluate
@@ -319,6 +340,21 @@ final class SettingsStore: ObservableObject {
             let snapped = (Int((Double(raw) / 5.0).rounded()) * 5)
             return min(30, max(5, snapped))
         }()
+        // Workweek pacing. Off by default; active days default to Mon-Fri.
+        let initialWorkweekEnabled = Self.boolDefault(key: "pacingWorkweekEnabled", default: false)
+        let initialActiveDays: Set<Int> = {
+            if let stored = UserDefaults.standard.array(forKey: "pacingActiveDays") as? [Int], !stored.isEmpty {
+                return Set(stored)
+            }
+            return PacingSchedule.workweek
+        }()
+        self.pacingWorkweekEnabled = initialWorkweekEnabled
+        self.pacingActiveDays = initialActiveDays
+        // Mirror the resolved schedule to the shared file so the (sandboxed)
+        // widget computes pacing identically on first paint.
+        sharedFileService.updatePacingSchedule(
+            PacingSchedule(enabled: initialWorkweekEnabled, activeDays: initialActiveDays)
+        )
         self.refreshInterval = {
             let val = UserDefaults.standard.integer(forKey: "refreshInterval")
             return val >= 180 ? val : 300

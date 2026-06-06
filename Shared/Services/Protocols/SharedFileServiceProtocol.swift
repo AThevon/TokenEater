@@ -9,6 +9,7 @@ protocol SharedFileServiceProtocol: Sendable {
     var thresholds: UsageThresholds { get }
     var smartColorEnabled: Bool { get }
     var smartColorProfile: SmartColorProfile { get }
+    var pacingSchedule: PacingSchedule { get }
     var lastWeekDailyTotals: [Int]? { get }
     var lastWeekTotalsRefreshedAt: Date? { get }
 
@@ -17,6 +18,7 @@ protocol SharedFileServiceProtocol: Sendable {
     func updateTheme(_ theme: ThemeColors, thresholds: UsageThresholds)
     func updateSmartColorEnabled(_ enabled: Bool)
     func updateSmartColorProfile(_ profile: SmartColorProfile)
+    func updatePacingSchedule(_ schedule: PacingSchedule)
     func updateLastWeekDailyTotals(_ totals: [Int], refreshedAt: Date)
     func clear()
 }

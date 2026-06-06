@@ -108,6 +108,31 @@ final class StatusBarController: NSObject {
             }
             .store(in: &cancellables)
 
+        // Workweek pacing: a change to either the toggle or the active-day set
+        // re-bases the expected pace, so recompute and reload the widget (which
+        // reads the schedule from the shared file the settingsStore just wrote).
+        // @Published fires in willSet, so each sink pairs the incoming value
+        // with the other (still-current) property to build the schedule.
+        settingsStore.$pacingWorkweekEnabled
+            .removeDuplicates()
+            .sink { [weak self] enabled in
+                guard let self else { return }
+                self.usageStore.pacingSchedule = PacingSchedule(enabled: enabled, activeDays: self.settingsStore.pacingActiveDays)
+                self.usageStore.recalculatePacing()
+                WidgetReloader.scheduleReload()
+            }
+            .store(in: &cancellables)
+
+        settingsStore.$pacingActiveDays
+            .removeDuplicates()
+            .sink { [weak self] days in
+                guard let self else { return }
+                self.usageStore.pacingSchedule = PacingSchedule(enabled: self.settingsStore.pacingWorkweekEnabled, activeDays: days)
+                self.usageStore.recalculatePacing()
+                WidgetReloader.scheduleReload()
+            }
+            .store(in: &cancellables)
+
         settingsStore.$refreshInterval
             .removeDuplicates()
             .sink { [weak self] newInterval in
@@ -126,6 +151,7 @@ final class StatusBarController: NSObject {
     private func bootstrapRefresh() {
         usageStore.proxyConfig = settingsStore.proxyConfig
         usageStore.pacingMargin = settingsStore.pacingMargin
+        usageStore.pacingSchedule = settingsStore.pacingSchedule
         usageStore.refreshIntervalSeconds = TimeInterval(settingsStore.refreshInterval)
         usageStore.notifTogglesProvider = { [weak self] in
             guard let self else { return nil }

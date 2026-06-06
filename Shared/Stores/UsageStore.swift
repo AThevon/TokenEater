@@ -51,6 +51,9 @@ final class UsageStore: ObservableObject {
     }
 
     var pacingMargin: Int = 10
+    /// Workweek pacing schedule (from settings). Wired by StatusBarController.
+    /// Drives whether off-days count toward the expected pace.
+    var pacingSchedule: PacingSchedule = .rolling
     /// Base refresh interval in seconds (from settings, default 300)
     var refreshIntervalSeconds: TimeInterval = 300
 
@@ -382,7 +385,7 @@ final class UsageStore: ObservableObject {
 
         refreshResetCountdown()
 
-        applyPacing(PacingCalculator.calculateAll(from: usage, margin: Double(pacingMargin)))
+        applyPacing(PacingCalculator.calculateAll(from: usage, margin: Double(pacingMargin), activeDays: pacingSchedule.effectiveActiveDays))
     }
 
     func refreshResetCountdown() {
@@ -405,7 +408,7 @@ final class UsageStore: ObservableObject {
 
     func recalculatePacing() {
         guard let usage = lastUsage else { return }
-        applyPacing(PacingCalculator.calculateAll(from: usage, margin: Double(pacingMargin)))
+        applyPacing(PacingCalculator.calculateAll(from: usage, margin: Double(pacingMargin), activeDays: pacingSchedule.effectiveActiveDays))
     }
 
     /// Builds metric snapshots + pacing zones from the latest API response and

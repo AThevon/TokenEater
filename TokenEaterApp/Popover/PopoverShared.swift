@@ -421,16 +421,23 @@ struct PopoverQuitButton: View {
 
 struct PopoverPacingRow: View {
     @EnvironmentObject private var themeStore: ThemeStore
+    @EnvironmentObject private var settingsStore: SettingsStore
 
     let label: String
     let pacing: PacingResult
+    var showWorkweekBadge: Bool = false
 
     var body: some View {
         let sign = pacing.delta >= 0 ? "+" : ""
         VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.white.opacity(0.4))
+            HStack(spacing: 5) {
+                Text(label)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.4))
+                if showWorkweekBadge {
+                    WorkweekBadge(schedule: settingsStore.pacingSchedule, tint: .white.opacity(0.4))
+                }
+            }
 
             HStack(spacing: 10) {
                 PacingBar(

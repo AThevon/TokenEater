@@ -208,6 +208,19 @@
 "settings.pacing.margin" = "Pacing Sensitivity";
 "settings.pacing.margin.value" = "Margin";
 "settings.pacing.margin.hint" = "Tolerance band around the ideal pace. On track stays within ±margin, warning fires once you drift further, hot kicks in beyond 2x the margin.";
+"settings.pacing.workweek" = "Workweek pacing";
+"settings.pacing.workweek.hint" = "Pace only counts your active days, so off-days don't make you look ahead of pace. Applies to the weekly and Sonnet gauges, not the 5h session.";
+"pacing.workweek.badge.active" = "Workweek pacing on";
+"pacing.workweek.badge.offday" = "Off day, pacing resting until reset";
+"settings.workweek.popover.title" = "Workweek pacing";
+"settings.workweek.popover.intro" = "Pace your weekly usage over your working days only. Days you don't work don't count toward the expected pace, so you won't look ahead just because the weekend went by.";
+"settings.workweek.popover.point1.title" = "Pick your active days";
+"settings.workweek.popover.point1.desc" = "Only the hours on the days you select count toward the ideal pace line.";
+"settings.workweek.popover.point2.title" = "Off-days freeze the pace";
+"settings.workweek.popover.point2.desc" = "On excluded days the expected pace pauses and your full quota stays available until the reset.";
+"settings.workweek.popover.point3.title" = "Weekly and Sonnet only";
+"settings.workweek.popover.point3.desc" = "Applies to the 7-day gauges. The 5h session is intraday, so it's never schedule-adjusted.";
+"settings.workweek.popover.footer" = "Works whatever your reset day is, since any 7-day window holds the same set of active days.";
 
 /* Notifications - test + token + pacing + reset reminders */
 "notif.title.test" = "Hey, you're set";

@@ -208,6 +208,19 @@
 "settings.pacing.margin" = "Sensibilité du pacing";
 "settings.pacing.margin.value" = "Marge";
 "settings.pacing.margin.hint" = "Bande de tolérance autour du rythme idéal. On track reste dans ±marge, warning quand tu dépasses, hot au-delà de 2x la marge.";
+"settings.pacing.workweek" = "Rythme jours ouvrés";
+"settings.pacing.workweek.hint" = "Le rythme ne compte que tes jours actifs, donc tes jours off ne te font plus paraître en avance. S'applique aux jauges hebdo et Sonnet, pas à la session 5h.";
+"pacing.workweek.badge.active" = "Rythme jours ouvrés actif";
+"pacing.workweek.badge.offday" = "Jour off, rythme en pause jusqu'au reset";
+"settings.workweek.popover.title" = "Rythme jours ouvrés";
+"settings.workweek.popover.intro" = "Cale ton rythme hebdo sur tes jours travaillés uniquement. Les jours où tu ne bosses pas ne comptent pas dans le rythme attendu, donc tu ne parais plus en avance juste parce que le week-end est passé.";
+"settings.workweek.popover.point1.title" = "Choisis tes jours actifs";
+"settings.workweek.popover.point1.desc" = "Seules les heures des jours sélectionnés comptent dans la ligne de rythme idéal.";
+"settings.workweek.popover.point2.title" = "Les jours off gèlent le rythme";
+"settings.workweek.popover.point2.desc" = "Les jours exclus, le rythme attendu se met en pause et ton quota plein reste dispo jusqu'au reset.";
+"settings.workweek.popover.point3.title" = "Hebdo et Sonnet seulement";
+"settings.workweek.popover.point3.desc" = "S'applique aux jauges 7 jours. La session 5h est intraday, donc jamais ajustée par le calendrier.";
+"settings.workweek.popover.footer" = "Marche quel que soit ton jour de reset, vu que toute fenêtre de 7 jours contient le même ensemble de jours actifs.";
 
 /* Notifications - test + token + pacing + rappels reset */
 "notif.title.test" = "C'est branché";

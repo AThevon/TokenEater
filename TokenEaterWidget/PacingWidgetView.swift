@@ -7,7 +7,7 @@ struct PacingWidgetView: View {
 
     var body: some View {
         Group {
-            if let usage = entry.usage, let pacing = PacingCalculator.calculate(from: usage) {
+            if let usage = entry.usage, let pacing = PacingCalculator.calculate(from: usage, activeDays: WidgetTheme.pacingSchedule.effectiveActiveDays) {
                 pacingContent(pacing)
             } else {
                 placeholderContent

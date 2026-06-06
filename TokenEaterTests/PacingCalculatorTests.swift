@@ -369,4 +369,105 @@ struct PacingCalculatorTests {
         #expect(PacingCalculator.calculate(from: usage, bucket: .fiveHour) == nil)
         #expect(PacingCalculator.calculate(from: usage, bucket: .sonnet) == nil)
     }
+
+    // MARK: - Workweek pacing
+
+    /// UTC Gregorian calendar so weekend math is deterministic (no DST, no
+    /// machine-local timezone).
+    private static var utcCalendar: Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        return c
+    }
+
+    @Test("activeSeconds with all seven days equals the full duration")
+    func activeSecondsAllDays() {
+        let cal = Self.utcCalendar
+        let start = cal.startOfDay(for: Date(timeIntervalSince1970: 1_700_000_000))
+        let end = start.addingTimeInterval(7 * 86_400)
+        let secs = PacingCalculator.activeSeconds(from: start, to: end, activeDays: PacingSchedule.allDays, calendar: cal)
+        #expect(secs == 7 * 86_400)
+    }
+
+    @Test("any midnight-aligned 7-day window has exactly 5 workweek days")
+    func activeSecondsWorkweekIsAlwaysFiveDays() {
+        let cal = Self.utcCalendar
+        // Slide the window start across all 7 weekdays; each full week always
+        // contains exactly one Saturday + one Sunday -> 5 active days.
+        let base = cal.startOfDay(for: Date(timeIntervalSince1970: 1_700_000_000))
+        for offset in 0..<7 {
+            let start = base.addingTimeInterval(Double(offset) * 86_400)
+            let end = start.addingTimeInterval(7 * 86_400)
+            let secs = PacingCalculator.activeSeconds(from: start, to: end, activeDays: PacingSchedule.workweek, calendar: cal)
+            #expect(secs == 5 * 86_400)
+        }
+    }
+
+    @Test("activeSeconds ignores a partial off-day and counts a partial active day")
+    func activeSecondsPartialDays() {
+        let cal = Self.utcCalendar
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let saturday = cal.startOfDay(for: cal.nextDate(after: base, matching: DateComponents(weekday: 7), matchingPolicy: .nextTime)!)
+        let monday = cal.startOfDay(for: cal.nextDate(after: base, matching: DateComponents(weekday: 2), matchingPolicy: .nextTime)!)
+
+        let satHalf = PacingCalculator.activeSeconds(from: saturday, to: saturday.addingTimeInterval(12 * 3600), activeDays: PacingSchedule.workweek, calendar: cal)
+        let monHalf = PacingCalculator.activeSeconds(from: monday, to: monday.addingTimeInterval(12 * 3600), activeDays: PacingSchedule.workweek, calendar: cal)
+
+        #expect(satHalf == 0)
+        #expect(monHalf == 12 * 3600)
+    }
+
+    @Test("empty active days falls back to all seven (no divide by zero)")
+    func emptyActiveDaysFallsBack() {
+        let schedule = PacingSchedule(enabled: true, activeDays: [])
+        #expect(schedule.effectiveActiveDays == PacingSchedule.allDays)
+        #expect(schedule.isActive == false)
+    }
+
+    @Test("isActive only when the schedule meaningfully excludes a day")
+    func isActiveSemantics() {
+        #expect(PacingSchedule(enabled: false, activeDays: PacingSchedule.workweek).isActive == false)
+        #expect(PacingSchedule(enabled: true, activeDays: PacingSchedule.allDays).isActive == false)
+        #expect(PacingSchedule(enabled: true, activeDays: PacingSchedule.workweek).isActive == true)
+    }
+
+    @Test("isOffDay flags weekends and not weekdays when active")
+    func isOffDayWeekendVsWeekday() {
+        let cal = Self.utcCalendar
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let saturday = cal.nextDate(after: base, matching: DateComponents(weekday: 7), matchingPolicy: .nextTime)!
+        let monday = cal.nextDate(after: base, matching: DateComponents(weekday: 2), matchingPolicy: .nextTime)!
+        let schedule = PacingSchedule(enabled: true, activeDays: PacingSchedule.workweek)
+
+        #expect(schedule.isOffDay(saturday, calendar: cal) == true)
+        #expect(schedule.isOffDay(monday, calendar: cal) == false)
+        // A disabled schedule never reports off-days.
+        #expect(PacingSchedule.rolling.isOffDay(saturday, calendar: cal) == false)
+    }
+
+    @Test("default activeDays matches classic rolling behavior exactly")
+    func defaultMatchesRolling() {
+        let now = Self.stableNow()
+        let usage = UsageResponse.fixture(
+            sevenDayUtil: 80,
+            sevenDayResetsAt: makeResetsAt(elapsedFraction: 0.5, now: now)
+        )
+        let classic = PacingCalculator.calculate(from: usage, now: now)
+        let explicit = PacingCalculator.calculate(from: usage, now: now, activeDays: PacingSchedule.allDays)
+        #expect(classic?.delta == explicit?.delta)
+        #expect(classic?.zone == explicit?.zone)
+        #expect(classic?.expectedUsage == explicit?.expectedUsage)
+    }
+
+    @Test("five-hour bucket is never workweek-adjusted")
+    func fiveHourIgnoresWorkweek() {
+        let now = Self.stableNow()
+        let usage = UsageResponse.fixture(
+            fiveHourUtil: 60,
+            fiveHourResetsAt: makeResetsAt(elapsedFraction: 0.5, now: now, duration: 5 * 3600)
+        )
+        let classic = PacingCalculator.calculate(from: usage, bucket: .fiveHour, now: now)
+        let workweek = PacingCalculator.calculate(from: usage, bucket: .fiveHour, now: now, activeDays: PacingSchedule.workweek)
+        #expect(classic?.expectedUsage == workweek?.expectedUsage)
+    }
 }

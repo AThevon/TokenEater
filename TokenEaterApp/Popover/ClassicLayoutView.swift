@@ -153,7 +153,8 @@ struct ClassicLayoutView: View {
             if let pacing = usageStore.pacingResult {
                 PopoverPacingRow(
                     label: String(localized: "pacing.weekly.label"),
-                    pacing: pacing
+                    pacing: pacing,
+                    showWorkweekBadge: true
                 )
             }
         case .watchers:

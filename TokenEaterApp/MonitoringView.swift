@@ -545,13 +545,13 @@ struct MonitoringView: View {
                     .frame(maxWidth: .infinity)
             }
             if let pacing = usageStore.pacingResult {
-                pacingCard(pacing: pacing, label: String(localized: "pacing.weekly.label"), icon: "calendar.badge.clock")
+                pacingCard(pacing: pacing, label: String(localized: "pacing.weekly.label"), icon: "calendar.badge.clock", showWorkweekBadge: true)
                     .frame(maxWidth: .infinity)
             }
         }
     }
 
-    private func pacingCard(pacing: PacingResult, label: String, icon: String) -> some View {
+    private func pacingCard(pacing: PacingResult, label: String, icon: String, showWorkweekBadge: Bool = false) -> some View {
         let tint = themeStore.current.pacingColor(for: pacing.zone)
         let sign = pacing.delta >= 0 ? "+" : ""
         return VStack(alignment: .leading, spacing: DS.Spacing.sm) {
@@ -565,6 +565,9 @@ struct MonitoringView: View {
                             .font(DS.Typography.micro)
                             .tracking(1.4)
                             .foregroundStyle(DS.Palette.textSecondary)
+                        if showWorkweekBadge {
+                            WorkweekBadge(schedule: settingsStore.pacingSchedule, tint: DS.Palette.textTertiary)
+                        }
                     }
                     HStack(spacing: DS.Spacing.xxs) {
                         Circle()

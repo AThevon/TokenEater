@@ -6,6 +6,7 @@ struct ThemesSectionView: View {
     @EnvironmentObject private var usageStore: UsageStore
 
     @State private var showSmartColorPopover = false
+    @State private var showWorkweekPopover = false
     @State private var warningSlider: Double
     @State private var criticalSlider: Double
     @State private var marginSlider: Double
@@ -40,6 +41,8 @@ struct ThemesSectionView: View {
                                 .buttonStyle(.plain)
                                 .popover(isPresented: $showSmartColorPopover, arrowEdge: .bottom) {
                                     smartColorInfoPopover
+                                        .background(DS.Palette.bgElevated)
+                                        .preferredColorScheme(.dark)
                                 }
                             }
                             Text(String(localized: "settings.smartcolor.hint"))
@@ -152,6 +155,9 @@ struct ThemesSectionView: View {
                 }
             }
 
+            // Workweek pacing
+            workweekCard
+
             // Reset
             ResetSectionButton(
                 confirmTitle: String(localized: "settings.theme.reset.confirm")
@@ -196,6 +202,152 @@ struct ThemesSectionView: View {
                 themeStore.customTheme = source
             }
         }
+    }
+
+    // MARK: - Workweek pacing card
+
+    private var workweekCard: some View {
+        glassCard {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .center, spacing: 12) {
+                    HStack(spacing: 6) {
+                        cardLabel(String(localized: "settings.pacing.workweek"))
+                        Button {
+                            showWorkweekPopover.toggle()
+                        } label: {
+                            Image(systemName: "info.circle")
+                                .font(.system(size: 13))
+                                .foregroundStyle(.white.opacity(0.55))
+                        }
+                        .buttonStyle(.plain)
+                        .popover(isPresented: $showWorkweekPopover, arrowEdge: .bottom) {
+                            workweekInfoPopover
+                                .background(DS.Palette.bgElevated)
+                                .preferredColorScheme(.dark)
+                        }
+                    }
+                    Spacer()
+                    Toggle("", isOn: $settingsStore.pacingWorkweekEnabled)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                }
+                if settingsStore.pacingWorkweekEnabled {
+                    HStack(spacing: 6) {
+                        ForEach(orderedWeekdays, id: \.day) { item in
+                            dayChip(day: item.day, symbol: item.symbol)
+                        }
+                    }
+                }
+                Text(String(localized: "settings.pacing.workweek.hint"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.white.opacity(0.4))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    // MARK: - Workweek pacing popover
+
+    private var workweekInfoPopover: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+            HStack(spacing: DS.Spacing.xs) {
+                Image(systemName: "briefcase.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(DS.Palette.brandPrimary)
+                Text(String(localized: "settings.workweek.popover.title"))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(DS.Palette.textPrimary)
+            }
+
+            Text(String(localized: "settings.workweek.popover.intro"))
+                .font(.system(size: 12))
+                .foregroundStyle(DS.Palette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .lineSpacing(2)
+
+            Divider().opacity(0.18)
+
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                signalRow(
+                    index: 1,
+                    title: String(localized: "settings.workweek.popover.point1.title"),
+                    desc: String(localized: "settings.workweek.popover.point1.desc"),
+                    tint: DS.Palette.brandPrimary
+                )
+                signalRow(
+                    index: 2,
+                    title: String(localized: "settings.workweek.popover.point2.title"),
+                    desc: String(localized: "settings.workweek.popover.point2.desc"),
+                    tint: Color(hex: themeStore.current.gaugeWarning)
+                )
+                signalRow(
+                    index: 3,
+                    title: String(localized: "settings.workweek.popover.point3.title"),
+                    desc: String(localized: "settings.workweek.popover.point3.desc"),
+                    tint: DS.Palette.semanticInfo
+                )
+            }
+
+            HStack(alignment: .top, spacing: DS.Spacing.xs) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(DS.Palette.textTertiary)
+                    .padding(.top, 1)
+                Text(String(localized: "settings.workweek.popover.footer"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(DS.Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.top, 2)
+        }
+        .padding(DS.Spacing.lg)
+        .frame(width: 360)
+    }
+
+    // MARK: - Workweek pacing day picker
+
+    /// Weekday chips ordered by the user's locale first weekday (Mon-first in
+    /// FR, Sun-first in US). `day` is the Gregorian weekday number (1=Sun...7=Sat).
+    private var orderedWeekdays: [(day: Int, symbol: String)] {
+        let cal = Calendar.current
+        let symbols = cal.veryShortWeekdaySymbols // index 0 = Sunday
+        let first = cal.firstWeekday // 1...7
+        return (0..<7).map { offset in
+            let day = ((first - 1 + offset) % 7) + 1
+            return (day, symbols[day - 1])
+        }
+    }
+
+    private func dayChip(day: Int, symbol: String) -> some View {
+        let selected = settingsStore.pacingActiveDays.contains(day)
+        return Button {
+            toggleActiveDay(day)
+        } label: {
+            Text(symbol)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .frame(width: 30, height: 30)
+                .background(
+                    Circle().fill(selected ? DS.Palette.brandPrimary.opacity(0.22) : Color.white.opacity(0.06))
+                )
+                .overlay(
+                    Circle().stroke(selected ? DS.Palette.brandPrimary.opacity(0.6) : Color.white.opacity(0.12), lineWidth: 1)
+                )
+                .foregroundStyle(selected ? DS.Palette.brandPrimary : Color.white.opacity(0.5))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Toggles a day on/off, keeping at least one active day so the pacing
+    /// denominator can never hit zero.
+    private func toggleActiveDay(_ day: Int) {
+        var days = settingsStore.pacingActiveDays
+        if days.contains(day) {
+            guard days.count > 1 else { return }
+            days.remove(day)
+        } else {
+            days.insert(day)
+        }
+        settingsStore.pacingActiveDays = days
     }
 
     // MARK: - Smart Color profile picker

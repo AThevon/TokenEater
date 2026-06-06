@@ -18,37 +18,74 @@ enum PacingCalculator {
         .hot:     ["pacing.weekly.hot.1", "pacing.weekly.hot.2", "pacing.weekly.hot.3"],
     ]
 
-    static func calculate(from usage: UsageResponse, margin: Double = 10, now: Date = Date()) -> PacingResult? {
-        calculate(from: usage, bucket: .sevenDay, margin: margin, now: now)
+    static func calculate(from usage: UsageResponse, margin: Double = 10, now: Date = Date(), activeDays: Set<Int> = PacingSchedule.allDays) -> PacingResult? {
+        calculate(from: usage, bucket: .sevenDay, margin: margin, now: now, activeDays: activeDays)
     }
 
-    static func calculate(from usage: UsageResponse, bucket: PacingBucket, margin: Double = 10, now: Date = Date()) -> PacingResult? {
+    static func calculate(from usage: UsageResponse, bucket: PacingBucket, margin: Double = 10, now: Date = Date(), activeDays: Set<Int> = PacingSchedule.allDays) -> PacingResult? {
         let usageBucket: UsageBucket?
         switch bucket {
         case .fiveHour: usageBucket = usage.fiveHour
         case .sevenDay: usageBucket = usage.sevenDay
         case .sonnet: usageBucket = usage.sevenDaySonnet
         }
-        return calculateForBucket(usageBucket, bucket: bucket, margin: margin, now: now)
+        return calculateForBucket(usageBucket, bucket: bucket, margin: margin, now: now, activeDays: activeDays)
     }
 
-    static func calculateAll(from usage: UsageResponse, margin: Double = 10, now: Date = Date()) -> [PacingBucket: PacingResult] {
+    static func calculateAll(from usage: UsageResponse, margin: Double = 10, now: Date = Date(), activeDays: Set<Int> = PacingSchedule.allDays) -> [PacingBucket: PacingResult] {
         var results: [PacingBucket: PacingResult] = [:]
         for bucket in PacingBucket.allCases {
-            if let result = calculate(from: usage, bucket: bucket, margin: margin, now: now) {
+            if let result = calculate(from: usage, bucket: bucket, margin: margin, now: now, activeDays: activeDays) {
                 results[bucket] = result
             }
         }
         return results
     }
 
-    private static func calculateForBucket(_ usageBucket: UsageBucket?, bucket: PacingBucket, margin: Double = 10, now: Date = Date()) -> PacingResult? {
+    /// Seconds within `[from, to]` that fall on an active weekday. Walks the
+    /// range in day-sized segments bounded by local midnight and sums the active
+    /// ones. `activeDays` uses Gregorian weekday numbers (1=Sunday ... 7=Saturday).
+    /// The day-granularity means DST shifts (a 23h/25h day) move the fraction by
+    /// at most an hour twice a year - negligible for pacing.
+    static func activeSeconds(from: Date, to: Date, activeDays: Set<Int>, calendar: Calendar = .current) -> TimeInterval {
+        guard to > from else { return 0 }
+        var total: TimeInterval = 0
+        var cursor = from
+        // A 7-day window spans ~8 day-segments; the cap is a defensive backstop.
+        var guardCount = 0
+        while cursor < to && guardCount < 400 {
+            guardCount += 1
+            let dayStart = calendar.startOfDay(for: cursor)
+            let nextMidnight = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? to
+            let segmentEnd = min(nextMidnight, to)
+            if activeDays.contains(calendar.component(.weekday, from: cursor)) {
+                total += segmentEnd.timeIntervalSince(cursor)
+            }
+            cursor = segmentEnd
+        }
+        return total
+    }
+
+    private static func calculateForBucket(_ usageBucket: UsageBucket?, bucket: PacingBucket, margin: Double = 10, now: Date = Date(), activeDays: Set<Int> = PacingSchedule.allDays) -> PacingResult? {
         guard let usageBucket, let resetsAt = usageBucket.resetsAtDate else { return nil }
 
         let duration = bucket.periodDuration
         let startOfPeriod = resetsAt.addingTimeInterval(-duration)
-        let elapsed = now.timeIntervalSince(startOfPeriod) / duration
-        let clampedElapsed = min(max(elapsed, 0), 1)
+
+        let clampedElapsed: Double
+        // The 5h session is an intraday window (never skips days), and a full
+        // 7-day set is identical to the classic calc - keep the cheap path for
+        // both. Otherwise measure elapsed over active days only, so off-days
+        // don't advance the expected pace.
+        if bucket == .fiveHour || activeDays.count >= 7 {
+            let elapsed = now.timeIntervalSince(startOfPeriod) / duration
+            clampedElapsed = min(max(elapsed, 0), 1)
+        } else {
+            let total = activeSeconds(from: startOfPeriod, to: resetsAt, activeDays: activeDays)
+            let elapsedEnd = min(max(now, startOfPeriod), resetsAt)
+            let elapsed = activeSeconds(from: startOfPeriod, to: elapsedEnd, activeDays: activeDays)
+            clampedElapsed = total > 0 ? min(max(elapsed / total, 0), 1) : 0
+        }
 
         let expectedUsage = clampedElapsed * 100
         let delta = usageBucket.utilization - expectedUsage
