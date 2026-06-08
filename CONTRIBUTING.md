@@ -29,7 +29,7 @@ Use the **Feature request** template. Mostly I want to understand the *problem* 
 
 ### Setup
 
-See [`SETUP.md`](SETUP.md). TL;DR: macOS 14+, Xcode 16.4 (specifically, newer versions can surface Swift 6.1 bugs that don't repro locally, see [`CLAUDE.md`](CLAUDE.md) for details), and `brew install xcodegen`
+See [`SETUP.md`](SETUP.md). TL;DR: macOS 14+, Xcode 16.4 (specifically, newer versions can surface Swift 6.1 bugs that don't repro locally, see [`AGENTS.md`](AGENTS.md) for details), and `brew install xcodegen`
 
 ### Workflow
 
@@ -48,7 +48,7 @@ If you're not sure about something, don't stress, I'd rather give feedback in a 
   - **Don't use `@Observable`** (Swift Observation framework). The whole codebase uses `ObservableObject` + `@Published`. There's a Release-only freeze bug under Swift 6.1.x that's invisible in Debug
   - **No `@StateObject` in the `App` struct**, use `private let store = Store()` instead
   - **No bindings to computed properties** or `Binding(get:set:)`, they cause infinite loops
-  - Full list and reasoning in [`CLAUDE.md`](CLAUDE.md)
+  - Full list and reasoning in [`AGENTS.md`](AGENTS.md)
 
 ### Commits
 
@@ -75,7 +75,7 @@ xcodebuild -project TokenEater.xcodeproj -scheme TokenEaterTests \
   test
 ```
 
-For SwiftUI or widget changes, manual testing matters more, build a Release version and try it. The *Build + Nuke + Install* one-liner in [`CLAUDE.md`](CLAUDE.md) is what I use locally
+For SwiftUI or widget changes, manual testing matters more, build a Release version and try it. The *Build + Nuke + Install* one-liner in [`AGENTS.md`](AGENTS.md) is what I use locally
 
 > **External contributors**: that one-liner hardcodes my Apple Developer Team ID (`DEVELOPMENT_TEAM=S7B8M9JYF4`), so it won't work on your machine as-is. Two options:
 >

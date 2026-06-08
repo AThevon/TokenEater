@@ -5,7 +5,7 @@ Native macOS widget to display Claude usage (session, weekly all models, weekly 
 ## Prerequisites
 
 1. **macOS 14 (Sonoma)** or later
-2. **Xcode 15+** installed from the Mac App Store
+2. **Xcode 15+** installed from the Mac App Store (Xcode 16.4 recommended for validating SwiftUI/Release changes, see [`AGENTS.md`](AGENTS.md) for why)
 3. **Homebrew** (for XcodeGen)
 4. **Claude Code** installed and authenticated (`claude` then `/login`)
 
@@ -61,28 +61,30 @@ cp -R "build/Build/Products/Release/TokenEater.app" /Applications/
 ## Structure
 
 ```
-TokenEaterApp/               App host (unified window, OAuth auth, menu bar)
-  ├── TokenEaterApp.swift
-  ├── MainAppView.swift       # Unified floating window (sidebar + sections)
-  ├── DashboardView.swift     # 2-column dashboard with metrics
-  ├── DisplaySectionView.swift
-  ├── ThemesSectionView.swift
-  ├── SettingsSectionView.swift
-  ├── OnboardingView.swift
+TokenEaterApp/               App host (menu bar, popover, main window, overlay, onboarding)
+  ├── TokenEaterApp.swift       # @main + AppDelegate, store wiring
+  ├── StatusBarController.swift # AppKit menu bar item + popover hosting
+  ├── MainAppView.swift         # Main floating window (sidebar + sections)
+  ├── Popover/                  # Popover dashboard layouts (Classic / Compact / Focus)
+  ├── Onboarding/               # Onboarding wizard + cards
+  ├── OverlayWindowController.swift, OverlayView.swift  # Agent Watchers overlay
+  ├── Resources/                # Sparkle public key + installer applet
   └── TokenEaterApp.entitlements
-TokenEaterWidget/            Widget Extension
-  ├── TokenEaterWidget.swift # Widget entry point
-  ├── Provider.swift         # TimelineProvider (15-min refresh)
-  ├── UsageEntry.swift       # TimelineEntry
-  ├── UsageWidgetView.swift  # SwiftUI view
+TokenEaterWidget/            Widget Extension (sandboxed, read-only)
+  ├── TokenEaterWidget.swift # @main WidgetBundle (usage + pacing widgets)
+  ├── Provider.swift         # TimelineProvider
+  ├── *WidgetView.swift      # SwiftUI widget views
   ├── Info.plist
   └── TokenEaterWidget.entitlements
-Shared/                      Shared code
+Shared/                      Shared code (compiled into all targets)
   ├── Models/                Pure Codable structs
-  ├── Services/              Protocol-based I/O
-  ├── Repositories/          Orchestration (Keychain → API → SharedFile)
+  ├── Services/              Protocol-based I/O (+ Protocols/)
+  ├── Repositories/          UsageRepository (API -> shared file)
   ├── Stores/                ObservableObject state containers
-  └── Helpers/               Pure functions
+  ├── Helpers/               Pure functions
+  ├── Components/            Reusable SwiftUI views (app + widget)
+  ├── Design/                Design tokens
+  └── en.lproj / fr.lproj    Localization (EN / FR)
 ```
 
 ## API

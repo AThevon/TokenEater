@@ -106,7 +106,7 @@ Shared/                  Shared code (services, stores, models, pacing)
   └── Helpers/           Pure functions (PacingCalculator, MenuBarRenderer, JSONLParser, SmartColor)
 ```
 
-The app reads Claude Code's OAuth token silently from the macOS Keychain (`kSecUseAuthenticationUISkip`), calls the Anthropic usage API, and writes results to a shared JSON file. A `TokenFileMonitor` watches for credential changes via FSEvents and triggers immediate refresh. The widget reads the shared file — it never touches the network or Keychain. The Agent Watchers overlay scans running Claude Code processes every 2s using macOS system APIs and tail-reads their JSONL logs.
+The app reads Claude Code's OAuth token silently from the macOS Keychain (`kSecUseAuthenticationUISkip`), calls the Anthropic usage API, and writes results to a shared JSON file. A `TokenFileMonitor` watches the credential files with a `DispatchSource` filesystem watcher and triggers immediate refresh. The widget reads the shared file — it never touches the network or Keychain. The Agent Watchers overlay scans running Claude Code processes every 2s using macOS system APIs and tail-reads their JSONL logs.
 
 ## How it works
 
@@ -130,7 +130,7 @@ TokenEater reads an **OAuth access token** from the Claude Code keychain entry -
 
 The token never leaves your machine except for these two API calls to `api.anthropic.com`. The widget reads a local JSON file and has no network or keychain access at all.
 
-Anthropic does not currently offer a third-party OAuth flow or scoped API tokens - reading the existing token from the keychain is the only option. If scoped tokens become available, TokenEater will adopt them immediately. The entire codebase is open source and auditable: keychain access is in [`SecurityCLIReader.swift`](Shared/Services/SecurityCLIReader.swift) (primary) and [`KeychainService.swift`](Shared/Services/KeychainService.swift) (fallback), API calls in [`APIClient.swift`](Shared/Services/APIClient.swift).
+Anthropic does not currently offer a third-party OAuth flow or scoped API tokens - reading the existing token from the keychain is the only option. If scoped tokens become available, TokenEater will adopt them immediately. The entire codebase is open source and auditable: keychain access is in [`SecurityCLIReader.swift`](Shared/Services/SecurityCLIReader.swift) (primary) and [`TokenProvider.swift`](Shared/Services/TokenProvider.swift) (Security-framework fallback), API calls in [`APIClient.swift`](Shared/Services/APIClient.swift).
 
 ## Troubleshooting
 
