@@ -261,8 +261,10 @@ struct DisplaySectionView: View {
                     )
                     menuBarColorRow(
                         label: "settings.session.periodcolor",
+                        // Swatch preview mirrors `MenuBarRenderer.defaultPeriodLabelColor`
+                        // (secondary, ~55%) so the picker is honest about the real default.
                         hex: $settingsStore.sessionPeriodColorHex,
-                        fallback: .white.opacity(0.4),
+                        fallback: .white.opacity(0.55),
                         disabled: false
                     )
                 }

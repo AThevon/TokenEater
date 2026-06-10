@@ -80,3 +80,42 @@ struct MenuBarRendererTests {
         #expect(observed != red, "80% / 90min should no longer match the threshold-mode red color")
     }
 }
+
+@Suite("MenuBarRenderer.periodLabelColor")
+struct MenuBarPeriodLabelColorTests {
+
+    @Test("default (no custom hex) is the legible secondary colour")
+    func defaultIsSecondary() {
+        // Regression guard for issue #196: the "5h" / "7d" period label used
+        // to default to tertiary (~26%), which is nearly invisible on a light
+        // menu bar. It now defaults to secondary (~55%).
+        let resolved = MenuBarRenderer.periodLabelColor(hex: "", monochrome: false)
+        #expect(resolved == MenuBarRenderer.defaultPeriodLabelColor)
+        // The default is `.secondaryLabelColor`; the load-bearing guard is that
+        // it is no longer the faint `.tertiaryLabelColor` that issue #196 hit.
+        // (Compared by name to avoid relying on dynamic-colour reflexivity.)
+        #expect(MenuBarRenderer.defaultPeriodLabelColor != NSColor.tertiaryLabelColor,
+                "default must not regress back to the faint tertiary grey")
+    }
+
+    @Test("monochrome falls back to the same legible default")
+    func monochromeIsSecondary() {
+        // Monochrome ignores any picked hex; it should still be legible.
+        let resolved = MenuBarRenderer.periodLabelColor(hex: "#FF0000", monochrome: true)
+        #expect(resolved == MenuBarRenderer.defaultPeriodLabelColor)
+    }
+
+    @Test("a valid custom hex overrides the default")
+    func customHexWins() {
+        let resolved = MenuBarRenderer.periodLabelColor(hex: "#3366FF", monochrome: false)
+        #expect(resolved.hexString() == "#3366FF")
+    }
+
+    @Test("an empty / malformed hex falls back to the default")
+    func malformedHexFallsBack() {
+        #expect(MenuBarRenderer.periodLabelColor(hex: "   ", monochrome: false)
+                == MenuBarRenderer.defaultPeriodLabelColor)
+        #expect(MenuBarRenderer.periodLabelColor(hex: "not-a-color", monochrome: false)
+                == MenuBarRenderer.defaultPeriodLabelColor)
+    }
+}
