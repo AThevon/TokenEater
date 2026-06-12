@@ -509,4 +509,81 @@ struct PacingCalculatorTests {
         #expect(s.isOffDay(mon7, calendar: cal) == true)
         #expect(s.isOffDay(mon12, calendar: cal) == false)
     }
+
+    // MARK: - Off-day ranges + now marker (#194)
+
+    /// A Mon-aligned 7-day window so day fractions are exact: Mon..Fri = [0, 5/7],
+    /// Sat+Sun = [5/7, 1]. `resetDate` is the window END (next Monday).
+    private static func mondayAlignedWindow() -> (windowStart: Date, resetDate: Date, calendar: Calendar) {
+        let cal = utcCalendar
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        let monday = cal.startOfDay(for: cal.nextDate(after: base, matching: DateComponents(weekday: 2), matchingPolicy: .nextTime)!)
+        return (monday, monday.addingTimeInterval(7 * 86_400), cal)
+    }
+
+    @Test("offDayRanges covers exactly the weekend (~2/7) for a Mon-Fri window")
+    func offDayRangesWeekendWidth() {
+        let (_, resetDate, cal) = Self.mondayAlignedWindow()
+        let s = PacingSchedule(enabled: true, activeDays: PacingSchedule.workweek)
+        let ranges = s.offDayRanges(resetDate: resetDate, calendar: cal)
+        let total = ranges.reduce(0.0) { $0 + ($1.upperBound - $1.lowerBound) }
+        #expect(abs(total - 2.0 / 7.0) < 0.001)
+    }
+
+    @Test("nowFraction is the linear calendar fraction of now in the window")
+    func nowFractionIsLinear() {
+        let (windowStart, resetDate, _) = Self.mondayAlignedWindow()
+        let s = PacingSchedule(enabled: true, activeDays: PacingSchedule.workweek)
+        // Friday noon = 4.5 days into a 7-day window.
+        let fridayNoon = windowStart.addingTimeInterval(4 * 86_400 + 12 * 3600)
+        #expect(abs(s.nowFraction(resetDate: resetDate, now: fridayNoon) - 4.5 / 7.0) < 0.0001)
+        // Clamps outside the window.
+        #expect(s.nowFraction(resetDate: resetDate, now: windowStart.addingTimeInterval(-86_400)) == 0)
+        #expect(s.nowFraction(resetDate: resetDate, now: resetDate.addingTimeInterval(86_400)) == 1)
+    }
+
+    /// The core invariant: a "now" marker drawn at `nowFraction` lands on a
+    /// dashed (off) segment exactly when `isOffDay(now)` is true. Interior
+    /// instants (noon) avoid the ClosedRange endpoint ambiguity at day borders.
+    @Test("nowFraction lands in an offDayRange iff now is an off day")
+    func nowMarkerAgreesWithOffDayHatch() {
+        let (windowStart, resetDate, cal) = Self.mondayAlignedWindow()
+        let s = PacingSchedule(enabled: true, activeDays: PacingSchedule.workweek)
+        let ranges = s.offDayRanges(resetDate: resetDate, calendar: cal)
+
+        let fridayNoon = windowStart.addingTimeInterval(4 * 86_400 + 12 * 3600)
+        let saturdayNoon = windowStart.addingTimeInterval(5 * 86_400 + 12 * 3600)
+
+        let fFri = s.nowFraction(resetDate: resetDate, now: fridayNoon)
+        let fSat = s.nowFraction(resetDate: resetDate, now: saturdayNoon)
+
+        #expect(s.isOffDay(fridayNoon, calendar: cal) == false)
+        #expect(ranges.contains { $0.contains(fFri) } == false)
+
+        #expect(s.isOffDay(saturdayNoon, calendar: cal) == true)
+        #expect(ranges.contains { $0.contains(fSat) } == true)
+    }
+
+    /// Regression guard for #194: with Mon/Wed/Fri active and now on Friday, the
+    /// OLD active-time marker (expectedUsage) lands on a dashed off-day segment,
+    /// while the calendar-time `nowFraction` correctly sits on Friday's solid band.
+    @Test("active-time marker mislands on the hatch but nowFraction does not (#194)")
+    func nowFractionFixesMislandedMarker() {
+        let (windowStart, resetDate, cal) = Self.mondayAlignedWindow()
+        let mwf = PacingSchedule(enabled: true, activeDays: [2, 4, 6]) // Mon, Wed, Fri
+        let ranges = mwf.offDayRanges(resetDate: resetDate, calendar: cal)
+        let fridayNoon = windowStart.addingTimeInterval(4 * 86_400 + 12 * 3600)
+
+        // Old marker position = active-time fraction (off-days compressed out).
+        let activeElapsed = PacingCalculator.activeSeconds(from: windowStart, to: fridayNoon, activeDays: [2, 4, 6], calendar: cal)
+        let activeTotal = PacingCalculator.activeSeconds(from: windowStart, to: resetDate, activeDays: [2, 4, 6], calendar: cal)
+        let oldMarker = activeElapsed / activeTotal
+        let newMarker = mwf.nowFraction(resetDate: resetDate, now: fridayNoon)
+
+        // The bug: the active-time marker fell inside a dashed off-day range.
+        #expect(ranges.contains { $0.contains(oldMarker) } == true)
+        // The fix: the calendar-time marker sits on the active (solid) segment.
+        #expect(mwf.isOffDay(fridayNoon, calendar: cal) == false)
+        #expect(ranges.contains { $0.contains(newMarker) } == false)
+    }
 }

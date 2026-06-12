@@ -80,3 +80,32 @@ struct MenuBarRendererTests {
         #expect(observed != red, "80% / 90min should no longer match the threshold-mode red color")
     }
 }
+
+@Suite("MenuBarRenderer.periodLabelColor")
+struct MenuBarPeriodLabelColorTests {
+
+    @Test("default (no custom hex) is the legible secondary colour, not the faint tertiary")
+    func defaultIsLegible() {
+        let resolved = MenuBarRenderer.periodLabelColor(hex: "")
+        #expect(resolved == MenuBarRenderer.defaultPeriodLabelColor)
+        // Regression guard for #196: the "5h" / "7d" label used to default to
+        // tertiary (~26%), nearly invisible on a light menu bar. It must not
+        // revert to that faint grey.
+        #expect(MenuBarRenderer.defaultPeriodLabelColor != NSColor.tertiaryLabelColor)
+    }
+
+    /// A user-picked hex wins. The resolver is mode-agnostic, so the same colour
+    /// applies in monochrome too (the #196 promise: tweakable in monochrome).
+    @Test("a valid custom hex overrides the default")
+    func customHexWins() {
+        let resolved = MenuBarRenderer.periodLabelColor(hex: "#3366FF")
+        #expect(resolved == MenuBarTextColorResolver.resolve(hex: "#3366FF", fallback: .clear))
+        #expect(resolved != MenuBarRenderer.defaultPeriodLabelColor)
+    }
+
+    @Test("empty or malformed hex falls back to the legible default")
+    func malformedHexFallsBack() {
+        #expect(MenuBarRenderer.periodLabelColor(hex: "   ") == MenuBarRenderer.defaultPeriodLabelColor)
+        #expect(MenuBarRenderer.periodLabelColor(hex: "not-a-color") == MenuBarRenderer.defaultPeriodLabelColor)
+    }
+}

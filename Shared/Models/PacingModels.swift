@@ -123,4 +123,17 @@ struct PacingSchedule: Equatable, Sendable {
         }
         return ranges
     }
+
+    /// Linear calendar-time x-fraction (0...1) of `now` within the window
+    /// `[resetDate - period, resetDate]`. Same coordinate space as
+    /// `offDayRanges`, so a "now" marker drawn at this fraction always sits on
+    /// the correct solid (active) / dashed (off) segment. This is deliberately
+    /// NOT `expectedUsage`: that is an active-time fraction (off-days compressed
+    /// out) driving the delta/zone math, and using it to place the marker is the
+    /// bug behind #194: on a restricted schedule the two spaces diverge, so the
+    /// marker drifts onto a hatched off-day segment while `now` is an active day.
+    func nowFraction(resetDate: Date, now: Date = Date(), period: TimeInterval = 7 * 24 * 3600) -> Double {
+        let windowStart = resetDate.addingTimeInterval(-period)
+        return min(max(now.timeIntervalSince(windowStart) / period, 0), 1)
+    }
 }

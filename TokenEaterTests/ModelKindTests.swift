@@ -28,6 +28,23 @@ struct ModelKindTests {
         #expect(ModelKind(rawModel: "opus") == .opus48)
     }
 
+    // MARK: - Fable
+
+    /// Fable 5 must not fall through to `.other` (#199); it is its own family,
+    /// not an Opus variant.
+    @Test func fableIsRecognised() {
+        #expect(ModelKind(rawModel: "claude-fable-5") == .fable)
+        #expect(ModelKind(rawModel: "claude-fable-5[1m]") == .fable)
+        #expect(ModelKind(rawModel: "fable") == .fable)
+    }
+
+    @Test func fableIsItsOwnFamily() {
+        #expect(ModelKind.fable.family == .fable)
+        #expect(ModelKind.fable.displayName == "Fable 5")
+        #expect(ModelFamily.fable.displayName == "Fable")
+        #expect(ModelFamily.allCases.contains(.fable))
+    }
+
     // MARK: - Other families
 
     @Test func sonnetAndHaiku() {

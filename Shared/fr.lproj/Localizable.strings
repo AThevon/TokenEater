@@ -118,6 +118,8 @@
 "settings.general.title" = "Général";
 "settings.launchAtLogin" = "Lancer au démarrage";
 "settings.launchAtLogin.hint" = "Ouvre TokenEater automatiquement quand vous vous connectez à macOS. Vous pouvez aussi gérer ce réglage depuis Réglages système → Général → Éléments de connexion.";
+"settings.launchInBackground" = "Lancer en arrière-plan";
+"settings.launchInBackground.hint" = "Démarre uniquement dans la barre des menus, sans ouvrir la fenêtre du tableau de bord. Ouvrez-la quand vous voulez depuis la barre des menus (clic droit sur l'icône, puis Ouvrir).";
 "settings.general.replayOnboarding" = "Rejouer l'onboarding";
 "settings.general.replayOnboarding.hint" = "Relance le tutoriel depuis le début. Utile pour te reconnecter, revoir les permissions de notifications, ou redécouvrir les features.";
 "settings.general.replayOnboarding.action" = "Rejouer";
@@ -151,8 +153,6 @@
 "error.invalidresponse.short" = "Réponse invalide";
 "error.keychainlocked" = "Keychain verrouillé - nouvelle tentative automatique";
 "error.unsupportedplan" = "Données d'utilisation indisponibles - un plan Claude Pro ou Team est requis";
-"error.banner.expired" = "Token expiré";
-"error.banner.expired.hint" = "Lancez /login dans Claude Code - TokenEater le récupérera automatiquement";
 "error.banner.keychain" = "Keychain verrouillé";
 "error.banner.keychain.hint" = "Nouvelle tentative automatique - ou ouvrez les Réglages pour ré-autoriser";
 "error.banner.reauth" = "Autorisation requise";

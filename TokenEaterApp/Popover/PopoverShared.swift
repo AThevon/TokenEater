@@ -176,20 +176,32 @@ struct PopoverErrorBanner: View {
         .padding(.bottom, 8)
     }
 
+    /// Deliberately discreet single-line banner (#160): a soft warning glyph, a
+    /// short label, and one subtle inline action. No long hint sentence and no
+    /// diagnostic button: re-auth is a one-tap recovery, not a debug surface.
     @ViewBuilder private var expiredContent: some View {
-        Label(String(localized: "error.banner.expired"), systemImage: "exclamationmark.triangle.fill")
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.red)
-        Text(String(localized: "error.banner.expired.hint"))
-            .font(.system(size: 10))
-            .foregroundStyle(.white.opacity(0.5))
-        HStack(spacing: 6) {
-            primaryActionButton(title: String(localized: "error.banner.reauth.button")) {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Color(red: 0.97, green: 0.44, blue: 0.44))
+            Text(String(localized: "error.banner.reauth"))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.white.opacity(0.7))
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            Button {
                 Task { await usageStore.reauthenticate() }
+            } label: {
+                Text(String(localized: "error.banner.reauth.button"))
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 3)
+                    .background(Color.white.opacity(0.08))
+                    .clipShape(Capsule())
             }
-            CopyDiagnosticButton()
+            .buttonStyle(.plain)
         }
-        .padding(.top, 2)
     }
 
     @ViewBuilder private var rateLimitedContent: some View {
@@ -434,6 +446,11 @@ struct PopoverPacingRow: View {
             ? (pacing.resetDate.map { schedule.offDayRanges(resetDate: $0) } ?? [])
             : []
         let nowInOffDay = showWorkweekBadge && schedule.isOffDay(Date())
+        // Calendar-time position for the "now" marker so it aligns with the
+        // off-day hatch (#194). nil keeps the active-time expected position.
+        let markerFraction: Double? = (showWorkweekBadge && schedule.isActive)
+            ? pacing.resetDate.map { schedule.nowFraction(resetDate: $0) }
+            : nil
         return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 5) {
                 Text(label)
@@ -452,7 +469,8 @@ struct PopoverPacingRow: View {
                     gradient: PopoverColors.zoneGradient(pacing.zone, theme: themeStore),
                     compact: true,
                     offDayRanges: offRanges,
-                    nowInOffDay: nowInOffDay
+                    nowInOffDay: nowInOffDay,
+                    markerFraction: markerFraction
                 )
                 .frame(maxWidth: .infinity)
 

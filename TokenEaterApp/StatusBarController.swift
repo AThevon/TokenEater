@@ -48,8 +48,16 @@ final class StatusBarController: NSObject {
             observeOnboardingForRefresh()
         }
 
-        DispatchQueue.main.async { [weak self] in
-            self?.showDashboard()
+        // Auto-open the dashboard at launch unless the user opted into a
+        // background (menu-bar-only) launch. Onboarding ALWAYS opens: the
+        // window hosts the onboarding flow and, being an LSUIElement app with
+        // no Dock icon, suppressing it on a fresh install would strand the user
+        // with no reachable UI (#198). The window stays reachable from the menu
+        // bar's right-click "Open" item afterwards.
+        if !settingsStore.hasCompletedOnboarding || !settingsStore.launchInBackground {
+            DispatchQueue.main.async { [weak self] in
+                self?.showDashboard()
+            }
         }
     }
 

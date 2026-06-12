@@ -36,11 +36,13 @@ enum HistoryRange: String, CaseIterable, Codable, Sendable {
 
 // MARK: - Model classification
 
-/// Coarse model identity used for chart colouring + filter chips. Opus 4.7 and
-/// 4.6 are kept distinct (the user might run both back-to-back), Sonnet/Haiku
+/// Coarse model identity used for chart colouring + filter chips. Fable is the
+/// Mythos-class tier above Opus and gets its own family; Opus 4.8/4.7/4.6 are
+/// kept distinct (the user might run several back-to-back), Sonnet/Haiku
 /// collapse all minor versions, anything unrecognised lands in `.other`. Design
 /// intentionally absent: it never appears in Claude Code JSONL files.
 enum ModelKind: String, CaseIterable, Codable, Hashable, Sendable {
+    case fable
     case opus48
     case opus47
     case opus46
@@ -50,7 +52,10 @@ enum ModelKind: String, CaseIterable, Codable, Hashable, Sendable {
 
     init(rawModel: String) {
         let lower = rawModel.lowercased()
-        if lower.contains("opus-4-8") || lower.contains("opus-4.8") {
+        if lower.contains("fable") {
+            // Fable 5 (and any future Fable minor) maps to the Fable family.
+            self = .fable
+        } else if lower.contains("opus-4-8") || lower.contains("opus-4.8") {
             self = .opus48
         } else if lower.contains("opus-4-7") || lower.contains("opus-4.7") {
             self = .opus47
@@ -72,6 +77,7 @@ enum ModelKind: String, CaseIterable, Codable, Hashable, Sendable {
 
     var displayName: String {
         switch self {
+        case .fable:  return "Fable 5"
         case .opus48: return "Opus 4.8"
         case .opus47: return "Opus 4.7"
         case .opus46: return "Opus 4.6"
@@ -82,9 +88,11 @@ enum ModelKind: String, CaseIterable, Codable, Hashable, Sendable {
     }
 
     /// Family used by the filter chips. Opus 4.8, 4.7 and 4.6 fold into `.opus`
-    /// since users typically think "Opus" not "Opus 4.8 vs 4.7 vs 4.6".
+    /// since users typically think "Opus" not "Opus 4.8 vs 4.7 vs 4.6". Fable is
+    /// its own family (no minor-version split yet).
     var family: ModelFamily {
         switch self {
+        case .fable:                    return .fable
         case .opus48, .opus47, .opus46: return .opus
         case .sonnet:                   return .sonnet
         case .haiku:                    return .haiku
@@ -92,17 +100,25 @@ enum ModelKind: String, CaseIterable, Codable, Hashable, Sendable {
         }
     }
 
-    /// Stable order for chart stacking (heaviest at the top of the bar).
+    /// Stable order for chart stacking (`.other` stays on top as the catch-all).
+    /// Fable sits with the Opus tier. Not a strict weight ordering; only the
+    /// `stackOrderContainsEveryCase` test guards completeness (the array is not
+    /// compiler-checked for missing cases).
     static var stackOrder: [ModelKind] {
-        [.haiku, .opus46, .opus47, .opus48, .sonnet, .other]
+        [.haiku, .opus46, .opus47, .opus48, .fable, .sonnet, .other]
     }
 }
 
 enum ModelFamily: String, CaseIterable, Codable, Hashable, Sendable {
-    case opus, sonnet, haiku, other
+    // Declaration order drives the History filter-chip row. Fable sits after the
+    // established families (it is a rare research-preview tier) but before the
+    // `.other` catch-all, so it never jumps ahead of Opus for users with no
+    // Fable history.
+    case opus, sonnet, haiku, fable, other
 
     var displayName: String {
         switch self {
+        case .fable:  return "Fable"
         case .opus:   return "Opus"
         case .sonnet: return "Sonnet"
         case .haiku:  return "Haiku"
@@ -251,6 +267,9 @@ struct HistoryCache: Codable, Sendable {
     var version: Int
     var entries: [String: HistoryFileCacheEntry]
 
-    static let currentVersion = 1
+    /// v2: bumped so existing caches that bucketed `claude-fable-5` under
+    /// `.other` (before Fable had its own `ModelKind`) are discarded and
+    /// re-scanned, reclassifying Fable history immediately on update (#199).
+    static let currentVersion = 2
     static let empty = HistoryCache(version: currentVersion, entries: [:])
 }

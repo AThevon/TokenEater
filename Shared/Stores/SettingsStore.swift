@@ -8,6 +8,13 @@ final class SettingsStore: ObservableObject {
     @Published var showMenuBar: Bool {
         didSet { UserDefaults.standard.set(showMenuBar, forKey: "showMenuBar") }
     }
+    /// When true, the app starts in the menu bar only and skips auto-opening the
+    /// dashboard window at launch (incl. at login). The window stays reachable
+    /// from the menu bar (right-click > Open). Onboarding always force-opens
+    /// regardless of this flag so a fresh install is never left with no UI (#198).
+    @Published var launchInBackground: Bool {
+        didSet { UserDefaults.standard.set(launchInBackground, forKey: "launchInBackground") }
+    }
     @Published var pinnedMetrics: Set<MetricID> {
         didSet { savePinnedMetrics() }
     }
@@ -323,6 +330,7 @@ final class SettingsStore: ObservableObject {
         self.sharedFileService = sharedFileService
 
         self.showMenuBar = UserDefaults.standard.object(forKey: "showMenuBar") as? Bool ?? true
+        self.launchInBackground = Self.boolDefault(key: "launchInBackground", default: false)
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
         self.proxyEnabled = UserDefaults.standard.bool(forKey: "proxyEnabled")
         self.proxyHost = UserDefaults.standard.string(forKey: "proxyHost") ?? "127.0.0.1"

@@ -251,21 +251,27 @@ struct DisplaySectionView: View {
                     }
                 }
 
+                Divider().opacity(0.12)
+                // Reset-countdown colour is non-monochrome only (in monochrome
+                // it is driven by the system label / smart colour).
                 if !themeStore.menuBarMonochrome {
-                    Divider().opacity(0.12)
                     menuBarColorRow(
                         label: "settings.reset.color",
                         hex: $settingsStore.resetTextColorHex,
                         fallback: .white,
                         disabled: settingsStore.smartColorEnabled
                     )
-                    menuBarColorRow(
-                        label: "settings.session.periodcolor",
-                        hex: $settingsStore.sessionPeriodColorHex,
-                        fallback: .white.opacity(0.4),
-                        disabled: false
-                    )
                 }
+                // Period-label ("5h" / "7d") colour is tweakable in BOTH modes,
+                // including monochrome, so a light-menu-bar user can fix its
+                // legibility (#196). The swatch mirrors the secondary (~55%)
+                // default in MenuBarRenderer.defaultPeriodLabelColor.
+                menuBarColorRow(
+                    label: "settings.session.periodcolor",
+                    hex: $settingsStore.sessionPeriodColorHex,
+                    fallback: .white.opacity(0.55),
+                    disabled: false
+                )
             }
             .animation(.spring(response: 0.32, dampingFraction: 0.85), value: themeStore.menuBarMonochrome)
         }

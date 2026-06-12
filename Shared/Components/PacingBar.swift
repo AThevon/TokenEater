@@ -10,8 +10,13 @@ struct PacingBar: View {
     let offDayRanges: [ClosedRange<Double>]
     /// True when "now" falls on an off-day - mutes the ideal marker.
     let nowInOffDay: Bool
+    /// Calendar-time x-fraction (0...1) to place the "now" marker at, used when a
+    /// workweek schedule is active so the marker stays in the same coordinate
+    /// space as `offDayRanges` (sits solid on active days, dashed on off days).
+    /// nil keeps the classic `expected`-based (active-time %) marker position.
+    let markerFraction: Double?
 
-    init(actual: Double, expected: Double, zone: PacingZone, gradient: LinearGradient, compact: Bool = false, offDayRanges: [ClosedRange<Double>] = [], nowInOffDay: Bool = false) {
+    init(actual: Double, expected: Double, zone: PacingZone, gradient: LinearGradient, compact: Bool = false, offDayRanges: [ClosedRange<Double>] = [], nowInOffDay: Bool = false, markerFraction: Double? = nil) {
         self.actual = actual
         self.expected = expected
         self.zone = zone
@@ -19,6 +24,7 @@ struct PacingBar: View {
         self.compact = compact
         self.offDayRanges = offDayRanges
         self.nowInOffDay = nowInOffDay
+        self.markerFraction = markerFraction
     }
 
     @State private var animatedActual: Double = 0
@@ -41,7 +47,7 @@ struct PacingBar: View {
                     .frame(width: max(0, geo.size.width * CGFloat(min(animatedActual, 100)) / 100), height: compact ? 4 : 8)
 
                 idealMarker
-                    .offset(x: geo.size.width * CGFloat(min(expected, 100)) / 100 - (compact ? 3 : 5))
+                    .offset(x: markerOffsetX(width: geo.size.width))
 
                 if !compact {
                     Circle()
@@ -68,6 +74,17 @@ struct PacingBar: View {
                 animatedActual = newValue
             }
         }
+    }
+
+    /// X offset for the ideal/now marker. When `markerFraction` is set (workweek
+    /// active) the marker follows calendar time so it aligns with the off-day
+    /// hatch; otherwise it follows the active-time `expected` percentage (#194).
+    private func markerOffsetX(width: CGFloat) -> CGFloat {
+        let nudge: CGFloat = compact ? 3 : 5
+        if let f = markerFraction {
+            return width * CGFloat(min(max(f, 0), 1)) - nudge
+        }
+        return width * CGFloat(min(expected, 100)) / 100 - nudge
     }
 
     private var idealMarker: some View {

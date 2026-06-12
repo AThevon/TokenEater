@@ -3,7 +3,7 @@ import Foundation
 import UserNotifications
 
 private let settingsKeys = [
-    "showMenuBar", "pinnedMetrics", "pacingDisplayMode",
+    "showMenuBar", "launchInBackground", "pinnedMetrics", "pacingDisplayMode",
     "hasCompletedOnboarding", "proxyEnabled", "proxyHost", "proxyPort",
     "overlayEnabled", "watcherStyle", "watcherScanInterval", "watcherVisibility"
 ]
@@ -210,6 +210,31 @@ struct SettingsStoreTests {
         let saved = UserDefaults.standard.stringArray(forKey: "pinnedMetrics") ?? []
         #expect(saved.contains("sonnet"))
         #expect(saved.contains("weeklyPacing"))
+    }
+
+    // MARK: - Launch in background (#198)
+
+    @Test("launchInBackground defaults to false")
+    func launchInBackgroundDefaults() {
+        let (store, _, _) = makeStore()
+        #expect(store.launchInBackground == false)
+    }
+
+    @Test("launchInBackground persists to UserDefaults")
+    func launchInBackgroundPersists() {
+        let (store, _, _) = makeStore()
+        store.launchInBackground = true
+        #expect(UserDefaults.standard.object(forKey: "launchInBackground") as? Bool == true)
+    }
+
+    @Test("launchInBackground reads back on a fresh store instance")
+    func launchInBackgroundReadsBack() {
+        let (store, _, _) = makeStore()
+        store.launchInBackground = true
+        // A new store built against the same UserDefaults picks the value up
+        // (makeStore would wipe it, so construct directly here).
+        let fresh = SettingsStore(notificationService: MockNotificationService(), tokenProvider: MockTokenProvider())
+        #expect(fresh.launchInBackground == true)
     }
 
     // MARK: - Overlay

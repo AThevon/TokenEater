@@ -108,13 +108,24 @@ enum MenuBarRenderer {
         return data.themeColors.pacingNSColor(for: zone)
     }
 
+    /// Default colour for the period label ("5h" / "7d") when the user has not
+    /// picked a custom hex. Secondary (~55%) rather than tertiary (~26%) so the
+    /// label stays legible on a *light* menu bar (the old tertiary grey was
+    /// nearly invisible there) while still ranking below the bold, colour-coded
+    /// value. See #196.
+    static let defaultPeriodLabelColor: NSColor = .secondaryLabelColor
+
+    /// Resolves the period-label colour. The user's custom hex wins in BOTH
+    /// modes, including monochrome, so a monochrome user on a light menu bar can
+    /// still tune the "5h" / "7d" label colour (#196). With no custom hex it
+    /// falls back to the legible `defaultPeriodLabelColor`. Kept internal and
+    /// `RenderData`-free so it is unit-testable in isolation.
+    static func periodLabelColor(hex: String) -> NSColor {
+        MenuBarTextColorResolver.resolve(hex: hex, fallback: defaultPeriodLabelColor)
+    }
+
     private static func periodColor(_ data: RenderData) -> NSColor {
-        data.menuBarMonochrome
-            ? NSColor.tertiaryLabelColor
-            : MenuBarTextColorResolver.resolve(
-                hex: data.sessionPeriodColorHex,
-                fallback: .tertiaryLabelColor
-            )
+        periodLabelColor(hex: data.sessionPeriodColorHex)
     }
 
     /// Reset countdown text color. Honors the Themes setting priority:

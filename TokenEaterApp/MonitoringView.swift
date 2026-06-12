@@ -559,6 +559,11 @@ struct MonitoringView: View {
             ? (pacing.resetDate.map { schedule.offDayRanges(resetDate: $0) } ?? [])
             : []
         let nowInOffDay = showWorkweekBadge && schedule.isOffDay(Date())
+        // Calendar-time position for the "now" marker so it aligns with the
+        // off-day hatch (#194). nil keeps the active-time expected position.
+        let markerFraction: Double? = (showWorkweekBadge && schedule.isActive)
+            ? pacing.resetDate.map { schedule.nowFraction(resetDate: $0) }
+            : nil
         return VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             HStack(alignment: .top, spacing: DS.Spacing.xs) {
                 VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
@@ -595,7 +600,7 @@ struct MonitoringView: View {
                     .animation(DS.Motion.springLiquid, value: pacing.delta)
             }
 
-            pacingTrack(actual: pacing.actualUsage, expected: pacing.expectedUsage, tint: tint, offDayRanges: offRanges, nowInOffDay: nowInOffDay)
+            pacingTrack(actual: pacing.actualUsage, expected: pacing.expectedUsage, tint: tint, offDayRanges: offRanges, nowInOffDay: nowInOffDay, markerFraction: markerFraction)
 
             if !pacing.message.isEmpty {
                 Text(pacing.message)
@@ -627,7 +632,7 @@ struct MonitoringView: View {
         .dsShadow(DS.Shadow.subtle)
     }
 
-    private func pacingTrack(actual: Double, expected: Double, tint: Color, offDayRanges: [ClosedRange<Double>] = [], nowInOffDay: Bool = false) -> some View {
+    private func pacingTrack(actual: Double, expected: Double, tint: Color, offDayRanges: [ClosedRange<Double>] = [], nowInOffDay: Bool = false, markerFraction: Double? = nil) -> some View {
         let clampedActual = min(max(actual, 0), 100)
         let clampedExpected = min(max(expected, 0), 100)
         return GeometryReader { geo in
@@ -646,7 +651,7 @@ struct MonitoringView: View {
                 Rectangle()
                     .fill(Color.white.opacity(nowInOffDay ? 0.4 : 0.85))
                     .frame(width: 2, height: 12)
-                    .offset(x: geo.size.width * CGFloat(clampedExpected) / 100 - 1, y: -3)
+                    .offset(x: (markerFraction.map { geo.size.width * CGFloat(min(max($0, 0), 1)) } ?? (geo.size.width * CGFloat(clampedExpected) / 100)) - 1, y: -3)
                     .dsGlow(.white, radius: 2, opacity: nowInOffDay ? 0.15 : 0.4)
             }
         }
