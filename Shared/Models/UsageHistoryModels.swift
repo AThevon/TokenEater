@@ -110,11 +110,10 @@ enum ModelKind: String, CaseIterable, Codable, Hashable, Sendable {
 }
 
 enum ModelFamily: String, CaseIterable, Codable, Hashable, Sendable {
-    // Declaration order drives the History filter-chip row. Fable sits after the
-    // established families (it is a rare research-preview tier) but before the
-    // `.other` catch-all, so it never jumps ahead of Opus for users with no
-    // Fable history.
-    case opus, sonnet, haiku, fable, other
+    // Declaration order drives the History filter-chip row (rendered right after
+    // the "All" chip). Fable leads as the top tier, then Opus / Sonnet / Haiku,
+    // with `.other` last as the catch-all.
+    case fable, opus, sonnet, haiku, other
 
     var displayName: String {
         switch self {
