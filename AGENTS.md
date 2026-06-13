@@ -9,7 +9,7 @@ It complements the other docs and deliberately does not duplicate them:
 - [`SETUP.md`](SETUP.md) - building from source as an end user.
 - [`docs/design/MASTER.md`](docs/design/MASTER.md) and [`docs/design/COLORING.md`](docs/design/COLORING.md) - the window design system and the Smart Color risk model.
 
-Current version: 5.5.1 (`MARKETING_VERSION` in `project.yml`).
+Current version: 5.6.0 (`MARKETING_VERSION` in `project.yml`).
 
 ## Language
 
