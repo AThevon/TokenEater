@@ -112,7 +112,8 @@ enum MenuBarRenderer {
     /// picked a custom hex. Secondary (~55%) rather than tertiary (~26%) so the
     /// label stays legible on a *light* menu bar (the old tertiary grey was
     /// nearly invisible there) while still ranking below the bold, colour-coded
-    /// value. See #196.
+    /// value. The secondary default is @pulkitxm's fix from #197; #201 builds on
+    /// it so a custom hex is also honored in monochrome (#196).
     static let defaultPeriodLabelColor: NSColor = .secondaryLabelColor
 
     /// Resolves the period-label colour. The user's custom hex wins in BOTH
