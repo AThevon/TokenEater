@@ -136,8 +136,10 @@ struct MainAppView: View {
     private func performSpaceTransition(to newSpace: AppSpace) {
         guard newSpace != displayedSpace else { return }
 
-        // Ignore rapid clicks during a transition; the current run
-        // completes against the latest `selectedSpace`.
+        // A transition is already in flight. Don't start a second one - it
+        // reconciles against the latest `selectedSpace` when it finishes
+        // (see the swap and the tail re-check below), so rapid clicks never
+        // leave the pill nav and the content showing different spaces.
         if isTransitioningSpace { return }
         isTransitioningSpace = true
 
@@ -150,8 +152,12 @@ struct MainAppView: View {
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + rampUp) {
+            // Swap to the *current* selection, not the value captured when
+            // this run started - the user may have clicked again during the
+            // ramp-up, and the pill nav already reflects that newer choice.
+            let target = self.selectedSpace
             withTransaction(Transaction(animation: nil)) {
-                self.displayedSpace = newSpace
+                self.displayedSpace = target
             }
 
             withAnimation(.easeOut(duration: rampDown)) {
@@ -160,6 +166,11 @@ struct MainAppView: View {
 
             DispatchQueue.main.asyncAfter(deadline: .now() + rampDown) {
                 self.isTransitioningSpace = false
+                // If the selection moved on again after our swap, run once
+                // more to catch up so content and selector stay in sync.
+                if self.selectedSpace != self.displayedSpace {
+                    self.performSpaceTransition(to: self.selectedSpace)
+                }
             }
         }
     }
