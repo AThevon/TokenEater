@@ -156,6 +156,7 @@ final class StatusBarController: NSObject {
             .store(in: &cancellables)
 
         settingsStore.$outageMonitoringEnabled
+            .dropFirst()
             .removeDuplicates()
             .sink { [weak self] enabled in
                 guard let self else { return }
