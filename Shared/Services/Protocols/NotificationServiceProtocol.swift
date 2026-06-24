@@ -47,6 +47,10 @@ struct NotificationToggles {
     let smartColorProfile: SmartColorProfile
     let pacingMargin: Double
     let thresholds: UsageThresholds
+    /// Fire a notification when a monitored vendor goes degraded/down.
+    let vendorDegraded: Bool
+    /// Fire a notification when a monitored vendor recovers to healthy.
+    let vendorRestored: Bool
 }
 
 protocol NotificationServiceProtocol {
@@ -70,4 +74,5 @@ protocol NotificationServiceProtocol {
         weeklyResetsAt: Date?,
         toggles: NotificationToggles
     )
+    func checkVendorHealth(_ status: VendorStatus, toggles: NotificationToggles)
 }

@@ -21,6 +21,7 @@ final class MockNotificationService: NotificationServiceProtocol {
     )?
     var stubbedAuthStatus: UNAuthorizationStatus = .notDetermined
     var testSent = false
+    var vendorHealthChecks: [(status: VendorStatus, toggles: NotificationToggles)] = []
 
     func setupDelegate() {}
     func requestPermission() { permissionRequested = true }
@@ -50,5 +51,9 @@ final class MockNotificationService: NotificationServiceProtocol {
         toggles: NotificationToggles
     ) {
         lastReminderSchedule = (sessionResetsAt, weeklyResetsAt, toggles)
+    }
+
+    func checkVendorHealth(_ status: VendorStatus, toggles: NotificationToggles) {
+        vendorHealthChecks.append((status, toggles))
     }
 }

@@ -42,7 +42,8 @@ struct UsageStoreTests {
             smartColorEnabled: false,
             smartColorProfile: .default,
             pacingMargin: 10,
-            thresholds: .default
+            thresholds: .default,
+            vendorDegraded: true, vendorRestored: true
         )
     }
 

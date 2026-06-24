@@ -177,7 +177,9 @@ final class StatusBarController: NSObject {
                 smartColorEnabled: self.settingsStore.smartColorEnabled,
                 smartColorProfile: self.settingsStore.smartColorProfile,
                 pacingMargin: Double(self.settingsStore.pacingMargin),
-                thresholds: self.themeStore.thresholds
+                thresholds: self.themeStore.thresholds,
+                vendorDegraded: true,
+                vendorRestored: true
             )
         }
         usageStore.reloadConfig(thresholds: themeStore.thresholds)

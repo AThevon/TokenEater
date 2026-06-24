@@ -306,6 +306,14 @@
 "notif.body.extra.orange" = "%d%% of your credits used";
 "notif.body.extra.red" = "%d%% used, time to top up?";
 "notif.body.extra.green" = "Pool back in the green";
+
+/* Notifications - Vendor status */
+"notif.title.status.claude.degraded" = "Claude is degraded";
+"notif.body.status.claude.degraded" = "Anthropic reports a service issue";
+"notif.title.status.claude.down" = "Claude is down";
+"notif.body.status.claude.down" = "Anthropic reports a major outage";
+"notif.title.status.claude.restored" = "Claude is back";
+"notif.body.status.claude.restored" = "Service restored";
 "settings.notifications.title" = "Notifications";
 "settings.notifications.status" = "Status";
 "settings.notifications.on" = "Enabled";

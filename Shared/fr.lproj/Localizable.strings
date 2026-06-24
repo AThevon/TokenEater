@@ -306,6 +306,14 @@
 "notif.body.extra.orange" = "%d%% de tes crédits utilisés";
 "notif.body.extra.red" = "%d%% consommé, temps de recharger ?";
 "notif.body.extra.green" = "Pool de retour dans le vert";
+
+/* Notifications - Vendor status */
+"notif.title.status.claude.degraded" = "Claude est dégradé";
+"notif.body.status.claude.degraded" = "Anthropic signale un incident";
+"notif.title.status.claude.down" = "Claude est hors service";
+"notif.body.status.claude.down" = "Anthropic signale une panne majeure";
+"notif.title.status.claude.restored" = "Claude est rétabli";
+"notif.body.status.claude.restored" = "Service rétabli";
 "settings.notifications.title" = "Notifications";
 "settings.notifications.status" = "Statut";
 "settings.notifications.on" = "Activées";
