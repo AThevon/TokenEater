@@ -335,7 +335,7 @@ final class StatusBarController: NSObject {
             hasDesign: usageStore.hasDesign,
             outageActive: settingsStore.statusShowMenuBarBadge && vendorStatusStore.isDegraded,
             outageHealth: vendorStatusStore.worstHealth,
-            nextPollSeconds: vendorStatusStore.nextPollDate.map { Int(ceil($0.timeIntervalSinceNow)) }
+            nextPollSeconds: vendorStatusStore.nextPollDate.map { max(0, Int(ceil($0.timeIntervalSinceNow))) }
         ))
         statusItem.button?.image = image
     }
