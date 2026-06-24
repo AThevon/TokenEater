@@ -769,3 +769,8 @@
 "onboarding.card.connect.authorize" = "Authorize";
 "onboarding.card.connect.retry" = "Retry";
 "onboarding.card.connect.idle.scene" = "macOS will ask once.\nTap Always Allow when it does.";
+
+/* Vendor Status Banner */
+"status.banner.degraded" = "Claude is degraded";
+"status.banner.down" = "Claude is down";
+"status.banner.view" = "Status page";

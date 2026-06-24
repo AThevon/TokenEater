@@ -21,6 +21,8 @@ struct ClassicLayoutView: View {
         VStack(spacing: 0) {
             PopoverHeader()
 
+            VendorStatusBanner()
+
             if usageStore.hasError {
                 PopoverErrorBanner()
             }

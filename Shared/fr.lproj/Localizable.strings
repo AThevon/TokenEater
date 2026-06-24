@@ -769,3 +769,8 @@
 "onboarding.card.connect.authorize" = "Autoriser";
 "onboarding.card.connect.retry" = "Réessayer";
 "onboarding.card.connect.idle.scene" = "macOS demande une fois.\nClique Toujours autoriser quand ça apparaît.";
+
+/* Vendor Status Banner */
+"status.banner.degraded" = "Claude est dégradé";
+"status.banner.down" = "Claude est hors service";
+"status.banner.view" = "État du service";
