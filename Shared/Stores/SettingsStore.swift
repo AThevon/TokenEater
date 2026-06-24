@@ -258,6 +258,30 @@ final class SettingsStore: ObservableObject {
         didSet { UserDefaults.standard.set(refreshInterval, forKey: "refreshInterval") }
     }
 
+    // MARK: - Service status (outage monitoring)
+    /// Master gate for outage monitoring. When false the poll loop never runs
+    /// and the menu-bar badge never appears.
+    @Published var outageMonitoringEnabled: Bool {
+        didSet { UserDefaults.standard.set(outageMonitoringEnabled, forKey: "outageMonitoringEnabled") }
+    }
+    /// Healthy-state status poll cadence in seconds. Checks auto-accelerate to
+    /// 60s during an outage regardless of this value.
+    @Published var statusPollInterval: Int {
+        didSet { UserDefaults.standard.set(statusPollInterval, forKey: "statusPollInterval") }
+    }
+    /// Whether to show the outage badge + countdown in the menu bar.
+    @Published var statusShowMenuBarBadge: Bool {
+        didSet { UserDefaults.standard.set(statusShowMenuBarBadge, forKey: "statusShowMenuBarBadge") }
+    }
+    /// Notify when a vendor goes degraded/down.
+    @Published var notifVendorDegraded: Bool {
+        didSet { UserDefaults.standard.set(notifVendorDegraded, forKey: "notifVendorDegraded") }
+    }
+    /// Notify when a vendor recovers.
+    @Published var notifVendorRestored: Bool {
+        didSet { UserDefaults.standard.set(notifVendorRestored, forKey: "notifVendorRestored") }
+    }
+
     var proxyConfig: ProxyConfig {
         ProxyConfig(enabled: proxyEnabled, host: proxyHost, port: proxyPort)
     }
@@ -406,6 +430,14 @@ final class SettingsStore: ObservableObject {
             let val = UserDefaults.standard.integer(forKey: "refreshInterval")
             return val >= 180 ? val : 300
         }()
+        self.outageMonitoringEnabled = Self.boolDefault(key: "outageMonitoringEnabled", default: true)
+        self.statusPollInterval = {
+            let val = UserDefaults.standard.integer(forKey: "statusPollInterval")
+            return val >= 300 ? val : 300
+        }()
+        self.statusShowMenuBarBadge = Self.boolDefault(key: "statusShowMenuBarBadge", default: true)
+        self.notifVendorDegraded = Self.boolDefault(key: "notifVendorDegraded", default: true)
+        self.notifVendorRestored = Self.boolDefault(key: "notifVendorRestored", default: true)
 
         // Notification toggles. Defaults below apply only on first launch
         // (no value yet in UserDefaults) - per `boolDefault` semantics.

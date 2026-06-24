@@ -5,7 +5,9 @@ import UserNotifications
 private let settingsKeys = [
     "showMenuBar", "launchInBackground", "pinnedMetrics", "pacingDisplayMode",
     "hasCompletedOnboarding", "proxyEnabled", "proxyHost", "proxyPort",
-    "overlayEnabled", "watcherStyle", "watcherScanInterval", "watcherVisibility"
+    "overlayEnabled", "watcherStyle", "watcherScanInterval", "watcherVisibility",
+    "outageMonitoringEnabled", "statusPollInterval", "statusShowMenuBarBadge",
+    "notifVendorDegraded", "notifVendorRestored"
 ]
 
 private func cleanDefaults() {
@@ -283,6 +285,26 @@ struct SettingsStoreTests {
         let notif = MockNotificationService()
         let store = SettingsStore(notificationService: notif, tokenProvider: MockTokenProvider())
         #expect(store.watcherStyle == .frost)
+    }
+
+    // MARK: - Service status settings
+
+    @Test("service status settings default on, poll interval 300")
+    func serviceStatusDefaults() {
+        let (store, _, _) = makeStore()
+        #expect(store.outageMonitoringEnabled == true)
+        #expect(store.statusPollInterval == 300)
+        #expect(store.statusShowMenuBarBadge == true)
+        #expect(store.notifVendorDegraded == true)
+        #expect(store.notifVendorRestored == true)
+    }
+
+    @Test("statusPollInterval persists across store instances")
+    func statusPollIntervalPersists() {
+        let (store, notif, tp) = makeStore()
+        store.statusPollInterval = 900
+        let reloaded = SettingsStore(notificationService: notif, tokenProvider: tp)
+        #expect(reloaded.statusPollInterval == 900)
     }
 
 }
