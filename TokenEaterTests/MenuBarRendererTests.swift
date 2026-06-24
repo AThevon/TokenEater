@@ -81,6 +81,72 @@ struct MenuBarRendererTests {
     }
 }
 
+@Suite("MenuBarRenderer.outageBadge")
+struct MenuBarOutageBadgeTests {
+
+    static func sampleRenderData(
+        outageActive: Bool = false,
+        outageHealth: VendorHealth = .healthy,
+        nextPollSeconds: Int? = nil
+    ) -> MenuBarRenderer.RenderData {
+        MenuBarRenderer.RenderData(
+            pinnedMetrics: [.fiveHour],
+            displaySonnet: false,
+            fiveHourPct: 10,
+            sevenDayPct: 5,
+            sonnetPct: 0,
+            weeklyPacingDelta: 0,
+            weeklyPacingZone: .onTrack,
+            hasWeeklyPacing: false,
+            sessionPacingDelta: 0,
+            sessionPacingZone: .onTrack,
+            hasSessionPacing: false,
+            sessionPacingDisplayMode: .dotDelta,
+            weeklyPacingDisplayMode: .dotDelta,
+            hasConfig: true,
+            hasError: false,
+            themeColors: .default,
+            thresholds: .default,
+            menuBarMonochrome: false,
+            fiveHourReset: "",
+            fiveHourResetAbsolute: "",
+            fiveHourResetDate: nil,
+            sevenDayResetDate: nil,
+            sonnetResetDate: nil,
+            designResetDate: nil,
+            hasFiveHourBucket: true,
+            resetDisplayFormat: .relative,
+            resetTextColorHex: "",
+            sessionPeriodColorHex: "",
+            smartResetColor: false,
+            smartColorProfile: .balanced,
+            pacingMargin: 10,
+            menuBarStyle: .classic,
+            pacingShape: .circle,
+            designPct: 0,
+            hasDesign: false,
+            outageActive: outageActive,
+            outageHealth: outageHealth,
+            nextPollSeconds: nextPollSeconds
+        )
+    }
+
+    @Test("outage badge widens the rendered image vs. no badge")
+    func outageBadgeRenders() {
+        // Build two RenderData values identical except for the outage badge.
+        // Reuse however this suite already builds RenderData; only the three
+        // new fields differ.
+        let base = Self.sampleRenderData(outageActive: false)
+        let badged = Self.sampleRenderData(outageActive: true, outageHealth: .down, nextPollSeconds: 65)
+
+        let baseImg = MenuBarRenderer.renderUncached(base)
+        let badgedImg = MenuBarRenderer.renderUncached(badged)
+
+        #expect(badgedImg.isTemplate == false)
+        #expect(badgedImg.size.width > baseImg.size.width)
+    }
+}
+
 @Suite("MenuBarRenderer.periodLabelColor")
 struct MenuBarPeriodLabelColorTests {
 

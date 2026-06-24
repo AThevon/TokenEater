@@ -9,6 +9,7 @@ final class StatusBarController: NSObject {
     private var dashboardWindow: NSWindow?
     private var eventMonitor: Any?
     private var cancellables = Set<AnyCancellable>()
+    private var countdownCancellable: AnyCancellable?
 
     private let usageStore: UsageStore
     private let themeStore: ThemeStore
@@ -96,11 +97,13 @@ final class StatusBarController: NSObject {
         Publishers.MergeMany(
             usageStore.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             themeStore.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
-            settingsStore.objectWillChange.map { _ in () }.eraseToAnyPublisher()
+            settingsStore.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            vendorStatusStore.objectWillChange.map { _ in () }.eraseToAnyPublisher()
         )
         .debounce(for: .milliseconds(100), scheduler: RunLoop.main)
         .sink { [weak self] _ in
             self?.updateMenuBarIcon()
+            self?.updateCountdownTimer()
         }
         .store(in: &cancellables)
 
@@ -329,9 +332,26 @@ final class StatusBarController: NSObject {
             menuBarStyle: settingsStore.menuBarStyle,
             pacingShape: settingsStore.pacingShape,
             designPct: usageStore.designPct,
-            hasDesign: usageStore.hasDesign
+            hasDesign: usageStore.hasDesign,
+            outageActive: settingsStore.statusShowMenuBarBadge && vendorStatusStore.isDegraded,
+            outageHealth: vendorStatusStore.worstHealth,
+            nextPollSeconds: vendorStatusStore.nextPollDate.map { Int(ceil($0.timeIntervalSinceNow)) }
         ))
         statusItem.button?.image = image
+    }
+
+    /// Run a 1-second redraw ONLY while an outage badge is visible, so the
+    /// menu-bar countdown ticks without waking the CPU every second otherwise.
+    private func updateCountdownTimer() {
+        let active = settingsStore.statusShowMenuBarBadge && vendorStatusStore.isDegraded
+        if active, countdownCancellable == nil {
+            countdownCancellable = Timer.publish(every: 1, on: .main, in: .common)
+                .autoconnect()
+                .sink { [weak self] _ in self?.updateMenuBarIcon() }
+        } else if !active {
+            countdownCancellable?.cancel()
+            countdownCancellable = nil
+        }
     }
 
     // MARK: - Click handling

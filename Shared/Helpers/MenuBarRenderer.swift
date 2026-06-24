@@ -42,6 +42,11 @@ enum MenuBarRenderer {
         let pacingShape: PacingShape
         let designPct: Int
         let hasDesign: Bool
+        // Outage badge (Service Status). Defaulted so existing call sites and
+        // tests keep compiling; only StatusBarController sets them.
+        var outageActive: Bool = false
+        var outageHealth: VendorHealth = .healthy
+        var nextPollSeconds: Int? = nil
     }
 
     private static var cachedImage: NSImage?
@@ -62,6 +67,9 @@ enum MenuBarRenderer {
     /// the static cache. Useful for live previews that may differ from the
     /// status bar's current state and shouldn't poison it.
     static func renderUncached(_ data: RenderData) -> NSImage {
+        if data.outageActive {
+            return renderWithOutageBadge(data)
+        }
         if !data.hasConfig || data.hasError {
             return renderLogoTemplate()
         }
@@ -172,6 +180,69 @@ enum MenuBarRenderer {
             thresholds: thresholds,
             now: now
         )
+    }
+
+    // MARK: - Outage badge
+
+    /// Composite an outage glyph + mm:ss countdown ahead of the normal content.
+    /// When usage data isn't usable (no config / usage error), show the badge
+    /// alone — avoids compositing a template logo into a coloured image.
+    private static func renderWithOutageBadge(_ data: RenderData) -> NSImage {
+        let badge = renderOutageBadgeImage(data)
+        let hasMetrics = data.hasConfig && !data.hasError
+        guard hasMetrics else { return badge }
+        let base = renderPinnedMetrics(data)
+        return horizontallyCompose(left: badge, right: base, gap: 5)
+    }
+
+    private static func renderOutageBadgeImage(_ data: RenderData) -> NSImage {
+        let height: CGFloat = 22
+        let tint: NSColor = data.outageHealth == .down ? .systemRed : .systemOrange
+
+        let symbolConfig = NSImage.SymbolConfiguration(pointSize: 11, weight: .bold)
+            .applying(NSImage.SymbolConfiguration(paletteColors: [tint]))
+        let glyph = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: nil)?
+            .withSymbolConfiguration(symbolConfig)
+        let glyphSize = glyph?.size ?? NSSize(width: 12, height: 12)
+
+        var countdown: NSAttributedString?
+        if let secs = data.nextPollSeconds {
+            let clamped = max(0, secs)
+            let text = String(format: "%d:%02d", clamped / 60, clamped % 60)
+            countdown = NSAttributedString(string: text, attributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold),
+                .foregroundColor: tint,
+            ])
+        }
+
+        let gap: CGFloat = 3
+        let textWidth = countdown?.size().width ?? 0
+        let width = glyphSize.width + (countdown != nil ? gap + textWidth : 0)
+        let img = NSImage(size: NSSize(width: ceil(width) + 2, height: height), flipped: false) { _ in
+            glyph?.draw(at: NSPoint(x: 1, y: (height - glyphSize.height) / 2),
+                        from: .zero, operation: .sourceOver, fraction: 1)
+            if let countdown {
+                let ts = countdown.size()
+                countdown.draw(at: NSPoint(x: 1 + glyphSize.width + gap, y: (height - ts.height) / 2))
+            }
+            return true
+        }
+        img.isTemplate = false
+        return img
+    }
+
+    private static func horizontallyCompose(left: NSImage, right: NSImage, gap: CGFloat) -> NSImage {
+        let height: CGFloat = 22
+        let width = left.size.width + gap + right.size.width
+        let img = NSImage(size: NSSize(width: ceil(width), height: height), flipped: false) { _ in
+            left.draw(at: NSPoint(x: 0, y: (height - left.size.height) / 2),
+                      from: .zero, operation: .sourceOver, fraction: 1)
+            right.draw(at: NSPoint(x: left.size.width + gap, y: (height - right.size.height) / 2),
+                       from: .zero, operation: .sourceOver, fraction: 1)
+            return true
+        }
+        img.isTemplate = false
+        return img
     }
 
     // MARK: - Rendering
