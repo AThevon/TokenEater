@@ -6,6 +6,15 @@ import SwiftUI
 struct ServiceStatusSectionView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
 
+    // Local mirror of the stored poll interval (seconds), held as Double for the
+    // slider. A local @State + .onChange pair replaces Binding(get:set:), which
+    // the project's SwiftUI rules forbid (AttributeGraph can't memoize it).
+    @State private var pollIntervalSeconds: Double
+
+    init(initialInterval: Int) {
+        _pollIntervalSeconds = State(initialValue: Double(initialInterval))
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(alignment: .center) {
@@ -34,6 +43,14 @@ struct ServiceStatusSectionView: View {
             )
         }
         .padding(24)
+        // Local <-> store sync (no Binding(get:set:) — see SwiftUI rules).
+        .onChange(of: pollIntervalSeconds) { _, secs in
+            let v = Int(secs)
+            if settingsStore.statusPollInterval != v { settingsStore.statusPollInterval = v }
+        }
+        .onChange(of: settingsStore.statusPollInterval) { _, v in
+            if Int(pollIntervalSeconds) != v { pollIntervalSeconds = Double(v) }
+        }
     }
 
     private func resetToDefaults() {
@@ -57,15 +74,12 @@ struct ServiceStatusSectionView: View {
                         .font(.system(size: 12))
                         .foregroundStyle(.white.opacity(0.7))
                     Spacer()
-                    Text(formatInterval(settingsStore.statusPollInterval))
+                    Text(formatInterval(Int(pollIntervalSeconds)))
                         .font(.system(size: 12, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.9))
                 }
                 TokenEaterSlider(
-                    value: Binding(
-                        get: { Double(settingsStore.statusPollInterval) },
-                        set: { settingsStore.statusPollInterval = Int($0) }
-                    ),
+                    value: $pollIntervalSeconds,
                     in: 60...1800,
                     step: 60,
                     showsTicks: true

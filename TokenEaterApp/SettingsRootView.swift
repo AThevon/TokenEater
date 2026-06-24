@@ -55,7 +55,7 @@ struct SettingsRootView: View {
         case .notifications:
             scrolling { NotificationsSectionView() }
         case .serviceStatus:
-            scrolling { ServiceStatusSectionView() }
+            scrolling { ServiceStatusSectionView(initialInterval: settingsStore.statusPollInterval) }
         }
     }
 

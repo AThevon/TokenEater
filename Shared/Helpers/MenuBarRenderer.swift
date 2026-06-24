@@ -42,11 +42,12 @@ enum MenuBarRenderer {
         let pacingShape: PacingShape
         let designPct: Int
         let hasDesign: Bool
-        // Outage badge (Service Status). Defaulted so existing call sites and
-        // tests keep compiling; only StatusBarController sets them.
-        var outageActive: Bool = false
-        var outageHealth: VendorHealth = .healthy
-        var nextPollSeconds: Int? = nil
+        // Outage badge (Service Status). Set by StatusBarController from
+        // VendorStatusStore; kept `let` like every other RenderData field so
+        // the Equatable render cache stays correct.
+        let outageActive: Bool
+        let outageHealth: VendorHealth
+        let nextPollSeconds: Int?
     }
 
     private static var cachedImage: NSImage?
