@@ -4,8 +4,7 @@ enum StatusServiceError: Error {
     case badResponse
 }
 
-/// Plain unauthenticated Atlassian Statuspage v2 client. No token, no proxy,
-/// no Keychain — distinct from the credentialed usage `APIClient`.
+/// Atlassian Statuspage v2 client.
 final class StatusService: StatusServiceProtocol, @unchecked Sendable {
     func fetchStatus(for vendor: Vendor) async throws -> VendorStatus {
         let url = vendor.statusAPIBaseURL.appendingPathComponent("summary.json")
