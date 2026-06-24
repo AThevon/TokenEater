@@ -350,6 +350,22 @@
 "settings.notifications.group.health" = "Health";
 "settings.notifications.group.health.hint" = "Connection issues that might block tracking.";
 "settings.notifications.token" = "Token expired";
+"settings.notifications.status.degraded" = "Service degraded";
+"settings.notifications.status.restored" = "Service restored";
+
+/* Service Status */
+"sidebar.serviceStatus" = "Service Status";
+"sidebar.serviceStatus.subtitle" = "Outage monitoring for Claude";
+"settings.status.master" = "Monitoring";
+"settings.status.group.vendors" = "Monitored";
+"settings.status.vendor.claude" = "Claude";
+"settings.status.group.polling" = "Polling";
+"settings.status.group.polling.hint" = "How often to check Claude's status. Checks speed up automatically during an outage.";
+"settings.status.interval.label" = "Check every";
+"settings.status.interval.minutes" = "%d min";
+"settings.status.group.display" = "Display";
+"settings.status.badge" = "Show outage badge in the menu bar";
+"settings.status.reset.confirm" = "Reset Service Status settings?";
 
 /* Relative Time */
 "relative.now" = "now";

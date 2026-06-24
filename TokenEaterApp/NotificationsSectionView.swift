@@ -59,6 +59,8 @@ struct NotificationsSectionView: View {
         settingsStore.notifResetReminderWeeklyOffset = 60
         settingsStore.notifExtraCredits = true
         settingsStore.notifTokenExpired = false
+        settingsStore.notifVendorDegraded = true
+        settingsStore.notifVendorRestored = true
     }
 
     // MARK: - Authorization
@@ -245,6 +247,8 @@ struct NotificationsSectionView: View {
                     .foregroundStyle(.white.opacity(0.4))
                     .fixedSize(horizontal: false, vertical: true)
                 darkToggle(String(localized: "settings.notifications.token"), isOn: $settingsStore.notifTokenExpired)
+                darkToggle(String(localized: "settings.notifications.status.degraded"), isOn: $settingsStore.notifVendorDegraded)
+                darkToggle(String(localized: "settings.notifications.status.restored"), isOn: $settingsStore.notifVendorRestored)
             }
         }
     }

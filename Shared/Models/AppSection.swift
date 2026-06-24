@@ -37,6 +37,7 @@ enum SettingsSection: String, CaseIterable {
     case popover
     case agentWatchers
     case notifications
+    case serviceStatus
 
     var labelKey: String {
         switch self {
@@ -47,6 +48,7 @@ enum SettingsSection: String, CaseIterable {
         case .popover:       "sidebar.popover"
         case .agentWatchers: "sidebar.agentWatchers"
         case .notifications: "sidebar.notifications"
+        case .serviceStatus: "sidebar.serviceStatus"
         }
     }
 
@@ -61,6 +63,7 @@ enum SettingsSection: String, CaseIterable {
         case .popover:       "menubar.dock.rectangle"
         case .agentWatchers: "waveform.path.ecg"
         case .notifications: "bell.fill"
+        case .serviceStatus: "dot.radiowaves.left.and.right"
         }
     }
 }
