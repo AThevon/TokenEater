@@ -433,7 +433,7 @@ final class SettingsStore: ObservableObject {
         self.outageMonitoringEnabled = Self.boolDefault(key: "outageMonitoringEnabled", default: true)
         self.statusPollInterval = {
             let val = UserDefaults.standard.integer(forKey: "statusPollInterval")
-            return val >= 300 ? val : 300
+            return val >= 60 ? val : 300
         }()
         self.statusShowMenuBarBadge = Self.boolDefault(key: "statusShowMenuBarBadge", default: true)
         self.notifVendorDegraded = Self.boolDefault(key: "notifVendorDegraded", default: true)

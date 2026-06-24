@@ -1,9 +1,8 @@
 import SwiftUI
 
 /// Settings sub-section for vendor outage monitoring: master switch, healthy
-/// poll cadence, menu-bar badge toggle, and the (currently single) monitored
-/// vendor. Degraded/restored notification toggles live in the Notifications
-/// section's Health card.
+/// poll cadence, and the menu-bar badge toggle. Degraded/restored notification
+/// toggles live in the Notifications section's Health card.
 struct ServiceStatusSectionView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
 
@@ -26,7 +25,6 @@ struct ServiceStatusSectionView: View {
                 }
             }
 
-            vendorsCard
             pollingCard
             displayCard
 
@@ -42,25 +40,6 @@ struct ServiceStatusSectionView: View {
         settingsStore.outageMonitoringEnabled = true
         settingsStore.statusPollInterval = 300
         settingsStore.statusShowMenuBarBadge = true
-    }
-
-    // MARK: - Vendors
-
-    private var vendorsCard: some View {
-        glassCard {
-            VStack(alignment: .leading, spacing: 10) {
-                cardLabel(String(localized: "settings.status.group.vendors"))
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.seal.fill")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.green)
-                    Text(String(localized: "settings.status.vendor.claude"))
-                        .font(.system(size: 13))
-                        .foregroundStyle(.white.opacity(0.8))
-                    Spacer()
-                }
-            }
-        }
     }
 
     // MARK: - Polling
@@ -87,8 +66,8 @@ struct ServiceStatusSectionView: View {
                         get: { Double(settingsStore.statusPollInterval) },
                         set: { settingsStore.statusPollInterval = Int($0) }
                     ),
-                    in: 300...1800,
-                    step: 300,
+                    in: 60...1800,
+                    step: 60,
                     showsTicks: true
                 )
             }

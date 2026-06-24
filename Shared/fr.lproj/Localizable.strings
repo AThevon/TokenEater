@@ -358,14 +358,12 @@
 "sidebar.serviceStatus" = "État du service";
 "sidebar.serviceStatus.subtitle" = "Surveillance des pannes de Claude";
 "settings.status.master" = "Surveillance";
-"settings.status.group.vendors" = "Surveillé";
-"settings.status.vendor.claude" = "Claude";
 "settings.status.group.polling" = "Fréquence";
 "settings.status.group.polling.hint" = "Fréquence de vérification de l'état de Claude. Accélérée automatiquement pendant une panne.";
 "settings.status.interval.label" = "Vérifier toutes les";
 "settings.status.interval.minutes" = "%d min";
 "settings.status.group.display" = "Affichage";
-"settings.status.badge" = "Afficher le badge de panne dans la barre des menus";
+"settings.status.badge" = "Afficher le badge dans la barre des menus pendant une panne";
 "settings.status.reset.confirm" = "Réinitialiser les réglages d'état du service ?";
 
 /* Relative Time */
