@@ -1,7 +1,6 @@
 import Foundation
 
-/// A monitored service provider. v1 is Claude-only; adding `.openai` later is a
-/// single case + its rows below — nothing else in the feature changes.
+/// A monitored service provider
 enum Vendor: String, Codable, CaseIterable, Identifiable, Sendable {
     case claude
 
