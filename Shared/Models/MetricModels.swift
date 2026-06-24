@@ -8,6 +8,7 @@ enum MetricID: String, CaseIterable {
     case design = "design"
     case sessionPacing = "sessionPacing"
     case weeklyPacing = "weeklyPacing"
+    case serviceStatus = "serviceStatus"
 
     var label: String {
         switch self {
@@ -18,6 +19,7 @@ enum MetricID: String, CaseIterable {
         case .design: return String(localized: "metric.design")
         case .sessionPacing: return String(localized: "pacing.session.label")
         case .weeklyPacing: return String(localized: "pacing.weekly.label")
+        case .serviceStatus: return String(localized: "metric.serviceStatus")
         }
     }
 
@@ -30,6 +32,7 @@ enum MetricID: String, CaseIterable {
         case .design: return "D"
         case .sessionPacing: return "5hP"
         case .weeklyPacing: return "7dP"
+        case .serviceStatus: return ""
         }
     }
 }

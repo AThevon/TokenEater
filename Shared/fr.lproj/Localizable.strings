@@ -9,6 +9,7 @@
 /* Metrics */
 "metric.session" = "5h";
 "metric.design" = "Design";
+"metric.serviceStatus" = "État du service";
 "settings.group.design" = "Claude Design";
 
 /* Extra usage (paid credits pool) */

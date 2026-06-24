@@ -343,7 +343,9 @@ final class StatusBarController: NSObject {
     /// Run a 1-second redraw ONLY while an outage badge is visible, so the
     /// menu-bar countdown ticks without waking the CPU every second otherwise.
     private func updateCountdownTimer() {
-        let active = settingsStore.statusShowMenuBarBadge && vendorStatusStore.isDegraded
+        let badgeCountdown = settingsStore.statusShowMenuBarBadge && vendorStatusStore.isDegraded
+        let pinCountdown = settingsStore.pinnedMetrics.contains(.serviceStatus) && vendorStatusStore.worstHealth == .down
+        let active = badgeCountdown || pinCountdown
         if active, countdownCancellable == nil {
             countdownCancellable = Timer.publish(every: 1, on: .main, in: .common)
                 .autoconnect()

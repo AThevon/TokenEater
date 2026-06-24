@@ -85,12 +85,13 @@ struct MenuBarRendererTests {
 struct MenuBarOutageBadgeTests {
 
     static func sampleRenderData(
+        pinnedMetrics: Set<MetricID> = [.fiveHour],
         outageActive: Bool = false,
         outageHealth: VendorHealth = .healthy,
         nextPollSeconds: Int? = nil
     ) -> MenuBarRenderer.RenderData {
         MenuBarRenderer.RenderData(
-            pinnedMetrics: [.fiveHour],
+            pinnedMetrics: pinnedMetrics,
             displaySonnet: false,
             fiveHourPct: 10,
             sevenDayPct: 5,
@@ -144,6 +145,26 @@ struct MenuBarOutageBadgeTests {
 
         #expect(badgedImg.isTemplate == false)
         #expect(badgedImg.size.width > baseImg.size.width)
+    }
+
+    @Test("pinned serviceStatus with .down is non-template and wider than .healthy")
+    func pinnedServiceStatusDownWiderThanHealthy() {
+        let healthy = Self.sampleRenderData(
+            pinnedMetrics: [.serviceStatus],
+            outageHealth: .healthy,
+            nextPollSeconds: nil
+        )
+        let down = Self.sampleRenderData(
+            pinnedMetrics: [.serviceStatus],
+            outageHealth: .down,
+            nextPollSeconds: 125
+        )
+
+        let healthyImg = MenuBarRenderer.renderUncached(healthy)
+        let downImg = MenuBarRenderer.renderUncached(down)
+
+        #expect(downImg.isTemplate == false)
+        #expect(downImg.size.width > healthyImg.size.width)
     }
 }
 
