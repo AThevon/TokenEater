@@ -774,3 +774,8 @@
 "status.banner.degraded" = "Claude est dégradé";
 "status.banner.down" = "Claude est hors service";
 "status.banner.view" = "État du service";
+
+/* Vendor Status Dashboard Card */
+"dashboard.status.degraded" = "Claude est dégradé";
+"dashboard.status.down" = "Claude est hors service";
+"dashboard.status.affected" = "Concerné : %@";
