@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var settingsStore: SettingsStore!
     var updateStore: UpdateStore!
     var sessionStore: SessionStore!
+    var vendorStatusStore: VendorStatusStore!
 
     private var statusBarController: StatusBarController?
     private var overlayWindowController: OverlayWindowController?
@@ -39,7 +40,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             themeStore: themeStore,
             settingsStore: settingsStore,
             updateStore: updateStore,
-            sessionStore: sessionStore
+            sessionStore: sessionStore,
+            vendorStatusStore: vendorStatusStore
         )
         // Apply persisted watcher scan settings before the first tick uses them.
         sessionStore.setScanInterval(settingsStore.watcherScanInterval.seconds)
@@ -93,6 +95,7 @@ struct TokenEaterApp: App {
     private let settingsStore: SettingsStore
     private let updateStore: UpdateStore
     private let sessionStore: SessionStore
+    private let vendorStatusStore: VendorStatusStore
 
     init() {
         // Migrate v4.x sandbox-container UserDefaults into the real path BEFORE
@@ -105,6 +108,7 @@ struct TokenEaterApp: App {
         self.settingsStore = SettingsStore()
         self.updateStore = UpdateStore()
         self.sessionStore = SessionStore()
+        self.vendorStatusStore = VendorStatusStore()
 
         NotificationService().setupDelegate()
         appDelegate.usageStore = usageStore
@@ -112,6 +116,7 @@ struct TokenEaterApp: App {
         appDelegate.settingsStore = settingsStore
         appDelegate.updateStore = updateStore
         appDelegate.sessionStore = sessionStore
+        appDelegate.vendorStatusStore = vendorStatusStore
     }
 
     var body: some Scene {

@@ -65,6 +65,7 @@ final class VendorStatusStore: ObservableObject {
         pollTask?.cancel()
         pollTask = nil
         nextPollDate = nil
+        statuses = [:]
     }
 
     // MARK: - Poll
