@@ -360,7 +360,7 @@ struct HistoryView: View {
         let visibleKinds = ModelKind.stackOrder.filter { kind in
             !filteredOut(kind) && store.totalsByKind[kind] != nil
         }
-        let bucketsArray = filteredBuckets
+        let bucketsArray = store.filteredBuckets
         let count = bucketsArray.count
         let filteredTotal = bucketsArray.reduce(0) { $0 + $1.totalActive }
         let domain = chartDomain
@@ -751,19 +751,6 @@ struct HistoryView: View {
     }
 
     // MARK: - Computed presentation helpers
-
-    private var filteredBuckets: [HistoryBucket] {
-        switch store.filter {
-        case .all:
-            return store.buckets
-        case .family(let family):
-            return store.buckets.map { bucket in
-                var b = bucket
-                b.tokensByModel = bucket.tokensByModel.filter { $0.key.family == family }
-                return b
-            }
-        }
-    }
 
     private func filteredOut(_ kind: ModelKind) -> Bool {
         switch store.filter {

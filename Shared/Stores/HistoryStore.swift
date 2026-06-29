@@ -214,4 +214,26 @@ final class HistoryStore: ObservableObject {
     var totalsByKind: [ModelKind: Int] {
         Self.totalsByKind(in: buckets)
     }
+
+    /// Chart-facing filter: keeps every field intact and narrows only
+    /// `tokensByModel` to the selected family. Distinct from the private
+    /// `applyFilter` used by the summary, which additionally scales the
+    /// cache counters. Pure + static for unit tests.
+    nonisolated static func bucketsForChart(_ buckets: [HistoryBucket], filter: HistoryFilter) -> [HistoryBucket] {
+        switch filter {
+        case .all:
+            return buckets
+        case .family(let family):
+            return buckets.map { bucket in
+                var b = bucket
+                b.tokensByModel = bucket.tokensByModel.filter { $0.key.family == family }
+                return b
+            }
+        }
+    }
+
+    /// Instance accessor over the loaded buckets with the active filter applied.
+    var filteredBuckets: [HistoryBucket] {
+        Self.bucketsForChart(buckets, filter: filter)
+    }
 }
