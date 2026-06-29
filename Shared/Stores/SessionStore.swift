@@ -13,6 +13,16 @@ final class SessionStore: ObservableObject {
         !activeSessions.isEmpty
     }
 
+    /// Display name of the most-used model among the currently active
+    /// (non-dead) Claude Code sessions. Nil when no sessions are tracked or
+    /// none reported a model. Moved out of MonitoringView so it is unit-tested.
+    var topActiveModelName: String? {
+        let kinds = activeSessions.compactMap { $0.model }.map { ModelKind(rawModel: $0) }
+        guard !kinds.isEmpty else { return nil }
+        let counts = Dictionary(grouping: kinds, by: { $0 }).mapValues { $0.count }
+        return counts.max { $0.value < $1.value }?.key.displayName
+    }
+
     private let monitorService: SessionMonitorServiceProtocol
     private var cancellable: AnyCancellable?
 

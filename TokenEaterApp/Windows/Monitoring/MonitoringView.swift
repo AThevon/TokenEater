@@ -390,7 +390,7 @@ struct MonitoringView: View {
                     .foregroundStyle(DS.Palette.textTertiary)
                     .textCase(.uppercase)
 
-                if let topModel = topActiveModel() {
+                if let topModel = sessionStore.topActiveModelName {
                     HStack(spacing: 5) {
                         Circle()
                             .fill(gaugeColor)
@@ -404,16 +404,6 @@ struct MonitoringView: View {
             }
             .frame(width: 160, height: 160)
         }
-    }
-
-    /// Most-used model among the currently active Claude Code sessions.
-    /// Returns nil when no sessions are tracked or none reported a model.
-    private func topActiveModel() -> String? {
-        let raws = sessionStore.activeSessions.compactMap { $0.model }
-        guard !raws.isEmpty else { return nil }
-        let counts = Dictionary(grouping: raws.map { ModelKind(rawModel: $0) }, by: { $0 })
-            .mapValues { $0.count }
-        return counts.max { $0.value < $1.value }?.key.displayName
     }
 
     private func statValue(label: String, value: String, color: Color) -> some View {
