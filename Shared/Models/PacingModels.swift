@@ -61,6 +61,19 @@ struct PacingSchedule: Equatable, Sendable {
     /// Classic behaviour: feature off, every day counts.
     static let rolling = PacingSchedule(enabled: false, activeDays: workweek)
 
+    static let defaultStartHour = 9
+    static let defaultEndHour = 18
+    /// Canonical first-launch / fallback schedule, shared by SettingsStore and
+    /// SharedFileService so the three default sites can never drift: feature off
+    /// (rolling), Mon-Fri active days, full days, 9-18 hours.
+    static let `default` = PacingSchedule(
+        enabled: false,
+        activeDays: workweek,
+        hoursEnabled: false,
+        startHour: defaultStartHour,
+        endHour: defaultEndHour
+    )
+
     /// Days the calculator actually uses. Falls back to all seven days when the
     /// feature is off or the selection is empty - the empty-set guard keeps the
     /// active-seconds denominator from ever hitting zero.

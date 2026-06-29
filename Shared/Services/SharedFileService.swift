@@ -259,14 +259,12 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
     /// identically to the app. Falls back to Mon-Fri days / disabled when absent.
     var pacingSchedule: PacingSchedule {
         let data = load()
-        let enabled = data.pacingWorkweekEnabled ?? false
-        let days = data.pacingActiveDays.map(Set.init) ?? PacingSchedule.workweek
         return PacingSchedule(
-            enabled: enabled,
-            activeDays: days,
-            hoursEnabled: data.pacingHoursEnabled ?? false,
-            startHour: data.pacingStartHour ?? 9,
-            endHour: data.pacingEndHour ?? 18
+            enabled: data.pacingWorkweekEnabled ?? PacingSchedule.default.enabled,
+            activeDays: data.pacingActiveDays.map(Set.init) ?? PacingSchedule.workweek,
+            hoursEnabled: data.pacingHoursEnabled ?? PacingSchedule.default.hoursEnabled,
+            startHour: data.pacingStartHour ?? PacingSchedule.defaultStartHour,
+            endHour: data.pacingEndHour ?? PacingSchedule.defaultEndHour
         )
     }
 

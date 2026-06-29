@@ -384,8 +384,8 @@ final class SettingsStore: ObservableObject {
             return PacingSchedule.workweek
         }()
         let initialHoursEnabled = Self.boolDefault(key: "pacingHoursEnabled", default: false)
-        let initialStartHour = Self.intDefault(key: "pacingStartHour", default: 9)
-        let initialEndHour = Self.intDefault(key: "pacingEndHour", default: 18)
+        let initialStartHour = Self.intDefault(key: "pacingStartHour", default: PacingSchedule.defaultStartHour)
+        let initialEndHour = Self.intDefault(key: "pacingEndHour", default: PacingSchedule.defaultEndHour)
         self.pacingWorkweekEnabled = initialWorkweekEnabled
         self.pacingActiveDays = initialActiveDays
         self.pacingHoursEnabled = initialHoursEnabled
