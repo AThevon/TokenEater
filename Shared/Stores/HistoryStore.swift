@@ -196,4 +196,22 @@ final class HistoryStore: ObservableObject {
         }
         return totals
     }
+
+    /// Total active tokens per `ModelKind` across the given buckets. Pure and
+    /// static so it can be unit-tested without a MainActor store instance.
+    /// Used by the chart to decide which kinds have any data to stack.
+    nonisolated static func totalsByKind(in buckets: [HistoryBucket]) -> [ModelKind: Int] {
+        var totals: [ModelKind: Int] = [:]
+        for bucket in buckets {
+            for (kind, tokens) in bucket.tokensByModel {
+                totals[kind, default: 0] += tokens
+            }
+        }
+        return totals
+    }
+
+    /// Instance accessor over the currently loaded (unfiltered) buckets.
+    var totalsByKind: [ModelKind: Int] {
+        Self.totalsByKind(in: buckets)
+    }
 }

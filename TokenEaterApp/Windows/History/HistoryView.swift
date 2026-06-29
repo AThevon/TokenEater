@@ -358,7 +358,7 @@ struct HistoryView: View {
 
     private var chartContent: some View {
         let visibleKinds = ModelKind.stackOrder.filter { kind in
-            !filteredOut(kind) && totalsByKind[kind] != nil
+            !filteredOut(kind) && store.totalsByKind[kind] != nil
         }
         let bucketsArray = filteredBuckets
         let count = bucketsArray.count
@@ -763,16 +763,6 @@ struct HistoryView: View {
                 return b
             }
         }
-    }
-
-    private var totalsByKind: [ModelKind: Int] {
-        var totals: [ModelKind: Int] = [:]
-        for bucket in store.buckets {
-            for (kind, tokens) in bucket.tokensByModel {
-                totals[kind, default: 0] += tokens
-            }
-        }
-        return totals
     }
 
     private func filteredOut(_ kind: ModelKind) -> Bool {
