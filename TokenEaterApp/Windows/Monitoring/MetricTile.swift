@@ -273,7 +273,7 @@ struct MetricTile: View {
                     .minimumScaleFactor(0.8)
             }
         }
-        Text("\(windowText) rolling")
+        Text(windowText)
             .font(.system(size: 9))
             .foregroundStyle(DS.Palette.textTertiary)
     }
