@@ -160,7 +160,7 @@ struct PacingSectionView: View {
                         }
                     }
                     Spacer()
-                    Toggle("", isOn: $settingsStore.pacingWorkweekEnabled)
+                    Toggle("", isOn: $settingsStore.pacing.workweekEnabled)
                         .labelsHidden()
                         .toggleStyle(.switch)
                 }
@@ -176,7 +176,7 @@ struct PacingSectionView: View {
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(.white.opacity(0.65))
                         Spacer()
-                        Toggle("", isOn: $settingsStore.pacingHoursEnabled)
+                        Toggle("", isOn: $settingsStore.pacing.hoursEnabled)
                             .labelsHidden()
                             .toggleStyle(.switch)
                     }
@@ -188,8 +188,8 @@ struct PacingSectionView: View {
                                 .foregroundStyle(DS.Palette.accentSettings)
                                 .frame(width: 44, alignment: .leading)
                             HourRangeSlider(
-                                startHour: $settingsStore.pacingStartHour,
-                                endHour: $settingsStore.pacingEndHour
+                                startHour: $settingsStore.pacing.startHour,
+                                endHour: $settingsStore.pacing.endHour
                             )
                             .frame(maxWidth: .infinity)
                             Text(String(format: "%02d:00", settingsStore.pacingEndHour))

@@ -1,6 +1,7 @@
 import SwiftUI
 import UserNotifications
 import ServiceManagement
+import Combine
 
 @MainActor
 final class SettingsStore: ObservableObject {
@@ -144,58 +145,33 @@ final class SettingsStore: ObservableObject {
         didSet { UserDefaults.standard.set(watcherAnimationsEnabled, forKey: "watcherAnimationsEnabled") }
     }
 
-    // Pacing
-    @Published var pacingMargin: Int {
-        didSet { UserDefaults.standard.set(pacingMargin, forKey: "pacingMargin") }
-    }
-    /// Workweek pacing: when on, the expected pace only advances over the user's
-    /// active days, so off-days don't make them look ahead of pace.
-    @Published var pacingWorkweekEnabled: Bool {
-        didSet {
-            UserDefaults.standard.set(pacingWorkweekEnabled, forKey: "pacingWorkweekEnabled")
-            sharedFileService.updatePacingSchedule(pacingSchedule)
-        }
-    }
-    /// Active weekday numbers (Gregorian 1=Sun ... 7=Sat) used when workweek
-    /// pacing is on. Persisted as a sorted array.
-    @Published var pacingActiveDays: Set<Int> {
-        didSet {
-            UserDefaults.standard.set(Array(pacingActiveDays).sorted(), forKey: "pacingActiveDays")
-            sharedFileService.updatePacingSchedule(pacingSchedule)
-        }
-    }
-    /// When on, workweek pacing is further narrowed to active hours of the day.
-    @Published var pacingHoursEnabled: Bool {
-        didSet {
-            UserDefaults.standard.set(pacingHoursEnabled, forKey: "pacingHoursEnabled")
-            sharedFileService.updatePacingSchedule(pacingSchedule)
-        }
-    }
-    /// Start hour (0...23) of the active window, applied to every active day.
-    @Published var pacingStartHour: Int {
-        didSet {
-            UserDefaults.standard.set(pacingStartHour, forKey: "pacingStartHour")
-            sharedFileService.updatePacingSchedule(pacingSchedule)
-        }
-    }
-    /// End hour (1...24) of the active window, applied to every active day.
-    @Published var pacingEndHour: Int {
-        didSet {
-            UserDefaults.standard.set(pacingEndHour, forKey: "pacingEndHour")
-            sharedFileService.updatePacingSchedule(pacingSchedule)
-        }
-    }
+    // Pacing - extracted into a child ObservableObject domain slice. Views should
+    // prefer `settings.pacing.$x` for bindings; the forwards below keep existing
+    // non-binding call sites compiling without change.
+    @Published var pacing: PacingSettingsStore
+    private var pacingRelay: AnyCancellable?
 
-    /// The resolved schedule handed to the pacing calculator + widget.
-    var pacingSchedule: PacingSchedule {
-        PacingSchedule(
-            enabled: pacingWorkweekEnabled,
-            activeDays: pacingActiveDays,
-            hoursEnabled: pacingHoursEnabled,
-            startHour: pacingStartHour,
-            endHour: pacingEndHour
-        )
+    // Backwards-compatible forwards (no $ bindings should target these).
+    var pacingMargin: Int {
+        get { pacing.margin } set { pacing.margin = newValue }
     }
+    var pacingWorkweekEnabled: Bool {
+        get { pacing.workweekEnabled } set { pacing.workweekEnabled = newValue }
+    }
+    var pacingActiveDays: Set<Int> {
+        get { pacing.activeDays } set { pacing.activeDays = newValue }
+    }
+    var pacingHoursEnabled: Bool {
+        get { pacing.hoursEnabled } set { pacing.hoursEnabled = newValue }
+    }
+    var pacingStartHour: Int {
+        get { pacing.startHour } set { pacing.startHour = newValue }
+    }
+    var pacingEndHour: Int {
+        get { pacing.endHour } set { pacing.endHour = newValue }
+    }
+    /// The resolved schedule handed to the pacing calculator + widget.
+    var pacingSchedule: PacingSchedule { pacing.schedule }
 
     // Notifications - master switch and per-event toggles.
     // When `notificationsEnabled` is false, NotificationService.evaluate
@@ -329,6 +305,8 @@ final class SettingsStore: ObservableObject {
         self.tokenProvider = tokenProvider
         self.sharedFileService = sharedFileService
 
+        self.pacing = PacingSettingsStore(sharedFileService: sharedFileService)
+
         self.showMenuBar = UserDefaults.standard.object(forKey: "showMenuBar") as? Bool ?? true
         self.launchInBackground = Self.boolDefault(key: "launchInBackground", default: false)
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
@@ -369,39 +347,6 @@ final class SettingsStore: ObservableObject {
             // toggle; the init path just mirrors the OS state).
             UserDefaults.standard.set(systemLaunchAtLogin, forKey: "launchAtLoginEnabled")
         }
-        self.pacingMargin = {
-            let val = UserDefaults.standard.integer(forKey: "pacingMargin")
-            let raw = val > 0 ? val : 10
-            let snapped = (Int((Double(raw) / 5.0).rounded()) * 5)
-            return min(30, max(5, snapped))
-        }()
-        // Workweek pacing. Off by default; active days default to Mon-Fri.
-        let initialWorkweekEnabled = Self.boolDefault(key: "pacingWorkweekEnabled", default: false)
-        let initialActiveDays: Set<Int> = {
-            if let stored = UserDefaults.standard.array(forKey: "pacingActiveDays") as? [Int], !stored.isEmpty {
-                return Set(stored)
-            }
-            return PacingSchedule.workweek
-        }()
-        let initialHoursEnabled = Self.boolDefault(key: "pacingHoursEnabled", default: false)
-        let initialStartHour = Self.intDefault(key: "pacingStartHour", default: PacingSchedule.defaultStartHour)
-        let initialEndHour = Self.intDefault(key: "pacingEndHour", default: PacingSchedule.defaultEndHour)
-        self.pacingWorkweekEnabled = initialWorkweekEnabled
-        self.pacingActiveDays = initialActiveDays
-        self.pacingHoursEnabled = initialHoursEnabled
-        self.pacingStartHour = initialStartHour
-        self.pacingEndHour = initialEndHour
-        // Mirror the resolved schedule to the shared file so the (sandboxed)
-        // widget computes pacing identically on first paint.
-        sharedFileService.updatePacingSchedule(
-            PacingSchedule(
-                enabled: initialWorkweekEnabled,
-                activeDays: initialActiveDays,
-                hoursEnabled: initialHoursEnabled,
-                startHour: initialStartHour,
-                endHour: initialEndHour
-            )
-        )
         self.refreshInterval = {
             let val = UserDefaults.standard.integer(forKey: "refreshInterval")
             return val >= 180 ? val : 300
@@ -509,6 +454,15 @@ final class SettingsStore: ObservableObject {
         } else {
             self.popoverConfig = .default
         }
+
+        // The piège: a @Published child only emits the parent's objectWillChange
+        // when reassigned, not when one of ITS @Published changes. Relay it so a
+        // view observing `settings` re-renders on `settings.pacing.*` changes.
+        // Wired after all stored properties are initialized so the closure can
+        // safely capture self.
+        self.pacingRelay = pacing.objectWillChange.sink { [weak self] in
+            self?.objectWillChange.send()
+        }
     }
 
     // MARK: - Popover persistence
@@ -520,22 +474,16 @@ final class SettingsStore: ObservableObject {
 
     /// Reads a Bool from UserDefaults but distinguishes "absent" from "false".
     /// `UserDefaults.bool(forKey:)` returns false for missing keys, which would
-    /// silently override our intended default. Using `object(forKey:)` lets us
-    /// fall back only when the key has never been written.
+    /// silently override our intended default. Delegates to `SettingsDefaults`
+    /// so the domain slices and this store share one source.
     private static func boolDefault(key: String, default fallback: Bool) -> Bool {
-        if let stored = UserDefaults.standard.object(forKey: key) as? Bool {
-            return stored
-        }
-        return fallback
+        SettingsDefaults.bool(key: key, default: fallback)
     }
 
     /// Same idea as `boolDefault` but for Int. `UserDefaults.integer(forKey:)`
     /// returns 0 for missing keys, which we can't distinguish from a stored 0.
     private static func intDefault(key: String, default fallback: Int) -> Int {
-        if let stored = UserDefaults.standard.object(forKey: key) as? Int {
-            return stored
-        }
-        return fallback
+        SettingsDefaults.int(key: key, default: fallback)
     }
 
     /// Ensures a decoded config still satisfies the validation rules (at least

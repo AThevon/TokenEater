@@ -108,7 +108,7 @@ final class StatusBarController: NSObject {
             }
             .store(in: &cancellables)
 
-        settingsStore.$pacingMargin
+        settingsStore.pacing.$margin
             .removeDuplicates()
             .sink { [weak self] newMargin in
                 self?.usageStore.pacingMargin = newMargin
@@ -122,11 +122,11 @@ final class StatusBarController: NSObject {
         // recompute and reload the widget (which reads the schedule from the
         // shared file the settingsStore wrote in its didSet).
         Publishers.MergeMany(
-            settingsStore.$pacingWorkweekEnabled.map { _ in () }.eraseToAnyPublisher(),
-            settingsStore.$pacingActiveDays.map { _ in () }.eraseToAnyPublisher(),
-            settingsStore.$pacingHoursEnabled.map { _ in () }.eraseToAnyPublisher(),
-            settingsStore.$pacingStartHour.map { _ in () }.eraseToAnyPublisher(),
-            settingsStore.$pacingEndHour.map { _ in () }.eraseToAnyPublisher()
+            settingsStore.pacing.$workweekEnabled.map { _ in () }.eraseToAnyPublisher(),
+            settingsStore.pacing.$activeDays.map { _ in () }.eraseToAnyPublisher(),
+            settingsStore.pacing.$hoursEnabled.map { _ in () }.eraseToAnyPublisher(),
+            settingsStore.pacing.$startHour.map { _ in () }.eraseToAnyPublisher(),
+            settingsStore.pacing.$endHour.map { _ in () }.eraseToAnyPublisher()
         )
         .receive(on: RunLoop.main)
         .sink { [weak self] _ in
