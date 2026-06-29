@@ -53,7 +53,7 @@ final class OverlayWindowController {
     }
 
     private func observeSettings() {
-        settingsStore.$overlayEnabled
+        settingsStore.overlay.$overlayEnabled
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] enabled in
@@ -80,7 +80,7 @@ final class OverlayWindowController {
             .store(in: &cancellables)
 
         // Hide overlay when session monitor is disabled
-        settingsStore.$overlayEnabled
+        settingsStore.overlay.$overlayEnabled
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] enabled in
@@ -95,8 +95,8 @@ final class OverlayWindowController {
 
         // Reposition when scale or side changes
         Publishers.MergeMany(
-            settingsStore.$overlayScale.map { _ in () }.eraseToAnyPublisher(),
-            settingsStore.$overlayLeftSide.map { _ in () }.eraseToAnyPublisher()
+            settingsStore.overlay.$overlayScale.map { _ in () }.eraseToAnyPublisher(),
+            settingsStore.overlay.$overlayLeftSide.map { _ in () }.eraseToAnyPublisher()
         )
         .debounce(for: .milliseconds(50), scheduler: RunLoop.main)
         .sink { [weak self] _ in
@@ -107,7 +107,7 @@ final class OverlayWindowController {
         // Re-evaluate capture immediately when the trigger zone changes: drop
         // the "already active" stickiness and clamp the panel back to
         // pass-through until the cursor crosses the fresh enter threshold.
-        settingsStore.$overlayTriggerZone
+        settingsStore.overlay.$overlayTriggerZone
             .removeDuplicates()
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in

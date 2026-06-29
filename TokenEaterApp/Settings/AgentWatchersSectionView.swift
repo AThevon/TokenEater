@@ -177,7 +177,7 @@ struct AgentWatchersSectionView: View {
                         Image(systemName: "minus")
                             .font(.system(size: 9))
                             .foregroundStyle(.white.opacity(0.3))
-                        TokenEaterSlider(value: $settingsStore.overlayScale, in: 0.6...1.6, step: 0.05)
+                        TokenEaterSlider(value: $settingsStore.overlay.overlayScale, in: 0.6...1.6, step: 0.05)
                         Image(systemName: "plus")
                             .font(.system(size: 9))
                             .foregroundStyle(.white.opacity(0.3))

@@ -108,41 +108,46 @@ final class SettingsStore: ObservableObject {
         didSet { UserDefaults.standard.set(proxyPort, forKey: "proxyPort") }
     }
 
-    // Overlay
-    @Published var overlayEnabled: Bool {
-        didSet { UserDefaults.standard.set(overlayEnabled, forKey: "overlayEnabled") }
-    }
-    @Published var overlayDockEffect: Bool {
-        didSet { UserDefaults.standard.set(overlayDockEffect, forKey: "overlayDockEffect") }
-    }
-    @Published var overlayScale: Double {
-        didSet { UserDefaults.standard.set(overlayScale, forKey: "overlayScale") }
-    }
-    @Published var overlayLeftSide: Bool {
-        didSet { UserDefaults.standard.set(overlayLeftSide, forKey: "overlayLeftSide") }
-    }
-    @Published var overlayTriggerZone: OverlayTriggerZone {
-        didSet { UserDefaults.standard.set(overlayTriggerZone.rawValue, forKey: "overlayTriggerZone") }
-    }
-    @Published var watchersDetailedMode: Bool {
-        didSet { UserDefaults.standard.set(watchersDetailedMode, forKey: "watchersDetailedMode") }
-    }
-    @Published var watcherStyle: WatcherStyle {
-        didSet { UserDefaults.standard.set(watcherStyle.rawValue, forKey: "watcherStyle") }
-    }
-    @Published var watcherDisplayMode: WatcherDisplayMode {
-        didSet { UserDefaults.standard.set(watcherDisplayMode.rawValue, forKey: "watcherDisplayMode") }
-    }
-    @Published var watcherScanInterval: WatcherScanInterval {
-        didSet { UserDefaults.standard.set(watcherScanInterval.rawValue, forKey: "watcherScanInterval") }
-    }
-    @Published var watcherVisibility: WatcherVisibility {
-        didSet { UserDefaults.standard.set(watcherVisibility.rawValue, forKey: "watcherVisibility") }
-    }
+    // Overlay + Performance - extracted into a child ObservableObject domain
+    // slice, same pattern as `pacing`. Views should prefer `settings.overlay.$x`
+    // for bindings; the forwards below keep existing non-binding call sites
+    // compiling without change.
+    @Published var overlay: OverlaySettingsStore
+    private var overlayRelay: AnyCancellable?
 
-    // Performance
-    @Published var watcherAnimationsEnabled: Bool {
-        didSet { UserDefaults.standard.set(watcherAnimationsEnabled, forKey: "watcherAnimationsEnabled") }
+    // Backwards-compatible forwards (no $ bindings should target these).
+    var overlayEnabled: Bool {
+        get { overlay.overlayEnabled } set { overlay.overlayEnabled = newValue }
+    }
+    var overlayDockEffect: Bool {
+        get { overlay.overlayDockEffect } set { overlay.overlayDockEffect = newValue }
+    }
+    var overlayScale: Double {
+        get { overlay.overlayScale } set { overlay.overlayScale = newValue }
+    }
+    var overlayLeftSide: Bool {
+        get { overlay.overlayLeftSide } set { overlay.overlayLeftSide = newValue }
+    }
+    var overlayTriggerZone: OverlayTriggerZone {
+        get { overlay.overlayTriggerZone } set { overlay.overlayTriggerZone = newValue }
+    }
+    var watchersDetailedMode: Bool {
+        get { overlay.watchersDetailedMode } set { overlay.watchersDetailedMode = newValue }
+    }
+    var watcherStyle: WatcherStyle {
+        get { overlay.watcherStyle } set { overlay.watcherStyle = newValue }
+    }
+    var watcherDisplayMode: WatcherDisplayMode {
+        get { overlay.watcherDisplayMode } set { overlay.watcherDisplayMode = newValue }
+    }
+    var watcherScanInterval: WatcherScanInterval {
+        get { overlay.watcherScanInterval } set { overlay.watcherScanInterval = newValue }
+    }
+    var watcherVisibility: WatcherVisibility {
+        get { overlay.watcherVisibility } set { overlay.watcherVisibility = newValue }
+    }
+    var watcherAnimationsEnabled: Bool {
+        get { overlay.watcherAnimationsEnabled } set { overlay.watcherAnimationsEnabled = newValue }
     }
 
     // Pacing - extracted into a child ObservableObject domain slice. Views should
@@ -302,6 +307,7 @@ final class SettingsStore: ObservableObject {
 
         self.pacing = PacingSettingsStore(sharedFileService: sharedFileService)
         self.notification = NotificationSettingsStore()
+        self.overlay = OverlaySettingsStore()
 
         self.showMenuBar = UserDefaults.standard.object(forKey: "showMenuBar") as? Bool ?? true
         self.launchInBackground = Self.boolDefault(key: "launchInBackground", default: false)
@@ -312,25 +318,6 @@ final class SettingsStore: ObservableObject {
             let port = UserDefaults.standard.integer(forKey: "proxyPort")
             return port > 0 ? port : 1080
         }()
-        self.overlayEnabled = UserDefaults.standard.object(forKey: "overlayEnabled") as? Bool ?? true
-        self.overlayDockEffect = UserDefaults.standard.object(forKey: "overlayDockEffect") as? Bool ?? true
-        self.overlayScale = UserDefaults.standard.object(forKey: "overlayScale") as? Double ?? 1.1
-        self.overlayLeftSide = UserDefaults.standard.bool(forKey: "overlayLeftSide")
-        self.overlayTriggerZone = OverlayTriggerZone(
-            rawValue: UserDefaults.standard.string(forKey: "overlayTriggerZone") ?? "medium"
-        ) ?? .medium
-        self.watchersDetailedMode = UserDefaults.standard.object(forKey: "watchersDetailedMode") as? Bool ?? true
-        self.watcherStyle = WatcherStyle(
-            rawValue: UserDefaults.standard.string(forKey: "watcherStyle") ?? "frost"
-        ) ?? .frost
-        self.watcherDisplayMode = WatcherDisplayMode(
-            rawValue: UserDefaults.standard.string(forKey: "watcherDisplayMode") ?? "branchPriority"
-        ) ?? .branchPriority
-        self.watcherScanInterval = (UserDefaults.standard.object(forKey: "watcherScanInterval") as? Int)
-            .flatMap(WatcherScanInterval.init(rawValue:)) ?? .twoSeconds
-        self.watcherVisibility = (UserDefaults.standard.object(forKey: "watcherVisibility") as? Int)
-            .flatMap(WatcherVisibility.init(rawValue:)) ?? .thirtyMinutes
-        self.watcherAnimationsEnabled = UserDefaults.standard.object(forKey: "watcherAnimationsEnabled") as? Bool ?? true
         // Reconcile the stored toggle with the actual SMAppService state - user
         // might have flipped it from System Settings without going through the
         // app, and we must not diverge from macOS's view of the world.
@@ -444,6 +431,9 @@ final class SettingsStore: ObservableObject {
             self?.objectWillChange.send()
         }
         self.notificationRelay = notification.objectWillChange.sink { [weak self] in
+            self?.objectWillChange.send()
+        }
+        self.overlayRelay = overlay.objectWillChange.sink { [weak self] in
             self?.objectWillChange.send()
         }
     }
