@@ -137,18 +137,7 @@ final class UsageStore: ObservableObject {
 
         do {
             let usage = try await repository.refreshUsage(token: token, proxyConfig: proxyConfig)
-            updateUI(from: usage)
-            errorState = .none
-            lastAPIError = nil
-            lastUpdate = Date()
-            // Reset slow speed on success
-            if currentSpeed == .slow {
-                currentSpeed = .normal
-            }
-            retryAfterDate = nil
-            consecutiveRateLimits = 0
-            WidgetReloader.scheduleReload()
-            evaluateNotifications(usage: usage)
+            applySuccess(usage: usage)
         } catch let error as APIError {
             lastAPIError = error.diagnosticSnapshot
             switch error {
@@ -159,17 +148,7 @@ final class UsageStore: ObservableObject {
                 if let freshToken = tokenProvider.currentToken(), freshToken != token {
                     do {
                         let usage = try await repository.refreshUsage(token: freshToken, proxyConfig: proxyConfig)
-                        updateUI(from: usage)
-                        errorState = .none
-                        lastAPIError = nil
-                        lastUpdate = Date()
-                        if currentSpeed == .slow {
-                            currentSpeed = .normal
-                        }
-                        retryAfterDate = nil
-                        consecutiveRateLimits = 0
-                        WidgetReloader.scheduleReload()
-                        evaluateNotifications(usage: usage)
+                        applySuccess(usage: usage)
                         return
                     } catch {
                         // Retry also failed - fall through to set error
@@ -345,6 +324,24 @@ final class UsageStore: ObservableObject {
         } catch {
             // Profile fetch failure is non-critical - don't update errorState
         }
+    }
+
+    /// Applies a successful usage fetch: updates the published UI state, clears
+    /// every error/backoff field, resets the adaptive speed, and fires the
+    /// notification + widget side effects. Shared by the nominal path and the
+    /// post-401 retry so the two can never drift.
+    private func applySuccess(usage: UsageResponse) {
+        updateUI(from: usage)
+        errorState = .none
+        lastAPIError = nil
+        lastUpdate = Date()
+        if currentSpeed == .slow {
+            currentSpeed = .normal
+        }
+        retryAfterDate = nil
+        consecutiveRateLimits = 0
+        WidgetReloader.scheduleReload()
+        evaluateNotifications(usage: usage)
     }
 
     // MARK: - Private
