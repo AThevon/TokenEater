@@ -767,35 +767,28 @@ struct MonitoringView: View {
     /// Themes, uses the risk-aware formula (utilization x time-to-reset);
     /// otherwise falls back to the static threshold ramp.
     private func gaugeColor(pct: Int, resetDate: Date?, windowDuration: TimeInterval) -> Color {
-        if settingsStore.smartColorEnabled {
-            return themeStore.current.smartGaugeColor(
-                utilization: Double(pct),
-                resetDate: resetDate,
-                windowDuration: windowDuration,
-                thresholds: themeStore.thresholds,
-                pacingMargin: Double(settingsStore.pacingMargin),
-                profile: settingsStore.smartColorProfile
-            )
-        }
-        return themeStore.current.gaugeColor(for: Double(pct), thresholds: themeStore.thresholds)
+        GaugeColorResolver.color(
+            mode: GaugeColorResolver.mode(smartColorEnabled: settingsStore.smartColorEnabled),
+            utilization: pct,
+            resetDate: resetDate,
+            windowDuration: windowDuration,
+            theme: themeStore.current,
+            thresholds: themeStore.thresholds,
+            pacingMargin: Double(settingsStore.pacingMargin),
+            profile: settingsStore.smartColorProfile
+        )
     }
 
     private func gaugeGradient(pct: Int, resetDate: Date?, windowDuration: TimeInterval) -> LinearGradient {
-        if settingsStore.smartColorEnabled {
-            return themeStore.current.smartGaugeGradient(
-                utilization: Double(pct),
-                resetDate: resetDate,
-                windowDuration: windowDuration,
-                thresholds: themeStore.thresholds,
-                pacingMargin: Double(settingsStore.pacingMargin),
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing,
-                profile: settingsStore.smartColorProfile
-            )
-        }
-        return themeStore.current.gaugeGradient(
-            for: Double(pct),
+        GaugeColorResolver.gradient(
+            mode: GaugeColorResolver.mode(smartColorEnabled: settingsStore.smartColorEnabled),
+            utilization: pct,
+            resetDate: resetDate,
+            windowDuration: windowDuration,
+            theme: themeStore.current,
             thresholds: themeStore.thresholds,
+            pacingMargin: Double(settingsStore.pacingMargin),
+            profile: settingsStore.smartColorProfile,
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -864,16 +857,16 @@ private struct MetricTile: View {
     @State private var isFlipping: Bool = false
 
     var body: some View {
-        let color: Color = smartEnabled
-            ? themeStore.current.smartGaugeColor(
-                utilization: Double(pct),
-                resetDate: resetDate,
-                windowDuration: windowDuration,
-                thresholds: themeStore.thresholds,
-                pacingMargin: pacingMargin,
-                profile: smartProfile
-            )
-            : themeStore.current.gaugeColor(for: Double(pct), thresholds: themeStore.thresholds)
+        let color = GaugeColorResolver.color(
+            mode: GaugeColorResolver.mode(smartColorEnabled: smartEnabled),
+            utilization: pct,
+            resetDate: resetDate,
+            windowDuration: windowDuration,
+            theme: themeStore.current,
+            thresholds: themeStore.thresholds,
+            pacingMargin: pacingMargin,
+            profile: smartProfile
+        )
         let clamped = CGFloat(min(max(pct, 0), 100)) / 100
 
         return Button {
