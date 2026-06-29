@@ -54,7 +54,7 @@ struct PacingSectionView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         Spacer()
-                        Toggle("", isOn: $settingsStore.smartColorEnabled)
+                        Toggle("", isOn: $settingsStore.display.smartColorEnabled)
                             .toggleStyle(.switch)
                             .tint(DS.Palette.accentSettings)
                             .labelsHidden()

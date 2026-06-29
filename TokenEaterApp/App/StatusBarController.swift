@@ -144,7 +144,7 @@ final class StatusBarController: NSObject {
             }
             .store(in: &cancellables)
 
-        settingsStore.$showMenuBar
+        settingsStore.display.$showMenuBar
             .removeDuplicates()
             .sink { [weak self] visible in
                 self?.statusItem.isVisible = visible

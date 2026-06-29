@@ -125,7 +125,7 @@ struct SettingsSectionView: View {
                         .foregroundStyle(.white.opacity(0.4))
                         .fixedSize(horizontal: false, vertical: true)
 
-                    darkToggle(String(localized: "settings.launchInBackground"), isOn: $settingsStore.launchInBackground)
+                    darkToggle(String(localized: "settings.launchInBackground"), isOn: $settingsStore.display.launchInBackground)
                     Text(String(localized: "settings.launchInBackground.hint"))
                         .font(.system(size: 11))
                         .foregroundStyle(.white.opacity(0.4))

@@ -174,7 +174,7 @@ struct DisplaySectionView: View {
                             .font(.system(size: 10, weight: .semibold))
                             .tracking(0.4)
                             .foregroundStyle(.white.opacity(0.45))
-                        ResetFormatPicker(selection: $settingsStore.resetDisplayFormat)
+                        ResetFormatPicker(selection: $settingsStore.display.resetDisplayFormat)
                             .labelsHidden()
                             .frame(maxWidth: 170)
                     }
@@ -187,7 +187,7 @@ struct DisplaySectionView: View {
                     accent: .pink,
                     onToggle: { showSessionPacing.toggle() }
                 ) {
-                    PacingDisplayPicker(selection: $settingsStore.sessionPacingDisplayMode)
+                    PacingDisplayPicker(selection: $settingsStore.display.sessionPacingDisplayMode)
                         .labelsHidden()
                 }
 
@@ -198,7 +198,7 @@ struct DisplaySectionView: View {
                     accent: .pink,
                     onToggle: { showWeeklyPacing.toggle() }
                 ) {
-                    PacingDisplayPicker(selection: $settingsStore.weeklyPacingDisplayMode)
+                    PacingDisplayPicker(selection: $settingsStore.display.weeklyPacingDisplayMode)
                         .labelsHidden()
                 }
             }
@@ -257,7 +257,7 @@ struct DisplaySectionView: View {
                 if !themeStore.menuBarMonochrome {
                     menuBarColorRow(
                         label: "settings.reset.color",
-                        hex: $settingsStore.resetTextColorHex,
+                        hex: $settingsStore.display.resetTextColorHex,
                         fallback: .white,
                         disabled: settingsStore.smartColorEnabled
                     )
@@ -268,7 +268,7 @@ struct DisplaySectionView: View {
                 // default in MenuBarRenderer.defaultPeriodLabelColor.
                 menuBarColorRow(
                     label: "settings.session.periodcolor",
-                    hex: $settingsStore.sessionPeriodColorHex,
+                    hex: $settingsStore.display.sessionPeriodColorHex,
                     fallback: .white.opacity(0.55),
                     disabled: false
                 )
