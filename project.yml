@@ -57,7 +57,7 @@ targets:
     sources:
       - path: TokenEaterTests
       - path: Shared
-      - path: TokenEaterApp/OnboardingViewModel.swift
+      - path: TokenEaterApp/Onboarding/OnboardingViewModel.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tokeneater.tests
