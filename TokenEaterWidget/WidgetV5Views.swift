@@ -405,7 +405,7 @@ struct HistorySparklineWidgetView: View {
 
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(formatTokens(total))
+                    Text(TokenFormatter.compact(total))
                         .font(.system(size: 30, weight: .bold, design: .rounded))
                         .monospacedDigit()
                         .foregroundStyle(Color(hex: theme.widgetText))
@@ -420,7 +420,7 @@ struct HistorySparklineWidgetView: View {
                     HStack(spacing: 3) {
                         Image(systemName: dayDelta >= 0 ? "arrow.up.right" : "arrow.down.right")
                             .font(.system(size: 10, weight: .bold))
-                        Text("\(dayDelta >= 0 ? "+" : "")\(formatTokens(abs(dayDelta)))")
+                        Text("\(dayDelta >= 0 ? "+" : "")\(TokenFormatter.compact(abs(dayDelta)))")
                             .font(.system(size: 14, weight: .semibold, design: .rounded))
                             .monospacedDigit()
                     }
@@ -519,15 +519,6 @@ struct HistorySparklineWidgetView: View {
         return String(formatter.string(from: date).prefix(2))
     }
 
-    private func formatTokens(_ value: Int) -> String {
-        if value >= 1_000_000 {
-            return String(format: "%.1fM", Double(value) / 1_000_000)
-        }
-        if value >= 1_000 {
-            return String(format: "%.0fk", Double(value) / 1_000)
-        }
-        return "\(value)"
-    }
 }
 
 // =====================================================================

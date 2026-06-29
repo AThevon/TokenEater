@@ -1055,7 +1055,7 @@ private struct MetricTile: View {
                     .font(.system(size: 8, weight: .bold))
                     .tracking(1)
                     .foregroundStyle(DS.Palette.textTertiary)
-                Text(formatTokens(snapshot.total))
+                Text(TokenFormatter.compact(snapshot.total))
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(color)
                     .monospacedDigit()
@@ -1070,7 +1070,7 @@ private struct MetricTile: View {
                         Text(heaviest.date.formatted(.dateTime.weekday(.abbreviated)))
                             .font(.system(size: 11, weight: .semibold, design: .rounded))
                             .foregroundStyle(DS.Palette.textPrimary)
-                        Text(formatTokens(heaviest.tokens))
+                        Text(TokenFormatter.compact(heaviest.tokens))
                             .font(.system(size: 10, weight: .medium, design: .monospaced))
                             .foregroundStyle(DS.Palette.textSecondary)
                             .monospacedDigit()
@@ -1126,20 +1126,6 @@ private struct MetricTile: View {
         }
         .frame(height: 32)
         .padding(.top, 2)
-    }
-
-    /// SI formatter for the back numbers. Mirrors the History view's
-    /// formatTokens for consistency.
-    private func formatTokens(_ value: Int) -> String {
-        if value >= 1_000_000 {
-            let m = Double(value) / 1_000_000
-            return String(format: m >= 10 ? "%.0fM" : "%.1fM", m)
-        }
-        if value >= 1_000 {
-            let k = Double(value) / 1_000
-            return String(format: k >= 10 ? "%.0fk" : "%.1fk", k)
-        }
-        return "\(value)"
     }
 
     private var windowText: String {
