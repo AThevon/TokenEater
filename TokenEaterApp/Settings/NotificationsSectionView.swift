@@ -138,12 +138,12 @@ struct NotificationsSectionView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.white.opacity(0.4))
                     .fixedSize(horizontal: false, vertical: true)
-                darkToggle(String(localized: "settings.notifications.track.fivehour"), isOn: $settingsStore.notifTrackFiveHour)
-                darkToggle(String(localized: "settings.notifications.track.weekly"), isOn: $settingsStore.notifTrackWeekly)
-                darkToggle(String(localized: "settings.notifications.track.sonnet"), isOn: $settingsStore.notifTrackSonnet)
-                darkToggle(String(localized: "settings.notifications.track.design"), isOn: $settingsStore.notifTrackDesign)
+                darkToggle(String(localized: "settings.notifications.track.fivehour"), isOn: $settingsStore.notification.trackFiveHour)
+                darkToggle(String(localized: "settings.notifications.track.weekly"), isOn: $settingsStore.notification.trackWeekly)
+                darkToggle(String(localized: "settings.notifications.track.sonnet"), isOn: $settingsStore.notification.trackSonnet)
+                darkToggle(String(localized: "settings.notifications.track.design"), isOn: $settingsStore.notification.trackDesign)
                 Divider().padding(.vertical, 2)
-                darkToggle(String(localized: "settings.notifications.recovery"), isOn: $settingsStore.notifSendRecovery)
+                darkToggle(String(localized: "settings.notifications.recovery"), isOn: $settingsStore.notification.sendRecovery)
                 Text(String(localized: "settings.notifications.recovery.hint"))
                     .font(.system(size: 11))
                     .foregroundStyle(.white.opacity(0.4))
@@ -162,8 +162,8 @@ struct NotificationsSectionView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.white.opacity(0.4))
                     .fixedSize(horizontal: false, vertical: true)
-                darkToggle(String(localized: "settings.notifications.pacing.hot"), isOn: $settingsStore.notifPacingHot)
-                darkToggle(String(localized: "settings.notifications.pacing.warning"), isOn: $settingsStore.notifPacingWarning)
+                darkToggle(String(localized: "settings.notifications.pacing.hot"), isOn: $settingsStore.notification.pacingHot)
+                darkToggle(String(localized: "settings.notifications.pacing.warning"), isOn: $settingsStore.notification.pacingWarning)
             }
         }
     }
@@ -178,15 +178,15 @@ struct NotificationsSectionView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.white.opacity(0.4))
                     .fixedSize(horizontal: false, vertical: true)
-                darkToggle(String(localized: "settings.notifications.reset.session"), isOn: $settingsStore.notifResetReminderSession)
+                darkToggle(String(localized: "settings.notifications.reset.session"), isOn: $settingsStore.notification.resetReminderSession)
                 reminderOffsetPicker(
-                    selection: $settingsStore.notifResetReminderSessionOffset,
+                    selection: $settingsStore.notification.resetReminderSessionOffset,
                     options: [5, 10, 15, 30, 60],
                     enabled: settingsStore.notifResetReminderSession
                 )
-                darkToggle(String(localized: "settings.notifications.reset.weekly"), isOn: $settingsStore.notifResetReminderWeekly)
+                darkToggle(String(localized: "settings.notifications.reset.weekly"), isOn: $settingsStore.notification.resetReminderWeekly)
                 reminderOffsetPicker(
-                    selection: $settingsStore.notifResetReminderWeeklyOffset,
+                    selection: $settingsStore.notification.resetReminderWeeklyOffset,
                     options: [30, 60, 120, 180, 360],
                     enabled: settingsStore.notifResetReminderWeekly
                 )
@@ -229,7 +229,7 @@ struct NotificationsSectionView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.white.opacity(0.4))
                     .fixedSize(horizontal: false, vertical: true)
-                darkToggle(String(localized: "settings.notifications.extra"), isOn: $settingsStore.notifExtraCredits)
+                darkToggle(String(localized: "settings.notifications.extra"), isOn: $settingsStore.notification.extraCredits)
             }
         }
     }
@@ -244,7 +244,7 @@ struct NotificationsSectionView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.white.opacity(0.4))
                     .fixedSize(horizontal: false, vertical: true)
-                darkToggle(String(localized: "settings.notifications.token"), isOn: $settingsStore.notifTokenExpired)
+                darkToggle(String(localized: "settings.notifications.token"), isOn: $settingsStore.notification.tokenExpired)
             }
         }
     }

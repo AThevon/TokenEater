@@ -173,60 +173,55 @@ final class SettingsStore: ObservableObject {
     /// The resolved schedule handed to the pacing calculator + widget.
     var pacingSchedule: PacingSchedule { pacing.schedule }
 
-    // Notifications - master switch and per-event toggles.
-    // When `notificationsEnabled` is false, NotificationService.evaluate
-    // bails out before touching the per-event toggles. The user keeps their
-    // granular config while silencing the whole pipeline.
-    @Published var notificationsEnabled: Bool {
-        didSet { UserDefaults.standard.set(notificationsEnabled, forKey: "notificationsEnabled") }
+    // Notifications - extracted into a child ObservableObject domain slice, same
+    // pattern as `pacing`. Views should prefer `settings.notification.$x` for
+    // bindings; the forwards below keep existing non-binding call sites
+    // compiling without change.
+    @Published var notification: NotificationSettingsStore
+    private var notificationRelay: AnyCancellable?
+
+    // Backwards-compatible forwards (no $ bindings should target these).
+    var notificationsEnabled: Bool {
+        get { notification.enabled } set { notification.enabled = newValue }
     }
-    @Published var notifTrackFiveHour: Bool {
-        didSet { UserDefaults.standard.set(notifTrackFiveHour, forKey: "notifTrackFiveHour") }
+    var notifTrackFiveHour: Bool {
+        get { notification.trackFiveHour } set { notification.trackFiveHour = newValue }
     }
-    @Published var notifTrackWeekly: Bool {
-        didSet { UserDefaults.standard.set(notifTrackWeekly, forKey: "notifTrackWeekly") }
+    var notifTrackWeekly: Bool {
+        get { notification.trackWeekly } set { notification.trackWeekly = newValue }
     }
-    @Published var notifTrackSonnet: Bool {
-        didSet { UserDefaults.standard.set(notifTrackSonnet, forKey: "notifTrackSonnet") }
+    var notifTrackSonnet: Bool {
+        get { notification.trackSonnet } set { notification.trackSonnet = newValue }
     }
-    @Published var notifTrackDesign: Bool {
-        didSet { UserDefaults.standard.set(notifTrackDesign, forKey: "notifTrackDesign") }
+    var notifTrackDesign: Bool {
+        get { notification.trackDesign } set { notification.trackDesign = newValue }
     }
-    /// When false, only escalations (orange / red) fire. Recovery to green stays silent.
-    @Published var notifSendRecovery: Bool {
-        didSet { UserDefaults.standard.set(notifSendRecovery, forKey: "notifSendRecovery") }
+    var notifSendRecovery: Bool {
+        get { notification.sendRecovery } set { notification.sendRecovery = newValue }
     }
-    /// Pacing zone transitions
-    @Published var notifPacingHot: Bool {
-        didSet { UserDefaults.standard.set(notifPacingHot, forKey: "notifPacingHot") }
+    var notifPacingHot: Bool {
+        get { notification.pacingHot } set { notification.pacingHot = newValue }
     }
-    @Published var notifPacingWarning: Bool {
-        didSet { UserDefaults.standard.set(notifPacingWarning, forKey: "notifPacingWarning") }
+    var notifPacingWarning: Bool {
+        get { notification.pacingWarning } set { notification.pacingWarning = newValue }
     }
-    /// Scheduled reminders (user-configurable offset before reset).
-    @Published var notifResetReminderSession: Bool {
-        didSet { UserDefaults.standard.set(notifResetReminderSession, forKey: "notifResetReminderSession") }
+    var notifResetReminderSession: Bool {
+        get { notification.resetReminderSession } set { notification.resetReminderSession = newValue }
     }
-    @Published var notifResetReminderWeekly: Bool {
-        didSet { UserDefaults.standard.set(notifResetReminderWeekly, forKey: "notifResetReminderWeekly") }
+    var notifResetReminderWeekly: Bool {
+        get { notification.resetReminderWeekly } set { notification.resetReminderWeekly = newValue }
     }
-    /// Minutes before the 5h session resets at which to fire the reminder.
-    /// Defaults to 15. Allowed values are validated by the picker, not enforced here.
-    @Published var notifResetReminderSessionOffset: Int {
-        didSet { UserDefaults.standard.set(notifResetReminderSessionOffset, forKey: "notifResetReminderSessionOffset") }
+    var notifResetReminderSessionOffset: Int {
+        get { notification.resetReminderSessionOffset } set { notification.resetReminderSessionOffset = newValue }
     }
-    /// Minutes before the weekly bucket resets at which to fire the reminder.
-    /// Defaults to 60.
-    @Published var notifResetReminderWeeklyOffset: Int {
-        didSet { UserDefaults.standard.set(notifResetReminderWeeklyOffset, forKey: "notifResetReminderWeeklyOffset") }
+    var notifResetReminderWeeklyOffset: Int {
+        get { notification.resetReminderWeeklyOffset } set { notification.resetReminderWeeklyOffset = newValue }
     }
-    /// Paid extra credits pool transitions
-    @Published var notifExtraCredits: Bool {
-        didSet { UserDefaults.standard.set(notifExtraCredits, forKey: "notifExtraCredits") }
+    var notifExtraCredits: Bool {
+        get { notification.extraCredits } set { notification.extraCredits = newValue }
     }
-    /// Token expired / authentication issues
-    @Published var notifTokenExpired: Bool {
-        didSet { UserDefaults.standard.set(notifTokenExpired, forKey: "notifTokenExpired") }
+    var notifTokenExpired: Bool {
+        get { notification.tokenExpired } set { notification.tokenExpired = newValue }
     }
 
     // Refresh interval (seconds) - minimum 180 (3min), default 300 (5min)
@@ -306,6 +301,7 @@ final class SettingsStore: ObservableObject {
         self.sharedFileService = sharedFileService
 
         self.pacing = PacingSettingsStore(sharedFileService: sharedFileService)
+        self.notification = NotificationSettingsStore()
 
         self.showMenuBar = UserDefaults.standard.object(forKey: "showMenuBar") as? Bool ?? true
         self.launchInBackground = Self.boolDefault(key: "launchInBackground", default: false)
@@ -352,22 +348,6 @@ final class SettingsStore: ObservableObject {
             return val >= 180 ? val : 300
         }()
 
-        // Notification toggles. Defaults below apply only on first launch
-        // (no value yet in UserDefaults) - per `boolDefault` semantics.
-        self.notificationsEnabled = Self.boolDefault(key: "notificationsEnabled", default: true)
-        self.notifTrackFiveHour = Self.boolDefault(key: "notifTrackFiveHour", default: true)
-        self.notifTrackWeekly = Self.boolDefault(key: "notifTrackWeekly", default: true)
-        self.notifTrackSonnet = Self.boolDefault(key: "notifTrackSonnet", default: false)
-        self.notifTrackDesign = Self.boolDefault(key: "notifTrackDesign", default: true)
-        self.notifSendRecovery = Self.boolDefault(key: "notifSendRecovery", default: true)
-        self.notifPacingHot = Self.boolDefault(key: "notifPacingHot", default: true)
-        self.notifPacingWarning = Self.boolDefault(key: "notifPacingWarning", default: false)
-        self.notifResetReminderSession = Self.boolDefault(key: "notifResetReminderSession", default: false)
-        self.notifResetReminderWeekly = Self.boolDefault(key: "notifResetReminderWeekly", default: false)
-        self.notifResetReminderSessionOffset = Self.intDefault(key: "notifResetReminderSessionOffset", default: 15)
-        self.notifResetReminderWeeklyOffset = Self.intDefault(key: "notifResetReminderWeeklyOffset", default: 60)
-        self.notifExtraCredits = Self.boolDefault(key: "notifExtraCredits", default: true)
-        self.notifTokenExpired = Self.boolDefault(key: "notifTokenExpired", default: false)
         self.resetDisplayFormat = ResetDisplayFormat(
             rawValue: UserDefaults.standard.string(forKey: "resetDisplayFormat") ?? "relative"
         ) ?? .relative
@@ -463,6 +443,9 @@ final class SettingsStore: ObservableObject {
         self.pacingRelay = pacing.objectWillChange.sink { [weak self] in
             self?.objectWillChange.send()
         }
+        self.notificationRelay = notification.objectWillChange.sink { [weak self] in
+            self?.objectWillChange.send()
+        }
     }
 
     // MARK: - Popover persistence
@@ -478,12 +461,6 @@ final class SettingsStore: ObservableObject {
     /// so the domain slices and this store share one source.
     private static func boolDefault(key: String, default fallback: Bool) -> Bool {
         SettingsDefaults.bool(key: key, default: fallback)
-    }
-
-    /// Same idea as `boolDefault` but for Int. `UserDefaults.integer(forKey:)`
-    /// returns 0 for missing keys, which we can't distinguish from a stored 0.
-    private static func intDefault(key: String, default fallback: Int) -> Int {
-        SettingsDefaults.int(key: key, default: fallback)
     }
 
     /// Ensures a decoded config still satisfies the validation rules (at least
