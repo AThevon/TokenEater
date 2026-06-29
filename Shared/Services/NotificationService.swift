@@ -82,19 +82,28 @@ private enum Surface: String {
 // MARK: - Notification Service
 
 final class NotificationService: NotificationServiceProtocol {
-    private let center = UNUserNotificationCenter.current()
+    private let center: NotificationCenterProtocol
+    private let state: NotificationStateStore
+
+    init(
+        center: NotificationCenterProtocol = LiveNotificationCenter(),
+        stateStore: NotificationStateStore = UserDefaultsNotificationStateStore()
+    ) {
+        self.center = center
+        self.state = stateStore
+    }
 
     func setupDelegate() {
-        center.delegate = NotificationDelegate.shared
+        center.setDelegate(NotificationDelegate.shared)
     }
 
     func requestPermission() {
         setupDelegate()
-        center.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        center.requestAuthorization()
     }
 
     func checkAuthorizationStatus() async -> UNAuthorizationStatus {
-        await center.notificationSettings().authorizationStatus
+        await center.authorizationStatus()
     }
 
     func sendTest() {
@@ -121,9 +130,7 @@ final class NotificationService: NotificationServiceProtocol {
         // we skip every per-event check (and also drop any pending scheduled
         // reminders so a switch-back doesn't fire stale ones).
         guard toggles.masterEnabled else {
-            center.removePendingNotificationRequests(withIdentifiers: [
-                "reminder_session", "reminder_weekly",
-            ])
+            center.removePending(identifiers: ["reminder_session", "reminder_weekly"])
             return
         }
 
@@ -164,7 +171,7 @@ final class NotificationService: NotificationServiceProtocol {
         toggles: NotificationToggles
     ) {
         let key = "lastLevel_\(surface.rawValue)"
-        let previousRaw = UserDefaults.standard.integer(forKey: key)
+        let previousRaw = state.lastLevel(forKey: key)
         let previous = UsageLevel(rawValue: previousRaw) ?? .green
         let absoluteLevel: UsageLevel = .from(pct: snapshot.pct, thresholds: toggles.thresholds)
         let current: UsageLevel = toggles.smartColorEnabled
@@ -177,7 +184,7 @@ final class NotificationService: NotificationServiceProtocol {
             : absoluteLevel
 
         guard current != previous else { return }
-        UserDefaults.standard.set(current.rawValue, forKey: key)
+        state.setLastLevel(current.rawValue, forKey: key)
 
         // When Smart Color escalates ABOVE the raw-threshold level, the alert is
         // driven by rate/projection, not by nearing the cap. The copy then says
@@ -218,13 +225,13 @@ final class NotificationService: NotificationServiceProtocol {
 
     private func checkPacingTransition(_ zone: PacingZone, surface: Surface, toggles: NotificationToggles) {
         let key = "lastPacing_\(surface.rawValue)"
-        let previous = UserDefaults.standard.string(forKey: key) ?? PacingZone.onTrack.rawValue
+        let previous = state.lastPacing(forKey: key) ?? PacingZone.onTrack.rawValue
 
         // Only fire on entry to a "loud" zone, and only if the toggle for that
         // zone is on. Recovery to chill / onTrack stays silent (the absence of
         // the alert IS the recovery signal).
         if zone.rawValue == previous { return }
-        UserDefaults.standard.set(zone.rawValue, forKey: key)
+        state.setLastPacing(zone.rawValue, forKey: key)
 
         switch zone {
         case .hot:
@@ -252,10 +259,10 @@ final class NotificationService: NotificationServiceProtocol {
         let pct = Int(extra.utilization ?? 0)
         let level = UsageLevel.from(pct: pct, thresholds: toggles.thresholds)
         let key = "lastLevel_extra"
-        let previousRaw = UserDefaults.standard.integer(forKey: key)
+        let previousRaw = state.lastLevel(forKey: key)
         let previous = UsageLevel(rawValue: previousRaw) ?? .green
         guard level != previous else { return }
-        UserDefaults.standard.set(level.rawValue, forKey: key)
+        state.setLastLevel(level.rawValue, forKey: key)
 
         switch level {
         case .orange, .red:
@@ -280,14 +287,13 @@ final class NotificationService: NotificationServiceProtocol {
 
     func notifyTokenExpired(toggle: Bool) {
         guard toggle else { return }
-        let key = "lastTokenExpiredFiredAt"
         let now = Date()
         // De-dupe: only one token-expired notif per hour.
-        if let last = UserDefaults.standard.object(forKey: key) as? Date,
+        if let last = state.tokenExpiredFiredAt(),
            now.timeIntervalSince(last) < 3600 {
             return
         }
-        UserDefaults.standard.set(now, forKey: key)
+        state.setTokenExpiredFiredAt(now)
 
         let content = UNMutableNotificationContent()
         content.sound = .default
@@ -304,9 +310,7 @@ final class NotificationService: NotificationServiceProtocol {
         toggles: NotificationToggles
     ) {
         // Cancel previous schedules so a moving target doesn't pile up.
-        center.removePendingNotificationRequests(withIdentifiers: [
-            "reminder_session", "reminder_weekly",
-        ])
+        center.removePending(identifiers: ["reminder_session", "reminder_weekly"])
 
         if toggles.resetReminderSession,
            let target = sessionResetsAt?.addingTimeInterval(-Double(toggles.resetReminderSessionOffsetMinutes) * 60),
