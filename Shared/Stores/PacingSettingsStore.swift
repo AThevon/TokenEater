@@ -5,33 +5,43 @@ import Foundation
 /// mirror so the (sandboxed) widget computes pacing identically.
 @MainActor
 final class PacingSettingsStore: ObservableObject {
+    /// Acceptable distance ahead of linear pace, in percentage points, before the
+    /// pacing zone turns warning/hot. Snapped to the nearest 5 and clamped to
+    /// 5...30 when loaded (see init); the setter persists the raw value.
     @Published var margin: Int {
         didSet { UserDefaults.standard.set(margin, forKey: "pacingMargin") }
     }
+    /// Workweek pacing: when on, the expected pace only advances over the user's
+    /// active days, so off-days don't make them look ahead of pace.
     @Published var workweekEnabled: Bool {
         didSet {
             UserDefaults.standard.set(workweekEnabled, forKey: "pacingWorkweekEnabled")
             sharedFileService.updatePacingSchedule(schedule)
         }
     }
+    /// Active weekday numbers (Gregorian 1=Sun ... 7=Sat) used when workweek
+    /// pacing is on. Persisted as a sorted array.
     @Published var activeDays: Set<Int> {
         didSet {
             UserDefaults.standard.set(Array(activeDays).sorted(), forKey: "pacingActiveDays")
             sharedFileService.updatePacingSchedule(schedule)
         }
     }
+    /// When on, workweek pacing is further narrowed to active hours of the day.
     @Published var hoursEnabled: Bool {
         didSet {
             UserDefaults.standard.set(hoursEnabled, forKey: "pacingHoursEnabled")
             sharedFileService.updatePacingSchedule(schedule)
         }
     }
+    /// Start hour (0...23) of the active window, applied to every active day.
     @Published var startHour: Int {
         didSet {
             UserDefaults.standard.set(startHour, forKey: "pacingStartHour")
             sharedFileService.updatePacingSchedule(schedule)
         }
     }
+    /// End hour (1...24) of the active window, applied to every active day.
     @Published var endHour: Int {
         didSet {
             UserDefaults.standard.set(endHour, forKey: "pacingEndHour")
