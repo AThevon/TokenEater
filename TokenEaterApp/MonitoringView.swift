@@ -667,9 +667,10 @@ struct MonitoringView: View {
         let limit = extra.monthlyLimit ?? 0
         let pct = extra.utilization.map { Int($0) } ?? (limit > 0 ? Int(used / limit * 100) : 0)
         let currency = extra.currency ?? "USD"
-        let tint = pct >= 85 ? DS.Palette.semanticError
-                 : pct >= 60 ? DS.Palette.semanticWarning
-                             : DS.Palette.semanticSuccess
+        // Same threshold ladder + theme palette as the menu bar / popover /
+        // widgets. Extra Credits has no reset window, so it never uses Smart
+        // Color; the static gauge thresholds keep every surface in agreement.
+        let tint = themeStore.current.gaugeColor(for: Double(pct), thresholds: themeStore.thresholds)
 
         return VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             HStack {

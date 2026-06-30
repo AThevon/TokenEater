@@ -83,6 +83,11 @@ final class SettingsStore: ObservableObject {
     @Published var displayDesign: Bool {
         didSet { UserDefaults.standard.set(displayDesign, forKey: "displayDesign") }
     }
+    /// Same as `displayDesign` but for the paid Extra Credits pool. Only
+    /// surfaced in settings when `UsageStore.hasExtraCredits` is true.
+    @Published var displayExtraCredits: Bool {
+        didSet { UserDefaults.standard.set(displayExtraCredits, forKey: "displayExtraCredits") }
+    }
 
     // MARK: - Popover
     /// Full layout configuration for the menu-bar popover. 3 variants share this
@@ -498,6 +503,9 @@ final class SettingsStore: ObservableObject {
         }
         self.displayDesign = UserDefaults.standard.object(forKey: "displayDesign") != nil
             ? UserDefaults.standard.bool(forKey: "displayDesign")
+            : false
+        self.displayExtraCredits = UserDefaults.standard.object(forKey: "displayExtraCredits") != nil
+            ? UserDefaults.standard.bool(forKey: "displayExtraCredits")
             : false
 
         // Popover layout config. Fresh install or decode failure -> defaults

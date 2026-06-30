@@ -109,3 +109,137 @@ struct MenuBarPeriodLabelColorTests {
         #expect(MenuBarRenderer.periodLabelColor(hex: "not-a-color") == MenuBarRenderer.defaultPeriodLabelColor)
     }
 }
+
+/// Covers the windowless-metric colouring rule that keeps Extra Credits in
+/// agreement across the menu bar, popover, dashboard and widgets: Smart Color
+/// is time-aware, so a metric with no reset window must use the static
+/// threshold ladder instead of the profile-based absolute-risk colour.
+@Suite("MenuBarRenderer.gaugeColor (windowless fallback)")
+struct MenuBarGaugeColorTests {
+
+    private let theme = ThemeColors.default
+    private let thresholds = UsageThresholds.default // warning 60, critical 85
+    private let now = Date(timeIntervalSince1970: 1_700_000_000)
+
+    @Test("windowless metric uses the threshold ladder even when Smart Color is on")
+    func windowlessUsesThresholds() {
+        // Extra Credits has no reset window (resetDate nil, windowDuration 0).
+        let observed = MenuBarRenderer.gaugeColor(
+            pct: 67, resetDate: nil, windowDuration: 0,
+            monochrome: false, smartEnabled: true,
+            themeColors: theme, thresholds: thresholds,
+            pacingMargin: 10, smartColorProfile: .balanced, now: now
+        )
+        // 67% is past the 60 warning threshold → warning colour.
+        #expect(observed == theme.gaugeNSColor(for: 67, thresholds: thresholds))
+        // Regression guard for the green-vs-orange bug: the old code routed
+        // windowless metrics through Smart Color, which reads a calmer colour
+        // at 67% because the profile bounds (≈0.50/1.00) differ from the user's
+        // 60/85 thresholds. Those two colours must NOT be equal here.
+        let smartWindowless = theme.smartGaugeNSColor(
+            utilization: 67, resetDate: nil, windowDuration: 0,
+            thresholds: thresholds, pacingMargin: 10, now: now, profile: .balanced
+        )
+        #expect(observed != smartWindowless)
+    }
+
+    @Test("windowed metric still uses Smart Color when enabled")
+    func windowedUsesSmart() {
+        let reset = now.addingTimeInterval(180 * 60) // 3h left on a 5h window
+        let observed = MenuBarRenderer.gaugeColor(
+            pct: 80, resetDate: reset, windowDuration: 5 * 3600,
+            monochrome: false, smartEnabled: true,
+            themeColors: theme, thresholds: thresholds,
+            pacingMargin: 10, smartColorProfile: .balanced, now: now
+        )
+        let expectedSmart = theme.smartGaugeNSColor(
+            utilization: 80, resetDate: reset, windowDuration: 5 * 3600,
+            thresholds: thresholds, pacingMargin: 10, now: now, profile: .balanced
+        )
+        #expect(observed == expectedSmart)
+    }
+
+    @Test("smart disabled always uses the threshold ladder")
+    func smartDisabledUsesThresholds() {
+        let reset = now.addingTimeInterval(180 * 60)
+        let observed = MenuBarRenderer.gaugeColor(
+            pct: 80, resetDate: reset, windowDuration: 5 * 3600,
+            monochrome: false, smartEnabled: false,
+            themeColors: theme, thresholds: thresholds,
+            pacingMargin: 10, smartColorProfile: .balanced, now: now
+        )
+        #expect(observed == theme.gaugeNSColor(for: 80, thresholds: thresholds))
+    }
+
+    @Test("monochrome wins over everything")
+    func monochromeWins() {
+        let observed = MenuBarRenderer.gaugeColor(
+            pct: 67, resetDate: nil, windowDuration: 0,
+            monochrome: true, smartEnabled: true,
+            themeColors: theme, thresholds: thresholds,
+            pacingMargin: 10, smartColorProfile: .balanced, now: now
+        )
+        #expect(observed == NSColor.labelColor)
+    }
+}
+
+/// Covers the pin gating: Extra Credits renders in the menu bar only when the
+/// paid pool is enabled, otherwise the item must not silently vanish.
+@Suite("MenuBarRenderer Extra Credits gating")
+struct MenuBarExtraCreditsRenderTests {
+
+    /// Full RenderData with neutral defaults; tests override only what matters.
+    private func data(
+        pinned: Set<MetricID> = [.extraCredits],
+        hasExtraCredits: Bool = true,
+        extraCreditsPct: Int = 67,
+        style: MenuBarStyle = .classic
+    ) -> MenuBarRenderer.RenderData {
+        MenuBarRenderer.RenderData(
+            pinnedMetrics: pinned,
+            displaySonnet: false,
+            fiveHourPct: 0, sevenDayPct: 0, sonnetPct: 0,
+            weeklyPacingDelta: 0, weeklyPacingZone: .onTrack, hasWeeklyPacing: false,
+            sessionPacingDelta: 0, sessionPacingZone: .onTrack, hasSessionPacing: false,
+            sessionPacingDisplayMode: .dotDelta, weeklyPacingDisplayMode: .dotDelta,
+            hasConfig: true, hasError: false,
+            themeColors: .default, thresholds: .default,
+            menuBarMonochrome: false,
+            fiveHourReset: "", fiveHourResetAbsolute: "",
+            fiveHourResetDate: nil, sevenDayResetDate: nil, sonnetResetDate: nil, designResetDate: nil,
+            hasFiveHourBucket: false,
+            resetDisplayFormat: .relative,
+            resetTextColorHex: "", sessionPeriodColorHex: "",
+            smartResetColor: false, smartColorProfile: .balanced,
+            pacingMargin: 10,
+            menuBarStyle: style,
+            pacingShape: .circle,
+            designPct: 0, hasDesign: false,
+            extraCreditsPct: extraCreditsPct, hasExtraCredits: hasExtraCredits
+        )
+    }
+
+    @Test("EC pinned + pool enabled renders a value (non-template image)")
+    func renderedWhenEnabled() {
+        let image = MenuBarRenderer.renderUncached(data(hasExtraCredits: true))
+        // The pinned-metrics path produces a non-template text image; the
+        // logo fallback is a template. So a non-template image proves EC drew.
+        #expect(image.isTemplate == false)
+        #expect(image.size.width > 0)
+    }
+
+    @Test("EC pinned but pool disabled falls back to the logo (template image)")
+    func logoFallbackWhenDisabled() {
+        // Only EC is pinned and it's filtered out → ordered list is empty →
+        // the renderer returns the template logo instead of a 0-width sliver.
+        let image = MenuBarRenderer.renderUncached(data(hasExtraCredits: false))
+        #expect(image.isTemplate == true)
+    }
+
+    @Test("EC renders in badge style too")
+    func renderedInBadgeStyle() {
+        let image = MenuBarRenderer.renderUncached(data(hasExtraCredits: true, style: .badge))
+        #expect(image.isTemplate == false)
+        #expect(image.size.width > 0)
+    }
+}

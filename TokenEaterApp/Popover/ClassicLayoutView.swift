@@ -44,7 +44,8 @@ struct ClassicLayoutView: View {
 
         let showSonnetSat = settingsStore.displaySonnet
         let showDesignSat = settingsStore.displayDesign && usageStore.hasDesign
-        let hasExtraSatellites = showSonnetSat || showDesignSat
+        let showExtraCreditsSat = settingsStore.displayExtraCredits && usageStore.hasExtraCredits
+        let hasExtraSatellites = showSonnetSat || showDesignSat || showExtraCreditsSat
 
         if !sessionVisible && !weeklyVisible {
             EmptyView()
@@ -79,6 +80,15 @@ struct ClassicLayoutView: View {
                         pct: usageStore.designPct,
                         resetDate: usageStore.lastUsage?.sevenDayDesign?.resetsAtDate,
                         windowDuration: 7 * 86_400
+                    )
+                }
+                if showExtraCreditsSat {
+                    // No reset window → threshold-coloured (see PopoverColors.gauge).
+                    PopoverSatelliteRing(
+                        label: String(localized: "metric.extraCredits"),
+                        pct: usageStore.extraCreditsPct,
+                        resetDate: nil,
+                        windowDuration: 0
                     )
                 }
             }

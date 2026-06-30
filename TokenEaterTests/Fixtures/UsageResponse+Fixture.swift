@@ -20,12 +20,35 @@ extension UsageResponse {
         sonnetUtil: Double = 30,
         fiveHourResetsAt: String? = nil,
         sevenDayResetsAt: String? = nil,
-        sonnetResetsAt: String? = nil
+        sonnetResetsAt: String? = nil,
+        extraUsage: ExtraUsage? = nil
     ) -> UsageResponse {
         UsageResponse(
             fiveHour: .fixture(utilization: fiveHourUtil, resetsAt: fiveHourResetsAt),
             sevenDay: .fixture(utilization: sevenDayUtil, resetsAt: sevenDayResetsAt),
-            sevenDaySonnet: .fixture(utilization: sonnetUtil, resetsAt: sonnetResetsAt)
+            sevenDaySonnet: .fixture(utilization: sonnetUtil, resetsAt: sonnetResetsAt),
+            extraUsage: extraUsage
+        )
+    }
+}
+
+extension ExtraUsage {
+    /// Test-only convenience builder for the paid Extra Credits pool.
+    static func fixture(
+        isEnabled: Bool = true,
+        monthlyLimit: Double? = 40000,
+        usedCredits: Double? = 27000,
+        utilization: Double? = 67.5,
+        currency: String? = "USD",
+        disabledReason: String? = nil
+    ) -> ExtraUsage {
+        ExtraUsage(
+            isEnabled: isEnabled,
+            monthlyLimit: monthlyLimit,
+            usedCredits: usedCredits,
+            utilization: utilization,
+            currency: currency,
+            disabledReason: disabledReason
         )
     }
 }

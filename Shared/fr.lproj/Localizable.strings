@@ -16,6 +16,7 @@
 "dashboard.extra.separator" = "/";
 "dashboard.extra.monthly" = "ce mois-ci";
 "dashboard.extra.noLimit" = "Limite mensuelle non définie";
+"metric.extraCredits" = "Crédits sup.";
 "metric.sessionReset" = "Compte à rebours de session";
 "settings.pacing.style" = "Style du pacing";
 "settings.group.session" = "Session (5h)";
@@ -54,6 +55,10 @@
 "widget.pacing.session" = "5h";
 "widget.pacing.weekly" = "7j";
 "widget.design" = "Design";
+"widget.extra" = "Crédits sup.";
+"widget.title.extraCredits" = "Crédits supplémentaires";
+"widget.description.extraCredits" = "Suivez votre pool de crédits supplémentaires payants : dépenses, limite mensuelle et pourcentage utilisé";
+"widget.extra.disabled" = "Crédits supplémentaires non activés";
 "widget.history.title" = "Historique";
 "widget.history.last7days" = "7 derniers jours";
 "widget.history.total" = "Total";
@@ -630,6 +635,7 @@
 "popover.option.showRefreshButton" = "Afficher le bouton de rafraîchissement manuel";
 "popover.option.showSonnet" = "Afficher l'anneau Sonnet (variant Classic)";
 "popover.option.showDesign" = "Afficher l'anneau Design (variant Classic)";
+"popover.option.showExtraCredits" = "Afficher l'anneau Crédits sup.";
 "settings.group.extra" = "Métriques supplémentaires dans la barre de menus";
 
 "popoverVariant.classic" = "Classique";

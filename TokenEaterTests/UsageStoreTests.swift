@@ -98,6 +98,42 @@ struct UsageStoreTests {
         #expect(store.sonnetPct == 30)
     }
 
+    // MARK: - refresh — extra credits
+
+    @Test("refresh exposes an enabled extra-credits pool")
+    func refreshExposesEnabledExtraCredits() async {
+        let (store, _, _, _, _) = makeSUT(
+            usage: .fixture(extraUsage: .fixture(isEnabled: true, utilization: 67.5))
+        )
+
+        await store.refresh()
+
+        #expect(store.hasExtraCredits == true)
+        // 67.5 truncates to 67, matching the dashboard / widget / menu bar.
+        #expect(store.extraCreditsPct == 67)
+    }
+
+    @Test("a disabled extra-credits pool is not surfaced")
+    func disabledExtraCreditsNotSurfaced() async {
+        let (store, _, _, _, _) = makeSUT(
+            usage: .fixture(extraUsage: .fixture(isEnabled: false, utilization: nil))
+        )
+
+        await store.refresh()
+
+        #expect(store.hasExtraCredits == false)
+    }
+
+    @Test("no extra-credits pool means hasExtraCredits is false and pct is 0")
+    func noExtraCreditsPool() async {
+        let (store, _, _, _, _) = makeSUT(usage: .fixture(extraUsage: nil))
+
+        await store.refresh()
+
+        #expect(store.hasExtraCredits == false)
+        #expect(store.extraCreditsPct == 0)
+    }
+
     @Test("refresh sets lastUpdate on success")
     func refreshSetsLastUpdate() async {
         let (store, _, _, _, _) = makeSUT()

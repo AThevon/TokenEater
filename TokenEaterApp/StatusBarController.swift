@@ -297,7 +297,9 @@ final class StatusBarController: NSObject {
             menuBarStyle: settingsStore.menuBarStyle,
             pacingShape: settingsStore.pacingShape,
             designPct: usageStore.designPct,
-            hasDesign: usageStore.hasDesign
+            hasDesign: usageStore.hasDesign,
+            extraCreditsPct: usageStore.extraCreditsPct,
+            hasExtraCredits: usageStore.hasExtraCredits
         ))
         statusItem.button?.image = image
     }

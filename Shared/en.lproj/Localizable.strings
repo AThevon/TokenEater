@@ -16,6 +16,7 @@
 "dashboard.extra.separator" = "/";
 "dashboard.extra.monthly" = "this month";
 "dashboard.extra.noLimit" = "Monthly limit not set";
+"metric.extraCredits" = "Extra Credits";
 "metric.sessionReset" = "Session reset countdown";
 "settings.pacing.style" = "Pacing style";
 "settings.group.session" = "Session (5h)";
@@ -54,6 +55,10 @@
 "widget.pacing.session" = "5h";
 "widget.pacing.weekly" = "7d";
 "widget.design" = "Design";
+"widget.extra" = "Extra Credits";
+"widget.title.extraCredits" = "Extra Credits";
+"widget.description.extraCredits" = "Track your paid Extra Credits pool: spend, monthly limit and percentage used";
+"widget.extra.disabled" = "Extra Credits not enabled";
 "widget.history.title" = "History";
 "widget.history.last7days" = "Last 7 days";
 "widget.history.total" = "Total";
@@ -630,6 +635,7 @@
 "popover.option.showRefreshButton" = "Show manual refresh button";
 "popover.option.showSonnet" = "Show Sonnet ring (Classic variant)";
 "popover.option.showDesign" = "Show Design ring (Classic variant)";
+"popover.option.showExtraCredits" = "Show Extra Credits ring";
 "settings.group.extra" = "Extra metrics in menu bar";
 
 "popoverVariant.classic" = "Classic";

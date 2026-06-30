@@ -16,6 +16,7 @@ struct DisplaySectionView: View {
     @State private var showWeeklyPacing: Bool
     @State private var showSonnet: Bool
     @State private var showDesign: Bool
+    @State private var showExtraCredits: Bool
 
     init(initialMetrics: Set<MetricID>) {
         _showFiveHour = State(initialValue: initialMetrics.contains(.fiveHour))
@@ -25,6 +26,7 @@ struct DisplaySectionView: View {
         _showWeeklyPacing = State(initialValue: initialMetrics.contains(.weeklyPacing))
         _showSonnet = State(initialValue: initialMetrics.contains(.sonnet))
         _showDesign = State(initialValue: initialMetrics.contains(.design))
+        _showExtraCredits = State(initialValue: initialMetrics.contains(.extraCredits))
     }
 
     var body: some View {
@@ -81,6 +83,7 @@ struct DisplaySectionView: View {
         }
         .onChange(of: showSonnet) { _, new in syncMetric(.sonnet, on: new, revert: { showSonnet = true }) }
         .onChange(of: showDesign) { _, new in syncMetric(.design, on: new, revert: { showDesign = true }) }
+        .onChange(of: showExtraCredits) { _, new in syncMetric(.extraCredits, on: new, revert: { showExtraCredits = true }) }
         // Sync: store -> local toggles (external changes, e.g. pin/unpin from popover)
         .onChange(of: settingsStore.pinnedMetrics) { _, metrics in
             if showFiveHour != metrics.contains(.fiveHour) { showFiveHour = metrics.contains(.fiveHour) }
@@ -95,6 +98,7 @@ struct DisplaySectionView: View {
                 withAnimation(.easeInOut(duration: 0.2)) { showWeeklyPacing = metrics.contains(.weeklyPacing) }
             }
             if showSonnet != metrics.contains(.sonnet) { showSonnet = metrics.contains(.sonnet) }
+            if showExtraCredits != metrics.contains(.extraCredits) { showExtraCredits = metrics.contains(.extraCredits) }
         }
     }
 
@@ -156,6 +160,15 @@ struct DisplaySectionView: View {
                             isActive: showDesign,
                             accent: .purple
                         ) { showDesign.toggle() }
+                    }
+
+                    if usageStore.hasExtraCredits {
+                        MetricPinChip(
+                            label: String(localized: "metric.extraCredits"),
+                            icon: "creditcard.fill",
+                            isActive: showExtraCredits,
+                            accent: .yellow
+                        ) { showExtraCredits.toggle() }
                     }
                 }
 
@@ -425,6 +438,7 @@ struct DisplaySectionView: View {
         showSonnet = settingsStore.pinnedMetrics.contains(.sonnet)
         showWeeklyPacing = settingsStore.pinnedMetrics.contains(.weeklyPacing)
         showDesign = settingsStore.pinnedMetrics.contains(.design)
+        showExtraCredits = settingsStore.pinnedMetrics.contains(.extraCredits)
     }
 
     private func syncMetric(_ metric: MetricID, on: Bool, revert: @escaping () -> Void) {

@@ -42,6 +42,8 @@ enum MenuBarRenderer {
         let pacingShape: PacingShape
         let designPct: Int
         let hasDesign: Bool
+        let extraCreditsPct: Int
+        let hasExtraCredits: Bool
     }
 
     private static var cachedImage: NSImage?
@@ -71,18 +73,54 @@ enum MenuBarRenderer {
     // MARK: - Color helpers
 
     private static func colorForPct(_ pct: Int, resetDate: Date?, windowDuration: TimeInterval, data: RenderData) -> NSColor {
-        if data.menuBarMonochrome { return .labelColor }
-        if data.smartResetColor {
-            return data.themeColors.smartGaugeNSColor(
+        gaugeColor(
+            pct: pct,
+            resetDate: resetDate,
+            windowDuration: windowDuration,
+            monochrome: data.menuBarMonochrome,
+            smartEnabled: data.smartResetColor,
+            themeColors: data.themeColors,
+            thresholds: data.thresholds,
+            pacingMargin: data.pacingMargin,
+            smartColorProfile: data.smartColorProfile
+        )
+    }
+
+    /// Resolves the gauge colour for a flat percentage.
+    ///
+    /// Smart Color is a *time-aware* risk model: it projects current usage
+    /// against the time left in a reset window. A metric with no reset window
+    /// (e.g. the Extra Credits pool) has nothing to project against, so it
+    /// falls back to the static warning/critical threshold ladder. This is the
+    /// rule that keeps Extra Credits coloured identically in the menu bar, the
+    /// popover, the dashboard and the widgets. Internal (not private) so the
+    /// windowless-fallback rule is unit-testable in isolation; `now` is
+    /// injectable for deterministic tests.
+    static func gaugeColor(
+        pct: Int,
+        resetDate: Date?,
+        windowDuration: TimeInterval,
+        monochrome: Bool,
+        smartEnabled: Bool,
+        themeColors: ThemeColors,
+        thresholds: UsageThresholds,
+        pacingMargin: Double,
+        smartColorProfile: SmartColorProfile,
+        now: Date = Date()
+    ) -> NSColor {
+        if monochrome { return .labelColor }
+        if smartEnabled, let resetDate, windowDuration > 0 {
+            return themeColors.smartGaugeNSColor(
                 utilization: Double(pct),
                 resetDate: resetDate,
                 windowDuration: windowDuration,
-                thresholds: data.thresholds,
-                pacingMargin: data.pacingMargin,
-                profile: data.smartColorProfile
+                thresholds: thresholds,
+                pacingMargin: pacingMargin,
+                now: now,
+                profile: smartColorProfile
             )
         }
-        return data.themeColors.gaugeNSColor(for: Double(pct), thresholds: data.thresholds)
+        return themeColors.gaugeNSColor(for: Double(pct), thresholds: thresholds)
     }
 
     private static func resetDate(for metric: MetricID, data: RenderData) -> Date? {
@@ -200,11 +238,12 @@ enum MenuBarRenderer {
         }()
 
         let ordered: [MetricID] = [
-            .sessionReset, .fiveHour, .sessionPacing, .sevenDay, .weeklyPacing, .sonnet, .design
+            .sessionReset, .fiveHour, .sessionPacing, .sevenDay, .weeklyPacing, .sonnet, .design, .extraCredits
         ].filter {
             guard data.pinnedMetrics.contains($0) else { return false }
-            // Sonnet / Design visibility in the menu bar is purely driven
-            // by pinnedMetrics. Popover visibility has its own toggles.
+            // Sonnet / Design / Extra Credits visibility in the menu bar is
+            // purely driven by pinnedMetrics. Popover visibility has its own
+            // toggles.
             if $0 == .design && !data.hasDesign { return false }
             switch $0 {
             // Session-scoped pins stay visible as long as the API returned a
@@ -214,6 +253,9 @@ enum MenuBarRenderer {
             case .sessionReset, .sessionPacing: return data.hasFiveHourBucket
             case .weeklyPacing: return data.hasWeeklyPacing
             case .design: return data.hasDesign
+            // Extra Credits only renders when the paid pool is provisioned and
+            // enabled. Hidden otherwise so non-overage users never see "EC 0%".
+            case .extraCredits: return data.hasExtraCredits
             default: return true
             }
         }
@@ -256,13 +298,14 @@ enum MenuBarRenderer {
                     mode: data.weeklyPacingDisplayMode,
                     data: data
                 )
-            case .fiveHour, .sevenDay, .sonnet, .design:
+            case .fiveHour, .sevenDay, .sonnet, .design, .extraCredits:
                 let value: Int
                 switch metric {
                 case .fiveHour: value = data.fiveHourPct
                 case .sevenDay: value = data.sevenDayPct
                 case .sonnet: value = data.sonnetPct
                 case .design: value = data.designPct
+                case .extraCredits: value = data.extraCreditsPct
                 default: value = 0
                 }
                 appendPercentMetric(
@@ -375,16 +418,18 @@ enum MenuBarRenderer {
 
     private static func buildBadgePills(_ data: RenderData) -> [BadgePill] {
         let ordered: [MetricID] = [
-            .sessionReset, .fiveHour, .sessionPacing, .sevenDay, .weeklyPacing, .sonnet, .design
+            .sessionReset, .fiveHour, .sessionPacing, .sevenDay, .weeklyPacing, .sonnet, .design, .extraCredits
         ].filter {
             guard data.pinnedMetrics.contains($0) else { return false }
-            // Sonnet / Design visibility in the menu bar is purely driven
-            // by pinnedMetrics. Popover visibility has its own toggles.
+            // Sonnet / Design / Extra Credits visibility in the menu bar is
+            // purely driven by pinnedMetrics. Popover visibility has its own
+            // toggles.
             if $0 == .design && !data.hasDesign { return false }
             switch $0 {
             case .sessionReset, .sessionPacing: return data.hasFiveHourBucket
             case .weeklyPacing: return data.hasWeeklyPacing
             case .design: return data.hasDesign
+            case .extraCredits: return data.hasExtraCredits
             default: return true
             }
         }
@@ -416,6 +461,13 @@ enum MenuBarRenderer {
                 return BadgePill(
                     text: "\(data.designPct)%",
                     tint: colorForPct(data.designPct, resetDate: data.designResetDate, windowDuration: 7 * 86_400, data: data)
+                )
+            case .extraCredits:
+                // No reset window: pass nil/0 so colorForPct falls back to the
+                // static threshold colour instead of risk-based smart colour.
+                return BadgePill(
+                    text: "\(data.extraCreditsPct)%",
+                    tint: colorForPct(data.extraCreditsPct, resetDate: nil, windowDuration: 0, data: data)
                 )
             case .sessionPacing:
                 return pacingBadgePill(
