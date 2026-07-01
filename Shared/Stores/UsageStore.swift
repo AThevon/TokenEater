@@ -50,6 +50,15 @@ final class UsageStore: ObservableObject {
         errorState == .tokenUnavailable
     }
 
+    /// True when the paid Extra Credits pool is provisioned and turned on for
+    /// this account. Mirrors `hasDesign`/`hasOpus`: drives whether the metric
+    /// can be pinned to the menu bar and shown in the widgets.
+    var hasExtraCredits: Bool { extraUsage?.isEnabled == true }
+
+    /// Extra Credits utilization as a whole-number percentage (see
+    /// `ExtraUsage.percent`). 0 when the pool is absent.
+    var extraCreditsPct: Int { extraUsage?.percent ?? 0 }
+
     var pacingMargin: Int = 10
     /// Workweek pacing schedule (from settings). Wired by StatusBarController.
     /// Drives whether off-days count toward the expected pace.

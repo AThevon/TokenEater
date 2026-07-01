@@ -67,6 +67,38 @@ struct UsageResponseDecodingTests {
         #expect(usage.extraUsage?.disabledReason == "org_level_disabled")
     }
 
+    /// `percent` prefers the API-provided utilization when present. Drives the
+    /// menu-bar "EC %", the widget ring, and the dashboard tile, so it must
+    /// round the same way everywhere.
+    @Test("ExtraUsage.percent prefers API utilization")
+    func extraPercentPrefersUtilization() {
+        let extra = ExtraUsage(
+            isEnabled: true, monthlyLimit: 50000, usedCredits: 18000,
+            utilization: 36.0, currency: "USD", disabledReason: nil
+        )
+        #expect(extra.percent == 36)
+    }
+
+    /// When the API omits `utilization`, `percent` falls back to used / limit.
+    @Test("ExtraUsage.percent falls back to used / limit")
+    func extraPercentFallsBackToRatio() {
+        let extra = ExtraUsage(
+            isEnabled: true, monthlyLimit: 50000, usedCredits: 18000,
+            utilization: nil, currency: "USD", disabledReason: nil
+        )
+        #expect(extra.percent == 36)
+    }
+
+    /// No limit to divide by → 0, never a divide-by-zero / NaN.
+    @Test("ExtraUsage.percent is 0 with no limit")
+    func extraPercentZeroWithoutLimit() {
+        let extra = ExtraUsage(
+            isEnabled: true, monthlyLimit: nil, usedCredits: 18000,
+            utilization: nil, currency: "USD", disabledReason: nil
+        )
+        #expect(extra.percent == 0)
+    }
+
     /// New unknown codenames (tangelo, iguana_necktie) must not break decoding.
     @Test("unknown top-level keys are ignored")
     func unknownKeysIgnored() throws {

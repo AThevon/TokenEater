@@ -130,6 +130,17 @@ struct ExtraUsage: Codable, Equatable {
         case currency
         case disabledReason = "disabled_reason"
     }
+
+    /// Utilization as a whole-number percentage. Prefers the API-provided
+    /// `utilization`; falls back to `used / limit` when it is omitted but both
+    /// amounts are present. 0 when there is no limit to divide by. Shared by
+    /// the menu bar, the dashboard and the widgets so they never disagree.
+    var percent: Int {
+        if let util = utilization { return Int(util) }
+        let used = usedCredits ?? 0
+        let limit = monthlyLimit ?? 0
+        return limit > 0 ? Int((used / limit) * 100) : 0
+    }
 }
 
 // MARK: - Cached Usage (for offline support)

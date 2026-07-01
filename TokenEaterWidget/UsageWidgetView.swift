@@ -94,6 +94,16 @@ struct UsageWidgetView: View {
                 if let pacing = PacingCalculator.calculate(from: usage, activeDays: WidgetTheme.pacingSchedule.effectiveActiveDays, activeHours: WidgetTheme.pacingSchedule.effectiveHours) {
                     CircularPacingView(pacing: pacing)
                 }
+                if let extra = usage.extraUsage, extra.isEnabled {
+                    CircularUsageView(
+                        label: String(localized: "widget.extra"),
+                        resetInfo: extraCreditsAmount(extra),
+                        utilization: Double(extra.percent),
+                        resetDate: nil,
+                        windowDuration: 0,
+                        smartEnabled: false
+                    )
+                }
             }
 
             Spacer(minLength: 6)
@@ -165,6 +175,23 @@ struct UsageWidgetView: View {
                     utilization: design.utilization,
                     resetDate: design.resetsAtDate,
                     windowDuration: 7 * 86_400
+                )
+            }
+            if let extra = usage.extraUsage, extra.isEnabled {
+                // No reset window: resetDate nil + windowDuration 0 makes the
+                // bar fall back to the static threshold colour. `displayText`
+                // shows spend rather than the raw "%", which reads better for a
+                // monetary pool.
+                LargeUsageBarView(
+                    icon: "creditcard.fill",
+                    label: String(localized: "widget.extra"),
+                    resetInfo: "",
+                    utilization: Double(extra.percent),
+                    displayText: extraCreditsAmount(extra),
+                    windowDuration: 0,
+                    // No reset window → Smart Color can't project; use the
+                    // static threshold ladder so EC matches the app's colour.
+                    smartEnabled: false
                 )
             }
 
@@ -256,6 +283,14 @@ struct UsageWidgetView: View {
     private func formatResetDate(_ date: Date?) -> String {
         guard let date = date else { return "" }
         return Self.resetDateFormatter.string(from: date)
+    }
+
+    /// "$180 / $500" when a monthly limit is set, otherwise just the spend
+    /// ("$180"). Mirrors the dashboard's Extra Credits tile formatting.
+    private func extraCreditsAmount(_ extra: ExtraUsage) -> String {
+        let used = CurrencyFormatter.formatMinorUnits(extra.usedCredits ?? 0, currencyCode: extra.currency)
+        guard let limit = extra.monthlyLimit, limit > 0 else { return used }
+        return "\(used) / \(CurrencyFormatter.formatMinorUnits(limit, currencyCode: extra.currency))"
     }
 }
 

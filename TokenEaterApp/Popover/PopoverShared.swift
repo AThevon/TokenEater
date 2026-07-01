@@ -8,7 +8,12 @@ import SwiftUI
 @MainActor
 enum PopoverColors {
     static func gauge(pct: Int, resetDate: Date?, windowDuration: TimeInterval, theme: ThemeStore, settings: SettingsStore) -> Color {
-        if settings.smartColorEnabled {
+        // Smart Color is a time-aware risk model: without a reset window
+        // (e.g. the Extra Credits pool) it has nothing to project against, so
+        // we fall back to the static warning/critical threshold ladder. This
+        // keeps Extra Credits coloured identically across the menu bar,
+        // popover, dashboard and widgets.
+        if settings.smartColorEnabled, let resetDate, windowDuration > 0 {
             return theme.current.smartGaugeColor(
                 utilization: Double(pct),
                 resetDate: resetDate,
@@ -22,7 +27,7 @@ enum PopoverColors {
     }
 
     static func gaugeGradient(pct: Int, resetDate: Date?, windowDuration: TimeInterval, theme: ThemeStore, settings: SettingsStore) -> LinearGradient {
-        if settings.smartColorEnabled {
+        if settings.smartColorEnabled, let resetDate, windowDuration > 0 {
             return theme.current.smartGaugeGradient(
                 utilization: Double(pct),
                 resetDate: resetDate,
