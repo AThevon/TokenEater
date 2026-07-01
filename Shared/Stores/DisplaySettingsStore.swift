@@ -89,6 +89,11 @@ final class DisplaySettingsStore: ObservableObject {
     @Published var displayDesign: Bool {
         didSet { UserDefaults.standard.set(displayDesign, forKey: "displayDesign") }
     }
+    /// Same as `displayDesign` but for the paid Extra Credits pool. Only
+    /// surfaced in settings when `UsageStore.hasExtraCredits` is true.
+    @Published var displayExtraCredits: Bool {
+        didSet { UserDefaults.standard.set(displayExtraCredits, forKey: "displayExtraCredits") }
+    }
 
     private let sharedFileService: SharedFileServiceProtocol
 
@@ -174,6 +179,9 @@ final class DisplaySettingsStore: ObservableObject {
         }
         self.displayDesign = UserDefaults.standard.object(forKey: "displayDesign") != nil
             ? UserDefaults.standard.bool(forKey: "displayDesign")
+            : false
+        self.displayExtraCredits = UserDefaults.standard.object(forKey: "displayExtraCredits") != nil
+            ? UserDefaults.standard.bool(forKey: "displayExtraCredits")
             : false
     }
 }

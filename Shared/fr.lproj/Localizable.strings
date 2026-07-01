@@ -9,6 +9,7 @@
 /* Metrics */
 "metric.session" = "5h";
 "metric.design" = "Design";
+"metric.serviceStatus" = "État du service";
 "settings.group.design" = "Claude Design";
 
 /* Extra usage (paid credits pool) */
@@ -16,6 +17,7 @@
 "dashboard.extra.separator" = "/";
 "dashboard.extra.monthly" = "ce mois-ci";
 "dashboard.extra.noLimit" = "Limite mensuelle non définie";
+"metric.extraCredits" = "Crédits sup.";
 "metric.sessionReset" = "Compte à rebours de session";
 "settings.pacing.style" = "Style du pacing";
 "settings.group.session" = "Session (5h)";
@@ -54,6 +56,10 @@
 "widget.pacing.session" = "5h";
 "widget.pacing.weekly" = "7j";
 "widget.design" = "Design";
+"widget.extra" = "Crédits sup.";
+"widget.title.extraCredits" = "Crédits supplémentaires";
+"widget.description.extraCredits" = "Suivez votre pool de crédits supplémentaires payants : dépenses, limite mensuelle et pourcentage utilisé";
+"widget.extra.disabled" = "Crédits supplémentaires non activés";
 "widget.history.title" = "Historique";
 "widget.history.last7days" = "7 derniers jours";
 "widget.history.total" = "Total";
@@ -306,6 +312,14 @@
 "notif.body.extra.orange" = "%d%% de tes crédits utilisés";
 "notif.body.extra.red" = "%d%% consommé, temps de recharger ?";
 "notif.body.extra.green" = "Pool de retour dans le vert";
+
+/* Notifications - Vendor status */
+"notif.title.status.claude.degraded" = "Claude est dégradé";
+"notif.body.status.claude.degraded" = "Anthropic signale un incident";
+"notif.title.status.claude.down" = "Claude est hors service";
+"notif.body.status.claude.down" = "Anthropic signale une panne majeure";
+"notif.title.status.claude.restored" = "Claude est rétabli";
+"notif.body.status.claude.restored" = "Service rétabli";
 "settings.notifications.title" = "Notifications";
 "settings.notifications.status" = "Statut";
 "settings.notifications.on" = "Activées";
@@ -342,6 +356,20 @@
 "settings.notifications.group.health" = "Santé";
 "settings.notifications.group.health.hint" = "Soucis de connexion qui peuvent bloquer le suivi.";
 "settings.notifications.token" = "Token expiré";
+"settings.notifications.status.degraded" = "Service dégradé";
+"settings.notifications.status.restored" = "Service rétabli";
+
+/* Service Status */
+"sidebar.serviceStatus" = "État du service";
+"sidebar.serviceStatus.subtitle" = "Surveillance des pannes de Claude";
+"settings.status.master" = "Surveillance";
+"settings.status.group.polling" = "Fréquence";
+"settings.status.group.polling.hint" = "Fréquence de vérification de l'état de Claude. Accélérée automatiquement pendant une panne.";
+"settings.status.interval.label" = "Vérifier toutes les";
+"settings.status.interval.minutes" = "%d min";
+"settings.status.group.display" = "Affichage";
+"settings.status.badge" = "Afficher le badge dans la barre des menus pendant une panne";
+"settings.status.reset.confirm" = "Réinitialiser les réglages d'état du service ?";
 
 /* Relative Time */
 "relative.now" = "maintenant";
@@ -630,6 +658,7 @@
 "popover.option.showRefreshButton" = "Afficher le bouton de rafraîchissement manuel";
 "popover.option.showSonnet" = "Afficher l'anneau Sonnet (variant Classic)";
 "popover.option.showDesign" = "Afficher l'anneau Design (variant Classic)";
+"popover.option.showExtraCredits" = "Afficher l'anneau Crédits sup.";
 "settings.group.extra" = "Métriques supplémentaires dans la barre de menus";
 
 "popoverVariant.classic" = "Classique";
@@ -745,3 +774,13 @@
 "onboarding.card.connect.authorize" = "Autoriser";
 "onboarding.card.connect.retry" = "Réessayer";
 "onboarding.card.connect.idle.scene" = "macOS demande une fois.\nClique Toujours autoriser quand ça apparaît.";
+
+/* Vendor Status Banner */
+"status.banner.degraded" = "Claude est dégradé";
+"status.banner.down" = "Claude est hors service";
+"status.banner.view" = "État du service";
+
+/* Vendor Status Dashboard Card */
+"dashboard.status.degraded" = "Claude est dégradé";
+"dashboard.status.down" = "Claude est hors service";
+"dashboard.status.affected" = "Concerné : %@";

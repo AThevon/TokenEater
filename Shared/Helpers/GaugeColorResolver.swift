@@ -14,8 +14,12 @@ enum GaugeColorMode: Equatable {
 
 enum GaugeColorResolver {
     /// The decision: Smart Color setting on -> risk-aware; off -> static ramp.
-    static func mode(smartColorEnabled: Bool) -> GaugeColorMode {
-        smartColorEnabled ? .smart : .threshold
+    static func mode(smartColorEnabled: Bool, resetDate: Date?, windowDuration: TimeInterval) -> GaugeColorMode {
+        // Smart Color is a time-aware risk model: without a reset window
+        // (e.g. the Extra Credits pool) it has nothing to project against, so
+        // fall back to the static threshold ladder. Keeps such metrics coloured
+        // identically across the menu bar, popover, dashboard and widgets.
+        (smartColorEnabled && resetDate != nil && windowDuration > 0) ? .smart : .threshold
     }
 
     static func color(

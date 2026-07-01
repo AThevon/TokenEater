@@ -61,6 +61,14 @@ final class NotificationSettingsStore: ObservableObject {
     @Published var tokenExpired: Bool {
         didSet { UserDefaults.standard.set(tokenExpired, forKey: "notifTokenExpired") }
     }
+    /// Vendor outage: notify when a monitored vendor goes degraded/down.
+    @Published var vendorDegraded: Bool {
+        didSet { UserDefaults.standard.set(vendorDegraded, forKey: "notifVendorDegraded") }
+    }
+    /// Vendor outage: notify when a monitored vendor recovers.
+    @Published var vendorRestored: Bool {
+        didSet { UserDefaults.standard.set(vendorRestored, forKey: "notifVendorRestored") }
+    }
 
     init() {
         // Defaults below apply only on first launch (no value yet in
@@ -79,5 +87,7 @@ final class NotificationSettingsStore: ObservableObject {
         self.resetReminderWeeklyOffset = SettingsDefaults.int(key: "notifResetReminderWeeklyOffset", default: 60)
         self.extraCredits = SettingsDefaults.bool(key: "notifExtraCredits", default: true)
         self.tokenExpired = SettingsDefaults.bool(key: "notifTokenExpired", default: false)
+        self.vendorDegraded = SettingsDefaults.bool(key: "notifVendorDegraded", default: true)
+        self.vendorRestored = SettingsDefaults.bool(key: "notifVendorRestored", default: true)
     }
 }

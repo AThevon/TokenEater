@@ -13,6 +13,8 @@ struct FocusLayoutView: View {
         VStack(spacing: 0) {
             PopoverHeader()
 
+            VendorStatusBanner()
+
             if usageStore.hasError {
                 PopoverErrorBanner()
             }
@@ -61,7 +63,8 @@ struct FocusLayoutView: View {
     private var extraSatellitesRow: some View {
         let showSonnet = settingsStore.displaySonnet
         let showDesign = settingsStore.displayDesign && usageStore.hasDesign
-        if showSonnet || showDesign {
+        let showExtraCredits = settingsStore.displayExtraCredits && usageStore.hasExtraCredits
+        if showSonnet || showDesign || showExtraCredits {
             HStack(spacing: 8) {
                 if showSonnet {
                     CompactExtraChip(
@@ -79,6 +82,16 @@ struct FocusLayoutView: View {
                         pct: usageStore.designPct,
                         resetDate: usageStore.lastUsage?.sevenDayDesign?.resetsAtDate,
                         windowDuration: 7 * 86_400,
+                        theme: themeStore,
+                        settings: settingsStore
+                    )
+                }
+                if showExtraCredits {
+                    CompactExtraChip(
+                        label: String(localized: "metric.extraCredits"),
+                        pct: usageStore.extraCreditsPct,
+                        resetDate: nil,
+                        windowDuration: 0,
                         theme: themeStore,
                         settings: settingsStore
                     )

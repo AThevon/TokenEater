@@ -55,6 +55,21 @@ struct PacingGraphWidget: Widget {
     }
 }
 
+/// Small + medium widget : the paid Extra Credits pool on its own, for
+/// accounts whose primary signal is overage spend (e.g. Enterprise).
+struct ExtraCreditsWidget: Widget {
+    let kind: String = "ExtraCreditsWidget"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: StaticProvider()) { entry in
+            ExtraCreditsWidgetView(entry: entry)
+        }
+        .configurationDisplayName(String(localized: "widget.title.extraCredits"))
+        .description(String(localized: "widget.description.extraCredits"))
+        .supportedFamilies([.systemSmall, .systemMedium])
+    }
+}
+
 /// Large widget : last 7 days tokens-over-time bar chart with delta vs yesterday.
 struct HistorySparklineWidget: Widget {
     let kind: String = "HistorySparklineWidget"
@@ -77,5 +92,6 @@ struct TokenEaterWidgetBundle: WidgetBundle {
         SessionRingWidget()
         PacingGraphWidget()
         HistorySparklineWidget()
+        ExtraCreditsWidget()
     }
 }

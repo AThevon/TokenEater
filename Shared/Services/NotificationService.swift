@@ -283,6 +283,48 @@ final class NotificationService: NotificationServiceProtocol {
         }
     }
 
+    // MARK: - Vendor health (outage / restored)
+
+    /// Edge-triggered, exactly mirroring `checkSurface`'s dedup model: persist
+    /// the last health under a UserDefaults key, bail when unchanged, then fire
+    /// once on healthy->degraded/down and once on ->healthy. Planned maintenance
+    /// is shown in the UI but never notified, and is NOT persisted, so it can't
+    /// produce a phantom "restored" alert when the window ends.
+    func checkVendorHealth(_ status: VendorStatus, toggles: NotificationToggles) {
+        guard toggles.masterEnabled else { return }
+        let key = "lastVendorHealth_\(status.vendor.rawValue)"
+        let previous = VendorHealth(rawValue: UserDefaults.standard.integer(forKey: key)) ?? .healthy
+        let current = status.health
+        guard current != previous else { return }
+
+        // Planned maintenance: don't advance state, don't notify.
+        if current != .healthy, status.isMaintenanceOnly { return }
+
+        UserDefaults.standard.set(current.rawValue, forKey: key)
+
+        if current == .healthy {
+            guard toggles.vendorRestored else { return }
+            let content = UNMutableNotificationContent()
+            content.sound = .default
+            content.title = NSLocalizedString("notif.title.status.\(status.vendor.rawValue).restored", comment: "")
+            content.body = NSLocalizedString("notif.body.status.\(status.vendor.rawValue).restored", comment: "")
+            send(id: "vendor_restored_\(status.vendor.rawValue)", content: content)
+        } else {
+            guard toggles.vendorDegraded else { return }
+            let levelKey = current == .down ? "down" : "degraded"
+            let content = UNMutableNotificationContent()
+            content.sound = .default
+            content.title = NSLocalizedString("notif.title.status.\(status.vendor.rawValue).\(levelKey)", comment: "")
+            // Prefer the live incident headline; fall back to generic copy.
+            if let incident = status.activeIncidents.first {
+                content.body = incident.name
+            } else {
+                content.body = NSLocalizedString("notif.body.status.\(status.vendor.rawValue).\(levelKey)", comment: "")
+            }
+            send(id: "vendor_outage_\(status.vendor.rawValue)", content: content)
+        }
+    }
+
     // MARK: - Token expired
 
     func notifyTokenExpired(toggle: Bool) {

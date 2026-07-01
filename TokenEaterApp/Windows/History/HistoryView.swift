@@ -39,10 +39,12 @@ struct HistoryView: View {
         }
         .animation(DS.Motion.easeInOut, value: isLoaderActive)
         .onAppear {
-            // Cache hit makes this a no-op when we already loaded recently.
-            if !store.hasLoadedOnce {
-                store.reload()
-            }
+            // Refresh on every entry to the tab, not just the first. The
+            // store is hoisted in `MainAppView`, so it survives navigation
+            // and would otherwise keep showing the last load until the user
+            // changed the range. Previously loaded buckets stay visible while
+            // the reload runs, so there's no flash of empty state.
+            store.reload()
         }
         .onChange(of: store.filter) { _, _ in
             triggerChartReveal()

@@ -9,12 +9,14 @@ final class StatusBarController: NSObject {
     private var dashboardWindow: NSWindow?
     private var eventMonitor: Any?
     private var cancellables = Set<AnyCancellable>()
+    private var countdownCancellable: AnyCancellable?
 
     private let usageStore: UsageStore
     private let themeStore: ThemeStore
     private let settingsStore: SettingsStore
     private let updateStore: UpdateStore
     private let sessionStore: SessionStore
+    private let vendorStatusStore: VendorStatusStore
     private let tokenFileMonitor: TokenFileMonitorProtocol
 
     init(
@@ -23,6 +25,7 @@ final class StatusBarController: NSObject {
         settingsStore: SettingsStore,
         updateStore: UpdateStore,
         sessionStore: SessionStore,
+        vendorStatusStore: VendorStatusStore,
         tokenFileMonitor: TokenFileMonitorProtocol = TokenFileMonitor()
     ) {
         self.usageStore = usageStore
@@ -30,6 +33,7 @@ final class StatusBarController: NSObject {
         self.settingsStore = settingsStore
         self.updateStore = updateStore
         self.sessionStore = sessionStore
+        self.vendorStatusStore = vendorStatusStore
         self.tokenFileMonitor = tokenFileMonitor
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.statusItem.isVisible = settingsStore.showMenuBar
@@ -85,6 +89,7 @@ final class StatusBarController: NSObject {
             .environmentObject(themeStore)
             .environmentObject(settingsStore)
             .environmentObject(updateStore)
+            .environmentObject(vendorStatusStore)
         popover.contentViewController = NSHostingController(rootView: popoverView)
     }
 
@@ -92,11 +97,13 @@ final class StatusBarController: NSObject {
         Publishers.MergeMany(
             usageStore.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             themeStore.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
-            settingsStore.objectWillChange.map { _ in () }.eraseToAnyPublisher()
+            settingsStore.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            vendorStatusStore.objectWillChange.map { _ in () }.eraseToAnyPublisher()
         )
         .debounce(for: .milliseconds(100), scheduler: RunLoop.main)
         .sink { [weak self] _ in
             self?.updateMenuBarIcon()
+            self?.updateCountdownTimer()
         }
         .store(in: &cancellables)
 
@@ -144,6 +151,23 @@ final class StatusBarController: NSObject {
             }
             .store(in: &cancellables)
 
+        settingsStore.$statusPollInterval
+            .removeDuplicates()
+            .sink { [weak self] newInterval in
+                self?.vendorStatusStore.healthyPollInterval = TimeInterval(newInterval)
+            }
+            .store(in: &cancellables)
+
+        settingsStore.$outageMonitoringEnabled
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] enabled in
+                guard let self else { return }
+                if enabled { self.vendorStatusStore.start() }
+                else { self.vendorStatusStore.stop() }
+            }
+            .store(in: &cancellables)
+
         settingsStore.display.$showMenuBar
             .removeDuplicates()
             .sink { [weak self] visible in
@@ -157,29 +181,9 @@ final class StatusBarController: NSObject {
         usageStore.pacingMargin = settingsStore.pacingMargin
         usageStore.pacingSchedule = settingsStore.pacingSchedule
         usageStore.refreshIntervalSeconds = TimeInterval(settingsStore.refreshInterval)
-        usageStore.notifTogglesProvider = { [weak self] in
-            guard let self else { return nil }
-            return NotificationToggles(
-                masterEnabled: self.settingsStore.notificationsEnabled,
-                trackFiveHour: self.settingsStore.notifTrackFiveHour,
-                trackWeekly: self.settingsStore.notifTrackWeekly,
-                trackSonnet: self.settingsStore.notifTrackSonnet,
-                trackDesign: self.settingsStore.notifTrackDesign,
-                sendRecovery: self.settingsStore.notifSendRecovery,
-                pacingHot: self.settingsStore.notifPacingHot,
-                pacingWarning: self.settingsStore.notifPacingWarning,
-                resetReminderSession: self.settingsStore.notifResetReminderSession,
-                resetReminderWeekly: self.settingsStore.notifResetReminderWeekly,
-                resetReminderSessionOffsetMinutes: self.settingsStore.notifResetReminderSessionOffset,
-                resetReminderWeeklyOffsetMinutes: self.settingsStore.notifResetReminderWeeklyOffset,
-                extraCredits: self.settingsStore.notifExtraCredits,
-                tokenExpired: self.settingsStore.notifTokenExpired,
-                smartColorEnabled: self.settingsStore.smartColorEnabled,
-                smartColorProfile: self.settingsStore.smartColorProfile,
-                pacingMargin: Double(self.settingsStore.pacingMargin),
-                thresholds: self.themeStore.thresholds
-            )
-        }
+        usageStore.notifTogglesProvider = { [weak self] in self?.makeNotificationToggles() }
+        vendorStatusStore.notifTogglesProvider = { [weak self] in self?.makeNotificationToggles() }
+        vendorStatusStore.healthyPollInterval = TimeInterval(settingsStore.statusPollInterval)
         usageStore.reloadConfig(thresholds: themeStore.thresholds)
         usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
         themeStore.syncToSharedFile()
@@ -206,6 +210,37 @@ final class StatusBarController: NSObject {
                 await self.usageStore.refreshIfStale()
             }
         }
+
+        if settingsStore.outageMonitoringEnabled {
+            vendorStatusStore.start()
+        }
+    }
+
+    /// Single source of truth for the notification-toggle bundle, shared by the
+    /// usage store and the vendor-status store so they always agree.
+    private func makeNotificationToggles() -> NotificationToggles {
+        NotificationToggles(
+            masterEnabled: settingsStore.notificationsEnabled,
+            trackFiveHour: settingsStore.notifTrackFiveHour,
+            trackWeekly: settingsStore.notifTrackWeekly,
+            trackSonnet: settingsStore.notifTrackSonnet,
+            trackDesign: settingsStore.notifTrackDesign,
+            sendRecovery: settingsStore.notifSendRecovery,
+            pacingHot: settingsStore.notifPacingHot,
+            pacingWarning: settingsStore.notifPacingWarning,
+            resetReminderSession: settingsStore.notifResetReminderSession,
+            resetReminderWeekly: settingsStore.notifResetReminderWeekly,
+            resetReminderSessionOffsetMinutes: settingsStore.notifResetReminderSessionOffset,
+            resetReminderWeeklyOffsetMinutes: settingsStore.notifResetReminderWeeklyOffset,
+            extraCredits: settingsStore.notifExtraCredits,
+            tokenExpired: settingsStore.notifTokenExpired,
+            smartColorEnabled: settingsStore.smartColorEnabled,
+            smartColorProfile: settingsStore.smartColorProfile,
+            pacingMargin: Double(settingsStore.pacingMargin),
+            thresholds: themeStore.thresholds,
+            vendorDegraded: settingsStore.notifVendorDegraded,
+            vendorRestored: settingsStore.notifVendorRestored
+        )
     }
 
     private func observeOnboardingForRefresh() {
@@ -297,9 +332,30 @@ final class StatusBarController: NSObject {
             menuBarStyle: settingsStore.menuBarStyle,
             pacingShape: settingsStore.pacingShape,
             designPct: usageStore.designPct,
-            hasDesign: usageStore.hasDesign
+            hasDesign: usageStore.hasDesign,
+            outageActive: settingsStore.statusShowMenuBarBadge && vendorStatusStore.isDegraded,
+            outageHealth: vendorStatusStore.worstHealth,
+            nextPollSeconds: vendorStatusStore.nextPollDate.map { max(0, Int(ceil($0.timeIntervalSinceNow))) },
+            extraCreditsPct: usageStore.extraCreditsPct,
+            hasExtraCredits: usageStore.hasExtraCredits
         ))
         statusItem.button?.image = image
+    }
+
+    /// Run a 1-second redraw ONLY while an outage badge is visible, so the
+    /// menu-bar countdown ticks without waking the CPU every second otherwise.
+    private func updateCountdownTimer() {
+        let badgeCountdown = settingsStore.statusShowMenuBarBadge && vendorStatusStore.isDegraded
+        let pinCountdown = settingsStore.pinnedMetrics.contains(.serviceStatus) && vendorStatusStore.worstHealth == .down
+        let active = badgeCountdown || pinCountdown
+        if active, countdownCancellable == nil {
+            countdownCancellable = Timer.publish(every: 1, on: .main, in: .common)
+                .autoconnect()
+                .sink { [weak self] _ in self?.updateMenuBarIcon() }
+        } else if !active {
+            countdownCancellable?.cancel()
+            countdownCancellable = nil
+        }
     }
 
     // MARK: - Click handling
@@ -503,6 +559,7 @@ final class StatusBarController: NSObject {
             .environmentObject(settingsStore)
             .environmentObject(updateStore)
             .environmentObject(sessionStore)
+            .environmentObject(vendorStatusStore)
 
         let isOnboarding = !settingsStore.hasCompletedOnboarding
         let onboardingSize = NSSize(

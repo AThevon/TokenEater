@@ -58,6 +58,11 @@ final class SettingsStore: ObservableObject {
     var displayDesign: Bool {
         get { display.displayDesign } set { display.displayDesign = newValue }
     }
+    /// Same as `displayDesign` but for the paid Extra Credits pool. Only
+    /// surfaced in settings when `UsageStore.hasExtraCredits` is true.
+    var displayExtraCredits: Bool {
+        get { display.displayExtraCredits } set { display.displayExtraCredits = newValue }
+    }
 
     // MARK: - Popover
     /// Full layout configuration for the menu-bar popover. 3 variants share this
@@ -208,6 +213,30 @@ final class SettingsStore: ObservableObject {
         didSet { UserDefaults.standard.set(refreshInterval, forKey: "refreshInterval") }
     }
 
+    // MARK: - Service status (outage monitoring)
+    /// Master gate for outage monitoring. When false the poll loop never runs
+    /// and the menu-bar badge never appears.
+    @Published var outageMonitoringEnabled: Bool {
+        didSet { UserDefaults.standard.set(outageMonitoringEnabled, forKey: "outageMonitoringEnabled") }
+    }
+    /// Healthy-state status poll cadence in seconds. Checks auto-accelerate to
+    /// 60s during an outage regardless of this value.
+    @Published var statusPollInterval: Int {
+        didSet { UserDefaults.standard.set(statusPollInterval, forKey: "statusPollInterval") }
+    }
+    /// Whether to show the outage badge + countdown in the menu bar.
+    @Published var statusShowMenuBarBadge: Bool {
+        didSet { UserDefaults.standard.set(statusShowMenuBarBadge, forKey: "statusShowMenuBarBadge") }
+    }
+    /// Notify when a vendor goes degraded/down.
+    var notifVendorDegraded: Bool {
+        get { notification.vendorDegraded } set { notification.vendorDegraded = newValue }
+    }
+    /// Notify when a vendor recovers.
+    var notifVendorRestored: Bool {
+        get { notification.vendorRestored } set { notification.vendorRestored = newValue }
+    }
+
     var proxyConfig: ProxyConfig {
         ProxyConfig(enabled: proxyEnabled, host: proxyHost, port: proxyPort)
     }
@@ -307,6 +336,12 @@ final class SettingsStore: ObservableObject {
             let val = UserDefaults.standard.integer(forKey: "refreshInterval")
             return val >= 180 ? val : 300
         }()
+        self.outageMonitoringEnabled = SettingsDefaults.bool(key: "outageMonitoringEnabled", default: true)
+        self.statusPollInterval = {
+            let val = UserDefaults.standard.integer(forKey: "statusPollInterval")
+            return val >= 60 ? val : 300
+        }()
+        self.statusShowMenuBarBadge = SettingsDefaults.bool(key: "statusShowMenuBarBadge", default: true)
 
         // Popover layout config. Fresh install or decode failure -> defaults
         // that reproduce the v4.10.x popover visually (Classic variant, all

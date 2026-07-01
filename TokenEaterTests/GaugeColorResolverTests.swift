@@ -11,11 +11,16 @@ struct GaugeColorResolverTests {
     // MARK: - mode decision
 
     @Test func smartEnabledSelectsSmart() {
-        #expect(GaugeColorResolver.mode(smartColorEnabled: true) == .smart)
+        #expect(GaugeColorResolver.mode(smartColorEnabled: true, resetDate: Date().addingTimeInterval(3600), windowDuration: 5 * 3600) == .smart)
     }
 
     @Test func smartDisabledSelectsThreshold() {
-        #expect(GaugeColorResolver.mode(smartColorEnabled: false) == .threshold)
+        #expect(GaugeColorResolver.mode(smartColorEnabled: false, resetDate: Date().addingTimeInterval(3600), windowDuration: 5 * 3600) == .threshold)
+    }
+
+    @Test func smartEnabledButNoResetWindowSelectsThreshold() {
+        // e.g. the Extra Credits pool has no reset window -> threshold ladder.
+        #expect(GaugeColorResolver.mode(smartColorEnabled: true, resetDate: nil, windowDuration: 0) == .threshold)
     }
 
     // MARK: - threshold mode equals the static ramp and ignores time inputs

@@ -13,6 +13,7 @@ struct MonitoringView: View {
     @EnvironmentObject private var themeStore: ThemeStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var sessionStore: SessionStore
+    @EnvironmentObject private var vendorStatusStore: VendorStatusStore
 
     /// Lightweight 7d daily-buckets store for the back-of-card stats.
     /// Loaded once on appear, refreshed if older than 60s. Owned by
@@ -34,6 +35,9 @@ struct MonitoringView: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
                 header
+                if vendorStatusStore.isDegraded, let status = vendorStatusStore.claudeStatus {
+                    outageCard(status)
+                }
                 heroTile
                 metricsGrid
                 pacingRow
@@ -650,6 +654,46 @@ struct MonitoringView: View {
         .animation(DS.Motion.springLiquid, value: expected)
     }
 
+    // MARK: - Service status
+
+    private func outageCard(_ status: VendorStatus) -> some View {
+        let tint = status.health == .down ? DS.Palette.semanticError : DS.Palette.semanticWarning
+        let title = status.health == .down
+            ? String(localized: "dashboard.status.down")
+            : String(localized: "dashboard.status.degraded")
+        return VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            HStack(spacing: DS.Spacing.xs) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(tint)
+                    .dsGlow(tint, radius: 4, opacity: 0.45)
+                Text(title)
+                    .font(DS.Typography.title2)
+                    .foregroundStyle(DS.Palette.textPrimary)
+                Spacer()
+                Link(String(localized: "status.banner.view"), destination: status.statusPageURL)
+                    .font(DS.Typography.label)
+                    .foregroundStyle(tint)
+            }
+            if let incident = status.activeIncidents.first {
+                Text(incident.name)
+                    .font(DS.Typography.label)
+                    .foregroundStyle(DS.Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if !status.affectedComponents.isEmpty {
+                Text(String(format: String(localized: "dashboard.status.affected"),
+                            status.affectedComponents.joined(separator: ", ")))
+                    .font(DS.Typography.label)
+                    .foregroundStyle(DS.Palette.textTertiary)
+            }
+        }
+        .padding(DS.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .dsGlass(radius: DS.Radius.card)
+        .dsShadow(DS.Shadow.subtle)
+    }
+
     // MARK: - Extra usage
 
     private func extraUsageTile(_ extra: ExtraUsage) -> some View {
@@ -657,9 +701,10 @@ struct MonitoringView: View {
         let limit = extra.monthlyLimit ?? 0
         let pct = extra.utilization.map { Int($0) } ?? (limit > 0 ? Int(used / limit * 100) : 0)
         let currency = extra.currency ?? "USD"
-        let tint = pct >= 85 ? DS.Palette.semanticError
-                 : pct >= 60 ? DS.Palette.semanticWarning
-                             : DS.Palette.semanticSuccess
+        // Same threshold ladder + theme palette as the menu bar / popover /
+        // widgets. Extra Credits has no reset window, so it never uses Smart
+        // Color; the static gauge thresholds keep every surface in agreement.
+        let tint = themeStore.current.gaugeColor(for: Double(pct), thresholds: themeStore.thresholds)
 
         return VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             HStack {
@@ -758,7 +803,7 @@ struct MonitoringView: View {
     /// otherwise falls back to the static threshold ramp.
     private func gaugeColor(pct: Int, resetDate: Date?, windowDuration: TimeInterval) -> Color {
         GaugeColorResolver.color(
-            mode: GaugeColorResolver.mode(smartColorEnabled: settingsStore.smartColorEnabled),
+            mode: GaugeColorResolver.mode(smartColorEnabled: settingsStore.smartColorEnabled, resetDate: resetDate, windowDuration: windowDuration),
             utilization: pct,
             resetDate: resetDate,
             windowDuration: windowDuration,
@@ -771,7 +816,7 @@ struct MonitoringView: View {
 
     private func gaugeGradient(pct: Int, resetDate: Date?, windowDuration: TimeInterval) -> LinearGradient {
         GaugeColorResolver.gradient(
-            mode: GaugeColorResolver.mode(smartColorEnabled: settingsStore.smartColorEnabled),
+            mode: GaugeColorResolver.mode(smartColorEnabled: settingsStore.smartColorEnabled, resetDate: resetDate, windowDuration: windowDuration),
             utilization: pct,
             resetDate: resetDate,
             windowDuration: windowDuration,

@@ -21,7 +21,8 @@ struct NotificationServiceTests {
             resetReminderSessionOffsetMinutes: 15, resetReminderWeeklyOffsetMinutes: 60,
             extraCredits: false, tokenExpired: true,
             smartColorEnabled: false, smartColorProfile: .default,
-            pacingMargin: 10, thresholds: .default
+            pacingMargin: 10, thresholds: .default,
+            vendorDegraded: false, vendorRestored: false
         )
     }
 
