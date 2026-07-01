@@ -12,6 +12,13 @@ struct SettingsSectionView: View {
     @State private var importMessage: String?
     @State private var importSuccess = false
     @State private var brewCopied = false
+    /// Local mirror of the status poll interval for the slider (seconds).
+    /// @State + .onChange instead of Binding(get:set:), per the SwiftUI rules.
+    @State private var statusPollIntervalSeconds: Double
+
+    init(initialStatusInterval: Int) {
+        _statusPollIntervalSeconds = State(initialValue: Double(initialStatusInterval))
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -234,6 +241,38 @@ struct SettingsSectionView: View {
                 }
             }
 
+            // Service status (outage monitoring). Moved here from a dedicated
+            // sidebar section: a full section for 3 controls was overkill, and
+            // this matches the Proxy card pattern (toggle + conditional config).
+            glassCard {
+                VStack(alignment: .leading, spacing: 8) {
+                    cardLabel(String(localized: "sidebar.serviceStatus"))
+                    darkToggle(String(localized: "settings.status.master"), isOn: $settingsStore.outageMonitoringEnabled)
+                    Text(String(localized: "sidebar.serviceStatus.subtitle"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.4))
+                        .fixedSize(horizontal: false, vertical: true)
+                    if settingsStore.outageMonitoringEnabled {
+                        HStack {
+                            Text(String(localized: "settings.status.interval.label"))
+                                .font(.system(size: 12))
+                                .foregroundStyle(.white.opacity(0.7))
+                            Spacer()
+                            Text(formatInterval(Int(statusPollIntervalSeconds)))
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(.white.opacity(0.9))
+                        }
+                        TokenEaterSlider(
+                            value: $statusPollIntervalSeconds,
+                            in: 60...1800,
+                            step: 60,
+                            showsTicks: true
+                        )
+                        darkToggle(String(localized: "settings.status.badge"), isOn: $settingsStore.statusShowMenuBarBadge)
+                    }
+                }
+            }
+
             // About
             glassCard {
                 VStack(alignment: .leading, spacing: 12) {
@@ -264,6 +303,13 @@ struct SettingsSectionView: View {
         .padding(24)
         .onAppear {
             Task { await settingsStore.refreshNotificationStatus() }
+        }
+        .onChange(of: statusPollIntervalSeconds) { _, secs in
+            let v = Int(secs)
+            if settingsStore.statusPollInterval != v { settingsStore.statusPollInterval = v }
+        }
+        .onChange(of: settingsStore.statusPollInterval) { _, v in
+            if Int(statusPollIntervalSeconds) != v { statusPollIntervalSeconds = Double(v) }
         }
     }
 

@@ -33,7 +33,7 @@ struct SettingsRootView: View {
     private var content: some View {
         switch selection {
         case .general:
-            scrolling { SettingsSectionView() }
+            scrolling { SettingsSectionView(initialStatusInterval: settingsStore.statusPollInterval) }
         case .display:
             scrolling { DisplaySectionView(initialMetrics: settingsStore.pinnedMetrics) }
         case .themes:
@@ -54,8 +54,6 @@ struct SettingsRootView: View {
             scrolling { AgentWatchersSectionView() }
         case .notifications:
             scrolling { NotificationsSectionView() }
-        case .serviceStatus:
-            scrolling { ServiceStatusSectionView(initialInterval: settingsStore.statusPollInterval) }
         }
     }
 
