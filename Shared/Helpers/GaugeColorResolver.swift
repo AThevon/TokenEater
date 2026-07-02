@@ -14,12 +14,14 @@ enum GaugeColorMode: Equatable {
 
 enum GaugeColorResolver {
     /// The decision: Smart Color setting on -> risk-aware; off -> static ramp.
-    static func mode(smartColorEnabled: Bool, resetDate: Date?, windowDuration: TimeInterval) -> GaugeColorMode {
-        // Smart Color is a time-aware risk model: without a reset window
-        // (e.g. the Extra Credits pool) it has nothing to project against, so
-        // fall back to the static threshold ladder. Keeps such metrics coloured
-        // identically across the menu bar, popover, dashboard and widgets.
-        (smartColorEnabled && resetDate != nil && windowDuration > 0) ? .smart : .threshold
+    static func mode(smartColorEnabled: Bool, windowDuration: TimeInterval) -> GaugeColorMode {
+        // Smart Color is a time-aware risk model; it needs a window to project
+        // over (windowDuration > 0). The smart path itself handles a missing
+        // reset date (falls back to absolute risk), so metrics like Opus/Cowork
+        // that have a week window but no resets_at still colour via smart.
+        // Only metrics with no window at all (e.g. the Extra Credits pool,
+        // windowDuration 0) fall back to the static threshold ladder.
+        (smartColorEnabled && windowDuration > 0) ? .smart : .threshold
     }
 
     static func color(

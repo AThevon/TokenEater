@@ -9,7 +9,7 @@ import SwiftUI
 enum PopoverColors {
     static func gauge(pct: Int, resetDate: Date?, windowDuration: TimeInterval, theme: ThemeStore, settings: SettingsStore) -> Color {
         GaugeColorResolver.color(
-            mode: GaugeColorResolver.mode(smartColorEnabled: settings.smartColorEnabled, resetDate: resetDate, windowDuration: windowDuration),
+            mode: GaugeColorResolver.mode(smartColorEnabled: settings.smartColorEnabled, windowDuration: windowDuration),
             utilization: pct,
             resetDate: resetDate,
             windowDuration: windowDuration,
@@ -22,7 +22,7 @@ enum PopoverColors {
 
     static func gaugeGradient(pct: Int, resetDate: Date?, windowDuration: TimeInterval, theme: ThemeStore, settings: SettingsStore) -> LinearGradient {
         GaugeColorResolver.gradient(
-            mode: GaugeColorResolver.mode(smartColorEnabled: settings.smartColorEnabled, resetDate: resetDate, windowDuration: windowDuration),
+            mode: GaugeColorResolver.mode(smartColorEnabled: settings.smartColorEnabled, windowDuration: windowDuration),
             utilization: pct,
             resetDate: resetDate,
             windowDuration: windowDuration,

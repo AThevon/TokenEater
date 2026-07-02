@@ -803,7 +803,7 @@ struct MonitoringView: View {
     /// otherwise falls back to the static threshold ramp.
     private func gaugeColor(pct: Int, resetDate: Date?, windowDuration: TimeInterval) -> Color {
         GaugeColorResolver.color(
-            mode: GaugeColorResolver.mode(smartColorEnabled: settingsStore.smartColorEnabled, resetDate: resetDate, windowDuration: windowDuration),
+            mode: GaugeColorResolver.mode(smartColorEnabled: settingsStore.smartColorEnabled, windowDuration: windowDuration),
             utilization: pct,
             resetDate: resetDate,
             windowDuration: windowDuration,
@@ -816,7 +816,7 @@ struct MonitoringView: View {
 
     private func gaugeGradient(pct: Int, resetDate: Date?, windowDuration: TimeInterval) -> LinearGradient {
         GaugeColorResolver.gradient(
-            mode: GaugeColorResolver.mode(smartColorEnabled: settingsStore.smartColorEnabled, resetDate: resetDate, windowDuration: windowDuration),
+            mode: GaugeColorResolver.mode(smartColorEnabled: settingsStore.smartColorEnabled, windowDuration: windowDuration),
             utilization: pct,
             resetDate: resetDate,
             windowDuration: windowDuration,

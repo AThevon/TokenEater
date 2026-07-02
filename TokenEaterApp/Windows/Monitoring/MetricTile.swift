@@ -38,7 +38,7 @@ struct MetricTile: View {
 
     var body: some View {
         let color = GaugeColorResolver.color(
-            mode: GaugeColorResolver.mode(smartColorEnabled: smartEnabled, resetDate: resetDate, windowDuration: windowDuration),
+            mode: GaugeColorResolver.mode(smartColorEnabled: smartEnabled, windowDuration: windowDuration),
             utilization: pct,
             resetDate: resetDate,
             windowDuration: windowDuration,
