@@ -79,7 +79,13 @@ final class StatusBarController: NSObject {
     }
 
     private func setupPopover() {
-        popover.behavior = .transient
+        // .applicationDefined (not .transient): NSPopover's own transient
+        // event-tracking dismisses the popover on the first mouse move when it
+        // is opened over a fullscreen-app Space. We close it ourselves instead,
+        // via the global mouse-down monitor (startEventMonitor) for click-outside
+        // and togglePopover for the status-item toggle - behaviour identical on
+        // the desktop, but it no longer self-dismisses over fullscreen.
+        popover.behavior = .applicationDefined
         popover.appearance = NSAppearance(named: .darkAqua)
     }
 
@@ -532,9 +538,42 @@ final class StatusBarController: NSObject {
             installPopoverContent()
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             NSApp.activate(ignoringOtherApps: true)
+            stylePopoverWindow()
             startEventMonitor()
         }
     }
+
+    /// Post-show fixes for the popover's own window. Runs on the next runloop
+    /// turn because the NSPopover window isn't attached synchronously after show.
+    private func stylePopoverWindow() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let popoverWindow = self.popover.contentViewController?.view.window else { return }
+
+            // Fullscreen fix: a menu-bar popover opened over a fullscreen-app
+            // Space is created on the default Space, so the cursor over the
+            // visible popover reads as "outside" and the .transient behaviour
+            // dismisses it on the first mouse move. Let the popover window join
+            // the active (fullscreen) Space so the cursor registers as inside.
+            popoverWindow.collectionBehavior.insert(.canJoinAllSpaces)
+            popoverWindow.collectionBehavior.insert(.fullScreenAuxiliary)
+
+            // Arrow-colour fix: on macOS 26 the NSPopoverFrame draws its arrow
+            // with a translucent (glass) material while our content is opaque,
+            // so the bare arrow shows through. There is no NSVisualEffectView to
+            // tint; paint an opaque backing on the frame view itself (which is
+            // clipped to the popover shape, arrow included) below the content.
+            if let frameView = self.popover.contentViewController?.view.superview {
+                let tint = NSView(frame: frameView.bounds)
+                tint.autoresizingMask = [.width, .height]
+                tint.wantsLayer = true
+                tint.layer?.backgroundColor = Self.popoverBackgroundColor.cgColor
+                frameView.addSubview(tint, positioned: .below, relativeTo: frameView.subviews.first)
+            }
+        }
+    }
+
+    /// Opaque dark shared by the popover layouts (see ClassicLayoutView).
+    private static let popoverBackgroundColor = NSColor(red: 0.08, green: 0.08, blue: 0.09, alpha: 1)
 
     func showDashboard() {
         popover.performClose(nil)
