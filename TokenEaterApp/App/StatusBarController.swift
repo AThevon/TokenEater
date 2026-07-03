@@ -8,6 +8,9 @@ final class StatusBarController: NSObject {
     private let popover = NSPopover()
     private var dashboardWindow: NSWindow?
     private var eventMonitor: Any?
+    private var localKeyMonitor: Any?
+    private var appDeactivateObserver: NSObjectProtocol?
+    private var spaceChangeObserver: NSObjectProtocol?
     private var cancellables = Set<AnyCancellable>()
     private var countdownCancellable: AnyCancellable?
 
@@ -81,10 +84,11 @@ final class StatusBarController: NSObject {
     private func setupPopover() {
         // .applicationDefined (not .transient): NSPopover's own transient
         // event-tracking dismisses the popover on the first mouse move when it
-        // is opened over a fullscreen-app Space. We close it ourselves instead,
-        // via the global mouse-down monitor (startEventMonitor) for click-outside
-        // and togglePopover for the status-item toggle - behaviour identical on
-        // the desktop, but it no longer self-dismisses over fullscreen.
+        // is opened over a fullscreen-app Space. We keep full control of
+        // dismissal instead (see startPopoverDismissMonitors): click-outside,
+        // Escape, app-deactivation (Cmd-Tab) and Space changes all close it, so
+        // it matches the .transient behaviour on the desktop while no longer
+        // self-dismissing over fullscreen.
         popover.behavior = .applicationDefined
         popover.appearance = NSAppearance(named: .darkAqua)
     }
@@ -530,16 +534,14 @@ final class StatusBarController: NSObject {
 
     private func togglePopover() {
         if popover.isShown {
-            popover.performClose(nil)
-            popover.contentViewController = nil
-            stopEventMonitor()
+            dismissPopover()
         } else {
             guard let button = statusItem.button else { return }
             installPopoverContent()
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             NSApp.activate(ignoringOtherApps: true)
             stylePopoverWindow()
-            startEventMonitor()
+            startPopoverDismissMonitors()
         }
     }
 
@@ -563,7 +565,15 @@ final class StatusBarController: NSObject {
             // tint; paint an opaque backing on the frame view itself (which is
             // clipped to the popover shape, arrow included) below the content.
             if let frameView = self.popover.contentViewController?.view.superview {
+                // Idempotent: NSPopover reuses the same frame view across opens,
+                // so drop any tint left by a previous open before adding a new one
+                // (otherwise one NSView + layer leaks per open).
+                let tintID = NSUserInterfaceItemIdentifier("popoverArrowTint")
+                frameView.subviews
+                    .filter { $0.identifier == tintID }
+                    .forEach { $0.removeFromSuperview() }
                 let tint = NSView(frame: frameView.bounds)
+                tint.identifier = tintID
                 tint.autoresizingMask = [.width, .height]
                 tint.wantsLayer = true
                 tint.layer?.backgroundColor = Self.popoverBackgroundColor.cgColor
@@ -576,9 +586,7 @@ final class StatusBarController: NSObject {
     private static let popoverBackgroundColor = NSColor(red: 0.08, green: 0.08, blue: 0.09, alpha: 1)
 
     func showDashboard() {
-        popover.performClose(nil)
-        popover.contentViewController = nil
-        stopEventMonitor()
+        dismissPopover()
 
         // Promote to a regular app (Dock icon + app menu) while the dashboard
         // is open so it feels like a real window; windowShouldClose drops back
@@ -706,18 +714,56 @@ final class StatusBarController: NSObject {
 
     // MARK: - Event Monitor
 
-    private func startEventMonitor() {
+    private func startPopoverDismissMonitors() {
+        // Click into another app closes the popover.
         eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            self?.popover.performClose(nil)
-            self?.popover.contentViewController = nil
-            self?.stopEventMonitor()
+            self?.dismissPopover()
+        }
+        // Escape closes it. A key event is delivered to our own app, so it never
+        // reaches the global monitor above - a local monitor is required.
+        localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown]) { [weak self] event in
+            guard event.keyCode == 53 else { return event }   // 53 = Escape
+            self?.dismissPopover()
+            return nil
+        }
+        // App deactivation (Cmd-Tab, clicking another app) and Space changes
+        // close it too, restoring the dismissal .transient gave us for free
+        // before we switched to .applicationDefined for the fullscreen fix.
+        appDeactivateObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.dismissPopover()
+        }
+        spaceChangeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.dismissPopover()
         }
     }
 
-    private func stopEventMonitor() {
+    /// Close the popover and tear down every dismissal monitor/observer.
+    private func dismissPopover() {
+        popover.performClose(nil)
+        popover.contentViewController = nil
+        stopPopoverDismissMonitors()
+    }
+
+    private func stopPopoverDismissMonitors() {
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
             eventMonitor = nil
+        }
+        if let monitor = localKeyMonitor {
+            NSEvent.removeMonitor(monitor)
+            localKeyMonitor = nil
+        }
+        if let observer = appDeactivateObserver {
+            NotificationCenter.default.removeObserver(observer)
+            appDeactivateObserver = nil
+        }
+        if let observer = spaceChangeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+            spaceChangeObserver = nil
         }
     }
 }
