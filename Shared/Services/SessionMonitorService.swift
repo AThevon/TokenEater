@@ -248,9 +248,12 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
     /// mid-session `/rename` is picked up at the next watcher refresh.
     /// Returns nil unless the entry's sessionId matches (guards against a
     /// stale file left behind by a dead process whose pid was reused) and the
-    /// name was set by the user (`nameSource == "user"`) - auto-derived names
-    /// like `myproject-01` are less informative than the branch/project
-    /// fallback and are ignored.
+    /// name was set by the user - auto-derived names like `myproject-01` are
+    /// less informative than the branch/project fallback and are ignored.
+    /// "User-set" means nameSource is "user" OR absent: Claude Code 2.1.202
+    /// writes `nameSource: "derived"` for auto names but drops the field
+    /// entirely after a /rename, so only an explicit derived/auto marker
+    /// disqualifies the name.
     private func readUserSessionName(pid: Int32, sessionId: String) -> String? {
         struct RegistryEntry: Decodable {
             let sessionId: String?
@@ -262,7 +265,7 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
         guard let data = try? Data(contentsOf: file),
               let entry = try? JSONDecoder().decode(RegistryEntry.self, from: data),
               entry.sessionId == sessionId,
-              entry.nameSource == "user",
+              entry.nameSource == nil || entry.nameSource == "user",
               let name = entry.name, !name.isEmpty else {
             return nil
         }

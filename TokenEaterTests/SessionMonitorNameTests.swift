@@ -54,10 +54,11 @@ struct SessionMonitorNameTests {
         pid: Int32 = SessionMonitorNameTests.pid,
         sessionId: String = SessionMonitorNameTests.sessionId,
         name: String,
-        nameSource: String
+        nameSource: String?
     ) throws {
+        let sourceField = nameSource.map { ",\"nameSource\":\"\($0)\"" } ?? ""
         let entry = """
-        {"pid":\(pid),"sessionId":"\(sessionId)","cwd":"\(env.projectPath)","name":"\(name)","nameSource":"\(nameSource)"}
+        {"pid":\(pid),"sessionId":"\(sessionId)","cwd":"\(env.projectPath)","name":"\(name)"\(sourceField)}
         """
         try entry.write(
             to: env.sessionsDir.appendingPathComponent("\(pid).json"),
@@ -123,6 +124,21 @@ struct SessionMonitorNameTests {
 
         #expect(sessions.count == 1)
         #expect(sessions.first?.userSessionName == "payment refactor")
+    }
+
+    @Test("a rename that omits nameSource is treated as user-set")
+    func missingNameSourceTreatedAsUserSet() throws {
+        // Observed on-disk behavior of Claude Code 2.1.202: after a live
+        // /rename the registry entry keeps `name` but drops the `nameSource`
+        // field entirely - it does NOT write `nameSource: "user"`.
+        let env = try makeEnv()
+        defer { env.cleanup() }
+        try writeRegistry(env, name: "tokeneater-monitor-name", nameSource: nil)
+
+        let sessions = scanOnce(makeService(env))
+
+        #expect(sessions.count == 1)
+        #expect(sessions.first?.userSessionName == "tokeneater-monitor-name")
     }
 
     @Test("derived (auto-generated) names are ignored")
