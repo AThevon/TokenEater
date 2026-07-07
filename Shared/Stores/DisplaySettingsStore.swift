@@ -89,6 +89,10 @@ final class DisplaySettingsStore: ObservableObject {
     @Published var displayDesign: Bool {
         didSet { UserDefaults.standard.set(displayDesign, forKey: "displayDesign") }
     }
+    /// Same as `displayDesign` but for Claude Fable.
+    @Published var displayFable: Bool {
+        didSet { UserDefaults.standard.set(displayFable, forKey: "displayFable") }
+    }
     /// Same as `displayDesign` but for the paid Extra Credits pool. Only
     /// surfaced in settings when `UsageStore.hasExtraCredits` is true.
     @Published var displayExtraCredits: Bool {
@@ -179,6 +183,9 @@ final class DisplaySettingsStore: ObservableObject {
         }
         self.displayDesign = UserDefaults.standard.object(forKey: "displayDesign") != nil
             ? UserDefaults.standard.bool(forKey: "displayDesign")
+            : false
+        self.displayFable = UserDefaults.standard.object(forKey: "displayFable") != nil
+            ? UserDefaults.standard.bool(forKey: "displayFable")
             : false
         self.displayExtraCredits = UserDefaults.standard.object(forKey: "displayExtraCredits") != nil
             ? UserDefaults.standard.bool(forKey: "displayExtraCredits")

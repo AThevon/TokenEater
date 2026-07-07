@@ -6,6 +6,7 @@ enum MetricID: String, CaseIterable {
     case sevenDay = "sevenDay"
     case sonnet = "sonnet"
     case design = "design"
+    case fable = "fable"
     case extraCredits = "extraCredits"
     case sessionPacing = "sessionPacing"
     case weeklyPacing = "weeklyPacing"
@@ -18,6 +19,7 @@ enum MetricID: String, CaseIterable {
         case .sevenDay: return String(localized: "metric.weekly")
         case .sonnet: return String(localized: "metric.sonnet")
         case .design: return String(localized: "metric.design")
+        case .fable: return String(localized: "metric.fable")
         case .extraCredits: return String(localized: "metric.extraCredits")
         case .sessionPacing: return String(localized: "pacing.session.label")
         case .weeklyPacing: return String(localized: "pacing.weekly.label")
@@ -32,6 +34,7 @@ enum MetricID: String, CaseIterable {
         case .sevenDay: return "7d"
         case .sonnet: return "S"
         case .design: return "D"
+        case .fable: return "F"
         case .extraCredits: return "EC"
         case .sessionPacing: return "5hP"
         case .weeklyPacing: return "7dP"

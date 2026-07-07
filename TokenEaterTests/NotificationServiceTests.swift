@@ -15,7 +15,7 @@ struct NotificationServiceTests {
     private func toggles(sendRecovery: Bool = true) -> NotificationToggles {
         NotificationToggles(
             masterEnabled: true,
-            trackFiveHour: true, trackWeekly: true, trackSonnet: false, trackDesign: false,
+            trackFiveHour: true, trackWeekly: true, trackSonnet: false, trackDesign: false, trackFable: false,
             sendRecovery: sendRecovery, pacingHot: false, pacingWarning: false,
             resetReminderSession: false, resetReminderWeekly: false,
             resetReminderSessionOffsetMinutes: 15, resetReminderWeeklyOffsetMinutes: 60,
@@ -36,7 +36,7 @@ struct NotificationServiceTests {
         state.levels["lastLevel_fiveHour"] = UsageLevel.orange.rawValue
 
         service.evaluate(
-            fiveHour: snap(96), sevenDay: snap(0), sonnet: snap(0), design: snap(0),
+            fiveHour: snap(96), sevenDay: snap(0), sonnet: snap(0), design: snap(0), fable: snap(0),
             sessionPacing: nil, weeklyPacing: nil, extraUsage: nil, toggles: toggles()
         )
 
@@ -50,7 +50,7 @@ struct NotificationServiceTests {
         state.levels["lastLevel_fiveHour"] = UsageLevel.red.rawValue
 
         service.evaluate(
-            fiveHour: snap(96), sevenDay: snap(0), sonnet: snap(0), design: snap(0),
+            fiveHour: snap(96), sevenDay: snap(0), sonnet: snap(0), design: snap(0), fable: snap(0),
             sessionPacing: nil, weeklyPacing: nil, extraUsage: nil, toggles: toggles()
         )
 
@@ -63,7 +63,7 @@ struct NotificationServiceTests {
         state.levels["lastLevel_fiveHour"] = UsageLevel.red.rawValue
 
         service.evaluate(
-            fiveHour: snap(10), sevenDay: snap(0), sonnet: snap(0), design: snap(0),
+            fiveHour: snap(10), sevenDay: snap(0), sonnet: snap(0), design: snap(0), fable: snap(0),
             sessionPacing: nil, weeklyPacing: nil, extraUsage: nil, toggles: toggles(sendRecovery: true)
         )
 
@@ -77,7 +77,7 @@ struct NotificationServiceTests {
         state.levels["lastLevel_fiveHour"] = UsageLevel.red.rawValue
 
         service.evaluate(
-            fiveHour: snap(10), sevenDay: snap(0), sonnet: snap(0), design: snap(0),
+            fiveHour: snap(10), sevenDay: snap(0), sonnet: snap(0), design: snap(0), fable: snap(0),
             sessionPacing: nil, weeklyPacing: nil, extraUsage: nil, toggles: toggles(sendRecovery: false)
         )
 

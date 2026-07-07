@@ -16,6 +16,7 @@ struct DisplaySectionView: View {
     @State private var showWeeklyPacing: Bool
     @State private var showSonnet: Bool
     @State private var showDesign: Bool
+    @State private var showFable: Bool
     @State private var showServiceStatus: Bool
     @State private var showExtraCredits: Bool
 
@@ -27,6 +28,7 @@ struct DisplaySectionView: View {
         _showWeeklyPacing = State(initialValue: initialMetrics.contains(.weeklyPacing))
         _showSonnet = State(initialValue: initialMetrics.contains(.sonnet))
         _showDesign = State(initialValue: initialMetrics.contains(.design))
+        _showFable = State(initialValue: initialMetrics.contains(.fable))
         _showServiceStatus = State(initialValue: initialMetrics.contains(.serviceStatus))
         _showExtraCredits = State(initialValue: initialMetrics.contains(.extraCredits))
     }
@@ -85,6 +87,7 @@ struct DisplaySectionView: View {
         }
         .onChange(of: showSonnet) { _, new in syncMetric(.sonnet, on: new, revert: { showSonnet = true }) }
         .onChange(of: showDesign) { _, new in syncMetric(.design, on: new, revert: { showDesign = true }) }
+        .onChange(of: showFable) { _, new in syncMetric(.fable, on: new, revert: { showFable = true }) }
         .onChange(of: showServiceStatus) { _, new in syncMetric(.serviceStatus, on: new, revert: { showServiceStatus = true }) }
         .onChange(of: showExtraCredits) { _, new in syncMetric(.extraCredits, on: new, revert: { showExtraCredits = true }) }
         // Sync: store -> local toggles (external changes, e.g. pin/unpin from popover)
@@ -164,6 +167,15 @@ struct DisplaySectionView: View {
                             isActive: showDesign,
                             accent: .purple
                         ) { showDesign.toggle() }
+                    }
+
+                    if usageStore.hasFable {
+                        MetricPinChip(
+                            label: String(localized: "metric.fable"),
+                            icon: "books.vertical.fill",
+                            isActive: showFable,
+                            accent: .pink
+                        ) { showFable.toggle() }
                     }
 
                     MetricPinChip(
@@ -441,6 +453,7 @@ struct DisplaySectionView: View {
         settingsStore.sessionPeriodColorHex = ""
         settingsStore.displaySonnet = true
         settingsStore.displayDesign = true
+        settingsStore.displayFable = true
         // Local @State mirrors so the toggle UI reflects the reset immediately.
         showFiveHour = settingsStore.pinnedMetrics.contains(.fiveHour)
         showSessionReset = settingsStore.pinnedMetrics.contains(.sessionReset)
@@ -449,6 +462,7 @@ struct DisplaySectionView: View {
         showSonnet = settingsStore.pinnedMetrics.contains(.sonnet)
         showWeeklyPacing = settingsStore.pinnedMetrics.contains(.weeklyPacing)
         showDesign = settingsStore.pinnedMetrics.contains(.design)
+        showFable = settingsStore.pinnedMetrics.contains(.fable)
         showServiceStatus = settingsStore.pinnedMetrics.contains(.serviceStatus)
         showExtraCredits = settingsStore.pinnedMetrics.contains(.extraCredits)
     }

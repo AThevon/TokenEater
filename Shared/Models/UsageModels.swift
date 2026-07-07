@@ -9,6 +9,12 @@ struct UsageResponse: Codable {
     let sevenDayOauthApps: UsageBucket?
     let sevenDayOpus: UsageBucket?
     let sevenDayCowork: UsageBucket?
+    /// Claude Fable weekly limit. Two shapes exist in the wild: some accounts
+    /// still get a dedicated `seven_day_fable` bucket, but migrated accounts
+    /// instead carry it inside the `limits` array as a `weekly_scoped` entry
+    /// tagged `scope.model.display_name == "Fable"`. `init(from:)` reads the
+    /// dedicated key first and falls back to the array. Shown as a "Fable" tile.
+    let sevenDayFable: UsageBucket?
     /// Claude Design. Anthropic codenamed it `seven_day_omelette` during the
     /// initial rollout, then moved the quota under `omelette_promotional` (the
     /// legacy key now returns null on migrated accounts). We read both and keep
@@ -26,6 +32,7 @@ struct UsageResponse: Codable {
         case sevenDayOauthApps = "seven_day_oauth_apps"
         case sevenDayOpus = "seven_day_opus"
         case sevenDayCowork = "seven_day_cowork"
+        case sevenDayFable = "seven_day_fable"
         case sevenDayDesign = "seven_day_omelette"
         case extraUsage = "extra_usage"
     }
@@ -35,6 +42,9 @@ struct UsageResponse: Codable {
     private enum FallbackKeys: String, CodingKey {
         /// Post-rollout home of the Claude Design quota (was `seven_day_omelette`).
         case sevenDayDesignPromo = "omelette_promotional"
+        /// Array of per-scope limit entries. The new home of per-model weekly
+        /// quotas (`weekly_scoped`) as Anthropic retires the `seven_day_*` keys.
+        case limits
     }
 
     init(
@@ -44,6 +54,7 @@ struct UsageResponse: Codable {
         sevenDayOauthApps: UsageBucket? = nil,
         sevenDayOpus: UsageBucket? = nil,
         sevenDayCowork: UsageBucket? = nil,
+        sevenDayFable: UsageBucket? = nil,
         sevenDayDesign: UsageBucket? = nil,
         extraUsage: ExtraUsage? = nil
     ) {
@@ -53,6 +64,7 @@ struct UsageResponse: Codable {
         self.sevenDayOauthApps = sevenDayOauthApps
         self.sevenDayOpus = sevenDayOpus
         self.sevenDayCowork = sevenDayCowork
+        self.sevenDayFable = sevenDayFable
         self.sevenDayDesign = sevenDayDesign
         self.extraUsage = extraUsage
     }
@@ -60,18 +72,32 @@ struct UsageResponse: Codable {
     // Decode tolerantly: unknown keys are ignored, broken buckets become nil
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let fallback = try? decoder.container(keyedBy: FallbackKeys.self)
+
+        // Per-model weekly quotas are migrating out of the flat `seven_day_*`
+        // keys into the `limits` array, where each model appears as a
+        // `weekly_scoped` entry tagged with its display name (e.g. "Fable"). On
+        // migrated accounts the old keys return null, so we read `limits` and
+        // use it to backfill any per-model bucket the top-level key left empty.
+        // The top-level value always wins, so old-shape accounts (populated
+        // `seven_day_*`, no `limits`) keep decoding exactly as before.
+        let limits = fallback.flatMap { try? $0.decode([UsageLimit].self, forKey: .limits) } ?? []
+        func scoped(_ modelName: String) -> UsageBucket? {
+            UsageLimit.weeklyScopedBucket(in: limits, modelNamed: modelName)
+        }
+
         fiveHour = try? container.decode(UsageBucket.self, forKey: .fiveHour)
         sevenDay = try? container.decode(UsageBucket.self, forKey: .sevenDay)
-        sevenDaySonnet = try? container.decode(UsageBucket.self, forKey: .sevenDaySonnet)
+        sevenDaySonnet = (try? container.decode(UsageBucket.self, forKey: .sevenDaySonnet)) ?? scoped("Sonnet")
         sevenDayOauthApps = try? container.decode(UsageBucket.self, forKey: .sevenDayOauthApps)
-        sevenDayOpus = try? container.decode(UsageBucket.self, forKey: .sevenDayOpus)
+        sevenDayOpus = (try? container.decode(UsageBucket.self, forKey: .sevenDayOpus)) ?? scoped("Opus")
         sevenDayCowork = try? container.decode(UsageBucket.self, forKey: .sevenDayCowork)
-        // Prefer the legacy key, fall back to the promotional one Anthropic
-        // migrated the quota to. Either may be null/absent on a given account.
+        sevenDayFable = (try? container.decode(UsageBucket.self, forKey: .sevenDayFable)) ?? scoped("Fable")
+        // Prefer the legacy key, then the promotional key Anthropic migrated the
+        // quota to, then the `limits` array. Any of them may be null/absent.
         let designLegacy = try? container.decode(UsageBucket.self, forKey: .sevenDayDesign)
-        let fallback = try? decoder.container(keyedBy: FallbackKeys.self)
         let designPromo = fallback.flatMap { try? $0.decode(UsageBucket.self, forKey: .sevenDayDesignPromo) }
-        sevenDayDesign = designLegacy ?? designPromo
+        sevenDayDesign = designLegacy ?? designPromo ?? scoped("Design")
         extraUsage = try? container.decode(ExtraUsage.self, forKey: .extraUsage)
     }
 }
@@ -101,6 +127,56 @@ struct UsageBucket: Codable {
         guard let resetsAt else { return nil }
         return Self.iso8601WithFractional.date(from: resetsAt)
             ?? Self.iso8601WithoutFractional.date(from: resetsAt)
+    }
+}
+
+/// One entry in the `usage` response's `limits` array. Anthropic is moving
+/// per-model weekly quotas here (as `weekly_scoped` entries carrying the
+/// model's display name) from the flat `seven_day_*` keys. Every field is
+/// optional so an unfamiliar entry never breaks the whole decode.
+struct UsageLimit: Codable {
+    /// e.g. `session`, `weekly_all`, `weekly_scoped`.
+    let kind: String?
+    /// e.g. `session`, `weekly`.
+    let group: String?
+    /// Utilization as a whole-number percentage (the array uses `percent`,
+    /// unlike the `seven_day_*` buckets which use `utilization`).
+    let percent: Double?
+    let resetsAt: String?
+    let scope: Scope?
+
+    enum CodingKeys: String, CodingKey {
+        case kind, group, percent
+        case resetsAt = "resets_at"
+        case scope
+    }
+
+    struct Scope: Codable {
+        let model: Model?
+
+        struct Model: Codable {
+            let id: String?
+            let displayName: String?
+
+            enum CodingKeys: String, CodingKey {
+                case id
+                case displayName = "display_name"
+            }
+        }
+    }
+
+    /// Finds the `weekly_scoped` entry whose model display name matches `name`
+    /// (case-insensitive) and adapts it into a `UsageBucket`, so callers can
+    /// treat it identically to a `seven_day_*` bucket. Returns nil when there
+    /// is no such entry — an old-shape account, or a model the user has not
+    /// touched this week. Exact match keeps it conservative: it only ever adds
+    /// a bucket, and never mistakes one model's quota for another's.
+    static func weeklyScopedBucket(in limits: [UsageLimit], modelNamed name: String) -> UsageBucket? {
+        let needle = name.lowercased()
+        guard let match = limits.first(where: {
+            $0.kind == "weekly_scoped" && $0.scope?.model?.displayName?.lowercased() == needle
+        }) else { return nil }
+        return UsageBucket(utilization: match.percent ?? 0, resetsAt: match.resetsAt)
     }
 }
 

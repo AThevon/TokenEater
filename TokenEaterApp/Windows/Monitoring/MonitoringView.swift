@@ -527,6 +527,17 @@ struct MonitoringView: View {
                 windowDuration: weekWindow
             ))
         }
+        if usageStore.hasFable {
+            tiles.append(TileDescriptor(
+                id: "fable",
+                label: "Fable",
+                icon: "books.vertical.fill",
+                pct: usageStore.fablePct,
+                resetText: usageStore.fableReset.isEmpty ? nil : usageStore.fableReset,
+                resetDate: usageStore.lastUsage?.sevenDayFable?.resetsAtDate,
+                windowDuration: weekWindow
+            ))
+        }
         return tiles
     }
 

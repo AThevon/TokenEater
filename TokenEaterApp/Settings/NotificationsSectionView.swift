@@ -144,6 +144,7 @@ struct NotificationsSectionView: View {
                 darkToggle(String(localized: "settings.notifications.track.weekly"), isOn: $settingsStore.notification.trackWeekly)
                 darkToggle(String(localized: "settings.notifications.track.sonnet"), isOn: $settingsStore.notification.trackSonnet)
                 darkToggle(String(localized: "settings.notifications.track.design"), isOn: $settingsStore.notification.trackDesign)
+                darkToggle(String(localized: "settings.notifications.track.fable"), isOn: $settingsStore.notification.trackFable)
                 Divider().padding(.vertical, 2)
                 darkToggle(String(localized: "settings.notifications.recovery"), isOn: $settingsStore.notification.sendRecovery)
                 Text(String(localized: "settings.notifications.recovery.hint"))

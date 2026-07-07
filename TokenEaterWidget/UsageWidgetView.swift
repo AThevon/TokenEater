@@ -177,6 +177,16 @@ struct UsageWidgetView: View {
                     windowDuration: 7 * 86_400
                 )
             }
+            if let fable = usage.sevenDayFable {
+                LargeUsageBarView(
+                    icon: "books.vertical.fill",
+                    label: String(localized: "widget.fable"),
+                    resetInfo: formatResetDate(fable.resetsAtDate),
+                    utilization: fable.utilization,
+                    resetDate: fable.resetsAtDate,
+                    windowDuration: 7 * 86_400
+                )
+            }
             if let extra = usage.extraUsage, extra.isEnabled {
                 // No reset window: resetDate nil + windowDuration 0 makes the
                 // bar fall back to the static threshold colour. `displayText`

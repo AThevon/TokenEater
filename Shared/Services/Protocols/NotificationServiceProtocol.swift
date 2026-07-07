@@ -32,6 +32,7 @@ struct NotificationToggles {
     let trackWeekly: Bool
     let trackSonnet: Bool
     let trackDesign: Bool
+    let trackFable: Bool
     let sendRecovery: Bool
     let pacingHot: Bool
     let pacingWarning: Bool
@@ -63,6 +64,7 @@ protocol NotificationServiceProtocol {
         sevenDay: MetricSnapshot,
         sonnet: MetricSnapshot,
         design: MetricSnapshot,
+        fable: MetricSnapshot,
         sessionPacing: PacingZone?,
         weeklyPacing: PacingZone?,
         extraUsage: ExtraUsage?,

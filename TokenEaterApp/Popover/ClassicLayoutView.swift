@@ -46,8 +46,9 @@ struct ClassicLayoutView: View {
 
         let showSonnetSat = settingsStore.displaySonnet
         let showDesignSat = settingsStore.displayDesign && usageStore.hasDesign
+        let showFableSat = settingsStore.displayFable && usageStore.hasFable
         let showExtraCreditsSat = settingsStore.displayExtraCredits && usageStore.hasExtraCredits
-        let hasExtraSatellites = showSonnetSat || showDesignSat || showExtraCreditsSat
+        let hasExtraSatellites = showSonnetSat || showDesignSat || showFableSat || showExtraCreditsSat
 
         if !sessionVisible && !weeklyVisible {
             EmptyView()
@@ -81,6 +82,14 @@ struct ClassicLayoutView: View {
                         label: String(localized: "metric.design"),
                         pct: usageStore.designPct,
                         resetDate: usageStore.lastUsage?.sevenDayDesign?.resetsAtDate,
+                        windowDuration: 7 * 86_400
+                    )
+                }
+                if showFableSat {
+                    PopoverSatelliteRing(
+                        label: String(localized: "metric.fable"),
+                        pct: usageStore.fablePct,
+                        resetDate: usageStore.lastUsage?.sevenDayFable?.resetsAtDate,
                         windowDuration: 7 * 86_400
                     )
                 }

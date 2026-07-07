@@ -71,6 +71,7 @@ private enum Surface: String {
     case weekly
     case sonnet
     case design
+    case fable
 
     /// `weekly` and `sonnet`/`design` share the long-form body (date-based)
     /// but each gets its own title to avoid generic alerts.
@@ -121,6 +122,7 @@ final class NotificationService: NotificationServiceProtocol {
         sevenDay: MetricSnapshot,
         sonnet: MetricSnapshot,
         design: MetricSnapshot,
+        fable: MetricSnapshot,
         sessionPacing: PacingZone?,
         weeklyPacing: PacingZone?,
         extraUsage: ExtraUsage?,
@@ -146,6 +148,9 @@ final class NotificationService: NotificationServiceProtocol {
         }
         if toggles.trackDesign {
             checkSurface(.design, snapshot: design, pacing: weeklyPacing, toggles: toggles)
+        }
+        if toggles.trackFable {
+            checkSurface(.fable, snapshot: fable, pacing: weeklyPacing, toggles: toggles)
         }
 
         // Pacing zone transitions, gated independently from threshold alerts.
@@ -445,7 +450,7 @@ final class NotificationService: NotificationServiceProtocol {
             return level == .red
                 ? NSLocalizedString("notif.body.fivehour.red.fallback", comment: "")
                 : NSLocalizedString("notif.body.fivehour.orange.fallback", comment: "")
-        case .weekly, .sonnet, .design:
+        case .weekly, .sonnet, .design, .fable:
             if let resetsAt, resetsAt.timeIntervalSinceNow > 0 {
                 let dateTime = NotificationBodyFormatter.formatDateTime(resetsAt)
                 let key = level == .red
@@ -467,7 +472,7 @@ final class NotificationService: NotificationServiceProtocol {
         case .fiveHour:
             let time = NotificationBodyFormatter.formatTime(resetsAt)
             return String(format: NSLocalizedString("notif.body.fivehour.green", comment: ""), time)
-        case .weekly, .sonnet, .design:
+        case .weekly, .sonnet, .design, .fable:
             let dateTime = NotificationBodyFormatter.formatDateTime(resetsAt)
             return String(format: NSLocalizedString("notif.body.\(surface.bodyFamily).green", comment: ""), dateTime)
         }

@@ -134,6 +134,12 @@ struct PopoverSectionView: View {
                     label: String(localized: "popover.option.showDesign")
                 )
             }
+            if usageStore.hasFable {
+                generalToggleRow(
+                    isOn: $settingsStore.display.displayFable,
+                    label: String(localized: "popover.option.showFable")
+                )
+            }
             if usageStore.hasExtraCredits {
                 generalToggleRow(
                     isOn: $settingsStore.display.displayExtraCredits,

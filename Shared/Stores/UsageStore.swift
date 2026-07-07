@@ -20,13 +20,17 @@ final class UsageStore: ObservableObject {
     @Published var hasConfig = false
     @Published var opusPct: Int = 0
     @Published var coworkPct: Int = 0
+    @Published var fablePct: Int = 0
     @Published var oauthAppsPct: Int = 0
     @Published var designPct: Int = 0
     @Published var hasOpus: Bool = false
     @Published var hasCowork: Bool = false
+    @Published var hasFable: Bool = false
     @Published var hasDesign: Bool = false
     @Published var designReset: String = ""
     @Published var designResetAbsolute: String = ""
+    @Published var fableReset: String = ""
+    @Published var fableResetAbsolute: String = ""
     @Published var sonnetReset: String = ""
     @Published var sonnetResetAbsolute: String = ""
     @Published var extraUsage: ExtraUsage?
@@ -362,10 +366,12 @@ final class UsageStore: ObservableObject {
         sonnetPct = Int(usage.sevenDaySonnet?.utilization ?? 0)
         opusPct = Int(usage.sevenDayOpus?.utilization ?? 0)
         coworkPct = Int(usage.sevenDayCowork?.utilization ?? 0)
+        fablePct = Int(usage.sevenDayFable?.utilization ?? 0)
         oauthAppsPct = Int(usage.sevenDayOauthApps?.utilization ?? 0)
         designPct = Int(usage.sevenDayDesign?.utilization ?? 0)
         hasOpus = usage.sevenDayOpus != nil
         hasCowork = usage.sevenDayCowork != nil
+        hasFable = usage.sevenDayFable != nil
         hasDesign = usage.sevenDayDesign != nil
         extraUsage = usage.extraUsage
 
@@ -385,6 +391,10 @@ final class UsageStore: ObservableObject {
         let design = ResetCountdownFormatter.weekly(from: lastUsage?.sevenDayDesign?.resetsAtDate)
         designReset = design.relative
         designResetAbsolute = design.absolute
+        // Fable is a weekly bucket with its own reset timestamp.
+        let fable = ResetCountdownFormatter.weekly(from: lastUsage?.sevenDayFable?.resetsAtDate)
+        fableReset = fable.relative
+        fableResetAbsolute = fable.absolute
         // Sonnet also uses the 7d cadence - it's a separate Sonnet-specific pool
         // on top of the global weekly limit.
         let sonnet = ResetCountdownFormatter.weekly(from: lastUsage?.sevenDaySonnet?.resetsAtDate)
@@ -427,12 +437,19 @@ final class UsageStore: ObservableObject {
             windowDuration: 7 * 86_400,
             utilization: usage.sevenDayDesign?.utilization ?? Double(designPct)
         )
+        let fableSnap = MetricSnapshot(
+            pct: fablePct,
+            resetsAt: usage.sevenDayFable?.resetsAtDate,
+            windowDuration: 7 * 86_400,
+            utilization: usage.sevenDayFable?.utilization ?? Double(fablePct)
+        )
 
         notificationService.evaluate(
             fiveHour: fiveHourSnap,
             sevenDay: sevenDaySnap,
             sonnet: sonnetSnap,
             design: designSnap,
+            fable: fableSnap,
             sessionPacing: fiveHourPacing?.zone,
             weeklyPacing: pacingZone,
             extraUsage: extraUsage,

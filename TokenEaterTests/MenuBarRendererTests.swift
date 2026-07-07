@@ -126,6 +126,9 @@ struct MenuBarOutageBadgeTests {
             pacingShape: .circle,
             designPct: 0,
             hasDesign: false,
+            fablePct: 0,
+            hasFable: false,
+            fableResetDate: nil,
             outageActive: outageActive,
             outageHealth: outageHealth,
             nextPollSeconds: nextPollSeconds,
@@ -304,6 +307,7 @@ struct MenuBarExtraCreditsRenderTests {
             menuBarStyle: style,
             pacingShape: .circle,
             designPct: 0, hasDesign: false,
+            fablePct: 0, hasFable: false, fableResetDate: nil,
             outageActive: false, outageHealth: .healthy, nextPollSeconds: nil,
             extraCreditsPct: extraCreditsPct, hasExtraCredits: hasExtraCredits
         )

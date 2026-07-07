@@ -42,6 +42,9 @@ enum MenuBarRenderer {
         let pacingShape: PacingShape
         let designPct: Int
         let hasDesign: Bool
+        let fablePct: Int
+        let hasFable: Bool
+        let fableResetDate: Date?
         // Outage badge (Service Status). Set by StatusBarController from
         // VendorStatusStore; kept `let` like every other RenderData field so
         // the Equatable render cache stays correct.
@@ -138,6 +141,7 @@ enum MenuBarRenderer {
         case .sevenDay:    return data.sevenDayResetDate
         case .sonnet:      return data.sonnetResetDate
         case .design:      return data.designResetDate
+        case .fable:       return data.fableResetDate
         default:           return nil
         }
     }
@@ -145,7 +149,7 @@ enum MenuBarRenderer {
     private static func windowDuration(for metric: MetricID) -> TimeInterval {
         switch metric {
         case .fiveHour: return 5 * 3600
-        case .sevenDay, .sonnet, .design: return 7 * 86_400
+        case .sevenDay, .sonnet, .design, .fable: return 7 * 86_400
         default: return 0
         }
     }
@@ -310,13 +314,14 @@ enum MenuBarRenderer {
         }()
 
         let ordered: [MetricID] = [
-            .serviceStatus, .sessionReset, .fiveHour, .sessionPacing, .sevenDay, .weeklyPacing, .sonnet, .design, .extraCredits
+            .serviceStatus, .sessionReset, .fiveHour, .sessionPacing, .sevenDay, .weeklyPacing, .sonnet, .design, .fable, .extraCredits
         ].filter {
             guard data.pinnedMetrics.contains($0) else { return false }
             // Sonnet / Design / Extra Credits visibility in the menu bar is
             // purely driven by pinnedMetrics. Popover visibility has its own
             // toggles.
             if $0 == .design && !data.hasDesign { return false }
+            if $0 == .fable && !data.hasFable { return false }
             switch $0 {
             // Session-scoped pins stay visible as long as the API returned a
             // five_hour bucket. Between sessions Anthropic omits resets_at, so
@@ -325,6 +330,7 @@ enum MenuBarRenderer {
             case .sessionReset, .sessionPacing: return data.hasFiveHourBucket
             case .weeklyPacing: return data.hasWeeklyPacing
             case .design: return data.hasDesign
+            case .fable: return data.hasFable
             case .serviceStatus: return true
             // Extra Credits only renders when the paid pool is provisioned and
             // enabled. Hidden otherwise so non-overage users never see "EC 0%".
@@ -373,13 +379,14 @@ enum MenuBarRenderer {
                     mode: data.weeklyPacingDisplayMode,
                     data: data
                 )
-            case .fiveHour, .sevenDay, .sonnet, .design, .extraCredits:
+            case .fiveHour, .sevenDay, .sonnet, .design, .fable, .extraCredits:
                 let value: Int
                 switch metric {
                 case .fiveHour: value = data.fiveHourPct
                 case .sevenDay: value = data.sevenDayPct
                 case .sonnet: value = data.sonnetPct
                 case .design: value = data.designPct
+                case .fable: value = data.fablePct
                 case .extraCredits: value = data.extraCreditsPct
                 default: value = 0
                 }
@@ -520,17 +527,19 @@ enum MenuBarRenderer {
 
     private static func buildBadgePills(_ data: RenderData) -> [BadgePill] {
         let ordered: [MetricID] = [
-            .serviceStatus, .sessionReset, .fiveHour, .sessionPacing, .sevenDay, .weeklyPacing, .sonnet, .design, .extraCredits
+            .serviceStatus, .sessionReset, .fiveHour, .sessionPacing, .sevenDay, .weeklyPacing, .sonnet, .design, .fable, .extraCredits
         ].filter {
             guard data.pinnedMetrics.contains($0) else { return false }
             // Sonnet / Design / Extra Credits visibility in the menu bar is
             // purely driven by pinnedMetrics. Popover visibility has its own
             // toggles.
             if $0 == .design && !data.hasDesign { return false }
+            if $0 == .fable && !data.hasFable { return false }
             switch $0 {
             case .sessionReset, .sessionPacing: return data.hasFiveHourBucket
             case .weeklyPacing: return data.hasWeeklyPacing
             case .design: return data.hasDesign
+            case .fable: return data.hasFable
             case .serviceStatus: return true
             case .extraCredits: return data.hasExtraCredits
             default: return true
@@ -581,6 +590,11 @@ enum MenuBarRenderer {
                 return BadgePill(
                     text: "\(data.designPct)%",
                     tint: colorForPct(data.designPct, resetDate: data.designResetDate, windowDuration: 7 * 86_400, data: data)
+                )
+            case .fable:
+                return BadgePill(
+                    text: "\(data.fablePct)%",
+                    tint: colorForPct(data.fablePct, resetDate: data.fableResetDate, windowDuration: 7 * 86_400, data: data)
                 )
             case .extraCredits:
                 // No reset window: pass nil/0 so colorForPct falls back to the

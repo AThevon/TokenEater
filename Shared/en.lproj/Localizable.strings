@@ -784,3 +784,21 @@
 "dashboard.status.degraded" = "Claude is degraded";
 "dashboard.status.down" = "Claude is down";
 "dashboard.status.affected" = "Affected: %@";
+
+/* Fable (Claude Fable weekly limit) */
+"metric.fable" = "Fable";
+"widget.fable" = "Fable";
+"settings.group.fable" = "Claude Fable";
+"popover.option.showFable" = "Show Fable ring (Classic variant)";
+"settings.notifications.track.fable" = "Track Claude Fable weekly";
+"notif.title.fable.pace" = "Ahead of Fable pace";
+"notif.body.fable.pace" = "You're ahead of an even Fable burn rate, not near the cap. Fine if intentional.";
+"notif.title.fable.orange" = "Fable pool heavy";
+"notif.title.fable.red" = "Fable almost gone";
+"notif.title.fable.green" = "Fable reset";
+"notif.body.fable.orange" = "Resets %@";
+"notif.body.fable.orange.fallback" = "Past the Fable warning";
+"notif.body.fable.red" = "Ease off until %@";
+"notif.body.fable.red.fallback" = "Fable pool almost out";
+"notif.body.fable.green" = "Fable refilled at %@";
+"notif.body.fable.green.fallback" = "Fable refilled, you're back";

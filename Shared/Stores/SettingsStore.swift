@@ -58,6 +58,9 @@ final class SettingsStore: ObservableObject {
     var displayDesign: Bool {
         get { display.displayDesign } set { display.displayDesign = newValue }
     }
+    var displayFable: Bool {
+        get { display.displayFable } set { display.displayFable = newValue }
+    }
     /// Same as `displayDesign` but for the paid Extra Credits pool. Only
     /// surfaced in settings when `UsageStore.hasExtraCredits` is true.
     var displayExtraCredits: Bool {
@@ -179,6 +182,9 @@ final class SettingsStore: ObservableObject {
     }
     var notifTrackDesign: Bool {
         get { notification.trackDesign } set { notification.trackDesign = newValue }
+    }
+    var notifTrackFable: Bool {
+        get { notification.trackFable } set { notification.trackFable = newValue }
     }
     var notifSendRecovery: Bool {
         get { notification.sendRecovery } set { notification.sendRecovery = newValue }

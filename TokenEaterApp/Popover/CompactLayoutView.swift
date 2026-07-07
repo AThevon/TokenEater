@@ -33,8 +33,9 @@ struct CompactLayoutView: View {
     private var extraSatellitesRow: some View {
         let showSonnet = settingsStore.displaySonnet
         let showDesign = settingsStore.displayDesign && usageStore.hasDesign
+        let showFable = settingsStore.displayFable && usageStore.hasFable
         let showExtraCredits = settingsStore.displayExtraCredits && usageStore.hasExtraCredits
-        if showSonnet || showDesign || showExtraCredits {
+        if showSonnet || showDesign || showFable || showExtraCredits {
             HStack(spacing: 8) {
                 if showSonnet {
                     CompactExtraChip(
@@ -51,6 +52,16 @@ struct CompactLayoutView: View {
                         label: String(localized: "metric.design"),
                         pct: usageStore.designPct,
                         resetDate: usageStore.lastUsage?.sevenDayDesign?.resetsAtDate,
+                        windowDuration: 7 * 86_400,
+                        theme: themeStore,
+                        settings: settingsStore
+                    )
+                }
+                if showFable {
+                    CompactExtraChip(
+                        label: String(localized: "metric.fable"),
+                        pct: usageStore.fablePct,
+                        resetDate: usageStore.lastUsage?.sevenDayFable?.resetsAtDate,
                         windowDuration: 7 * 86_400,
                         theme: themeStore,
                         settings: settingsStore

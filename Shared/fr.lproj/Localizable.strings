@@ -784,3 +784,21 @@
 "dashboard.status.degraded" = "Claude est dégradé";
 "dashboard.status.down" = "Claude est hors service";
 "dashboard.status.affected" = "Concerné : %@";
+
+/* Fable (limite hebdomadaire Claude Fable) */
+"metric.fable" = "Fable";
+"widget.fable" = "Fable";
+"settings.group.fable" = "Claude Fable";
+"popover.option.showFable" = "Afficher l'anneau Fable (variant Classic)";
+"settings.notifications.track.fable" = "Suivre la semaine Claude Fable";
+"notif.title.fable.pace" = "En avance sur le rythme Fable";
+"notif.body.fable.pace" = "Tu es au-dessus d'un rythme Fable régulier, pas proche du plafond. Rien d'alarmant si c'est voulu.";
+"notif.title.fable.orange" = "Pool Fable bien entamé";
+"notif.title.fable.red" = "Fable presque épuisé";
+"notif.title.fable.green" = "Fable relancé";
+"notif.body.fable.orange" = "Reset %@";
+"notif.body.fable.orange.fallback" = "Au-delà du seuil Fable";
+"notif.body.fable.red" = "Mollo jusqu'au %@";
+"notif.body.fable.red.fallback" = "Pool Fable presque vide";
+"notif.body.fable.green" = "Fable rechargé le %@";
+"notif.body.fable.green.fallback" = "Fable rechargé, t'es de retour";

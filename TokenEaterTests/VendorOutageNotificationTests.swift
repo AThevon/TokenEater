@@ -19,7 +19,7 @@ struct VendorOutageNotificationTests {
     private func toggles(degraded: Bool = true, restored: Bool = true, master: Bool = true) -> NotificationToggles {
         NotificationToggles(
             masterEnabled: master,
-            trackFiveHour: true, trackWeekly: true, trackSonnet: true, trackDesign: true,
+            trackFiveHour: true, trackWeekly: true, trackSonnet: true, trackDesign: true, trackFable: true,
             sendRecovery: true, pacingHot: true, pacingWarning: false,
             resetReminderSession: false, resetReminderWeekly: false,
             resetReminderSessionOffsetMinutes: 15, resetReminderWeeklyOffsetMinutes: 60,
