@@ -14,6 +14,7 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
     private var scanInterval: TimeInterval
     private var projectDirFreshness: TimeInterval
     private let claudeProjectsDirOverride: URL?
+    private let claudeSessionsDirOverride: URL?
     private let processProvider: @Sendable () -> [ClaudeProcessInfo]
 
     private var claudeProjectsDir: URL {
@@ -27,15 +28,28 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
         return URL(fileURLWithPath: home).appendingPathComponent(".claude/projects")
     }
 
+    private var claudeSessionsDir: URL {
+        if let override = claudeSessionsDirOverride { return override }
+        let home: String
+        if let pw = getpwuid(getuid()) {
+            home = String(cString: pw.pointee.pw_dir)
+        } else {
+            home = NSHomeDirectory()
+        }
+        return URL(fileURLWithPath: home).appendingPathComponent(".claude/sessions")
+    }
+
     init(
         scanInterval: TimeInterval = 2.0,
         projectDirFreshness: TimeInterval = 30 * 60,
         claudeProjectsDirOverride: URL? = nil,
+        claudeSessionsDirOverride: URL? = nil,
         processProvider: @escaping @Sendable () -> [ClaudeProcessInfo] = { ProcessResolver.findClaudeProcesses() }
     ) {
         self.scanInterval = scanInterval
         self.projectDirFreshness = projectDirFreshness
         self.claudeProjectsDirOverride = claudeProjectsDirOverride
+        self.claudeSessionsDirOverride = claudeSessionsDirOverride
         self.processProvider = processProvider
     }
 
@@ -178,6 +192,7 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
                     id: sessionId,
                     projectPath: result.projectPath,
                     gitBranch: result.gitBranch,
+                    userSessionName: readUserSessionName(pid: process.pid, sessionId: sessionId),
                     model: result.model,
                     state: resolvedState,
                     lastUpdate: mtime,
@@ -226,6 +241,32 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
         }
 
         return nil
+    }
+
+    /// Read the user-set session name from Claude Code's session registry
+    /// (`~/.claude/sessions/<pid>.json`). Called on every scan tick so a
+    /// mid-session `/rename` is picked up at the next watcher refresh.
+    /// Returns nil unless the entry's sessionId matches (guards against a
+    /// stale file left behind by a dead process whose pid was reused) and the
+    /// name was set by the user (`nameSource == "user"`) - auto-derived names
+    /// like `myproject-01` are less informative than the branch/project
+    /// fallback and are ignored.
+    private func readUserSessionName(pid: Int32, sessionId: String) -> String? {
+        struct RegistryEntry: Decodable {
+            let sessionId: String?
+            let name: String?
+            let nameSource: String?
+        }
+
+        let file = claudeSessionsDir.appendingPathComponent("\(pid).json")
+        guard let data = try? Data(contentsOf: file),
+              let entry = try? JSONDecoder().decode(RegistryEntry.self, from: data),
+              entry.sessionId == sessionId,
+              entry.nameSource == "user",
+              let name = entry.name, !name.isEmpty else {
+            return nil
+        }
+        return name
     }
 
     /// Check if a session is currently compacting by looking for active `agent-acompact-*.jsonl` files.

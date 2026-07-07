@@ -403,7 +403,7 @@ struct SessionTraitView: View {
                         .foregroundStyle(activeColor.opacity(0.85))
 
                 case .projectAndBranch:
-                    Text(session.projectName)
+                    Text(session.userSessionName ?? session.projectName)
                         .font(.system(size: 11.5 * scale, weight: .semibold, design: fontDesign))
                         .foregroundStyle(.white)
                         .lineLimit(1)

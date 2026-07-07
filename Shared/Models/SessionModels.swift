@@ -29,10 +29,16 @@ struct ClaudeSession: Identifiable, Sendable {
         return branch
     }
 
-    /// Title for branch-priority mode: shows branch when non-default, otherwise project name
+    /// Title for branch-priority mode: user-set session name first, then
+    /// branch when non-default, otherwise project name
     var displayName: String {
-        visibleBranch ?? projectName
+        userSessionName ?? visibleBranch ?? projectName
     }
+    /// User-set session name from `~/.claude/sessions/<pid>.json`
+    /// (`nameSource == "user"`, i.e. renamed via `/rename`). Nil when the
+    /// session only has an auto-derived name or no registry entry exists.
+    var userSessionName: String?
+
     var model: String?
     var state: SessionState
     var lastUpdate: Date
