@@ -52,8 +52,11 @@ Open the DMG, drag TokenEater to Applications, and launch it. The DMG is signed 
 
 ```bash
 brew tap AThevon/tokeneater
+brew trust AThevon/tokeneater
 brew install --cask tokeneater
 ```
+
+> `brew trust` is required on Homebrew 6.0+, which no longer loads a third-party tap until you trust it.
 
 ### First Setup
 
