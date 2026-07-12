@@ -788,7 +788,6 @@
 /* Fable (Claude Fable weekly limit) */
 "metric.fable" = "Fable";
 "widget.fable" = "Fable";
-"settings.group.fable" = "Claude Fable";
 "popover.option.showFable" = "Show Fable ring (Classic variant)";
 "settings.notifications.track.fable" = "Track Claude Fable weekly";
 "notif.title.fable.pace" = "Ahead of Fable pace";

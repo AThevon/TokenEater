@@ -530,7 +530,7 @@ struct MonitoringView: View {
         if usageStore.hasFable {
             tiles.append(TileDescriptor(
                 id: "fable",
-                label: "Fable",
+                label: String(localized: "metric.fable"),
                 icon: "books.vertical.fill",
                 pct: usageStore.fablePct,
                 resetText: usageStore.fableReset.isEmpty ? nil : usageStore.fableReset,
