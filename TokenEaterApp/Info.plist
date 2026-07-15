@@ -33,8 +33,6 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
-	<key>LSMultipleInstancesProhibited</key>
-	<true/>
 	<key>LSUIElement</key>
 	<true/>
 </dict>

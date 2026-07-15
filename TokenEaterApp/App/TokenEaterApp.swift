@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import Combine
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -98,6 +99,18 @@ struct TokenEaterApp: App {
     private let vendorStatusStore: VendorStatusStore
 
     init() {
+        // NSRunningApplication only enumerates the current login session, so this
+        // refuses a second launch by the same user without blocking a separate
+        // macOS user's own instance (e.g. under Fast User Switching).
+        if let bundleID = Bundle.main.bundleIdentifier {
+            let currentPID = ProcessInfo.processInfo.processIdentifier
+            if let existing = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+                .first(where: { $0.processIdentifier != currentPID }) {
+                existing.activate()
+                exit(0)
+            }
+        }
+
         // Migrate v4.x sandbox-container UserDefaults into the real path BEFORE
         // any store is constructed - store inits read UserDefaults.standard, so
         // missing this step would make every upgrading user land on onboarding.
