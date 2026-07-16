@@ -46,14 +46,14 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     /// Returns the current token, using the in-memory cache if available.
     /// The Keychain is only read when the cache is empty (app start, or after `invalidateToken()`).
     ///
-    /// Source priority (v5.0+):
-    /// 1. `/usr/bin/security` shell-out (primary - works for all modern Claude Code macOS users,
-    ///    no popups across app updates because `security` has a stable Apple signing identity)
-    /// 2. `.credentials.json` (legacy Claude Code fallback - still present on Linux/Windows and
+    /// Source priority:
+    /// 1. Direct `SecItemCopyMatching` (primary - sandbox-safe, works on macOS 26 where
+    ///    Process-spawning `/usr/bin/security` is blocked by the App Sandbox)
+    /// 2. `/usr/bin/security` shell-out (fallback - for setups where the Keychain ACL only
+    ///    whitelists `/usr/bin/security` and the app is desandboxed)
+    /// 3. `.credentials.json` (legacy Claude Code fallback - still present on Linux/Windows and
     ///    on very old macOS Claude Code installs)
-    /// 3. Claude Desktop `config.json` decryption (for users without Claude Code CLI at all)
-    /// 4. Direct `SecItemCopyMatching` (last resort - the Claude Code Keychain ACL doesn't
-    ///    whitelist us directly, but kept for defence-in-depth)
+    /// 4. Claude Desktop `config.json` decryption (for users without Claude Code CLI at all)
     func currentToken() -> String? {
         if let token = cachedToken { return token }
         let token = readFromSources()
@@ -64,6 +64,15 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     /// Reads the token from all sources in priority order, bypassing the
     /// in-memory cache. Returns the freshest token currently on the system.
     private func readFromSources() -> String? {
+        // Native SecItemCopyMatching first: it works inside the App Sandbox on
+        // macOS 26, where Process.run("/usr/bin/security") is blocked and hangs
+        // (see #217). Silent read succeeds once the user has granted access to
+        // the "Claude Code-credentials" item.
+        if let token = keychainReader(true) {
+            logger.info("Token read from Keychain (silent, native)")
+            return token
+        }
+
         if let token = securityCLIReader.readToken() {
             logger.info("Token read via /usr/bin/security")
             return token
@@ -74,11 +83,6 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
         }
 
         if let token = tokenFromConfigJSON() {
-            return token
-        }
-
-        if let token = keychainReader(true) {
-            logger.info("Token read from Keychain (silent)")
             return token
         }
 
