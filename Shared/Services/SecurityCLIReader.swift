@@ -38,7 +38,21 @@ final class SecurityCLIReader: SecurityCLIReaderProtocol, @unchecked Sendable {
             logger.info("security launch failed: \(error.localizedDescription, privacy: .public)")
             return nil
         }
-        task.waitUntilExit()
+        // Guard against a hung child. On macOS 26 the spawned `security` process
+        // can block indefinitely on Keychain authorization when launched by a
+        // headless (LSUIElement) GUI app, so waitUntilExit() never returns and a
+        // caller on the main thread beachballs (see #217). Wait on a background
+        // thread with a 3s timeout, then fall through to the next source.
+        let done = DispatchSemaphore(value: 0)
+        DispatchQueue.global(qos: .userInitiated).async {
+            task.waitUntilExit()
+            done.signal()
+        }
+        if done.wait(timeout: .now() + 3) == .timedOut {
+            task.terminate()
+            logger.info("security read timed out after 3s; falling through to next source")
+            return nil
+        }
         guard task.terminationStatus == 0 else {
             // Common exit codes: 44 (item not found), 45 (ACL denied).
             return nil

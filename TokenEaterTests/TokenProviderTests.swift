@@ -45,8 +45,10 @@ struct TokenProviderTests {
 
     // MARK: - Tests
 
-    @Test("security CLI is the primary source")
-    func securityCLIFirst() {
+    @Test("native silent Keychain read is the primary source")
+    func keychainSilentIsPrimary() {
+        // Native SecItemCopyMatching is tried first so the macOS 26
+        // /usr/bin/security shell-out hang is bypassed once access is granted.
         let (provider, securityCLI, _, _, decryption) = makeSUT(
             securityCLIToken: "security-token",
             credentialsToken: "creds-token",
@@ -57,17 +59,34 @@ struct TokenProviderTests {
 
         let token = provider.currentToken()
 
+        #expect(token == "keychain-token")
+        #expect(securityCLI.readCallCount == 0)
+        #expect(decryption.decryptCallCount == 0)
+    }
+
+    @Test("falls back to security CLI when the silent Keychain read misses")
+    func securityCLIWhenKeychainMisses() {
+        // Mainstream path: the item ACL only whitelists /usr/bin/security, so the
+        // silent native read returns nil and the shell-out resolves the token.
+        let (provider, securityCLI, _, _, decryption) = makeSUT(
+            securityCLIToken: "security-token",
+            credentialsToken: "creds-token",
+            keychainToken: nil
+        )
+
+        let token = provider.currentToken()
+
         #expect(token == "security-token")
         #expect(securityCLI.readCallCount == 1)
         #expect(decryption.decryptCallCount == 0)
     }
 
-    @Test("falls back to credentials file when security CLI returns nil")
+    @Test("falls back to credentials file when Keychain and security CLI return nil")
     func fallbackToCredentialsFile() {
         let (provider, _, _, _, decryption) = makeSUT(
             securityCLIToken: nil,
             credentialsToken: "creds-token",
-            keychainToken: "keychain-token"
+            keychainToken: nil
         )
 
         let token = provider.currentToken()
@@ -76,8 +95,8 @@ struct TokenProviderTests {
         #expect(decryption.decryptCallCount == 0)
     }
 
-    @Test("falls back to keychain when security CLI and credentials file miss")
-    func fallbackToKeychain() {
+    @Test("reads the token from the Keychain when it is the only source")
+    func readsKeychainToken() {
         let (provider, _, _, _, decryption) = makeSUT(
             securityCLIToken: nil,
             credentialsToken: nil,
@@ -162,14 +181,13 @@ struct TokenProviderTests {
         #expect(provider.hasTokenSource() == false)
     }
 
-    @Test("config.json decryption is tried before direct Keychain")
-    func configJsonBeforeKeychain() {
+    @Test("silent Keychain read is tried before config.json decryption")
+    func keychainSilentBeforeConfigDecryption() {
         let oauthJSON: [String: Any] = [
             "claudeAiOauth": ["accessToken": "config-token"]
         ]
         let jsonData = try! JSONSerialization.data(withJSONObject: oauthJSON)
 
-        var keychainWasCalled = false
         let securityCLI = MockSecurityCLIReader()
         let credentials = MockCredentialsFileReader()
         credentials.storedToken = nil
@@ -181,10 +199,7 @@ struct TokenProviderTests {
         decryption._hasEncryptionKey = true
         decryption.decryptedData = jsonData
 
-        let keychainReader: TokenProvider.KeychainTokenReader = { _ in
-            keychainWasCalled = true
-            return "keychain-token"
-        }
+        let keychainReader: TokenProvider.KeychainTokenReader = { _ in "keychain-token" }
 
         let provider = TokenProvider(
             securityCLIReader: securityCLI,
@@ -196,8 +211,8 @@ struct TokenProviderTests {
 
         let token = provider.currentToken()
 
-        #expect(token == "config-token")
-        #expect(keychainWasCalled == false)
+        #expect(token == "keychain-token")
+        #expect(decryption.decryptCallCount == 0)
     }
 
     @Test("silent re-bootstrap recovers when decryption key is stale")
