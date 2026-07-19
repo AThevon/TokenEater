@@ -155,7 +155,10 @@ final class UpdateStore: ObservableObject {
         echo "=== TokenEater Installer ==="
         echo "Date: $(date)"
 
-        while pgrep -x "TokenEater" > /dev/null 2>&1; do sleep 0.3; done
+        # Wait only for THIS user's instance to quit. The script runs as root,
+        # so an unscoped pgrep would also match other logged-in users' instances
+        # (Fast User Switching) and stall the update until they quit too.
+        while pgrep -x -U \(getuid()) "TokenEater" > /dev/null 2>&1; do sleep 0.3; done
         echo "App quit."
 
         MOUNT=$(hdiutil attach '\(dmgSharedPath)' -nobrowse | grep '/Volumes/' | head -1 | sed 's/.*\\(\\/Volumes\\/.*\\)/\\1/')
