@@ -36,28 +36,26 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
 
     func hasTokenSource() -> Bool {
         if cachedToken != nil { return true }
-        if keychainReader(true) != nil { return true }
         if securityCLIReader.readToken() != nil { return true }
         if credentialsFileReader.readToken() != nil { return true }
         if configReader.readEncryptedToken() != nil { return true }
+        if keychainReader(true) != nil { return true }
         return false
     }
 
     /// Returns the current token, using the in-memory cache if available.
     /// The Keychain is only read when the cache is empty (app start, or after `invalidateToken()`).
     ///
-    /// Source priority:
-    /// 1. Direct `SecItemCopyMatching` silent read - immune to the macOS 26
-    ///    `/usr/bin/security` shell-out hang (#217), and instant once the user
-    ///    has granted TokenEater access to the "Claude Code-credentials" item.
-    ///    Uses `kSecUseAuthenticationUISkip`, so it returns nil silently (never
-    ///    prompts) when access isn't granted and simply falls through.
-    /// 2. `/usr/bin/security` shell-out (primary for setups where the Keychain
-    ///    item ACL only whitelists `/usr/bin/security`; guarded by a 3s watchdog
-    ///    so a hung child can't block - see SecurityCLIReader)
-    /// 3. `.credentials.json` (legacy Claude Code fallback - still present on
-    ///    Linux/Windows and on very old macOS Claude Code installs)
-    /// 4. Claude Desktop `config.json` decryption (for users without Claude Code CLI at all)
+    /// Source priority (v5.0+):
+    /// 1. `/usr/bin/security` shell-out (primary - works for all modern Claude Code macOS users,
+    ///    no popups across app updates because `security` has a stable Apple signing identity;
+    ///    guarded by a 3s watchdog so a hung child can't block - see SecurityCLIReader)
+    /// 2. `.credentials.json` (legacy Claude Code fallback - still present on Linux/Windows and
+    ///    on very old macOS Claude Code installs)
+    /// 3. Claude Desktop `config.json` decryption (for users without Claude Code CLI at all)
+    /// 4. Direct `SecItemCopyMatching` (last resort - the Claude Code Keychain ACL doesn't
+    ///    whitelist us directly, so trying it earlier would trip the ACL access prompt; kept
+    ///    for defence-in-depth as a silent read)
     func currentToken() -> String? {
         if let token = cachedToken { return token }
         let token = readFromSources()
@@ -68,16 +66,6 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     /// Reads the token from all sources in priority order, bypassing the
     /// in-memory cache. Returns the freshest token currently on the system.
     private func readFromSources() -> String? {
-        // Native silent read first: immune to the macOS 26 security shell-out
-        // hang (#217) and, once the user has granted TokenEater access to the
-        // "Claude Code-credentials" item, resolves instantly with no Process
-        // spawn. Returns nil silently when access isn't granted, so it simply
-        // falls through to the shell-out below.
-        if let token = keychainReader(true) {
-            logger.info("Token read from Keychain (silent, native)")
-            return token
-        }
-
         if let token = securityCLIReader.readToken() {
             logger.info("Token read via /usr/bin/security")
             return token
@@ -88,6 +76,14 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
         }
 
         if let token = tokenFromConfigJSON() {
+            return token
+        }
+
+        // Direct native read last, and only as a silent read: the Claude Code
+        // Keychain ACL whitelists /usr/bin/security, not us, so reaching this
+        // earlier (or non-silently) would trip the "wants to access" ACL prompt.
+        if let token = keychainReader(true) {
+            logger.info("Token read from Keychain (silent)")
             return token
         }
 
