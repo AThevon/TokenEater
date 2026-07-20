@@ -148,27 +148,16 @@ final class OnboardingViewModel: ObservableObject {
 
     func connect() {
         connectionStatus = .connecting
-        NSApp.activate(ignoringOtherApps: true)
 
         let provider = tokenProvider
         Task {
             // Resolve the token OFF the main thread - currentToken() may shell
             // out to /usr/bin/security, which can block on macOS 26 (see #217).
-            var token = await Self.tokenOffMain(provider)
-
-            // Silent sources found nothing. This is the macOS 26 case where the
-            // security shell-out hangs and TokenEater isn't yet in the Keychain
-            // item's ACL. An interactive read surfaces the one-time "Always
-            // Allow" prompt that grants access; afterwards the silent read
-            // works. Gated on a missing token, so healthy setups never prompt.
-            if token == nil {
-                logger.info("No token via silent sources - attempting interactive Keychain grant")
-                await Self.interactiveBootstrapOffMain(provider)
-                token = await Self.tokenOffMain(provider)
-            }
+            // Only silent sources are used, so this never surfaces a Keychain
+            // prompt.
+            let token = await Self.tokenOffMain(provider)
 
             guard let token else {
-                logger.error("No token after interactive bootstrap - hasTokenSource=\(provider.hasTokenSource())")
                 connectionStatus = .failed(String(localized: "onboarding.connection.failed.notoken"))
                 NSApp.activate(ignoringOtherApps: true)
                 return
@@ -187,12 +176,6 @@ final class OnboardingViewModel: ObservableObject {
                 connectionStatus = .failed(error.localizedDescription)
             }
             NSApp.activate(ignoringOtherApps: true)
-
-            // A fresh ACL grant makes the silent detection succeed now - re-run
-            // so the Claude Code card flips from "not found" to "detected".
-            if claudeCodeStatus != .detected {
-                checkClaudeCode()
-            }
         }
     }
 
@@ -203,19 +186,6 @@ final class OnboardingViewModel: ObservableObject {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 continuation.resume(returning: provider.currentToken())
-            }
-        }
-    }
-
-    /// Runs an interactive Keychain bootstrap off the main thread. This is the
-    /// one read allowed to surface a Keychain prompt: granting "Always Allow"
-    /// adds TokenEater to the "Claude Code-credentials" item ACL, after which
-    /// silent reads succeed (the fix for the macOS 26 shell-out hang, #217).
-    private static func interactiveBootstrapOffMain(_ provider: TokenProviderProtocol) async {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                try? provider.bootstrap()
-                continuation.resume()
             }
         }
     }
