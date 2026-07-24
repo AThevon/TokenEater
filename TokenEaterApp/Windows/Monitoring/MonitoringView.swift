@@ -35,9 +35,6 @@ struct MonitoringView: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
                 header
-                if vendorStatusStore.isDegraded, let status = vendorStatusStore.claudeStatus {
-                    outageCard(status)
-                }
                 heroTile
                 metricsGrid
                 pacingRow
@@ -109,6 +106,10 @@ struct MonitoringView: View {
                     )
             }
 
+            if vendorStatusStore.isDegraded, let status = vendorStatusStore.claudeStatus {
+                statusPill(status)
+            }
+
             Spacer()
 
             if usageStore.isLoading {
@@ -155,6 +156,41 @@ struct MonitoringView: View {
             }
         }
         .padding(.horizontal, DS.Spacing.xs)
+    }
+
+    /// Compact Claude service-status pill, shown inline in the header only when
+    /// Claude is degraded/down. Living in the header (instead of a full-width
+    /// card below it) keeps it from adding a row that could push the dashboard
+    /// into scrolling. Links to the status page; the incident name is in the
+    /// tooltip, and the tint scales orange (degraded) -> red (down).
+    @ViewBuilder
+    private func statusPill(_ status: VendorStatus) -> some View {
+        let tint = status.health == .down ? DS.Palette.semanticError : DS.Palette.semanticWarning
+        let label = status.health == .down
+            ? String(localized: "dashboard.status.down")
+            : String(localized: "dashboard.status.degraded")
+        Link(destination: status.statusPageURL) {
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(tint)
+                    .frame(width: 6, height: 6)
+                Text(label)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(DS.Palette.textSecondary)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(tint.opacity(0.12))
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(tint.opacity(0.35), lineWidth: 0.6)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .help(status.activeIncidents.first?.name ?? label)
     }
 
     // MARK: - Hero tile (Session 5H)
@@ -666,44 +702,6 @@ struct MonitoringView: View {
     }
 
     // MARK: - Service status
-
-    private func outageCard(_ status: VendorStatus) -> some View {
-        let tint = status.health == .down ? DS.Palette.semanticError : DS.Palette.semanticWarning
-        let title = status.health == .down
-            ? String(localized: "dashboard.status.down")
-            : String(localized: "dashboard.status.degraded")
-        return VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-            HStack(spacing: DS.Spacing.xs) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(tint)
-                    .dsGlow(tint, radius: 4, opacity: 0.45)
-                Text(title)
-                    .font(DS.Typography.title2)
-                    .foregroundStyle(DS.Palette.textPrimary)
-                Spacer()
-                Link(String(localized: "status.banner.view"), destination: status.statusPageURL)
-                    .font(DS.Typography.label)
-                    .foregroundStyle(tint)
-            }
-            if let incident = status.activeIncidents.first {
-                Text(incident.name)
-                    .font(DS.Typography.label)
-                    .foregroundStyle(DS.Palette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if !status.affectedComponents.isEmpty {
-                Text(String(format: String(localized: "dashboard.status.affected"),
-                            status.affectedComponents.joined(separator: ", ")))
-                    .font(DS.Typography.label)
-                    .foregroundStyle(DS.Palette.textTertiary)
-            }
-        }
-        .padding(DS.Spacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .dsGlass(radius: DS.Radius.card)
-        .dsShadow(DS.Shadow.subtle)
-    }
 
     // MARK: - Extra usage
 

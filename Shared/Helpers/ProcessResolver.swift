@@ -11,7 +11,8 @@ struct ClaudeProcessInfo: Sendable {
 
 enum ProcessResolver {
     private static let knownClaudePaths = [
-        "/.local/share/claude/versions/",               // npm / native installer
+        "/.local/share/claude/versions/",               // native installer (~/.local/share/claude)
+        "/node_modules/@anthropic-ai/claude-code/",     // npm global install (npm, NVM, fnm, volta, ...)
         "/Caskroom/claude-code/",                        // Homebrew Cask stable (arm64 + x86_64)
         "/Caskroom/claude-code@latest/",                 // Homebrew Cask @latest channel
         "/Library/Application Support/Claude/claude-code/", // Claude Desktop embedded CLI
