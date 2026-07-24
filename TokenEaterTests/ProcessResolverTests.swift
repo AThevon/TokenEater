@@ -4,11 +4,27 @@ import Foundation
 @Suite("ProcessResolver")
 struct ProcessResolverTests {
 
-    // MARK: - npm install
+    // MARK: - Native installer
 
-    @Test("detects npm-installed Claude")
-    func detectsNpmInstall() {
+    @Test("detects native-installer Claude")
+    func detectsNativeInstall() {
         let path = "/Users/simon/.local/share/claude/versions/1.0.0/node"
+        #expect(ProcessResolver.isClaudePath(path))
+    }
+
+    // MARK: - npm global install (npm / NVM / fnm / volta)
+
+    @Test("detects npm global install under NVM")
+    func detectsNpmGlobalUnderNVM() {
+        // Reported in #224: proc_pidpath for a Claude Code session installed via
+        // `npm i -g @anthropic-ai/claude-code` while using NVM.
+        let path = "/Users/simon/.nvm/versions/node/v22.19.0/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe"
+        #expect(ProcessResolver.isClaudePath(path))
+    }
+
+    @Test("detects plain npm global install")
+    func detectsPlainNpmGlobal() {
+        let path = "/usr/local/lib/node_modules/@anthropic-ai/claude-code/cli.js"
         #expect(ProcessResolver.isClaudePath(path))
     }
 
