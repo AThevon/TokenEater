@@ -17,6 +17,10 @@ enum MenuBarRenderer {
         let weeklyPacingDisplayMode: PacingDisplayMode
         let hasConfig: Bool
         let hasError: Bool
+        /// Token expired/unreadable but a prior snapshot exists (#218). Keep the
+        /// last pinned metrics visible instead of collapsing to the bare logo,
+        /// so the menu bar doesn't look broken while Claude Code refreshes.
+        let isAwaitingRefresh: Bool
         let themeColors: ThemeColors
         let thresholds: UsageThresholds
         let menuBarMonochrome: Bool
@@ -76,7 +80,7 @@ enum MenuBarRenderer {
         if data.outageActive {
             return renderWithOutageBadge(data)
         }
-        if !data.hasConfig || data.hasError {
+        if !data.hasConfig || (data.hasError && !data.isAwaitingRefresh) {
             return renderLogoTemplate()
         }
         return renderPinnedMetrics(data)
@@ -232,7 +236,7 @@ enum MenuBarRenderer {
     /// alone — avoids compositing a template logo into a coloured image.
     private static func renderWithOutageBadge(_ data: RenderData) -> NSImage {
         let badge = renderOutageBadgeImage(data)
-        let hasMetrics = data.hasConfig && !data.hasError
+        let hasMetrics = data.hasConfig && (!data.hasError || data.isAwaitingRefresh)
         guard hasMetrics else { return badge }
         let base = renderPinnedMetrics(data)
         return horizontallyCompose(left: badge, right: base, gap: 5)
