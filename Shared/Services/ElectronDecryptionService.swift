@@ -49,20 +49,43 @@ final class ElectronDecryptionService: ElectronDecryptionServiceProtocol, @unche
 
     private var derivedKey: Data?
 
+    /// Where the AES key is cached on disk. Defaults to the live shared-container
+    /// path; injectable so tests never read, write, or delete the real file.
+    private let keyFile: URL
+
+    /// Source of the Electron safeStorage password (the "Claude Safe Storage"
+    /// Keychain item). Injectable so tests never read the real Keychain.
+    private let readPassword: @Sendable (_ silent: Bool) throws -> String
+
     // MARK: - Protocol
 
     var hasEncryptionKey: Bool { derivedKey != nil }
 
-    init() {
+    /// - Parameters:
+    ///   - keyFileURL: override the on-disk key-cache location (tests pass a temp
+    ///     path so the suite never touches the real `decryption.key`). When set,
+    ///     the one-time Keychain→file migration is skipped, since migration is a
+    ///     production concern that must never touch the real Keychain in tests.
+    ///   - passwordReader: override the Electron password source (tests inject a
+    ///     stub so `trySilentRebootstrap`/`bootstrapEncryptionKey` never read the
+    ///     real "Claude Safe Storage" Keychain item).
+    init(
+        keyFileURL: URL? = nil,
+        passwordReader: (@Sendable (_ silent: Bool) throws -> String)? = nil
+    ) {
+        self.keyFile = keyFileURL ?? Self.keyFileURL
+        self.readPassword = passwordReader ?? { try Self.readElectronPassword(silent: $0) }
+
         // Try file first (new path)
-        if let key = Self.loadKeyFromFile() {
+        if let key = Self.loadKeyFromFile(at: keyFile) {
             derivedKey = key
             return
         }
 
-        // Migrate from Keychain (old path) - one-time, silent
-        if let key = Self.loadCachedKeyFromKeychain() {
-            Self.saveKeyToFile(key)
+        // Migrate from Keychain (old path) - one-time, silent. Skipped when a
+        // custom key file is injected (tests) so init has zero real side effects.
+        if keyFileURL == nil, let key = Self.loadCachedKeyFromKeychain() {
+            Self.saveKeyToFile(key, at: keyFile)
             Self.deleteCachedKeyFromKeychain()
             derivedKey = key
             return
@@ -93,25 +116,25 @@ final class ElectronDecryptionService: ElectronDecryptionServiceProtocol, @unche
 
     func bootstrapEncryptionKey() throws {
         // Interactive Keychain read - prompts user for permission
-        let password = try Self.readElectronPassword(silent: false)
-        let key = Self.deriveKey(from: password)
-        Self.saveKeyToFile(key)
+        let key = Self.deriveKey(from: try readPassword(false))
+        Self.saveKeyToFile(key, at: keyFile)
         derivedKey = key
     }
 
     func clearCachedKey() {
         derivedKey = nil
-        Self.deleteKeyFile()
+        Self.deleteKeyFile(at: keyFile)
     }
 
     func trySilentRebootstrap() -> Bool {
-        guard let password = try? Self.readElectronPassword(silent: true) else {
+        do {
+            let key = Self.deriveKey(from: try readPassword(true))
+            Self.saveKeyToFile(key, at: keyFile)
+            derivedKey = key
+            return true
+        } catch {
             return false
         }
-        let key = Self.deriveKey(from: password)
-        Self.saveKeyToFile(key)
-        derivedKey = key
-        return true
     }
 
     // MARK: - Key Derivation (internal for testing)
