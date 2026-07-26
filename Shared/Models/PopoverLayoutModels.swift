@@ -1,5 +1,11 @@
 import Foundation
 
+// LEGACY (pre-5.9). The composable popover (`PopoverCompositionModels.swift`)
+// replaced this variant-based model. Everything here is kept solely to decode
+// the old `popoverConfig` UserDefaults blob so `PopoverConfigMigrator` can
+// convert it once; nothing renders from these types anymore. Safe to delete
+// (with the migrator) a few majors from now.
+
 enum PopoverVariant: String, Codable, CaseIterable, Identifiable {
     case classic, compact, focus
     var id: String { rawValue }
@@ -203,26 +209,3 @@ extension PopoverConfig {
     }
 }
 
-// MARK: - Labels (for settings UI)
-
-extension PopoverBlockID {
-    /// Human-readable label used in the BlockListEditor rows.
-    /// Localized via NSLocalizedString - String(localized:) with an
-    /// interpolated key would turn `rawValue` into a `%@` placeholder
-    /// and look up "popoverBlock.%@" instead of the real key.
-    var localizedLabel: String {
-        NSLocalizedString("popoverBlock.\(rawValue)", comment: "")
-    }
-}
-
-extension PopoverVariant {
-    var localizedLabel: String {
-        NSLocalizedString("popoverVariant.\(rawValue)", comment: "")
-    }
-}
-
-extension FocusHeroChoice {
-    var localizedLabel: String {
-        NSLocalizedString("focusHero.\(rawValue)", comment: "")
-    }
-}
