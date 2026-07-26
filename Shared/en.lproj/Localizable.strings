@@ -86,6 +86,8 @@
 "settings.group.chrome.hint" = "Style and shape of the bar.";
 "settings.group.pin" = "What to pin";
 "settings.group.pin.hint" = "Tap a chip to pin or unpin a metric. Active chips reveal their format options inline.";
+"settings.group.extras" = "Extra metrics";
+"settings.group.extras.hint" = "Shown on the dashboard constellation (and the menu bar for Sonnet).";
 "settings.group.colors" = "Colors";
 "settings.group.colors.hint" = "Theme the menu bar text. Smart Color (in Themes) takes over the reset countdown when enabled.";
 "settings.metric.format" = "Format";
@@ -641,7 +643,7 @@
 
 /* Popover customization */
 "popover.settings.title" = "Popover";
-"popover.settings.subtitle" = "Pick a layout and customize what appears when you click the menu-bar icon.";
+"popover.settings.subtitle" = "Start from a template, then compose your popover element by element.";
 
 /* Section subtitles */
 "sidebar.display.subtitle" = "Choose which metrics appear in the menu bar and how they look.";
@@ -650,52 +652,65 @@
 "sidebar.performance.subtitle" = "Fine-tune CPU usage by disabling features you don't need.";
 "sidebar.settings.subtitle" = "Proxy, refresh interval, and other global preferences.";
 "popover.settings.preview" = "Preview";
-"popover.settings.reset" = "Reset to defaults";
+"popover.settings.reset" = "Reset to default";
 "popover.zone.general" = "General";
-"popover.zone.hero" = "Hero";
-"popover.zone.content" = "Content";
 "popover.option.showPlanBadge" = "Show plan badge (PRO / MAX / TEAM)";
 "popover.option.showRefreshButton" = "Show manual refresh button";
-"popover.option.showSonnet" = "Show Sonnet ring (Classic variant)";
-"popover.option.showDesign" = "Show Design ring (Classic variant)";
-"popover.option.showExtraCredits" = "Show Extra Credits ring";
-"settings.group.extra" = "Extra metrics in menu bar";
 
-"popoverVariant.classic" = "Classic";
-"popoverVariant.compact" = "Compact";
-"popoverVariant.focus" = "Focus";
+/* Composable popover editor */
+"popover.editor.templates" = "Templates";
+"popover.editor.elements" = "Elements";
+"popover.editor.addElement" = "Add element";
+"popover.editor.family.metrics" = "Metrics";
+"popover.editor.family.pacing" = "Pacing";
+"popover.editor.family.utilities" = "Utilities";
+"popover.editor.unavailable" = "not available on your plan";
+"popover.editor.saveTemplate" = "Save as template";
+"popover.editor.saveTemplate.short" = "Save current";
+"popover.editor.saveTemplate.message" = "Saves the current composition so you can reapply it later.";
+"popover.editor.saveTemplate.placeholder" = "Template name";
+"popover.editor.save" = "Save";
+"popover.editor.cancel" = "Cancel";
+"popover.editor.deleteTemplate" = "Delete template";
+"popover.editor.content.percent" = "Show percentage";
+"popover.editor.content.reset" = "Show reset countdown";
+"popover.editor.showReset" = "Show reset countdown below";
+"popover.editor.preview.hint" = "Click an element to select it in the list";
+"popover.cell.resetLabel" = "%@ reset";
 
-"popoverBlock.sessionRing" = "Session ring (5h)";
-"popoverBlock.weeklyRing" = "Weekly ring";
-"popoverBlock.sessionPaceBar" = "Session pacing";
-"popoverBlock.weeklyPaceBar" = "Weekly pacing";
-"popoverBlock.sessionChip" = "Session chip";
-"popoverBlock.weeklyChip" = "Weekly chip";
-"popoverBlock.sessionPaceTile" = "Session pacing tile";
-"popoverBlock.weeklyPaceTile" = "Weekly pacing tile";
-"popoverBlock.sessionPaceMini" = "Session pacing (mini)";
-"popoverBlock.weeklyPaceMini" = "Weekly pacing (mini)";
-"popoverBlock.watchers" = "Agent watchers";
-"popoverBlock.timestamp" = "Updated timestamp";
-"popoverBlock.openTokenEaterButton" = "Open TokenEater button";
-"popoverBlock.quitButton" = "Quit button";
+"popoverElement.session" = "Session (5h)";
+"popoverElement.weekly" = "Weekly";
+"popoverElement.sonnet" = "Sonnet";
+"popoverElement.design" = "Design";
+"popoverElement.fable" = "Fable";
+"popoverElement.extraCredits" = "Extra Credits";
+"popoverElement.sessionPacing" = "Session pacing";
+"popoverElement.weeklyPacing" = "Weekly pacing";
+"popoverElement.watchers" = "Agent watchers";
+"popoverElement.timestamp" = "Updated timestamp";
+"popoverElement.openButton" = "Open TokenEater button";
+"popoverElement.quitButton" = "Quit button";
 
-"focusHero.sessionReset" = "Session reset countdown";
-"focusHero.weeklyReset" = "Weekly reset countdown";
-"focusHero.sessionValue" = "Session percentage";
-"focusHero.weeklyValue" = "Weekly percentage";
+"popoverStyle.gaugeRing" = "Ring";
+"popoverStyle.chip" = "Chip";
+"popoverStyle.arc" = "Arc";
+"popoverStyle.bigText" = "Big text";
+"popoverStyle.paceBar" = "Bar";
+"popoverStyle.paceTile" = "Tile";
+"popoverStyle.paceText" = "Text";
+"popoverStyle.utilityRow" = "Row";
+"popoverStyle.actionButton" = "Button";
 
-"focus.hero.sessionReset" = "Until session reset";
-"focus.hero.weeklyReset" = "Until weekly reset";
-"focus.hero.sessionValue" = "Session usage";
-"focus.hero.weeklyValue" = "Weekly usage";
-"focus.sat.sessionReset" = "Reset";
-"focus.sat.weeklyReset" = "Weekly reset";
-"focus.sat.sessionValue" = "Session";
-"focus.sat.weeklyValue" = "Weekly";
+"popoverWidth.full" = "Full width";
+"popoverWidth.half" = "Half width";
+"popoverWidth.third" = "Third width";
 
-"compact.chip.sessionLeft" = "%@ left";
-"compact.chip.weeklyLeft" = "in %@";
+"popoverTemplate.classic" = "Classic";
+"popoverTemplate.compact" = "Compact";
+"popoverTemplate.focus" = "Focus";
+"popoverTemplate.minimalist" = "Minimalist";
+"popoverTemplate.fableFirst" = "Fable First";
+"popoverTemplate.complete" = "Complete";
 
 "menubar.updated.never" = "never";
 
@@ -716,7 +731,7 @@
 /* Menu bar icon right-click menu */
 "contextmenu.refresh" = "Refresh now";
 "contextmenu.open" = "Open TokenEater...";
-"contextmenu.variant" = "Popover layout";
+"contextmenu.template" = "Popover template";
 "contextmenu.watchers.enable" = "Enable Agent Watchers";
 "contextmenu.watchers.disable" = "Disable Agent Watchers";
 "contextmenu.settings" = "Settings";
@@ -788,7 +803,6 @@
 /* Fable (Claude Fable weekly limit) */
 "metric.fable" = "Fable";
 "widget.fable" = "Fable";
-"popover.option.showFable" = "Show Fable ring (Classic variant)";
 "settings.notifications.track.fable" = "Track Claude Fable weekly";
 "notif.title.fable.pace" = "Ahead of Fable pace";
 "notif.body.fable.pace" = "You're ahead of an even Fable burn rate, not near the cap. Fine if intentional.";

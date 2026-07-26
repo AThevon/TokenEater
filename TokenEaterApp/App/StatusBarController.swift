@@ -423,26 +423,39 @@ final class StatusBarController: NSObject {
 
         menu.addItem(.separator())
 
-        // Popover layout submenu
-        let variantItem = NSMenuItem(
-            title: String(localized: "contextmenu.variant"),
+        // Popover template submenu (built-ins + user-saved compositions).
+        // Applying one replaces the current composition, same as the editor.
+        let templateItem = NSMenuItem(
+            title: String(localized: "contextmenu.template"),
             action: nil,
             keyEquivalent: ""
         )
-        let variantSub = NSMenu()
-        for variant in PopoverVariant.allCases {
+        let templateSub = NSMenu()
+        for template in PopoverBuiltinTemplate.allCases {
             let item = NSMenuItem(
-                title: variant.localizedLabel,
-                action: #selector(contextSelectVariant(_:)),
+                title: template.localizedName,
+                action: #selector(contextApplyTemplate(_:)),
                 keyEquivalent: ""
             )
             item.target = self
-            item.representedObject = variant.rawValue
-            item.state = (settingsStore.popoverConfig.activeVariant == variant) ? .on : .off
-            variantSub.addItem(item)
+            item.representedObject = "builtin:\(template.rawValue)"
+            templateSub.addItem(item)
         }
-        variantItem.submenu = variantSub
-        menu.addItem(variantItem)
+        if !settingsStore.popoverUserTemplates.isEmpty {
+            templateSub.addItem(.separator())
+            for template in settingsStore.popoverUserTemplates {
+                let item = NSMenuItem(
+                    title: template.name,
+                    action: #selector(contextApplyTemplate(_:)),
+                    keyEquivalent: ""
+                )
+                item.target = self
+                item.representedObject = "user:\(template.id.uuidString)"
+                templateSub.addItem(item)
+            }
+        }
+        templateItem.submenu = templateSub
+        menu.addItem(templateItem)
 
         // Watchers toggle
         let watchersLabel = settingsStore.overlayEnabled
@@ -508,10 +521,16 @@ final class StatusBarController: NSObject {
         showDashboard()
     }
 
-    @objc private func contextSelectVariant(_ sender: NSMenuItem) {
-        guard let raw = sender.representedObject as? String,
-              let variant = PopoverVariant(rawValue: raw) else { return }
-        settingsStore.popoverConfig.activeVariant = variant
+    @objc private func contextApplyTemplate(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String else { return }
+        if raw.hasPrefix("builtin:"),
+           let template = PopoverBuiltinTemplate(rawValue: String(raw.dropFirst("builtin:".count))) {
+            settingsStore.popoverComposition = template.composition
+        } else if raw.hasPrefix("user:"),
+                  let id = UUID(uuidString: String(raw.dropFirst("user:".count))),
+                  let template = settingsStore.popoverUserTemplates.first(where: { $0.id == id }) {
+            settingsStore.popoverComposition = template.composition
+        }
     }
 
     @objc private func contextToggleWatchers() {
@@ -586,7 +605,7 @@ final class StatusBarController: NSObject {
         }
     }
 
-    /// Opaque dark shared by the popover layouts (see ClassicLayoutView).
+    /// Opaque dark shared with the popover content (see ComposablePopoverView).
     private static let popoverBackgroundColor = NSColor(red: 0.08, green: 0.08, blue: 0.09, alpha: 1)
 
     func showDashboard() {
