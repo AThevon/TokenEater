@@ -48,6 +48,16 @@ final class UsageStore: ObservableObject {
         errorState == .tokenUnavailable
     }
 
+    /// The token is unavailable (expired, or momentarily unreadable) but we
+    /// already have a usage snapshot to show. This is the routine "Claude Code
+    /// hasn't refreshed the token yet" case, not a broken/unconfigured app, so
+    /// the UI surfaces it calmly (dimmed last-known data + "waiting" copy)
+    /// instead of the alarming re-auth banner. When there's no prior snapshot
+    /// (fresh install, never connected) `isDisconnected` stays the right signal.
+    var isAwaitingRefresh: Bool {
+        errorState == .tokenUnavailable && lastUsage != nil
+    }
+
     /// True when the paid Extra Credits pool is provisioned and turned on for
     /// this account. Mirrors `hasDesign`/`hasOpus`: drives whether the metric
     /// can be pinned to the menu bar and shown in the widgets.

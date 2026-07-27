@@ -324,6 +324,7 @@ final class StatusBarController: NSObject {
             weeklyPacingDisplayMode: settingsStore.weeklyPacingDisplayMode,
             hasConfig: usageStore.hasConfig,
             hasError: usageStore.hasError,
+            isAwaitingRefresh: usageStore.isAwaitingRefresh,
             themeColors: themeStore.current,
             thresholds: themeStore.thresholds,
             menuBarMonochrome: themeStore.menuBarMonochrome,

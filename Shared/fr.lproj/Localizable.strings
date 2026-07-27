@@ -164,6 +164,7 @@
 "error.banner.reauth" = "Autorisation requise";
 "error.banner.reauth.hint" = "Token expiré et la récupération automatique a échoué";
 "error.banner.reauth.button" = "Ré-autoriser";
+"error.banner.waiting" = "En attente du rafraîchissement par Claude Code";
 "error.banner.apiunavailable" = "API usage throttle par Anthropic";
 "error.banner.apiunavailable.hint" = "C'est une limite de débit côté Anthropic (leur API usage), pas votre token ni votre configuration. Rien à corriger de votre côté - TokenEater réessaie tout seul et se met à jour dès que la limite se lève (bug connu : anthropics/claude-code#31637).";
 "error.banner.apiunavailable.settings" = "C'est côté Anthropic (leur API usage), pas votre token ni votre configuration. TokenEater réessaie automatiquement et repart dès que la limite se lève.";

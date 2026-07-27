@@ -137,7 +137,11 @@ struct PopoverErrorBanner: View {
         VStack(alignment: .leading, spacing: 4) {
             switch usageStore.errorState {
             case .tokenUnavailable:
-                expiredContent
+                if usageStore.isAwaitingRefresh {
+                    waitingContent
+                } else {
+                    expiredContent
+                }
             case .rateLimited:
                 rateLimitedContent
             case .networkError:
@@ -179,6 +183,32 @@ struct PopoverErrorBanner: View {
                     .clipShape(Capsule())
             }
             .buttonStyle(.plain)
+        }
+    }
+
+    /// Calm counterpart to `expiredContent` (#218): when the token has merely
+    /// expired while we still have a snapshot, this is routine (Claude Code
+    /// refreshes it on its next run), so show a soft "waiting" line with the
+    /// last-updated time instead of a red re-auth warning. No action button:
+    /// there's nothing broken to fix, it recovers on its own.
+    @ViewBuilder private var waitingContent: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.55))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(String(localized: "error.banner.waiting"))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .lineLimit(1)
+                if let last = usageStore.lastUpdate {
+                    Text(String(format: String(localized: "error.banner.lastupdate"),
+                                last.formatted(.relative(presentation: .named))))
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white.opacity(0.45))
+                }
+            }
+            Spacer(minLength: 8)
         }
     }
 

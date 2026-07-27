@@ -60,6 +60,39 @@ struct UsageStoreTests {
         #expect(repo.refreshCallCount == 0)
     }
 
+    // MARK: - isAwaitingRefresh (quiet "waiting for Claude Code" state, #218)
+
+    @Test("isAwaitingRefresh is false with no prior snapshot (fresh / never connected)")
+    func awaitingRefreshFalseWhenCold() async {
+        let (store, _, _, _, _) = makeSUT(token: nil)
+
+        await store.refresh()
+
+        #expect(store.errorState == .tokenUnavailable)
+        #expect(store.lastUsage == nil)
+        #expect(store.isAwaitingRefresh == false)
+        #expect(store.isDisconnected == true)
+    }
+
+    @Test("isAwaitingRefresh is true when the token expires but a prior snapshot exists")
+    func awaitingRefreshTrueWithPriorData() async {
+        let (store, repo, _, _, _) = makeSUT(token: "valid-token")
+
+        // First refresh succeeds: we now have a snapshot to keep showing.
+        await store.refresh()
+        #expect(store.lastUsage != nil)
+        #expect(store.errorState == .none)
+
+        // The token then expires; the re-read yields the same token, so the
+        // single retry can't recover and we land on .tokenUnavailable.
+        repo.stubbedError = APIError.tokenExpired(endpoint: "/api/oauth/usage", statusCode: 401)
+        await store.refresh(force: true)
+
+        #expect(store.errorState == .tokenUnavailable)
+        #expect(store.lastUsage != nil)
+        #expect(store.isAwaitingRefresh == true)
+    }
+
     // MARK: - refresh — interval check
 
     @Test("refresh returns early when interval not elapsed based on currentSpeed")
