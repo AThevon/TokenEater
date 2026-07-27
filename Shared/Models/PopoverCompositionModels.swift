@@ -233,17 +233,9 @@ struct PopoverComposition: Codable, Equatable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         // Lossy element list: an element a newer version wrote with an unknown
         // kind/style is silently dropped, everything else survives.
-        let failables = (try? c.decodeIfPresent([FailableElement].self, forKey: .elements)) ?? []
-        elements = failables.compactMap { $0.value }
+        elements = c.decodeLossyArray(PopoverElement.self, forKey: .elements)
         showPlanBadge = (try? c.decodeIfPresent(Bool.self, forKey: .showPlanBadge)) ?? true
         showRefreshButton = (try? c.decodeIfPresent(Bool.self, forKey: .showRefreshButton)) ?? true
-    }
-
-    private struct FailableElement: Decodable {
-        let value: PopoverElement?
-        init(from decoder: Decoder) throws {
-            value = try? PopoverElement(from: decoder)
-        }
     }
 
     var visibleElements: [PopoverElement] { elements.filter { !$0.isHidden } }
@@ -338,19 +330,11 @@ enum PopoverBuiltinTemplate: String, CaseIterable, Identifiable {
     }
 }
 
-/// A composition the user saved under a name. Persisted as a JSON blob under
-/// the `popoverUserTemplates` UserDefaults key.
-struct PopoverUserTemplate: Codable, Equatable, Identifiable {
-    let id: UUID
-    var name: String
-    var composition: PopoverComposition
-
-    init(id: UUID = UUID(), name: String, composition: PopoverComposition) {
-        self.id = id
-        self.name = name
-        self.composition = composition
-    }
-}
+/// A popover composition the user saved under a name. Persisted as a JSON blob
+/// under the `popoverUserTemplates` UserDefaults key. Backed by the generic
+/// `UserTemplate<C>` so the menu bar editor can reuse the same container; the
+/// field layout is unchanged, so the stored blob stays compatible.
+typealias PopoverUserTemplate = UserTemplate<PopoverComposition>
 
 // MARK: - Labels (editor UI)
 

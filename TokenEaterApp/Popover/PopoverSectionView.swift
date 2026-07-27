@@ -503,7 +503,7 @@ private struct ElementListEditor: View {
         // still leaks draggingID until the next drag; that limitation is
         // inherited from the pre-5.9 editor, SwiftUI offers no drag-ended
         // callback for onDrag.
-        .onDrop(of: [.text], delegate: ListGapDropDelegate(draggingID: $draggingID))
+        .onDrop(of: [.text], delegate: ReorderGapDropDelegate(draggingID: $draggingID))
     }
 
     private var elementRows: some View {
@@ -533,9 +533,9 @@ private struct ElementListEditor: View {
             }
             .onDrop(
                 of: [.text],
-                delegate: ElementDropDelegate(
+                delegate: ReorderDropDelegate(
                     item: element.id,
-                    elements: elementsBinding,
+                    items: elementsBinding,
                     draggingID: $draggingID
                 )
             )
@@ -845,51 +845,6 @@ private struct ElementRow: View {
         .help(String(localized: "popover.editor.showReset"))
     }
 }
-
-/// Container-level catch-all: ends the drag session when the drop lands in
-/// the spacing gaps between rows, clearing the lifted styling.
-private struct ListGapDropDelegate: DropDelegate {
-    @Binding var draggingID: UUID?
-
-    func performDrop(info: DropInfo) -> Bool {
-        let wasDragging = draggingID != nil
-        draggingID = nil
-        return wasDragging
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        DropProposal(operation: draggingID != nil ? .move : .cancel)
-    }
-}
-
-/// Drop delegate for reordering elements. Swaps the dragged element into the
-/// hovered slot on every drag tick for instant feedback.
-private struct ElementDropDelegate: DropDelegate {
-    let item: UUID
-    @Binding var elements: [PopoverElement]
-    @Binding var draggingID: UUID?
-
-    func dropEntered(info: DropInfo) {
-        guard let dragging = draggingID, dragging != item else { return }
-        guard let from = elements.firstIndex(where: { $0.id == dragging }),
-              let to = elements.firstIndex(where: { $0.id == item })
-        else { return }
-        if from != to {
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.8)) {
-                elements.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
-            }
-        }
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        // A nil draggingID means this session wasn't started by our onDrag
-        // (external text drag) - decline instead of swallowing the drop.
-        let wasDragging = draggingID != nil
-        draggingID = nil
-        return wasDragging
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        DropProposal(operation: draggingID != nil ? .move : .cancel)
-    }
-}
+// Reordering drop delegates moved to `ReorderDropDelegate.swift` as generics
+// (`ReorderDropDelegate` / `ReorderGapDropDelegate`) so the menu bar editor can
+// share them.
