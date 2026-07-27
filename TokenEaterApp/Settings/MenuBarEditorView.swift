@@ -232,27 +232,41 @@ private struct MenuBarTemplateCard: View {
 }
 
 /// Horizontal strip of little chips, one per visible segment, hinting at the
-/// composition shape. Pills draw rounded, text segments squared.
+/// composition shape. Widths are proportional to each segment's relative
+/// weight and laid out against the card's actual width (GeometryReader), so a
+/// dense template like "Complete" always fits instead of spilling past the
+/// card. Pills draw rounded, text segments squared.
 private struct MenuBarTemplateSchematic: View {
     let composition: MenuBarComposition
     let highlighted: Bool
 
+    private static let spacing: CGFloat = 3
+    private static let maxChips = 8
+
     var body: some View {
-        HStack(spacing: 3) {
-            ForEach(Array(composition.visibleSegments.prefix(6).enumerated()), id: \.offset) { _, segment in
-                RoundedRectangle(cornerRadius: segment.effectiveStyle == .pill ? 5 : 2)
-                    .fill(highlighted ? Color.blue.opacity(0.55) : Color.white.opacity(0.22))
-                    .frame(width: chipWidth(segment), height: 10)
+        let segments = Array(composition.visibleSegments.prefix(Self.maxChips))
+        let weights = segments.map { weight($0) }
+        let total = max(weights.reduce(0, +), 0.001)
+
+        GeometryReader { geo in
+            let available = geo.size.width - Self.spacing * CGFloat(max(segments.count - 1, 0))
+            HStack(spacing: Self.spacing) {
+                ForEach(Array(segments.enumerated()), id: \.offset) { i, segment in
+                    RoundedRectangle(cornerRadius: segment.effectiveStyle == .pill ? 4 : 2)
+                        .fill(highlighted ? Color.blue.opacity(0.55) : Color.white.opacity(0.22))
+                        .frame(width: max(available * weights[i] / total, 2), height: 10)
+                }
             }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .center)
         }
-        .frame(maxWidth: .infinity)
     }
 
-    private func chipWidth(_ segment: MenuBarSegment) -> CGFloat {
+    /// Relative visual weight: pills / label+value read widest, dots narrowest.
+    private func weight(_ segment: MenuBarSegment) -> CGFloat {
         switch segment.effectiveStyle {
-        case .dot, .glyph: return 8
-        case .valueOnly, .delta: return 12
-        default: return 18
+        case .dot, .glyph: return 1.0
+        case .valueOnly, .delta: return 1.6
+        default: return 2.6
         }
     }
 }
