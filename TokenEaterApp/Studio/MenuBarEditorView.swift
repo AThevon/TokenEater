@@ -1,12 +1,18 @@
 import SwiftUI
 
-/// Composable menu bar editor: template gallery, a reorderable segment list
-/// (the single source of edition), and a live NSImage preview whose segments
-/// are clickable (click a segment to select its row). Writes go to
+/// Composable menu bar editor: three columns in the Studio -> a template
+/// rail on the left, the reorderable segment list in the middle (the single
+/// source of edition), and a live NSImage preview pinned on the right whose
+/// segments are clickable (click a segment to select its row). Writes go to
 /// `settingsStore.menuBarComposition`, which both this view and the status bar
 /// observe. Unlike the popover, an empty menu bar is legitimate (the renderer
 /// draws the app icon), so there is no "can't remove the last one" guard.
-struct MenuBarEditorView: View {
+///
+/// `previewHeader` sits above the preview (the show-in-menu-bar toggle) and
+/// `middleFooter` sits under the segment list (colour controls + reset); both
+/// are injected by `DisplaySectionView` so the surrounding chrome lives with
+/// the code that owns those settings.
+struct MenuBarEditorView<PreviewHeader: View, MiddleFooter: View>: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var usageStore: UsageStore
 
@@ -14,12 +20,19 @@ struct MenuBarEditorView: View {
     @State private var showSaveDialog = false
     @State private var templateName = ""
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            MenuBarLivePreview(selectedSegmentID: $selectedSegmentID)
+    @ViewBuilder var previewHeader: () -> PreviewHeader
+    @ViewBuilder var middleFooter: () -> MiddleFooter
 
-            templatesSection
-            segmentsSection
+    /// Width below which the three-column layout stops fitting.
+    private let horizontalThreshold: CGFloat = 780
+
+    var body: some View {
+        GeometryReader { geo in
+            if geo.size.width >= horizontalThreshold {
+                horizontalLayout
+            } else {
+                verticalLayout
+            }
         }
         .alert(String(localized: "menuBar.editor.saveTemplate"), isPresented: $showSaveDialog) {
             TextField(String(localized: "menuBar.editor.saveTemplate.placeholder"), text: $templateName)
@@ -31,7 +44,81 @@ struct MenuBarEditorView: View {
         }
     }
 
+    // MARK: - Layouts
+
+    private var horizontalLayout: some View {
+        HStack(alignment: .top, spacing: 16) {
+            // Left: template rail (scrolls independently).
+            templatesRail
+
+            // Middle: segment list + injected footer (colours, reset), scrolls.
+            ScrollView(.vertical, showsIndicators: true) {
+                VStack(alignment: .leading, spacing: 18) {
+                    segmentsSection
+                    middleFooter()
+                    Spacer(minLength: 8)
+                }
+                .padding(.bottom, 8)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            // Right: the toggle + the live menu bar item, pinned so an edit is
+            // always visible without scrolling back up.
+            VStack(alignment: .leading, spacing: 12) {
+                previewHeader()
+                MenuBarLivePreview(selectedSegmentID: $selectedSegmentID)
+                Spacer(minLength: 0)
+            }
+            .frame(width: 300, alignment: .top)
+        }
+        .padding(20)
+    }
+
+    private var verticalLayout: some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 16) {
+                previewHeader()
+                MenuBarLivePreview(selectedSegmentID: $selectedSegmentID)
+                templatesSection
+                segmentsSection
+                middleFooter()
+            }
+            .padding(20)
+        }
+    }
+
     // MARK: - Templates
+
+    /// Vertical template rail for the three-column layout.
+    private var templatesRail: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            editorLabel("menuBar.editor.templates")
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 8) {
+                    ForEach(MenuBarBuiltinTemplate.allCases) { template in
+                        MenuBarTemplateCard(name: template.localizedName, composition: template.composition) {
+                            apply(template.composition)
+                        }
+                    }
+                    ForEach(settingsStore.menuBarUserTemplates) { template in
+                        MenuBarTemplateCard(name: template.name, composition: template.composition, isUserTemplate: true) {
+                            apply(template.composition)
+                        }
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                settingsStore.menuBarUserTemplates.removeAll { $0.id == template.id }
+                            } label: {
+                                Label(String(localized: "menuBar.editor.deleteTemplate"), systemImage: "trash")
+                            }
+                        }
+                    }
+                    saveTemplateCard
+                }
+                .padding(.vertical, 2)
+            }
+        }
+        .frame(width: 104)
+    }
 
     private var templatesSection: some View {
         VStack(alignment: .leading, spacing: 8) {

@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// Settings panel for the composable popover. Templates on top (built-ins +
-/// user-saved), then the element list - the single source of edition: add,
-/// reorder (drag), restyle, resize, hide, delete. The live preview renders
-/// the real popover; tapping a cell there selects its row here.
+/// Studio editor for the composable popover. Three columns: a template rail
+/// on the left (built-ins + user-saved), the element list in the middle (the
+/// single source of edition: add, reorder, restyle, resize, hide, delete),
+/// and the live popover pinned on the right so every edit is visible without
+/// scrolling. Tapping a cell in the preview selects its row in the list.
 struct PopoverSectionView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var usageStore: UsageStore
@@ -12,8 +13,9 @@ struct PopoverSectionView: View {
     @State private var showSaveDialog = false
     @State private var templateName = ""
 
-    /// Width threshold below which the two-column layout becomes unreadable.
-    private let horizontalThreshold: CGFloat = 680
+    /// Width below which the three-column layout stops fitting and we fall
+    /// back to a single scrolling column.
+    private let horizontalThreshold: CGFloat = 780
 
     var body: some View {
         GeometryReader { geo in
@@ -37,38 +39,34 @@ struct PopoverSectionView: View {
 
     private var horizontalLayout: some View {
         HStack(alignment: .top, spacing: 16) {
-            VStack(alignment: .leading, spacing: 16) {
-                header
-                ScrollViewReader { proxy in
-                    ScrollView(.vertical, showsIndicators: true) {
-                        VStack(alignment: .leading, spacing: 16) {
-                            templatesSection
-                            elementsSection
-                            Spacer(minLength: 12)
-                        }
+            // Left: template rail (scrolls independently).
+            templatesRail
+
+            // Middle: the element list (scrolls). Auto-scrolls to the row
+            // that matches a preview tap.
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: true) {
+                    elementsSection
                         .padding(.bottom, 8)
-                    }
-                    .onChange(of: selectedElementID) { _, id in
-                        guard let id else { return }
-                        withAnimation(.easeInOut(duration: 0.25)) {
-                            proxy.scrollTo(id, anchor: .center)
-                        }
+                }
+                .onChange(of: selectedElementID) { _, id in
+                    guard let id else { return }
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        proxy.scrollTo(id, anchor: .center)
                     }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(.leading, 24)
-            .padding(.top, 24)
 
+            // Right: the real popover, pinned so it never scrolls out of view.
             VStack(alignment: .center, spacing: 14) {
                 LivePopoverPreview(selectedElementID: $selectedElementID)
                 resetButton
                 Spacer(minLength: 0)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .padding(.trailing, 24)
-            .padding(.top, 24)
+            .frame(maxHeight: .infinity, alignment: .top)
         }
+        .padding(20)
     }
 
     private var verticalLayout: some View {
@@ -122,6 +120,46 @@ struct PopoverSectionView: View {
     }
 
     // MARK: - Templates
+
+    /// Vertical template rail for the three-column Studio layout. Same cards
+    /// as `templatesSection`, stacked and scrolling on their own.
+    private var templatesRail: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            editorSectionLabel("popover.editor.templates")
+
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 8) {
+                    ForEach(PopoverBuiltinTemplate.allCases) { template in
+                        TemplateCard(
+                            name: template.localizedName,
+                            composition: template.composition
+                        ) {
+                            apply(template.composition)
+                        }
+                    }
+                    ForEach(settingsStore.popoverUserTemplates) { template in
+                        TemplateCard(
+                            name: template.name,
+                            composition: template.composition,
+                            isUserTemplate: true
+                        ) {
+                            apply(template.composition)
+                        }
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                settingsStore.popoverUserTemplates.removeAll { $0.id == template.id }
+                            } label: {
+                                Label(String(localized: "popover.editor.deleteTemplate"), systemImage: "trash")
+                            }
+                        }
+                    }
+                    saveTemplateCard
+                }
+                .padding(.vertical, 2)
+            }
+        }
+        .frame(width: 108)
+    }
 
     private var templatesSection: some View {
         VStack(alignment: .leading, spacing: 8) {

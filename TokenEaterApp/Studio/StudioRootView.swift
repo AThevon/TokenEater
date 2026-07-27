@@ -40,11 +40,11 @@ struct StudioRootView: View {
     private var content: some View {
         switch selection {
         case .popover:
-            // PopoverSectionView owns its own scroll (editor list) + needs
-            // full height for the split layout.
+            // Owns its three-column layout (rail / list / pinned preview);
+            // only the middle list scrolls, so it needs the full height.
             PopoverSectionView()
         case .menuBar:
-            // DisplaySectionView owns its own vertical scroll.
+            // Same three-column layout, driven by MenuBarEditorView.
             DisplaySectionView()
         case .themes:
             ScrollView(.vertical, showsIndicators: true) {

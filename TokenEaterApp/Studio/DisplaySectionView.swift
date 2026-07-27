@@ -6,38 +6,30 @@ struct DisplaySectionView: View {
     @EnvironmentObject private var usageStore: UsageStore
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack(alignment: .center) {
-                    sectionTitle(
-                        String(localized: "sidebar.display"),
-                        subtitle: String(localized: "sidebar.display.subtitle")
-                    )
-                    Spacer()
-                    ClickChip(
-                        label: String(localized: "settings.menubar.toggle"),
-                        icon: settingsStore.showMenuBar ? "checkmark" : "eye.slash",
-                        isActive: settingsStore.showMenuBar,
-                        accent: .blue,
-                        style: .compact
-                    ) {
-                        settingsStore.showMenuBar.toggle()
-                    }
+        // The menu bar editor owns the three-column Studio layout; this view
+        // injects the show/hide toggle above the live preview and the colour
+        // controls + reset under the segment list.
+        MenuBarEditorView(
+            previewHeader: {
+                ClickChip(
+                    label: String(localized: "settings.menubar.toggle"),
+                    icon: settingsStore.showMenuBar ? "checkmark" : "eye.slash",
+                    isActive: settingsStore.showMenuBar,
+                    accent: .blue,
+                    style: .compact
+                ) {
+                    settingsStore.showMenuBar.toggle()
                 }
-
-                MenuBarEditorView()
+            },
+            middleFooter: {
                 colorsGroup
-
                 ResetSectionButton(
                     confirmTitle: String(localized: "settings.display.reset.confirm")
                 ) {
                     resetDisplayDefaults()
                 }
-
-                Spacer(minLength: 0)
             }
-            .padding(24)
-        }
+        )
     }
 
     // MARK: - Colors group
