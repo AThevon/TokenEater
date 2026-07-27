@@ -79,6 +79,19 @@ final class SettingsStore: ObservableObject {
     @Published var popoverUserTemplates: [PopoverUserTemplate] {
         didSet { savePopoverUserTemplates() }
     }
+
+    // MARK: - Menu bar
+    /// The composable menu bar: one ordered list of segments (kind + style).
+    /// Persisted as JSON under `menuBarComposition`. The legacy `pinnedMetrics`
+    /// + `menuBarStyle` + per-metric display prefs are migrated once (see init)
+    /// and left in place so a downgrade restores the pre-5.10 menu bar.
+    @Published var menuBarComposition: MenuBarComposition {
+        didSet { saveMenuBarComposition() }
+    }
+    /// Compositions the user saved under a name from the menu bar editor.
+    @Published var menuBarUserTemplates: [MenuBarUserTemplate] {
+        didSet { saveMenuBarUserTemplates() }
+    }
     @Published var hasCompletedOnboarding: Bool {
         didSet { UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding") }
     }
@@ -388,6 +401,34 @@ final class SettingsStore: ObservableObject {
             self.popoverUserTemplates = []
         }
 
+        // Menu bar composition. New blob, else one-shot migration of the
+        // legacy pinnedMetrics + menuBarStyle + per-metric display prefs
+        // (preserving what the user saw before 5.10), else the Classic template.
+        let hadMenuBarBlob = UserDefaults.standard.data(forKey: "menuBarComposition") != nil
+        if let data = UserDefaults.standard.data(forKey: "menuBarComposition"),
+           let decoded = try? JSONDecoder().decode(MenuBarComposition.self, from: data) {
+            self.menuBarComposition = decoded
+        } else {
+            self.menuBarComposition = MenuBarConfigMigrator.migrate(
+                pinnedMetrics: displayStore.pinnedMetrics,
+                menuBarStyle: displayStore.menuBarStyle,
+                sessionPacingDisplayMode: displayStore.sessionPacingDisplayMode,
+                weeklyPacingDisplayMode: displayStore.weeklyPacingDisplayMode,
+                resetDisplayFormat: displayStore.resetDisplayFormat,
+                pacingShape: displayStore.pacingShape,
+                presence: MenuBarConfigMigrator.AccountPresence(
+                    cachedUsage: sharedFileService.cachedUsage?.usage
+                )
+            )
+        }
+
+        if let data = UserDefaults.standard.data(forKey: "menuBarUserTemplates"),
+           let decoded = try? JSONDecoder().decode([MenuBarUserTemplate].self, from: data) {
+            self.menuBarUserTemplates = decoded
+        } else {
+            self.menuBarUserTemplates = []
+        }
+
         // The piège: a @Published child only emits the parent's objectWillChange
         // when reassigned, not when one of ITS @Published changes. Relay it so a
         // view observing `settings` re-renders on `settings.pacing.*` changes.
@@ -407,9 +448,12 @@ final class SettingsStore: ObservableObject {
         }
 
         // didSet doesn't fire during init - persist the migrated / default
-        // composition now so the one-shot migration is durable.
+        // compositions now so the one-shot migrations are durable.
         if !hadCompositionBlob {
             savePopoverComposition()
+        }
+        if !hadMenuBarBlob {
+            saveMenuBarComposition()
         }
     }
 
@@ -423,6 +467,18 @@ final class SettingsStore: ObservableObject {
     private func savePopoverUserTemplates() {
         guard let data = try? JSONEncoder().encode(popoverUserTemplates) else { return }
         UserDefaults.standard.set(data, forKey: "popoverUserTemplates")
+    }
+
+    // MARK: - Menu bar persistence
+
+    private func saveMenuBarComposition() {
+        guard let data = try? JSONEncoder().encode(menuBarComposition) else { return }
+        UserDefaults.standard.set(data, forKey: "menuBarComposition")
+    }
+
+    private func saveMenuBarUserTemplates() {
+        guard let data = try? JSONEncoder().encode(menuBarUserTemplates) else { return }
+        UserDefaults.standard.set(data, forKey: "menuBarUserTemplates")
     }
 
     /// Ensures a decoded composition still satisfies the validation rules

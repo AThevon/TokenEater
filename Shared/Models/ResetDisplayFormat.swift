@@ -1,6 +1,6 @@
 import Foundation
 
-enum ResetDisplayFormat: String, CaseIterable, Identifiable {
+enum ResetDisplayFormat: String, Codable, CaseIterable, Identifiable {
     case relative   // "1h 39min"
     case absolute   // "20:30" today, "Fri 08:00" other days
     case both       // "1h 39min - 20:30"
