@@ -4,9 +4,32 @@ import Foundation
 @Suite("ElectronDecryptionService")
 struct ElectronDecryptionServiceTests {
 
+    private enum StubError: Error { case noPassword }
+
+    /// A service pointed at a throwaway temp key file (so the real
+    /// `~/Library/Application Support/com.tokeneater.shared/decryption.key` is
+    /// never read, written, or deleted) with an optional stub password source
+    /// (so the real "Claude Safe Storage" Keychain item is never read). Call
+    /// `cleanup()` via `defer` to remove the temp directory.
+    ///
+    /// Before this seam existed, constructing a bare `ElectronDecryptionService()`
+    /// and calling `clearCachedKey()` / `trySilentRebootstrap()` in tests hit the
+    /// live paths: it deleted the real cached key and, on any machine with Claude
+    /// Desktop installed, silently read the Electron safeStorage Keychain item.
+    private func makeSUT(
+        passwordReader: (@Sendable (_ silent: Bool) throws -> String)? = nil
+    ) -> (sut: ElectronDecryptionService, keyFile: URL, cleanup: () -> Void) {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let keyFile = dir.appendingPathComponent("decryption.key")
+        let sut = ElectronDecryptionService(keyFileURL: keyFile, passwordReader: passwordReader)
+        return (sut, keyFile, { try? FileManager.default.removeItem(at: dir) })
+    }
+
     @Test("rejects data without v10 prefix")
     func rejectsWithoutV10Prefix() {
-        let sut = ElectronDecryptionService()
+        let (sut, _, cleanup) = makeSUT(); defer { cleanup() }
         let key = ElectronDecryptionService.deriveKey(from: "testpassword")
         sut.setDerivedKeyForTesting(key)
 
@@ -23,7 +46,7 @@ struct ElectronDecryptionServiceTests {
 
     @Test("rejects empty base64")
     func rejectsEmptyBase64() {
-        let sut = ElectronDecryptionService()
+        let (sut, _, cleanup) = makeSUT(); defer { cleanup() }
         let key = ElectronDecryptionService.deriveKey(from: "testpassword")
         sut.setDerivedKeyForTesting(key)
 
@@ -34,7 +57,7 @@ struct ElectronDecryptionServiceTests {
 
     @Test("rejects invalid base64")
     func rejectsInvalidBase64() {
-        let sut = ElectronDecryptionService()
+        let (sut, _, cleanup) = makeSUT(); defer { cleanup() }
         let key = ElectronDecryptionService.deriveKey(from: "testpassword")
         sut.setDerivedKeyForTesting(key)
 
@@ -45,14 +68,14 @@ struct ElectronDecryptionServiceTests {
 
     @Test("hasEncryptionKey is false after clearCachedKey")
     func hasEncryptionKeyFalseAfterClear() {
-        let sut = ElectronDecryptionService()
+        let (sut, _, cleanup) = makeSUT(); defer { cleanup() }
         sut.clearCachedKey()
         #expect(sut.hasEncryptionKey == false)
     }
 
     @Test("clearCachedKey removes the key")
     func clearCachedKeyRemovesKey() {
-        let sut = ElectronDecryptionService()
+        let (sut, _, cleanup) = makeSUT(); defer { cleanup() }
         let key = ElectronDecryptionService.deriveKey(from: "testpassword")
         sut.setDerivedKeyForTesting(key)
         #expect(sut.hasEncryptionKey == true)
@@ -83,7 +106,7 @@ struct ElectronDecryptionServiceTests {
 
     @Test("full encrypt-then-decrypt round trip")
     func encryptThenDecryptRoundTrip() throws {
-        let sut = ElectronDecryptionService()
+        let (sut, _, cleanup) = makeSUT(); defer { cleanup() }
         let password = "test-electron-password"
         let key = ElectronDecryptionService.deriveKey(from: password)
         sut.setDerivedKeyForTesting(key)
@@ -98,7 +121,7 @@ struct ElectronDecryptionServiceTests {
 
     @Test("round trip with empty plaintext")
     func roundTripEmptyPlaintext() throws {
-        let sut = ElectronDecryptionService()
+        let (sut, _, cleanup) = makeSUT(); defer { cleanup() }
         let key = ElectronDecryptionService.deriveKey(from: "pw")
         sut.setDerivedKeyForTesting(key)
 
@@ -110,7 +133,7 @@ struct ElectronDecryptionServiceTests {
 
     @Test("decrypt fails without encryption key set")
     func decryptFailsWithoutKey() {
-        let sut = ElectronDecryptionService()
+        let (sut, _, cleanup) = makeSUT(); defer { cleanup() }
         // v10 prefix + 16 bytes of fake ciphertext
         var data = Data([0x76, 0x31, 0x30])
         data.append(Data(repeating: 0xAA, count: 16))
@@ -162,17 +185,34 @@ struct ElectronDecryptionServiceTests {
         #expect(loaded == nil)
     }
 
-    @Test("trySilentRebootstrap returns a Bool and updates hasEncryptionKey accordingly")
-    func trySilentRebootstrapReturnsConsistentState() {
-        let sut = ElectronDecryptionService()
+    @Test("trySilentRebootstrap succeeds and caches the key when a password is available")
+    func trySilentRebootstrapSucceedsWithPassword() {
+        // Stub the password source so we never read the real Keychain, and point
+        // the cache at a temp file so we never touch the real decryption.key.
+        let (sut, keyFile, cleanup) = makeSUT(passwordReader: { _ in "electron-password" })
+        defer { cleanup() }
         sut.clearCachedKey()
         #expect(sut.hasEncryptionKey == false)
 
         let result = sut.trySilentRebootstrap()
-        // Result depends on whether "Claude Safe Storage" keychain item exists.
-        // On CI: false (no Electron keychain). On dev machine with Claude: true.
-        // Either way, hasEncryptionKey must match the return value.
-        #expect(sut.hasEncryptionKey == result)
+
+        #expect(result == true)
+        #expect(sut.hasEncryptionKey == true)
+        // The derived key was cached to the temp file, never the real one.
+        #expect(ElectronDecryptionService.loadKeyFromFile(at: keyFile) != nil)
+    }
+
+    @Test("trySilentRebootstrap fails and stays keyless when no password is available")
+    func trySilentRebootstrapFailsWithoutPassword() {
+        let (sut, keyFile, cleanup) = makeSUT(passwordReader: { _ in throw StubError.noPassword })
+        defer { cleanup() }
+        sut.clearCachedKey()
+
+        let result = sut.trySilentRebootstrap()
+
+        #expect(result == false)
+        #expect(sut.hasEncryptionKey == false)
+        #expect(ElectronDecryptionService.loadKeyFromFile(at: keyFile) == nil)
     }
 
     @Test("migrateKeyFromKeychainToFile: saves and loads correctly via file round-trip")
