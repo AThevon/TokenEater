@@ -332,7 +332,7 @@ struct PopoverOpenButton: View {
             HStack(spacing: 6) {
                 Image(systemName: "diamond.fill")
                     .font(.system(size: 8))
-                Text("Open TokenEater")
+                Text(String(localized: "popover.cell.open"))
                     .font(.system(size: 12, weight: .semibold))
             }
             .foregroundStyle(.white.opacity(0.8))

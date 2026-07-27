@@ -58,13 +58,18 @@ struct PopoverSectionView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
-            // Right: the real popover, pinned so it never scrolls out of view.
-            VStack(alignment: .center, spacing: 14) {
-                LivePopoverPreview(selectedElementID: $selectedElementID)
-                resetButton
-                Spacer(minLength: 0)
+            // Right: the real popover. Scrolls on its own so a tall
+            // composition's preview can be seen in full instead of being
+            // clipped at the bottom.
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .center, spacing: 14) {
+                    LivePopoverPreview(selectedElementID: $selectedElementID)
+                    resetButton
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 2)
             }
-            .frame(maxHeight: .infinity, alignment: .top)
+            .frame(width: 312)
         }
         .padding(20)
     }
