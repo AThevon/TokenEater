@@ -803,8 +803,10 @@ private struct ElementRow: View {
         } label: {
             EditorPickerLabel(caption: "editor.pick.style", symbol: "textformat", value: element.style.localizedLabel)
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
+        .menuStyle(.button)
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .tint(.secondary)
         .fixedSize()
     }
 
