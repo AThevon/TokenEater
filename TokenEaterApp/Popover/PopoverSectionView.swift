@@ -121,39 +121,37 @@ struct PopoverSectionView: View {
 
     // MARK: - Templates
 
-    /// Vertical template rail for the three-column Studio layout. Same cards
-    /// as `templatesSection`, stacked and scrolling on their own.
+    // MARK: - Active / modified state
+
+    private var current: PopoverComposition { settingsStore.popoverComposition }
+
+    /// The saved template that matches the current composition, if any.
+    private var activeUserTemplateID: UUID? {
+        settingsStore.popoverUserTemplates.first { $0.composition.isEquivalent(to: current) }?.id
+    }
+
+    /// The built-in that matches (only when no saved template already did).
+    private var activeBuiltin: PopoverBuiltinTemplate? {
+        guard activeUserTemplateID == nil else { return nil }
+        return PopoverBuiltinTemplate.allCases.first { $0.composition.isEquivalent(to: current) }
+    }
+
+    /// The current composition diverges from every template -> a custom, not
+    /// yet saved, state.
+    private var isModified: Bool {
+        activeUserTemplateID == nil && activeBuiltin == nil
+    }
+
+    /// Vertical template rail for the three-column Studio layout: the custom
+    /// state (when modified) on top, then saved templates (newest first),
+    /// then the built-ins.
     private var templatesRail: some View {
         VStack(alignment: .leading, spacing: 8) {
             editorSectionLabel("popover.editor.templates")
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 8) {
-                    ForEach(PopoverBuiltinTemplate.allCases) { template in
-                        TemplateCard(
-                            name: template.localizedName,
-                            composition: template.composition
-                        ) {
-                            apply(template.composition)
-                        }
-                    }
-                    ForEach(settingsStore.popoverUserTemplates) { template in
-                        TemplateCard(
-                            name: template.name,
-                            composition: template.composition,
-                            isUserTemplate: true
-                        ) {
-                            apply(template.composition)
-                        }
-                        .contextMenu {
-                            Button(role: .destructive) {
-                                settingsStore.popoverUserTemplates.removeAll { $0.id == template.id }
-                            } label: {
-                                Label(String(localized: "popover.editor.deleteTemplate"), systemImage: "trash")
-                            }
-                        }
-                    }
-                    saveTemplateCard
+                    templateCards
                 }
                 .padding(.vertical, 2)
             }
@@ -167,62 +165,48 @@ struct PopoverSectionView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(PopoverBuiltinTemplate.allCases) { template in
-                        TemplateCard(
-                            name: template.localizedName,
-                            composition: template.composition
-                        ) {
-                            apply(template.composition)
-                        }
-                    }
-                    ForEach(settingsStore.popoverUserTemplates) { template in
-                        TemplateCard(
-                            name: template.name,
-                            composition: template.composition,
-                            isUserTemplate: true
-                        ) {
-                            apply(template.composition)
-                        }
-                        .contextMenu {
-                            Button(role: .destructive) {
-                                settingsStore.popoverUserTemplates.removeAll { $0.id == template.id }
-                            } label: {
-                                Label(String(localized: "popover.editor.deleteTemplate"), systemImage: "trash")
-                            }
-                        }
-                    }
-                    saveTemplateCard
+                    templateCards
                 }
                 .padding(.vertical, 2)
             }
         }
     }
 
-    private var saveTemplateCard: some View {
-        Button {
-            templateName = ""
-            showSaveDialog = true
-        } label: {
-            VStack(spacing: 6) {
-                Image(systemName: "plus")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.5))
-                Text(String(localized: "popover.editor.saveTemplate.short"))
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.5))
-                    .multilineTextAlignment(.center)
+    @ViewBuilder
+    private var templateCards: some View {
+        if isModified {
+            CustomStateCard {
+                templateName = ""
+                showSaveDialog = true
             }
-            .frame(width: 92, height: 96)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.white.opacity(0.02))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .strokeBorder(Color.white.opacity(0.12), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                    )
-            )
         }
-        .buttonStyle(.plain)
+        // Saved templates first, newest on top (saves insert at index 0).
+        ForEach(settingsStore.popoverUserTemplates) { template in
+            TemplateCard(
+                name: template.name,
+                composition: template.composition,
+                isUserTemplate: true,
+                isActive: template.id == activeUserTemplateID
+            ) {
+                apply(template.composition)
+            }
+            .contextMenu {
+                Button(role: .destructive) {
+                    settingsStore.popoverUserTemplates.removeAll { $0.id == template.id }
+                } label: {
+                    Label(String(localized: "popover.editor.deleteTemplate"), systemImage: "trash")
+                }
+            }
+        }
+        ForEach(PopoverBuiltinTemplate.allCases) { template in
+            TemplateCard(
+                name: template.localizedName,
+                composition: template.composition,
+                isActive: template == activeBuiltin
+            ) {
+                apply(template.composition)
+            }
+        }
     }
 
     private func apply(_ composition: PopoverComposition) {
@@ -243,8 +227,10 @@ struct PopoverSectionView: View {
             name = "\(trimmed) \(counter)"
             counter += 1
         }
-        settingsStore.popoverUserTemplates.append(
-            PopoverUserTemplate(name: name, composition: settingsStore.popoverComposition)
+        // Newest on top -> the just-saved template lands above the built-ins.
+        settingsStore.popoverUserTemplates.insert(
+            PopoverUserTemplate(name: name, composition: settingsStore.popoverComposition),
+            at: 0
         )
         templateName = ""
     }
@@ -362,14 +348,27 @@ private struct TemplateCard: View {
     let name: String
     let composition: PopoverComposition
     var isUserTemplate: Bool = false
+    var isActive: Bool = false
     let onApply: () -> Void
 
     @State private var hovering = false
 
+    private var fill: Color {
+        if isActive { return DS.Palette.accentStudio.opacity(0.16) }
+        if hovering { return Color.blue.opacity(0.12) }
+        return Color.white.opacity(0.03)
+    }
+
+    private var stroke: Color {
+        if isActive { return DS.Palette.accentStudio.opacity(0.6) }
+        if hovering { return Color.blue.opacity(0.5) }
+        return Color.white.opacity(0.07)
+    }
+
     var body: some View {
         Button(action: onApply) {
             VStack(spacing: 7) {
-                TemplateSchematic(composition: composition, highlighted: hovering)
+                TemplateSchematic(composition: composition, highlighted: hovering || isActive)
                 HStack(spacing: 3) {
                     if isUserTemplate {
                         Image(systemName: "person.fill")
@@ -378,7 +377,7 @@ private struct TemplateCard: View {
                     }
                     Text(name)
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(hovering ? .white : .white.opacity(0.65))
+                        .foregroundStyle(isActive || hovering ? .white : .white.opacity(0.65))
                         .lineLimit(1)
                 }
             }
@@ -386,13 +385,21 @@ private struct TemplateCard: View {
             .frame(width: 92, height: 96)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(hovering ? Color.blue.opacity(0.12) : Color.white.opacity(0.03))
+                    .fill(fill)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(hovering ? Color.blue.opacity(0.5) : Color.white.opacity(0.07), lineWidth: 1)
+                            .stroke(stroke, lineWidth: 1)
                     )
             )
-            .scaleEffect(hovering ? 1.02 : 1.0)
+            .overlay(alignment: .topTrailing) {
+                if isActive {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(DS.Palette.accentStudio)
+                        .padding(5)
+                }
+            }
+            .scaleEffect(hovering && !isActive ? 1.02 : 1.0)
         }
         .buttonStyle(.plain)
         .onHover { isHovering in
@@ -400,6 +407,47 @@ private struct TemplateCard: View {
                 hovering = isHovering
             }
         }
+    }
+}
+
+/// Shown at the top of the template list when the current composition no
+/// longer matches any template. Doubles as the save affordance -> tapping it
+/// saves the current composition as a new user template at the top.
+private struct CustomStateCard: View {
+    let onSave: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: onSave) {
+            VStack(spacing: 6) {
+                Image(systemName: "bookmark.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(DS.Palette.accentStudio)
+                Text(String(localized: "editor.custom.modified"))
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(DS.Palette.accentStudio)
+                    .textCase(.uppercase)
+                    .tracking(0.5)
+                Text(String(localized: "editor.custom.save"))
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.white.opacity(hovering ? 0.9 : 0.6))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+            }
+            .padding(8)
+            .frame(width: 92, height: 96)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(DS.Palette.accentStudio.opacity(hovering ? 0.16 : 0.10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(DS.Palette.accentStudio.opacity(0.55), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    )
+            )
+            .scaleEffect(hovering ? 1.02 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .onHover { h in withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) { hovering = h } }
     }
 }
 

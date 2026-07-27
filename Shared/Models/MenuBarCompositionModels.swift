@@ -175,6 +175,18 @@ struct MenuBarComposition: Codable, Equatable {
     /// the composition as-is.
     var hasVisibleContent: Bool { !visibleSegments.isEmpty }
 
+    /// Structural match ignoring segment UUIDs, so the editor can tell which
+    /// template the current composition came from (built-ins mint fresh ids).
+    func isEquivalent(to other: MenuBarComposition) -> Bool {
+        guard segments.count == other.segments.count else { return false }
+        for (a, b) in zip(segments, other.segments) where
+            a.kind != b.kind || a.style != b.style
+            || a.isHidden != b.isHidden || a.options != b.options {
+            return false
+        }
+        return true
+    }
+
     static let `default` = MenuBarBuiltinTemplate.classic.composition
 }
 

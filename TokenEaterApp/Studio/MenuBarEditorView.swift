@@ -87,32 +87,33 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
         }
     }
 
+    // MARK: - Active / modified state
+
+    private var current: MenuBarComposition { settingsStore.menuBarComposition }
+
+    private var activeUserTemplateID: UUID? {
+        settingsStore.menuBarUserTemplates.first { $0.composition.isEquivalent(to: current) }?.id
+    }
+
+    private var activeBuiltin: MenuBarBuiltinTemplate? {
+        guard activeUserTemplateID == nil else { return nil }
+        return MenuBarBuiltinTemplate.allCases.first { $0.composition.isEquivalent(to: current) }
+    }
+
+    private var isModified: Bool {
+        activeUserTemplateID == nil && activeBuiltin == nil
+    }
+
     // MARK: - Templates
 
-    /// Vertical template rail for the three-column layout.
+    /// Vertical template rail: custom state (when modified) on top, then saved
+    /// templates (newest first), then built-ins.
     private var templatesRail: some View {
         VStack(alignment: .leading, spacing: 8) {
             editorLabel("menuBar.editor.templates")
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 8) {
-                    ForEach(MenuBarBuiltinTemplate.allCases) { template in
-                        MenuBarTemplateCard(name: template.localizedName, composition: template.composition) {
-                            apply(template.composition)
-                        }
-                    }
-                    ForEach(settingsStore.menuBarUserTemplates) { template in
-                        MenuBarTemplateCard(name: template.name, composition: template.composition, isUserTemplate: true) {
-                            apply(template.composition)
-                        }
-                        .contextMenu {
-                            Button(role: .destructive) {
-                                settingsStore.menuBarUserTemplates.removeAll { $0.id == template.id }
-                            } label: {
-                                Label(String(localized: "menuBar.editor.deleteTemplate"), systemImage: "trash")
-                            }
-                        }
-                    }
-                    saveTemplateCard
+                    templateCards
                 }
                 .padding(.vertical, 2)
             }
@@ -125,55 +126,47 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
             editorLabel("menuBar.editor.templates")
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(MenuBarBuiltinTemplate.allCases) { template in
-                        MenuBarTemplateCard(name: template.localizedName, composition: template.composition) {
-                            apply(template.composition)
-                        }
-                    }
-                    ForEach(settingsStore.menuBarUserTemplates) { template in
-                        MenuBarTemplateCard(name: template.name, composition: template.composition, isUserTemplate: true) {
-                            apply(template.composition)
-                        }
-                        .contextMenu {
-                            Button(role: .destructive) {
-                                settingsStore.menuBarUserTemplates.removeAll { $0.id == template.id }
-                            } label: {
-                                Label(String(localized: "menuBar.editor.deleteTemplate"), systemImage: "trash")
-                            }
-                        }
-                    }
-                    saveTemplateCard
+                    templateCards
                 }
                 .padding(.vertical, 2)
             }
         }
     }
 
-    private var saveTemplateCard: some View {
-        Button {
-            templateName = ""
-            showSaveDialog = true
-        } label: {
-            VStack(spacing: 6) {
-                Image(systemName: "plus")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.5))
-                Text(String(localized: "menuBar.editor.saveTemplate.short"))
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.5))
-                    .multilineTextAlignment(.center)
+    @ViewBuilder
+    private var templateCards: some View {
+        if isModified {
+            MenuBarCustomStateCard {
+                templateName = ""
+                showSaveDialog = true
             }
-            .frame(width: 88, height: 62)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.white.opacity(0.02))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .strokeBorder(Color.white.opacity(0.12), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                    )
-            )
         }
-        .buttonStyle(.plain)
+        ForEach(settingsStore.menuBarUserTemplates) { template in
+            MenuBarTemplateCard(
+                name: template.name,
+                composition: template.composition,
+                isUserTemplate: true,
+                isActive: template.id == activeUserTemplateID
+            ) {
+                apply(template.composition)
+            }
+            .contextMenu {
+                Button(role: .destructive) {
+                    settingsStore.menuBarUserTemplates.removeAll { $0.id == template.id }
+                } label: {
+                    Label(String(localized: "menuBar.editor.deleteTemplate"), systemImage: "trash")
+                }
+            }
+        }
+        ForEach(MenuBarBuiltinTemplate.allCases) { template in
+            MenuBarTemplateCard(
+                name: template.localizedName,
+                composition: template.composition,
+                isActive: template == activeBuiltin
+            ) {
+                apply(template.composition)
+            }
+        }
     }
 
     private func apply(_ composition: MenuBarComposition) {
@@ -192,8 +185,10 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
             name = "\(trimmed) \(counter)"
             counter += 1
         }
-        settingsStore.menuBarUserTemplates.append(
-            MenuBarUserTemplate(name: name, composition: settingsStore.menuBarComposition)
+        // Newest on top -> the just-saved template lands above the built-ins.
+        settingsStore.menuBarUserTemplates.insert(
+            MenuBarUserTemplate(name: name, composition: settingsStore.menuBarComposition),
+            at: 0
         )
         templateName = ""
     }
@@ -287,29 +282,91 @@ private struct MenuBarTemplateCard: View {
     let name: String
     let composition: MenuBarComposition
     var isUserTemplate: Bool = false
+    var isActive: Bool = false
     let onApply: () -> Void
 
     @State private var hovering = false
 
+    private var fill: Color {
+        if isActive { return DS.Palette.accentStudio.opacity(0.16) }
+        if hovering { return Color.blue.opacity(0.12) }
+        return Color.white.opacity(0.03)
+    }
+
+    private var stroke: Color {
+        if isActive { return DS.Palette.accentStudio.opacity(0.6) }
+        if hovering { return Color.blue.opacity(0.5) }
+        return Color.white.opacity(0.07)
+    }
+
     var body: some View {
         Button(action: onApply) {
             VStack(spacing: 7) {
-                MenuBarTemplateSchematic(composition: composition, highlighted: hovering)
+                MenuBarTemplateSchematic(composition: composition, highlighted: hovering || isActive)
                     .frame(height: 20)
                 HStack(spacing: 3) {
                     if isUserTemplate {
                         Image(systemName: "person.fill").font(.system(size: 7)).foregroundStyle(.white.opacity(0.4))
                     }
                     Text(name).font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(hovering ? .white : .white.opacity(0.65)).lineLimit(1)
+                        .foregroundStyle(isActive || hovering ? .white : .white.opacity(0.65)).lineLimit(1)
                 }
             }
             .padding(8)
             .frame(width: 88, height: 62)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(hovering ? Color.blue.opacity(0.12) : Color.white.opacity(0.03))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(hovering ? Color.blue.opacity(0.5) : Color.white.opacity(0.07), lineWidth: 1))
+                    .fill(fill)
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(stroke, lineWidth: 1))
+            )
+            .overlay(alignment: .topTrailing) {
+                if isActive {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(DS.Palette.accentStudio)
+                        .padding(4)
+                }
+            }
+            .scaleEffect(hovering && !isActive ? 1.02 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .onHover { h in withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) { hovering = h } }
+    }
+}
+
+/// Menu bar equivalent of the popover's custom-state card. Shown at the top of
+/// the template list when the composition diverges from every template; saves
+/// the current one as a new user template on top.
+private struct MenuBarCustomStateCard: View {
+    let onSave: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: onSave) {
+            VStack(spacing: 4) {
+                Image(systemName: "bookmark.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(DS.Palette.accentStudio)
+                Text(String(localized: "editor.custom.modified"))
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(DS.Palette.accentStudio)
+                    .textCase(.uppercase)
+                    .tracking(0.5)
+                Text(String(localized: "editor.custom.save"))
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(.white.opacity(hovering ? 0.9 : 0.6))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+            }
+            .padding(6)
+            .frame(width: 88, height: 62)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(DS.Palette.accentStudio.opacity(hovering ? 0.16 : 0.10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(DS.Palette.accentStudio.opacity(0.55), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    )
             )
             .scaleEffect(hovering ? 1.02 : 1.0)
         }

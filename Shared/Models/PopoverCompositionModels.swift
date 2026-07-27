@@ -296,6 +296,20 @@ struct PopoverComposition: Codable, Equatable {
     /// empty composition falls back to the default template.
     var hasVisibleContent: Bool { !visibleElements.isEmpty }
 
+    /// Structural match ignoring element UUIDs (and the legacy toggles /
+    /// version), so the editor can tell which template the current
+    /// composition came from - built-ins mint fresh ids on every access, so
+    /// plain `==` would never match.
+    func isEquivalent(to other: PopoverComposition) -> Bool {
+        guard elements.count == other.elements.count else { return false }
+        for (a, b) in zip(elements, other.elements) where
+            a.kind != b.kind || a.style != b.style || a.width != b.width
+            || a.isHidden != b.isHidden || a.options != b.options {
+            return false
+        }
+        return true
+    }
+
     static let `default` = PopoverBuiltinTemplate.classic.composition
 }
 

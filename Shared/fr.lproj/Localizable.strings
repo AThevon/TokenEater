@@ -651,6 +651,8 @@
 "theme.preview.title" = "Aperçu";
 "theme.preview.gauges" = "Jauges";
 "theme.preview.pacing" = "Pacing";
+"editor.custom.modified" = "Modifié";
+"editor.custom.save" = "Enregistrer";
 "studio.intro.badge" = "NOUVEAU";
 "studio.intro.text" = "Le Studio est là. Popover, barre de menus et thèmes, au même endroit.";
 "studio.intro.cta" = "Voir les nouveautés";

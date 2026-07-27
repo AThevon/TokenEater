@@ -651,6 +651,8 @@
 "theme.preview.title" = "Preview";
 "theme.preview.gauges" = "Gauges";
 "theme.preview.pacing" = "Pacing";
+"editor.custom.modified" = "Modified";
+"editor.custom.save" = "Save theme";
 "studio.intro.badge" = "NEW";
 "studio.intro.text" = "The Studio is here. Popover, menu bar and themes, all in one place.";
 "studio.intro.cta" = "See what's new";
