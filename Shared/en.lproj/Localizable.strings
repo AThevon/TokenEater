@@ -765,9 +765,6 @@
 
 /* Menu bar style picker */
 "settings.menubar.style" = "Style";
-"menuBarStyle.classic" = "Classic";
-"menuBarStyle.mono" = "Mono";
-"menuBarStyle.badge" = "Badge";
 
 /* Pacing shape picker */
 "settings.pacing.shape" = "Pacing indicator shape";

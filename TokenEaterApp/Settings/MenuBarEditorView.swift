@@ -297,32 +297,37 @@ private struct MenuBarLivePreview: View {
                 .foregroundStyle(.white.opacity(0.4)).tracking(1)
                 .frame(maxWidth: .infinity)
 
-            ZStack(alignment: .topLeading) {
-                Image(nsImage: rendered.image)
-                    .resizable()
-                    .frame(width: w, height: h)
+            // A wide composition can overflow the pane; let it scroll
+            // horizontally instead of clipping the rightmost segment.
+            ScrollView(.horizontal, showsIndicators: false) {
+                ZStack(alignment: .topLeading) {
+                    Image(nsImage: rendered.image)
+                        .resizable()
+                        .frame(width: w, height: h)
 
-                ForEach(rendered.hitRects, id: \.id) { hit in
-                    let x = hit.rect.minX * scale
-                    let cw = hit.rect.width * scale
-                    ZStack {
-                        if selectedSegmentID == hit.id {
-                            RoundedRectangle(cornerRadius: 5)
-                                .stroke(Color.blue, lineWidth: 1.5)
-                                .background(RoundedRectangle(cornerRadius: 5).fill(Color.blue.opacity(0.12)))
+                    ForEach(rendered.hitRects, id: \.id) { hit in
+                        let x = hit.rect.minX * scale
+                        let cw = hit.rect.width * scale
+                        ZStack {
+                            if selectedSegmentID == hit.id {
+                                RoundedRectangle(cornerRadius: 5)
+                                    .stroke(Color.blue, lineWidth: 1.5)
+                                    .background(RoundedRectangle(cornerRadius: 5).fill(Color.blue.opacity(0.12)))
+                            }
+                            Color.clear.contentShape(Rectangle())
                         }
-                        Color.clear.contentShape(Rectangle())
-                    }
-                    .frame(width: cw, height: h)
-                    .offset(x: x)
-                    .onTapGesture {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-                            selectedSegmentID = (selectedSegmentID == hit.id) ? nil : hit.id
+                        .frame(width: cw, height: h)
+                        .offset(x: x)
+                        .onTapGesture {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                                selectedSegmentID = (selectedSegmentID == hit.id) ? nil : hit.id
+                            }
                         }
                     }
                 }
+                .frame(width: w, height: h)
             }
-            .frame(width: w, height: h)
+            .frame(maxWidth: w)
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(
@@ -332,7 +337,10 @@ private struct MenuBarLivePreview: View {
             )
             .environment(\.colorScheme, .dark)
 
-            Text(String(localized: rendered.hitRects.isEmpty ? "menuBar.editor.empty" : "menuBar.editor.preview.hint"))
+            // Key the hint off the composition, not the rendered hit-rects:
+            // the preview also shows the logo (no hit-rects) during an
+            // error / no-config state, where segments may still be configured.
+            Text(String(localized: settingsStore.menuBarComposition.visibleSegments.isEmpty ? "menuBar.editor.empty" : "menuBar.editor.preview.hint"))
                 .font(.system(size: 9))
                 .foregroundStyle(.white.opacity(0.3))
                 .frame(maxWidth: .infinity)

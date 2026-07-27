@@ -415,10 +415,7 @@ final class SettingsStore: ObservableObject {
                 sessionPacingDisplayMode: displayStore.sessionPacingDisplayMode,
                 weeklyPacingDisplayMode: displayStore.weeklyPacingDisplayMode,
                 resetDisplayFormat: displayStore.resetDisplayFormat,
-                pacingShape: displayStore.pacingShape,
-                presence: MenuBarConfigMigrator.AccountPresence(
-                    cachedUsage: sharedFileService.cachedUsage?.usage
-                )
+                pacingShape: displayStore.pacingShape
             )
         }
 

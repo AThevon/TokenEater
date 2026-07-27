@@ -9,30 +9,6 @@ import Foundation
 /// blob is absent. The legacy keys stay in UserDefaults so a downgrade restores
 /// the previous menu bar untouched.
 enum MenuBarConfigMigrator {
-    /// Account-presence snapshot from the cached usage, so a stale pin for a
-    /// metric no longer on the account doesn't produce a segment that renders
-    /// nothing (same lesson as the popover migrator).
-    struct AccountPresence {
-        var hasDesign: Bool
-        var hasFable: Bool
-        var hasExtraCredits: Bool
-
-        init(hasDesign: Bool = true, hasFable: Bool = true, hasExtraCredits: Bool = true) {
-            self.hasDesign = hasDesign
-            self.hasFable = hasFable
-            self.hasExtraCredits = hasExtraCredits
-        }
-
-        init(cachedUsage: UsageResponse?) {
-            guard let usage = cachedUsage else { self.init(); return }
-            self.init(
-                hasDesign: usage.sevenDayDesign != nil,
-                hasFable: usage.sevenDayFable != nil,
-                hasExtraCredits: usage.extraUsage?.isEnabled == true
-            )
-        }
-    }
-
     /// The fixed order the pre-5.10 renderer drew pinned metrics in. Preserving
     /// it means the migrated composition looks identical to what the user saw.
     private static let legacyOrder: [MetricID] = [
@@ -46,16 +22,18 @@ enum MenuBarConfigMigrator {
         sessionPacingDisplayMode: PacingDisplayMode,
         weeklyPacingDisplayMode: PacingDisplayMode,
         resetDisplayFormat: ResetDisplayFormat,
-        pacingShape: PacingShape,
-        presence: AccountPresence = AccountPresence()
+        pacingShape: PacingShape
     ) -> MenuBarComposition {
+        // Every pinned metric becomes a segment - including presence-gated ones
+        // (Design / Fable / Extra Credits) that happen to be absent right now.
+        // The renderer already gates presence at draw time (isSegmentAvailable),
+        // exactly like the pre-5.10 menu bar which kept the pin and re-showed it
+        // when the metric returned. Dropping it here instead would permanently
+        // lose the pin the next time the pool re-enables (e.g. Extra Credits'
+        // `isEnabled` is transient), which the old menu bar never did.
         let segments: [MenuBarSegment] = legacyOrder.compactMap { metric in
             guard pinnedMetrics.contains(metric) else { return nil }
             guard let kind = kind(for: metric) else { return nil }
-            // Drop a pinned metric the account no longer has, so migration
-            // never produces a permanently-empty segment.
-            if kind.isPresenceGated && !isAvailable(kind, presence: presence) { return nil }
-
             return MenuBarSegment(
                 kind: kind,
                 style: style(for: kind, metric: metric, menuBarStyle: menuBarStyle,
@@ -98,8 +76,13 @@ enum MenuBarConfigMigrator {
             case .badge: return .pill
             }
         case .pacing:
-            if menuBarStyle == .badge { return .pill }
             let mode = (metric == .sessionPacing) ? sessionMode : weeklyMode
+            // Old badge pacing honored the display mode: dotDelta was a
+            // glyph+delta pill, but dot / delta showed glyph-only / delta-only.
+            // The single `.pill` pacing style is glyph+delta, so only dotDelta
+            // maps to it faithfully; dot / delta keep their plain styles (losing
+            // the capsule, but preserving the content the user chose).
+            if menuBarStyle == .badge && mode == .dotDelta { return .pill }
             switch mode {
             case .dot: return .dot
             case .dotDelta: return .dotDelta
@@ -111,12 +94,4 @@ enum MenuBarConfigMigrator {
         }
     }
 
-    private static func isAvailable(_ kind: MenuBarSegmentKind, presence: AccountPresence) -> Bool {
-        switch kind {
-        case .design: return presence.hasDesign
-        case .fable: return presence.hasFable
-        case .extraCredits: return presence.hasExtraCredits
-        default: return true
-        }
-    }
 }

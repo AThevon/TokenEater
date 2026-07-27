@@ -10,8 +10,7 @@ struct MenuBarConfigMigratorTests {
         sessionMode: PacingDisplayMode = .dotDelta,
         weeklyMode: PacingDisplayMode = .dotDelta,
         resetFormat: ResetDisplayFormat = .relative,
-        shape: PacingShape = .circle,
-        presence: MenuBarConfigMigrator.AccountPresence = .init()
+        shape: PacingShape = .circle
     ) -> MenuBarComposition {
         MenuBarConfigMigrator.migrate(
             pinnedMetrics: pins,
@@ -19,8 +18,7 @@ struct MenuBarConfigMigratorTests {
             sessionPacingDisplayMode: sessionMode,
             weeklyPacingDisplayMode: weeklyMode,
             resetDisplayFormat: resetFormat,
-            pacingShape: shape,
-            presence: presence
+            pacingShape: shape
         )
     }
 
@@ -70,29 +68,39 @@ struct MenuBarConfigMigratorTests {
         #expect(result.segments.first { $0.kind == .sessionPacing }?.options.pacingShape == .diamond)
     }
 
-    @Test("a pinned metric absent on the account is dropped")
-    func presenceGating() {
-        let result = migrate(
-            pins: [.fiveHour, .design, .fable, .extraCredits],
-            presence: .init(hasDesign: false, hasFable: true, hasExtraCredits: false)
-        )
+    @Test("presence-gated pins are KEPT (render-time gating handles absence, so nothing is lost)")
+    func presenceGatedPinsKept() {
+        // The old menu bar kept the pin and re-showed it when the metric
+        // returned; the migrator must not drop it (extra credits' isEnabled is
+        // transient). Render-time isSegmentAvailable hides it while absent.
+        let result = migrate(pins: [.fiveHour, .design, .fable, .extraCredits])
         let kinds = result.segments.map(\.kind)
         #expect(kinds.contains(.session))
+        #expect(kinds.contains(.design))
         #expect(kinds.contains(.fable))
-        #expect(!kinds.contains(.design))
-        #expect(!kinds.contains(.extraCredits))
+        #expect(kinds.contains(.extraCredits))
     }
 
-    @Test("every migrated segment has a legal style for its kind")
+    @Test("badge pacing preserves the display mode: dotDelta -> pill, dot -> dot, delta -> delta")
+    func badgePacingHonorsMode() {
+        let dotDelta = migrate(pins: [.sessionPacing], style: .badge, sessionMode: .dotDelta)
+        #expect(dotDelta.segments.first?.style == .pill)
+        let dot = migrate(pins: [.sessionPacing], style: .badge, sessionMode: .dot)
+        #expect(dot.segments.first?.style == .dot)
+        let delta = migrate(pins: [.sessionPacing], style: .badge, sessionMode: .delta)
+        #expect(delta.segments.first?.style == .delta)
+    }
+
+    @Test("every migrated segment has a legal style for its kind, across all styles and pacing modes")
     func migratedSegmentsValid() {
+        let modes: [PacingDisplayMode] = [.dot, .dotDelta, .delta]
         for style in MenuBarStyle.allCases {
-            let result = migrate(
-                pins: Set(MetricID.allCases), style: style,
-                presence: .init(hasDesign: true, hasFable: true, hasExtraCredits: true)
-            )
-            for seg in result.segments {
-                #expect(seg.kind.allowedStyles.contains(seg.style),
-                        "\(style): \(seg.kind) got illegal \(seg.style)")
+            for mode in modes {
+                let result = migrate(pins: Set(MetricID.allCases), style: style, sessionMode: mode, weeklyMode: mode)
+                for seg in result.segments {
+                    #expect(seg.kind.allowedStyles.contains(seg.style),
+                            "\(style)/\(mode): \(seg.kind) got illegal \(seg.style)")
+                }
             }
         }
     }

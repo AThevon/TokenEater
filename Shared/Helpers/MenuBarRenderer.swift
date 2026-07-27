@@ -235,8 +235,12 @@ enum MenuBarRenderer {
         let badge = renderOutageBadgeImage(data)
         let hasMetrics = data.hasConfig && (!data.hasError || data.isAwaitingRefresh)
         guard hasMetrics else { return badge }
-        let base = drawComposition(data).image
-        return horizontallyCompose(left: badge, right: base, gap: 5)
+        let base = drawComposition(data)
+        // An empty / all-filtered composition draws the template logo, which
+        // would composite as static black next to the coloured badge. Show the
+        // badge alone in that case (an empty menu bar is a legitimate choice).
+        guard !base.hitRects.isEmpty else { return badge }
+        return horizontallyCompose(left: badge, right: base.image, gap: 5)
     }
 
     private static func renderOutageBadgeImage(_ data: RenderData) -> NSImage {
