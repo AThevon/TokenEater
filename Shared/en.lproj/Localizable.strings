@@ -653,6 +653,11 @@
 "theme.preview.pacing" = "Pacing";
 "editor.custom.modified" = "Modified";
 "editor.custom.save" = "Save theme";
+"editor.pick.style" = "Style";
+"editor.pick.shape" = "Shape";
+"editor.pick.format" = "Format";
+"editor.pick.width" = "Width";
+"editor.pick.value" = "Value";
 "studio.intro.badge" = "NEW";
 "studio.intro.text" = "The Studio is here. Popover, menu bar and themes, all in one place.";
 "studio.intro.cta" = "See what's new";

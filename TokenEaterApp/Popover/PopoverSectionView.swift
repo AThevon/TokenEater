@@ -801,19 +801,7 @@ private struct ElementRow: View {
                 }
             }
         } label: {
-            HStack(spacing: 4) {
-                Text(element.style.localizedLabel)
-                    .font(.system(size: 10, weight: .semibold))
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 7, weight: .bold))
-            }
-            .foregroundStyle(.white.opacity(0.75))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                Capsule().fill(Color.white.opacity(0.06))
-                    .overlay(Capsule().stroke(Color.white.opacity(0.1), lineWidth: 0.5))
-            )
+            EditorPickerLabel(caption: "editor.pick.style", value: element.style.localizedLabel)
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)

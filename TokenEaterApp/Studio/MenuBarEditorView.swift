@@ -668,7 +668,7 @@ private struct MenuBarSegmentRow: View {
                 }
             }
         } label: {
-            pickerLabel(segment.effectiveStyle.localizedLabel)
+            pickerLabel("editor.pick.style", segment.effectiveStyle.localizedLabel)
         }
         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
     }
@@ -684,7 +684,7 @@ private struct MenuBarSegmentRow: View {
                 }
             }
         } label: {
-            pickerLabel(segment.options.pacingShape.glyph)
+            pickerLabel("editor.pick.shape", "\(segment.options.pacingShape.glyph)  \(segment.options.pacingShape.localizedLabel)")
         }
         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
     }
@@ -700,18 +700,46 @@ private struct MenuBarSegmentRow: View {
                 }
             }
         } label: {
-            pickerLabel(segment.options.resetFormat.localizedLabel)
+            pickerLabel("editor.pick.format", segment.options.resetFormat.localizedLabel)
         }
         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
     }
 
-    private func pickerLabel(_ text: String) -> some View {
-        HStack(spacing: 4) {
-            Text(text).font(.system(size: 10, weight: .semibold))
-            Image(systemName: "chevron.up.chevron.down").font(.system(size: 7, weight: .bold))
+    private func pickerLabel(_ caption: LocalizedStringKey, _ value: String) -> some View {
+        EditorPickerLabel(caption: caption, value: value)
+    }
+}
+
+/// Shared dropdown-chip look for the segment / element pickers -> a caption of
+/// what it controls, the current value, and a down chevron, on a filled bordered
+/// chip so it reads clearly as an openable menu (the old bare ⇕ glyph did not).
+struct EditorPickerLabel: View {
+    let caption: LocalizedStringKey
+    let value: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(caption)
+                .font(.system(size: 9, weight: .bold))
+                .textCase(.uppercase)
+                .tracking(0.4)
+                .foregroundStyle(.white.opacity(0.4))
+            Text(value)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.9))
+            Image(systemName: "chevron.down")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(.white.opacity(0.55))
         }
-        .foregroundStyle(.white.opacity(0.75))
-        .padding(.horizontal, 8).padding(.vertical, 4)
-        .background(Capsule().fill(Color.white.opacity(0.06)).overlay(Capsule().stroke(Color.white.opacity(0.1), lineWidth: 0.5)))
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color.white.opacity(0.07))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                )
+        )
     }
 }
