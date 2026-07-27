@@ -5,34 +5,6 @@ struct DisplaySectionView: View {
     @EnvironmentObject private var themeStore: ThemeStore
     @EnvironmentObject private var usageStore: UsageStore
 
-    // Local @State bindings - stable across body re-evaluations.
-    // Binding to computed properties via $store.computedProp creates
-    // unstable LocationProjections that the AttributeGraph can never
-    // memoize, causing an infinite re-evaluation loop in Release builds.
-    @State private var showFiveHour: Bool
-    @State private var showSessionReset: Bool
-    @State private var showSessionPacing: Bool
-    @State private var showSevenDay: Bool
-    @State private var showWeeklyPacing: Bool
-    @State private var showSonnet: Bool
-    @State private var showDesign: Bool
-    @State private var showFable: Bool
-    @State private var showServiceStatus: Bool
-    @State private var showExtraCredits: Bool
-
-    init(initialMetrics: Set<MetricID>) {
-        _showFiveHour = State(initialValue: initialMetrics.contains(.fiveHour))
-        _showSessionReset = State(initialValue: initialMetrics.contains(.sessionReset))
-        _showSessionPacing = State(initialValue: initialMetrics.contains(.sessionPacing))
-        _showSevenDay = State(initialValue: initialMetrics.contains(.sevenDay))
-        _showWeeklyPacing = State(initialValue: initialMetrics.contains(.weeklyPacing))
-        _showSonnet = State(initialValue: initialMetrics.contains(.sonnet))
-        _showDesign = State(initialValue: initialMetrics.contains(.design))
-        _showFable = State(initialValue: initialMetrics.contains(.fable))
-        _showServiceStatus = State(initialValue: initialMetrics.contains(.serviceStatus))
-        _showExtraCredits = State(initialValue: initialMetrics.contains(.extraCredits))
-    }
-
     var body: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
@@ -53,8 +25,7 @@ struct DisplaySectionView: View {
                     }
                 }
 
-                chromeGroup
-                pinGroup
+                MenuBarEditorView()
                 colorsGroup
 
                 ResetSectionButton(
@@ -67,205 +38,13 @@ struct DisplaySectionView: View {
             }
             .padding(24)
         }
-        // Sync: local toggle -> store (with at-least-one guard)
-        .onChange(of: showFiveHour) { _, new in syncMetric(.fiveHour, on: new, revert: { showFiveHour = true }) }
-        .onChange(of: showSessionReset) { _, new in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                syncMetric(.sessionReset, on: new, revert: { showSessionReset = true })
-            }
-        }
-        .onChange(of: showSessionPacing) { _, new in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                syncMetric(.sessionPacing, on: new, revert: { showSessionPacing = true })
-            }
-        }
-        .onChange(of: showSevenDay) { _, new in syncMetric(.sevenDay, on: new, revert: { showSevenDay = true }) }
-        .onChange(of: showWeeklyPacing) { _, new in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                syncMetric(.weeklyPacing, on: new, revert: { showWeeklyPacing = true })
-            }
-        }
-        .onChange(of: showSonnet) { _, new in syncMetric(.sonnet, on: new, revert: { showSonnet = true }) }
-        .onChange(of: showDesign) { _, new in syncMetric(.design, on: new, revert: { showDesign = true }) }
-        .onChange(of: showFable) { _, new in syncMetric(.fable, on: new, revert: { showFable = true }) }
-        .onChange(of: showServiceStatus) { _, new in syncMetric(.serviceStatus, on: new, revert: { showServiceStatus = true }) }
-        .onChange(of: showExtraCredits) { _, new in syncMetric(.extraCredits, on: new, revert: { showExtraCredits = true }) }
-        // Sync: store -> local toggles (external changes, e.g. pin/unpin from popover)
-        .onChange(of: settingsStore.pinnedMetrics) { _, metrics in
-            if showFiveHour != metrics.contains(.fiveHour) { showFiveHour = metrics.contains(.fiveHour) }
-            if showSessionReset != metrics.contains(.sessionReset) {
-                withAnimation(.easeInOut(duration: 0.2)) { showSessionReset = metrics.contains(.sessionReset) }
-            }
-            if showSessionPacing != metrics.contains(.sessionPacing) {
-                withAnimation(.easeInOut(duration: 0.2)) { showSessionPacing = metrics.contains(.sessionPacing) }
-            }
-            if showSevenDay != metrics.contains(.sevenDay) { showSevenDay = metrics.contains(.sevenDay) }
-            if showWeeklyPacing != metrics.contains(.weeklyPacing) {
-                withAnimation(.easeInOut(duration: 0.2)) { showWeeklyPacing = metrics.contains(.weeklyPacing) }
-            }
-            if showSonnet != metrics.contains(.sonnet) { showSonnet = metrics.contains(.sonnet) }
-            if showServiceStatus != metrics.contains(.serviceStatus) { showServiceStatus = metrics.contains(.serviceStatus) }
-            if showExtraCredits != metrics.contains(.extraCredits) { showExtraCredits = metrics.contains(.extraCredits) }
-        }
-    }
-
-    // MARK: - Chrome group
-
-    private var chromeGroup: some View {
-        groupSection(title: "settings.group.chrome", subtitle: "settings.group.chrome.hint") {
-            VStack(alignment: .leading, spacing: 12) {
-                groupLabel("settings.menubar.style")
-                HStack(spacing: 8) {
-                    ForEach(MenuBarStyle.allCases) { style in
-                        menuBarStyleButton(style)
-                    }
-                }
-
-                groupLabel("settings.pacing.shape")
-                    .padding(.top, 4)
-                HStack(spacing: 8) {
-                    ForEach(PacingShape.allCases) { shape in
-                        pacingShapeButton(shape)
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - Pin group
-
-    private var pinGroup: some View {
-        groupSection(title: "settings.group.pin", subtitle: "settings.group.pin.hint") {
-            VStack(alignment: .leading, spacing: 10) {
-                // Lane 1 : simple metric pins, no sub-options. 2-column compact grid.
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
-                    MetricPinChip(
-                        label: String(localized: "metric.session"),
-                        icon: "bolt.fill",
-                        isActive: showFiveHour,
-                        accent: .orange
-                    ) { showFiveHour.toggle() }
-
-                    MetricPinChip(
-                        label: String(localized: "metric.weekly"),
-                        icon: "calendar",
-                        isActive: showSevenDay,
-                        accent: .blue
-                    ) { showSevenDay.toggle() }
-
-                    MetricPinChip(
-                        label: String(localized: "metric.sonnet"),
-                        icon: "quote.opening",
-                        isActive: showSonnet,
-                        accent: .green
-                    ) { showSonnet.toggle() }
-
-                    if usageStore.hasDesign {
-                        MetricPinChip(
-                            label: String(localized: "metric.design"),
-                            icon: "paintbrush.pointed.fill",
-                            isActive: showDesign,
-                            accent: .purple
-                        ) { showDesign.toggle() }
-                    }
-
-                    if usageStore.hasFable {
-                        MetricPinChip(
-                            label: String(localized: "metric.fable"),
-                            icon: "books.vertical.fill",
-                            isActive: showFable,
-                            accent: .pink
-                        ) { showFable.toggle() }
-                    }
-
-                    MetricPinChip(
-                        label: String(localized: "metric.serviceStatus"),
-                        icon: "dot.radiowaves.left.and.right",
-                        isActive: showServiceStatus,
-                        accent: .teal
-                    ) { showServiceStatus.toggle() }
-
-                    if usageStore.hasExtraCredits {
-                        MetricPinChip(
-                            label: String(localized: "metric.extraCredits"),
-                            icon: "creditcard.fill",
-                            isActive: showExtraCredits,
-                            accent: .yellow
-                        ) { showExtraCredits.toggle() }
-                    }
-                }
-
-                // Lane 2 : pins that carry secondary options. Full-width rows
-                // so the option picker sits comfortably to the right of the
-                // chip without overlapping the next pin.
-                expandingPinRow(
-                    label: String(localized: "metric.sessionReset"),
-                    icon: "clock.arrow.circlepath",
-                    isActive: showSessionReset,
-                    accent: .cyan,
-                    onToggle: { showSessionReset.toggle() }
-                ) {
-                    HStack(spacing: 6) {
-                        Text(String(localized: "settings.metric.format"))
-                            .font(.system(size: 10, weight: .semibold))
-                            .tracking(0.4)
-                            .foregroundStyle(.white.opacity(0.45))
-                        ResetFormatPicker(selection: $settingsStore.display.resetDisplayFormat)
-                            .labelsHidden()
-                            .frame(maxWidth: 170)
-                    }
-                }
-
-                expandingPinRow(
-                    label: String(localized: "pacing.session.label"),
-                    icon: "speedometer",
-                    isActive: showSessionPacing,
-                    accent: .pink,
-                    onToggle: { showSessionPacing.toggle() }
-                ) {
-                    PacingDisplayPicker(selection: $settingsStore.display.sessionPacingDisplayMode)
-                        .labelsHidden()
-                }
-
-                expandingPinRow(
-                    label: String(localized: "pacing.weekly.label"),
-                    icon: "speedometer",
-                    isActive: showWeeklyPacing,
-                    accent: .pink,
-                    onToggle: { showWeeklyPacing.toggle() }
-                ) {
-                    PacingDisplayPicker(selection: $settingsStore.display.weeklyPacingDisplayMode)
-                        .labelsHidden()
-                }
-            }
-        }
-    }
-
-    /// Full-width pin row with the chip on the left and its option picker on
-    /// the right. Picker is rendered as a faint inset that lights up when the
-    /// chip is active. Avoids the staircase effect we'd get if the picker
-    /// hung below in a 2-col grid.
-    @ViewBuilder
-    private func expandingPinRow<Picker: View>(
-        label: String,
-        icon: String,
-        isActive: Bool,
-        accent: Color,
-        onToggle: @escaping () -> Void,
-        @ViewBuilder picker: () -> Picker
-    ) -> some View {
-        HStack(spacing: 10) {
-            MetricPinChip(label: label, icon: icon, isActive: isActive, accent: accent, action: onToggle)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            picker()
-                .opacity(isActive ? 1 : 0.35)
-                .allowsHitTesting(isActive)
-                .layoutPriority(1)
-        }
     }
 
     // MARK: - Colors group
 
+    /// Global menu bar colour mode (monochrome vs theme palette) plus the two
+    /// hex overrides. These stay global - the composable segments carry layout,
+    /// not colour; colour still comes from the theme / smart-colour system.
     private var colorsGroup: some View {
         groupSection(title: "settings.group.colors", subtitle: "settings.group.colors.hint") {
             VStack(alignment: .leading, spacing: 12) {
@@ -341,42 +120,6 @@ struct DisplaySectionView: View {
         )
     }
 
-    private func groupLabel(_ key: String.LocalizationValue) -> some View {
-        Text(String(localized: key))
-            .font(.system(size: 10, weight: .semibold))
-            .tracking(0.6)
-            .foregroundStyle(.white.opacity(0.45))
-    }
-
-    private func pacingShapeButton(_ shape: PacingShape) -> some View {
-        let isActive = settingsStore.pacingShape == shape
-        return Button {
-            withAnimation(.easeInOut(duration: 0.12)) {
-                settingsStore.pacingShape = shape
-            }
-        } label: {
-            VStack(spacing: 6) {
-                Text(shape.glyph)
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(isActive ? .white : .white.opacity(0.55))
-                Text(shape.localizedLabel)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(isActive ? .white.opacity(0.9) : .white.opacity(0.5))
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(isActive ? Color.blue.opacity(0.2) : Color.white.opacity(0.03))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(isActive ? Color.blue.opacity(0.5) : Color.white.opacity(0.06), lineWidth: 1)
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
     /// Menu-bar text color row -> empty hex falls back to a system color and
     /// shows a revert-to-default button when the user has picked a custom color.
     private func menuBarColorRow(
@@ -417,61 +160,15 @@ struct DisplaySectionView: View {
         }
     }
 
-    private func menuBarStyleButton(_ style: MenuBarStyle) -> some View {
-        let isActive = settingsStore.menuBarStyle == style
-        return Button {
-            withAnimation(.easeInOut(duration: 0.12)) {
-                settingsStore.menuBarStyle = style
-            }
-        } label: {
-            Text(style.localizedLabel)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(isActive ? .white : .white.opacity(0.55))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(isActive ? Color.blue.opacity(0.2) : Color.white.opacity(0.03))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(isActive ? Color.blue.opacity(0.5) : Color.white.opacity(0.06), lineWidth: 1)
-                        )
-                )
-        }
-        .buttonStyle(.plain)
-    }
-
+    /// Reset the menu bar to the Classic composition and clear the colour
+    /// overrides. Monochrome lives in ThemeStore and is reset separately by
+    /// the Themes section.
     private func resetDisplayDefaults() {
-        // Pinned metrics: bring back the canonical "session + weekly + session pacing" combo.
-        settingsStore.pinnedMetrics = [.fiveHour, .sevenDay, .sessionPacing]
-        settingsStore.menuBarStyle = .classic
-        settingsStore.pacingShape = .circle
-        settingsStore.sessionPacingDisplayMode = .dotDelta
-        settingsStore.weeklyPacingDisplayMode = .dotDelta
-        settingsStore.resetDisplayFormat = .relative
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
+            settingsStore.menuBarComposition = MenuBarBuiltinTemplate.classic.composition
+        }
         settingsStore.resetTextColorHex = ""
         settingsStore.sessionPeriodColorHex = ""
-        // Local @State mirrors so the toggle UI reflects the reset immediately.
-        showFiveHour = settingsStore.pinnedMetrics.contains(.fiveHour)
-        showSessionReset = settingsStore.pinnedMetrics.contains(.sessionReset)
-        showSessionPacing = settingsStore.pinnedMetrics.contains(.sessionPacing)
-        showSevenDay = settingsStore.pinnedMetrics.contains(.sevenDay)
-        showSonnet = settingsStore.pinnedMetrics.contains(.sonnet)
-        showWeeklyPacing = settingsStore.pinnedMetrics.contains(.weeklyPacing)
-        showDesign = settingsStore.pinnedMetrics.contains(.design)
-        showFable = settingsStore.pinnedMetrics.contains(.fable)
-        showServiceStatus = settingsStore.pinnedMetrics.contains(.serviceStatus)
-        showExtraCredits = settingsStore.pinnedMetrics.contains(.extraCredits)
-    }
-
-    private func syncMetric(_ metric: MetricID, on: Bool, revert: @escaping () -> Void) {
-        if on {
-            settingsStore.pinnedMetrics.insert(metric)
-        } else if settingsStore.pinnedMetrics.count > 1 {
-            settingsStore.pinnedMetrics.remove(metric)
-        } else {
-            revert()
-        }
     }
 }
 
@@ -527,54 +224,6 @@ struct ClickChip: View {
     }
 }
 
-/// Pin chip for the "What to pin" group. Single-action click target; subsidiary
-/// option pickers live as siblings (see `expandingPinRow` in DisplaySectionView)
-/// rather than embedded children, which avoids the staircase effect a
-/// per-cell expansion would create inside a LazyVGrid.
-struct MetricPinChip: View {
-    let label: String
-    let icon: String
-    let isActive: Bool
-    let accent: Color
-    let action: () -> Void
-
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: icon)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(isActive ? accent : .white.opacity(0.5))
-                    .frame(width: 18)
-                Text(label)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(isActive ? .white : .white.opacity(0.65))
-                Spacer(minLength: 0)
-                Image(systemName: isActive ? "checkmark" : "plus")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(isActive ? accent : .white.opacity(0.35))
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(isActive ? accent.opacity(0.14) : Color.white.opacity(0.03))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(isActive ? accent.opacity(0.5) : Color.white.opacity(0.07), lineWidth: 1)
-                    )
-            )
-            .scaleEffect(hovering ? 1.01 : 1.0)
-            .animation(.spring(response: 0.25, dampingFraction: 0.85), value: hovering)
-            .contentShape(RoundedRectangle(cornerRadius: 10))
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-    }
-}
-
 /// Radio-style chip for binary choices (e.g., monochrome vs custom colors).
 /// Different from ClickChip because it expects to live in a sibling pair
 /// where exactly one is active.
@@ -614,4 +263,3 @@ struct BinaryChoiceChip: View {
         .onHover { hovering = $0 }
     }
 }
-

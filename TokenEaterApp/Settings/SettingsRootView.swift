@@ -35,7 +35,7 @@ struct SettingsRootView: View {
         case .general:
             scrolling { SettingsSectionView(initialStatusInterval: settingsStore.statusPollInterval) }
         case .display:
-            scrolling { DisplaySectionView(initialMetrics: settingsStore.pinnedMetrics) }
+            scrolling { DisplaySectionView() }
         case .themes:
             scrolling { ThemesSectionView() }
         case .pacing:

@@ -713,6 +713,54 @@
 "popoverTemplate.fableFirst" = "Fable d'abord";
 "popoverTemplate.complete" = "Complet";
 
+/* Éditeur du menu bar composable */
+"menuBar.editor.templates" = "Templates";
+"menuBar.editor.segments" = "Segments";
+"menuBar.editor.addSegment" = "Ajouter un segment";
+"menuBar.editor.family.metrics" = "Métriques";
+"menuBar.editor.family.pacing" = "Pacing";
+"menuBar.editor.family.status" = "Statut";
+"menuBar.editor.unavailable" = "indisponible sur votre plan";
+"menuBar.editor.saveTemplate" = "Enregistrer comme template";
+"menuBar.editor.saveTemplate.short" = "Enregistrer";
+"menuBar.editor.saveTemplate.message" = "Enregistre la disposition actuelle du menu bar pour la réappliquer plus tard.";
+"menuBar.editor.saveTemplate.placeholder" = "Nom du template";
+"menuBar.editor.save" = "Enregistrer";
+"menuBar.editor.cancel" = "Annuler";
+"menuBar.editor.deleteTemplate" = "Supprimer le template";
+"menuBar.editor.preview" = "Aperçu";
+"menuBar.editor.preview.hint" = "Cliquez sur un segment pour le sélectionner dans la liste";
+"menuBar.editor.empty" = "Vide - le menu bar affiche l'icône de l'app";
+"menuBar.editor.emptyList" = "Aucun segment. Ajoutez-en un, sinon le menu bar affiche juste l'icône.";
+
+"menuBarSegment.session" = "Session (5h)";
+"menuBarSegment.weekly" = "Hebdomadaire";
+"menuBarSegment.sonnet" = "Sonnet";
+"menuBarSegment.design" = "Design";
+"menuBarSegment.fable" = "Fable";
+"menuBarSegment.extraCredits" = "Crédits sup.";
+"menuBarSegment.sessionPacing" = "Pacing session";
+"menuBarSegment.weeklyPacing" = "Pacing hebdo";
+"menuBarSegment.sessionReset" = "Compte à rebours session";
+"menuBarSegment.serviceStatus" = "Statut du service";
+
+"menuBarStyle.segment.labelValue" = "Label + valeur";
+"menuBarStyle.segment.valueOnly" = "Valeur seule";
+"menuBarStyle.segment.mono" = "Mono";
+"menuBarStyle.segment.pill" = "Pill";
+"menuBarStyle.segment.dot" = "Point";
+"menuBarStyle.segment.dotDelta" = "Point + delta";
+"menuBarStyle.segment.delta" = "Delta";
+"menuBarStyle.segment.text" = "Texte";
+"menuBarStyle.segment.glyph" = "Glyphe";
+
+"menuBarTemplate.classic" = "Classique";
+"menuBarTemplate.minimalist" = "Minimaliste";
+"menuBarTemplate.pills" = "Pills";
+"menuBarTemplate.pacingFocus" = "Pacing focus";
+"menuBarTemplate.complete" = "Complet";
+
+
 "menubar.updated.never" = "jamais";
 
 /* Menu bar style picker */
