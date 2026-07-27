@@ -668,7 +668,7 @@ private struct MenuBarSegmentRow: View {
                 }
             }
         } label: {
-            pickerLabel("editor.pick.style", segment.effectiveStyle.localizedLabel)
+            EditorPickerLabel(caption: "editor.pick.style", symbol: "textformat", value: segment.effectiveStyle.localizedLabel)
         }
         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
     }
@@ -684,7 +684,7 @@ private struct MenuBarSegmentRow: View {
                 }
             }
         } label: {
-            pickerLabel("editor.pick.shape", "\(segment.options.pacingShape.glyph)  \(segment.options.pacingShape.localizedLabel)")
+            EditorPickerLabel(caption: "editor.pick.shape", symbol: "circle.grid.2x2", value: segment.options.pacingShape.localizedLabel)
         }
         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
     }
@@ -700,46 +700,51 @@ private struct MenuBarSegmentRow: View {
                 }
             }
         } label: {
-            pickerLabel("editor.pick.format", segment.options.resetFormat.localizedLabel)
+            EditorPickerLabel(caption: "editor.pick.format", symbol: "clock", value: segment.options.resetFormat.localizedLabel)
         }
         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
     }
-
-    private func pickerLabel(_ caption: LocalizedStringKey, _ value: String) -> some View {
-        EditorPickerLabel(caption: caption, value: value)
-    }
 }
 
-/// Shared dropdown-chip look for the segment / element pickers -> a caption of
-/// what it controls, the current value, and a down chevron, on a filled bordered
-/// chip so it reads clearly as an openable menu (the old bare ⇕ glyph did not).
+/// Shared dropdown button for the segment / element pickers. Reads clearly as
+/// an openable control: a small icon for what it changes, the current value in
+/// full, and a down chevron, on a filled bordered chip that lights up on hover.
+/// The plain-language name of the control rides along as a tooltip.
 struct EditorPickerLabel: View {
     let caption: LocalizedStringKey
+    let symbol: String
     let value: String
+
+    @State private var hovering = false
 
     var body: some View {
         HStack(spacing: 6) {
-            Text(caption)
-                .font(.system(size: 9, weight: .bold))
-                .textCase(.uppercase)
-                .tracking(0.4)
-                .foregroundStyle(.white.opacity(0.4))
+            Image(systemName: symbol)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.5))
             Text(value)
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.9))
+                .foregroundStyle(.white.opacity(0.92))
+                .lineLimit(1)
             Image(systemName: "chevron.down")
                 .font(.system(size: 8, weight: .bold))
-                .foregroundStyle(.white.opacity(0.55))
+                .foregroundStyle(.white.opacity(hovering ? 0.85 : 0.5))
         }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 5)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
         .background(
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(Color.white.opacity(0.07))
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.white.opacity(hovering ? 0.13 : 0.07))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.white.opacity(hovering ? 0.30 : 0.16), lineWidth: 1)
                 )
+                .shadow(color: .black.opacity(hovering ? 0.25 : 0), radius: 5, y: 2)
         )
+        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .help(Text(caption))
+        .onHover { h in
+            withAnimation(.easeInOut(duration: 0.12)) { hovering = h }
+        }
     }
 }
