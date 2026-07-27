@@ -714,7 +714,6 @@
 "popoverElement.quitButton" = "Bouton Quitter";
 "popoverElement.planBadge" = "Badge du plan";
 "popoverElement.refreshButton" = "Bouton Actualiser";
-"popover.cell.refresh" = "Actualiser";
 
 "popoverStyle.gaugeRing" = "Anneau";
 "popoverStyle.chip" = "Chip";

@@ -31,13 +31,21 @@ private struct StudioSurfaceCard: View {
     @State private var isHovering = false
 
     var body: some View {
+        // Same card language as the Monitoring tiles: panel fill + material,
+        // a faint accent wash, an accent-tinted hairline that strengthens on
+        // active / hover, and a plain depth shadow. No coloured glow halo, so
+        // the Studio reads as the same app as the Stats page.
+        let accent = DS.Palette.accentStudio
+        let strokeOpacity = isActive ? 0.45 : (isHovering ? 0.30 : 0.12)
+        let washOpacity = isActive ? 0.12 : (isHovering ? 0.07 : 0.04)
+
         Button(action: action) {
             HStack(spacing: DS.Spacing.sm) {
                 VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                     HStack(spacing: DS.Spacing.xs) {
                         Image(systemName: surface.iconName)
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(isActive ? DS.Palette.accentStudio : DS.Palette.textTertiary)
+                            .foregroundStyle(isActive ? accent : DS.Palette.textTertiary)
                         Text(surface.label)
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(isActive ? DS.Palette.textPrimary : DS.Palette.textSecondary)
@@ -60,34 +68,26 @@ private struct StudioSurfaceCard: View {
             .padding(DS.Spacing.sm)
             .frame(maxWidth: .infinity)
             .frame(height: 88)
-            .contentShape(RoundedRectangle(cornerRadius: DS.Radius.cardLg, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
             .background(
-                RoundedRectangle(cornerRadius: DS.Radius.cardLg, style: .continuous)
-                    .fill(DS.Palette.bgElevated.opacity(fillOpacity))
+                ZStack {
+                    RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
+                        .fill(DS.Palette.bgPanel.opacity(0.92))
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous))
+                    RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
+                        .fill(LinearGradient(colors: [accent.opacity(washOpacity), .clear], startPoint: .topLeading, endPoint: .bottomTrailing))
+                }
             )
             .overlay(
-                RoundedRectangle(cornerRadius: DS.Radius.cardLg, style: .continuous)
-                    .stroke(borderColor, lineWidth: 1)
+                RoundedRectangle(cornerRadius: DS.Radius.card, style: .continuous)
+                    .stroke(accent.opacity(strokeOpacity), lineWidth: 1)
             )
-            .dsGlow(color: isActive ? DS.Palette.accentStudio : .clear, token: DS.Glow.subtle)
-            .scaleEffect(isHovering && !isActive ? 1.01 : 1.0)
+            .dsShadow(isActive || isHovering ? DS.Shadow.lift : DS.Shadow.subtle)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(CardPressStyle(isHovered: isHovering, accent: accent, cornerRadius: DS.Radius.card))
         .onHover { hovering in
             withAnimation(DS.Motion.springSnap) { isHovering = hovering }
         }
-    }
-
-    private var fillOpacity: Double {
-        if isActive { return 0.92 }
-        if isHovering { return 0.72 }
-        return 0.55
-    }
-
-    private var borderColor: Color {
-        if isActive { return DS.Palette.accentStudio.opacity(0.55) }
-        if isHovering { return DS.Palette.glassBorder }
-        return DS.Palette.glassBorderLo
     }
 
     @ViewBuilder

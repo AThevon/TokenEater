@@ -141,6 +141,10 @@ private struct GaugeRingCell: View {
             }
         }
         .padding(.vertical, width == .full ? 8 : 2)
+        // Fill the grid cell so the ring sits centered in its column. Without
+        // this the VStack is only as wide as the ring and the layout pins it
+        // to the cell's leading edge (visibly off-centre for half / third).
+        .frame(maxWidth: .infinity)
     }
 
     private var ringSize: CGFloat {
@@ -443,6 +447,7 @@ private struct PopoverQuitButtonCell: View {
     var body: some View {
         if width == .full {
             PopoverQuitButton()
+                .frame(maxWidth: .infinity)
         } else {
             Button {
                 NSApplication.shared.terminate(nil)
@@ -466,53 +471,70 @@ private struct PopoverQuitButtonCell: View {
 }
 
 // MARK: - Plan badge (ex-header chrome, v2 composable element)
+//
+// Deliberately keeps the pre-5.9 header look: a small content-hugging pill,
+// pinned to the leading edge of its cell so a badge+refresh row reproduces
+// the old header (badge far left, refresh far right).
 
 private struct PlanBadgeCell: View {
     @EnvironmentObject private var usageStore: UsageStore
 
     var body: some View {
         Text(usageStore.planType.displayLabel)
-            .font(.system(size: 10, weight: .bold))
-            .foregroundStyle(.white.opacity(0.85))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(usageStore.planType.badgeColor.opacity(0.22))
+            .font(.system(size: 8, weight: .bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(usageStore.planType.badgeColor.opacity(0.3))
             .clipShape(Capsule())
-            .overlay(Capsule().stroke(usageStore.planType.badgeColor.opacity(0.35), lineWidth: 0.5))
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
 // MARK: - Refresh button (ex-header chrome, v2 composable element)
+//
+// The exact pre-5.9 22x22 circular icon button, pinned to the trailing edge
+// of its cell.
 
 private struct PopoverRefreshButtonCell: View {
     @EnvironmentObject private var usageStore: UsageStore
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var refreshHovering = false
 
     var body: some View {
         Button {
             Task { await usageStore.refresh(force: true) }
         } label: {
-            HStack(spacing: 6) {
+            Group {
                 if usageStore.isLoading {
                     ProgressView()
-                        .scaleEffect(0.45)
-                        .frame(width: 12, height: 12)
+                        .scaleEffect(0.5)
                 } else {
                     Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(refreshHovering ? Color.blue : .white.opacity(0.55))
                 }
-                Text(String(localized: "popover.cell.refresh"))
-                    .font(.system(size: 12, weight: .semibold))
             }
-            .foregroundStyle(.white.opacity(0.7))
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .background(.white.opacity(0.08))
-            .clipShape(Capsule())
-            .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 0.5))
+            .frame(width: 22, height: 22)
+            .background(
+                Circle()
+                    .fill(refreshHovering ? Color.blue.opacity(0.18) : .white.opacity(0.04))
+                    .overlay(
+                        Circle().stroke(
+                            refreshHovering ? Color.blue.opacity(0.55) : .white.opacity(0.08),
+                            lineWidth: 1
+                        )
+                    )
+            )
+            .scaleEffect(refreshHovering && !reduceMotion ? 1.05 : 1.0)
         }
         .buttonStyle(.plain)
         .disabled(usageStore.isLoading)
         .help(String(localized: "contextmenu.refresh"))
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.15)) { refreshHovering = hovering }
+        }
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
 }
 
