@@ -801,7 +801,7 @@ private struct ElementRow: View {
                 }
             }
         } label: {
-            EditorPickerLabel(caption: "editor.pick.style", symbol: "textformat", value: element.style.localizedLabel)
+            EditorPickerLabel(caption: "editor.pick.style", value: element.style.localizedLabel)
         }
         .menuStyle(.button)
         .buttonStyle(.bordered)

@@ -668,7 +668,7 @@ private struct MenuBarSegmentRow: View {
                 }
             }
         } label: {
-            EditorPickerLabel(caption: "editor.pick.style", symbol: "textformat", value: segment.effectiveStyle.localizedLabel)
+            EditorPickerLabel(caption: "editor.pick.style", value: segment.effectiveStyle.localizedLabel)
         }
         .menuStyle(.button).buttonStyle(.bordered).controlSize(.small).tint(.secondary).fixedSize()
     }
@@ -684,7 +684,7 @@ private struct MenuBarSegmentRow: View {
                 }
             }
         } label: {
-            EditorPickerLabel(caption: "editor.pick.shape", symbol: "circle.grid.2x2", value: segment.options.pacingShape.localizedLabel)
+            EditorPickerLabel(caption: "editor.pick.shape", value: segment.options.pacingShape.localizedLabel)
         }
         .menuStyle(.button).buttonStyle(.bordered).controlSize(.small).tint(.secondary).fixedSize()
     }
@@ -700,7 +700,7 @@ private struct MenuBarSegmentRow: View {
                 }
             }
         } label: {
-            EditorPickerLabel(caption: "editor.pick.format", symbol: "clock", value: segment.options.resetFormat.localizedLabel)
+            EditorPickerLabel(caption: "editor.pick.format", value: segment.options.resetFormat.localizedLabel)
         }
         .menuStyle(.button).buttonStyle(.bordered).controlSize(.small).tint(.secondary).fixedSize()
     }
@@ -714,18 +714,12 @@ private struct MenuBarSegmentRow: View {
 /// borderless style silently dropped. The control's plain name is a tooltip.
 struct EditorPickerLabel: View {
     let caption: LocalizedStringKey
-    let symbol: String
     let value: String
 
     var body: some View {
-        Label {
-            Text(value)
-                .font(.system(size: 11, weight: .medium))
-                .lineLimit(1)
-        } icon: {
-            Image(systemName: symbol)
-                .font(.system(size: 10, weight: .medium))
-        }
-        .help(Text(caption))
+        Text(value)
+            .font(.system(size: 11, weight: .medium))
+            .lineLimit(1)
+            .help(Text(caption))
     }
 }
