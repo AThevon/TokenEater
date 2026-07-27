@@ -648,6 +648,9 @@
 "studio.surface.menuBar.hint" = "Segments et styles";
 "studio.surface.themes" = "Thèmes";
 "studio.surface.themes.hint" = "Couleurs et glow";
+"theme.preview.title" = "Aperçu";
+"theme.preview.gauges" = "Jauges";
+"theme.preview.pacing" = "Pacing";
 "studio.intro.badge" = "NOUVEAU";
 "studio.intro.text" = "Le Studio est là. Popover, barre de menus et thèmes, au même endroit.";
 "studio.intro.cta" = "Voir les nouveautés";

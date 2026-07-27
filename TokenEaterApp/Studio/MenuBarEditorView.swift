@@ -9,10 +9,11 @@ import SwiftUI
 /// draws the app icon), so there is no "can't remove the last one" guard.
 ///
 /// `previewHeader` sits above the preview (the show-in-menu-bar toggle) and
-/// `middleFooter` sits under the segment list (colour controls + reset); both
-/// are injected by `DisplaySectionView` so the surrounding chrome lives with
-/// the code that owns those settings.
-struct MenuBarEditorView<PreviewHeader: View, MiddleFooter: View>: View {
+/// `previewFooter` sits under it (colour controls + reset); the menu bar
+/// preview is short, so its column has the spare height for them. Both are
+/// injected by `DisplaySectionView` so the surrounding chrome lives with the
+/// code that owns those settings.
+struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var usageStore: UsageStore
 
@@ -21,7 +22,7 @@ struct MenuBarEditorView<PreviewHeader: View, MiddleFooter: View>: View {
     @State private var templateName = ""
 
     @ViewBuilder var previewHeader: () -> PreviewHeader
-    @ViewBuilder var middleFooter: () -> MiddleFooter
+    @ViewBuilder var previewFooter: () -> PreviewFooter
 
     /// Width below which the three-column layout stops fitting.
     private let horizontalThreshold: CGFloat = 780
@@ -51,25 +52,24 @@ struct MenuBarEditorView<PreviewHeader: View, MiddleFooter: View>: View {
             // Left: template rail (scrolls independently).
             templatesRail
 
-            // Middle: segment list + injected footer (colours, reset), scrolls.
+            // Middle: the segment list, the only column that scrolls.
             ScrollView(.vertical, showsIndicators: true) {
-                VStack(alignment: .leading, spacing: 18) {
-                    segmentsSection
-                    middleFooter()
-                    Spacer(minLength: 8)
-                }
-                .padding(.bottom, 8)
+                segmentsSection
+                    .padding(.bottom, 8)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
-            // Right: the toggle + the live menu bar item, pinned so an edit is
-            // always visible without scrolling back up.
-            VStack(alignment: .leading, spacing: 12) {
-                previewHeader()
-                MenuBarLivePreview(selectedSegmentID: $selectedSegmentID)
-                Spacer(minLength: 0)
+            // Right: the toggle, the live menu bar item, then the colour
+            // controls + reset (the short preview leaves room below it). The
+            // preview stays at the top so an edit is always visible.
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 16) {
+                    previewHeader()
+                    MenuBarLivePreview(selectedSegmentID: $selectedSegmentID)
+                    previewFooter()
+                }
             }
-            .frame(width: 300, alignment: .top)
+            .frame(width: 300)
         }
         .padding(20)
     }
@@ -79,9 +79,9 @@ struct MenuBarEditorView<PreviewHeader: View, MiddleFooter: View>: View {
             VStack(alignment: .leading, spacing: 16) {
                 previewHeader()
                 MenuBarLivePreview(selectedSegmentID: $selectedSegmentID)
+                previewFooter()
                 templatesSection
                 segmentsSection
-                middleFooter()
             }
             .padding(20)
         }

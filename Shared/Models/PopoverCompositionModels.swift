@@ -36,6 +36,14 @@ enum PopoverElementKind: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// The ex-header chrome (plan badge + refresh button). These pack into
+    /// their own full-width row and never merge with the metric grid, so
+    /// hiding one leaves the other on its own line rather than pairing it
+    /// with the next metric.
+    var isChrome: Bool {
+        self == .planBadge || self == .refreshButton
+    }
+
     /// Styles this kind can render as. The editor filters its style menu with
     /// this; `PopoverCompositionModelsTests` asserts the matrix stays sane.
     var allowedStyles: [PopoverElementStyle] {

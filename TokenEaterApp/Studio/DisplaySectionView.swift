@@ -8,7 +8,8 @@ struct DisplaySectionView: View {
     var body: some View {
         // The menu bar editor owns the three-column Studio layout; this view
         // injects the show/hide toggle above the live preview and the colour
-        // controls + reset under the segment list.
+        // controls + reset below it (the preview is short, so its column has
+        // the room).
         MenuBarEditorView(
             previewHeader: {
                 ClickChip(
@@ -21,7 +22,7 @@ struct DisplaySectionView: View {
                     settingsStore.showMenuBar.toggle()
                 }
             },
-            middleFooter: {
+            previewFooter: {
                 colorsGroup
                 ResetSectionButton(
                     confirmTitle: String(localized: "settings.display.reset.confirm")
