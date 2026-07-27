@@ -40,10 +40,10 @@ struct PopoverRowPackerTests {
     @Test("consecutive thirds pack three per row")
     func thirdsPack() {
         let rows = PopoverRowPacker.pack([
-            element(.weekly, .chip, .third),
-            element(.sonnet, .chip, .third),
-            element(.fable, .chip, .third),
-            element(.design, .chip, .third),
+            element(.weekly, .gaugeRing, .third),
+            element(.sonnet, .gaugeRing, .third),
+            element(.fable, .gaugeRing, .third),
+            element(.design, .gaugeRing, .third),
         ])
         #expect(rows.count == 2)
         #expect(rows[0].count == 3)
@@ -54,8 +54,8 @@ struct PopoverRowPackerTests {
     func widthChangeBreaksRow() {
         let rows = PopoverRowPacker.pack([
             element(.session, .gaugeRing, .half),
-            element(.weekly, .chip, .third),
-            element(.sonnet, .chip, .third),
+            element(.weekly, .gaugeRing, .third),
+            element(.sonnet, .gaugeRing, .third),
         ])
         #expect(rows.count == 2)
         #expect(rows[0].count == 1)

@@ -53,8 +53,9 @@ enum PopoverElementStyle: String, Codable, CaseIterable, Identifiable {
     /// Circular gauge. Size scales with width: full = hero (100px),
     /// half = medium (70px), third = satellite (46px).
     case gaugeRing
-    /// Card with a mini trimmed ring + label + value. Density scales with
-    /// width (third drops the reset subtitle).
+    /// Card with a mini trimmed ring + label + value. Full / half only:
+    /// at a third of the row the card crushes its label, use `.gaugeRing`
+    /// for small satellites instead.
     case chip
     /// The open half-arc hero (ex-Focus). Full width only.
     case arc
@@ -76,11 +77,11 @@ enum PopoverElementStyle: String, Codable, CaseIterable, Identifiable {
     /// Widths at which this style stays legible.
     var allowedWidths: [PopoverElementWidth] {
         switch self {
-        case .gaugeRing, .chip, .bigText:
+        case .gaugeRing, .bigText:
             return [.full, .half, .third]
         case .arc, .paceBar, .utilityRow:
             return [.full]
-        case .paceTile, .paceText, .actionButton:
+        case .chip, .paceTile, .paceText, .actionButton:
             return [.full, .half]
         }
     }
@@ -198,9 +199,13 @@ struct PopoverElement: Codable, Equatable, Identifiable {
     }
 
     /// Width clamped to what the style allows - a decoded or programmatic
-    /// mismatch renders at the closest legal width instead of breaking rows.
+    /// mismatch renders at the closest legal width instead of breaking rows
+    /// (e.g. a chip stored at .third before chips lost that width renders
+    /// at .half, not .full).
     var effectiveWidth: PopoverElementWidth {
-        style.allowedWidths.contains(width) ? width : (style.allowedWidths.first ?? .full)
+        let allowed = style.allowedWidths
+        if allowed.contains(width) { return width }
+        return allowed.min { abs($0.fraction - width.fraction) < abs($1.fraction - width.fraction) } ?? .full
     }
 }
 
@@ -317,11 +322,11 @@ enum PopoverBuiltinTemplate: String, CaseIterable, Identifiable {
         case .complete:
             return PopoverComposition(elements: [
                 PopoverElement(kind: .session, style: .gaugeRing, width: .full, options: .init(showReset: true)),
-                PopoverElement(kind: .weekly, style: .chip, width: .third),
-                PopoverElement(kind: .sonnet, style: .chip, width: .third),
-                PopoverElement(kind: .fable, style: .chip, width: .third),
-                PopoverElement(kind: .design, style: .chip, width: .third),
-                PopoverElement(kind: .extraCredits, style: .chip, width: .third),
+                PopoverElement(kind: .weekly, style: .gaugeRing, width: .third),
+                PopoverElement(kind: .sonnet, style: .gaugeRing, width: .third),
+                PopoverElement(kind: .fable, style: .gaugeRing, width: .third),
+                PopoverElement(kind: .design, style: .gaugeRing, width: .third),
+                PopoverElement(kind: .extraCredits, style: .gaugeRing, width: .third),
                 PopoverElement(kind: .sessionPacing, style: .paceBar, width: .full),
                 PopoverElement(kind: .weeklyPacing, style: .paceBar, width: .full),
                 PopoverElement(kind: .watchers, style: .utilityRow, width: .full),

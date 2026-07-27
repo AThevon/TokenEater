@@ -159,7 +159,7 @@ private struct GaugeRingCell: View {
     }
 }
 
-// MARK: - Chip (card + mini trimmed ring; third drops the subtitle)
+// MARK: - Chip (card + mini trimmed ring; full / half only)
 
 private struct ChipCell: View {
     @EnvironmentObject private var themeStore: ThemeStore
@@ -175,30 +175,29 @@ private struct ChipCell: View {
             windowDuration: snapshot.windowDuration,
             theme: themeStore, settings: settingsStore
         )
-        let compact = width == .third
 
-        HStack(spacing: compact ? 8 : 10) {
+        HStack(spacing: 10) {
             ZStack {
                 Circle()
-                    .stroke(Color.white.opacity(0.06), lineWidth: compact ? 3 : 4)
-                    .frame(width: ringSize, height: ringSize)
+                    .stroke(Color.white.opacity(0.06), lineWidth: 4)
+                    .frame(width: 38, height: 38)
                 Circle()
                     .trim(from: 0, to: CGFloat(min(max(snapshot.pct, 0), 100)) / 100.0)
-                    .stroke(color, style: StrokeStyle(lineWidth: compact ? 3 : 4, lineCap: .round))
-                    .frame(width: ringSize, height: ringSize)
+                    .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .frame(width: 38, height: 38)
                     .rotationEffect(.degrees(-90))
-                    .dsGlow(color, radius: compact ? 2 : 3, opacity: 0.4)
+                    .dsGlow(color, radius: 3, opacity: 0.4)
             }
-            VStack(alignment: .leading, spacing: compact ? 0 : 1) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(snapshot.label.uppercased())
-                    .font(.system(size: compact ? 8 : 9, weight: .semibold))
+                    .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.45))
                     .tracking(0.5)
                     .lineLimit(1)
                 Text("\(snapshot.pct)%")
-                    .font(.system(size: compact ? 13 : 18, weight: .black, design: .rounded))
+                    .font(.system(size: 18, weight: .black, design: .rounded))
                     .foregroundStyle(color)
-                if !compact && showReset && !snapshot.resetText.isEmpty {
+                if showReset && !snapshot.resetText.isEmpty {
                     Text(String(format: String(localized: "metric.reset"), snapshot.resetText))
                         .font(.system(size: 9))
                         .foregroundStyle(.white.opacity(0.5))
@@ -207,11 +206,9 @@ private struct ChipCell: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(compact ? 8 : 10)
+        .padding(10)
         .popoverCard()
     }
-
-    private var ringSize: CGFloat { width == .third ? 28 : 38 }
 }
 
 // MARK: - Arc (open half-arc hero, ex-Focus)

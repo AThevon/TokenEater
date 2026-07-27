@@ -26,6 +26,7 @@ struct PopoverSectionView: View {
         .alert(String(localized: "popover.editor.saveTemplate"), isPresented: $showSaveDialog) {
             TextField(String(localized: "popover.editor.saveTemplate.placeholder"), text: $templateName)
             Button(String(localized: "popover.editor.save")) { saveCurrentAsTemplate() }
+                .disabled(templateName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             Button(String(localized: "popover.editor.cancel"), role: .cancel) { templateName = "" }
         } message: {
             Text(String(localized: "popover.editor.saveTemplate.message"))
@@ -198,8 +199,16 @@ struct PopoverSectionView: View {
     private func saveCurrentAsTemplate() {
         let trimmed = templateName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        // Suffix duplicate names so two saves under "Work" stay tellable
+        // apart in the gallery and the context menu.
+        var name = trimmed
+        var counter = 2
+        while settingsStore.popoverUserTemplates.contains(where: { $0.name == name }) {
+            name = "\(trimmed) \(counter)"
+            counter += 1
+        }
         settingsStore.popoverUserTemplates.append(
-            PopoverUserTemplate(name: trimmed, composition: settingsStore.popoverComposition)
+            PopoverUserTemplate(name: name, composition: settingsStore.popoverComposition)
         )
         templateName = ""
     }
@@ -331,8 +340,10 @@ struct PopoverSectionView: View {
             width: style.defaultWidth,
             options: PopoverElementOptions(showReset: kind == .session || kind == .weekly)
         )
+        // Insert at the top: the new element lands where the user is looking
+        // (right under the add button), not below the fold of a long list.
         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-            settingsStore.popoverComposition.elements.append(element)
+            settingsStore.popoverComposition.elements.insert(element, at: 0)
         }
         selectedElementID = element.id
     }

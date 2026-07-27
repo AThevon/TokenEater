@@ -21,12 +21,16 @@ struct PopoverCompositionModelsTests {
         }
     }
 
-    @Test("effectiveWidth clamps an illegal width to a legal one")
+    @Test("effectiveWidth clamps an illegal width to the closest legal one")
     func effectiveWidthClamps() {
         let arc = PopoverElement(kind: .session, style: .arc, width: .third)
         #expect(arc.effectiveWidth == .full)
         let ring = PopoverElement(kind: .session, style: .gaugeRing, width: .half)
         #expect(ring.effectiveWidth == .half)
+        // A chip stored at .third (legal in early 5.9 dev builds) falls back
+        // to .half, the closest legal fraction, not .full.
+        let chip = PopoverElement(kind: .weekly, style: .chip, width: .third)
+        #expect(chip.effectiveWidth == .half)
     }
 
     // MARK: - Codable round trip + forward compat

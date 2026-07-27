@@ -87,8 +87,10 @@ enum PopoverConfigMigrator {
     // MARK: - Compact
 
     private static func migrateCompact(_ layout: VariantLayout, extras: [PopoverElementKind]) -> [PopoverElement] {
+        // Extras render as small satellite rings: a card chip at a third of
+        // the row crushes its label, so `.chip` no longer allows `.third`.
         var out: [PopoverElement] = extras.map {
-            PopoverElement(kind: $0, style: .chip, width: .third)
+            PopoverElement(kind: $0, style: .gaugeRing, width: .third)
         }
         for state in layout.middle {
             switch state.id {
@@ -127,7 +129,7 @@ enum PopoverConfigMigrator {
             ))
         }
         out.append(contentsOf: extras.map {
-            PopoverElement(kind: $0, style: .chip, width: .third)
+            PopoverElement(kind: $0, style: .gaugeRing, width: .third)
         })
         out.append(contentsOf: migrateSharedMiddle(layout.middle, paceStyle: .paceText, paceWidth: .full))
         return out

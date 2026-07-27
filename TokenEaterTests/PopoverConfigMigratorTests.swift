@@ -85,12 +85,12 @@ struct PopoverConfigMigratorTests {
         #expect(result.elements[2].width == .half)
     }
 
-    @Test("Compact extras become a leading thirds chip row")
+    @Test("Compact extras become a leading thirds satellite-ring row")
     func compactExtras() {
         let result = migrate(defaultConfig(variant: .compact), sonnet: true, design: true)
         #expect(result.elements[0].kind == .sonnet)
         #expect(result.elements[1].kind == .design)
-        #expect(result.elements[0].style == .chip)
+        #expect(result.elements[0].style == .gaugeRing)
         #expect(result.elements[0].width == .third)
     }
 
