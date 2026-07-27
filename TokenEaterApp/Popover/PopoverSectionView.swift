@@ -807,6 +807,7 @@ private struct ElementRow: View {
         .buttonStyle(.bordered)
         .controlSize(.small)
         .tint(.secondary)
+        .menuIndicator(.hidden)
         .fixedSize()
     }
 

@@ -670,7 +670,7 @@ private struct MenuBarSegmentRow: View {
         } label: {
             EditorPickerLabel(caption: "editor.pick.style", value: segment.effectiveStyle.localizedLabel)
         }
-        .menuStyle(.button).buttonStyle(.bordered).controlSize(.small).tint(.secondary).fixedSize()
+        .menuStyle(.button).buttonStyle(.bordered).controlSize(.small).tint(.secondary).menuIndicator(.hidden).fixedSize()
     }
 
     private var shapeMenu: some View {
@@ -686,7 +686,7 @@ private struct MenuBarSegmentRow: View {
         } label: {
             EditorPickerLabel(caption: "editor.pick.shape", value: segment.options.pacingShape.localizedLabel)
         }
-        .menuStyle(.button).buttonStyle(.bordered).controlSize(.small).tint(.secondary).fixedSize()
+        .menuStyle(.button).buttonStyle(.bordered).controlSize(.small).tint(.secondary).menuIndicator(.hidden).fixedSize()
     }
 
     private var formatMenu: some View {
@@ -702,7 +702,7 @@ private struct MenuBarSegmentRow: View {
         } label: {
             EditorPickerLabel(caption: "editor.pick.format", value: segment.options.resetFormat.localizedLabel)
         }
-        .menuStyle(.button).buttonStyle(.bordered).controlSize(.small).tint(.secondary).fixedSize()
+        .menuStyle(.button).buttonStyle(.bordered).controlSize(.small).tint(.secondary).menuIndicator(.hidden).fixedSize()
     }
 }
 
@@ -717,9 +717,14 @@ struct EditorPickerLabel: View {
     let value: String
 
     var body: some View {
-        Text(value)
-            .font(.system(size: 11, weight: .medium))
-            .lineLimit(1)
-            .help(Text(caption))
+        HStack(spacing: 5) {
+            Text(value)
+                .font(.system(size: 11, weight: .medium))
+                .lineLimit(1)
+            Image(systemName: "chevron.down")
+                .font(.system(size: 8, weight: .semibold))
+                .opacity(0.6)
+        }
+        .help(Text(caption))
     }
 }
