@@ -648,6 +648,21 @@
 "studio.surface.menuBar.hint" = "Segments and styles";
 "studio.surface.themes" = "Themes";
 "studio.surface.themes.hint" = "Colours and glow";
+"studio.intro.badge" = "NEW";
+"studio.intro.text" = "The Studio is here. Popover, menu bar and themes, all in one place.";
+"studio.intro.cta" = "See what's new";
+"whatsnew.title" = "What's new";
+"whatsnew.subtitle" = "This update rethinks how you customize TokenEater.";
+"whatsnew.studio.title" = "The Studio";
+"whatsnew.studio.text" = "A new space gathering all visual customization, with live previews.";
+"whatsnew.popover.title" = "Composable popover";
+"whatsnew.popover.text" = "Build your popover element by element: styles, widths, and order.";
+"whatsnew.menubar.title" = "Composable menu bar";
+"whatsnew.menubar.text" = "Compose the menu bar item segment by segment, right down to the style.";
+"whatsnew.templates.title" = "Templates";
+"whatsnew.templates.text" = "Start from the built-ins or save your own, on both surfaces.";
+"whatsnew.later" = "Later";
+"whatsnew.open" = "Open the Studio";
 
 /* Popover customization */
 "popover.settings.title" = "Popover";

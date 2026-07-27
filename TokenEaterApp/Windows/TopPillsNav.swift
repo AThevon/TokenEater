@@ -96,6 +96,11 @@ struct TopPillsNav: View {
                 }
             }
         }
+        // Publish the Studio pill's frame so the one-shot discovery bubble
+        // (MainAppView) can anchor right under it.
+        .anchorPreference(key: StudioPillAnchorKey.self, value: .bounds) { anchor in
+            space == .studio ? anchor : nil
+        }
     }
 
     /// Highlight surface for the active pill. Tinted with the destination

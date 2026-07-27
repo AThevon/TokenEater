@@ -96,6 +96,14 @@ final class SettingsStore: ObservableObject {
         didSet { UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding") }
     }
 
+    /// One-shot discovery flag for the Studio intro (nav bubble + what's-new
+    /// sheet). Flips true the first time the user sees, dismisses, or reaches
+    /// the Studio; also set on onboarding completion so fresh installs never
+    /// get an upgrade pitch for a feature they onboarded with.
+    @Published var hasSeenStudioIntro: Bool {
+        didSet { UserDefaults.standard.set(hasSeenStudioIntro, forKey: "hasSeenStudioIntro") }
+    }
+
     // Proxy
     @Published var proxyEnabled: Bool {
         didSet { UserDefaults.standard.set(proxyEnabled, forKey: "proxyEnabled") }
@@ -340,6 +348,7 @@ final class SettingsStore: ObservableObject {
         self.display = displayStore
 
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+        self.hasSeenStudioIntro = UserDefaults.standard.bool(forKey: "hasSeenStudioIntro")
         self.proxyEnabled = UserDefaults.standard.bool(forKey: "proxyEnabled")
         self.proxyHost = UserDefaults.standard.string(forKey: "proxyHost") ?? "127.0.0.1"
         self.proxyPort = {
