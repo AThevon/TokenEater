@@ -47,10 +47,10 @@ struct StudioRootView: View {
             // Same three-column layout, driven by MenuBarEditorView.
             DisplaySectionView()
         case .themes:
-            ScrollView(.vertical, showsIndicators: true) {
-                ThemesSectionView()
-                    .frame(maxWidth: .infinity, alignment: .top)
-            }
+            // Owns its own three-column layout (GeometryReader) -> must fill
+            // the pane directly, not sit inside a scroll view (a vertical
+            // ScrollView would propose zero height and collapse it).
+            ThemesSectionView()
         }
     }
 }

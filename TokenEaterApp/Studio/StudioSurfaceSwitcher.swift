@@ -164,38 +164,47 @@ private struct StudioMenuBarThumbnail: View {
     }
 }
 
-/// Swatch strip of the active theme -> gauge colors as overlapping dots,
-/// pacing colors as a small capsule row underneath.
+/// Miniature of the active theme -> three small gauge rings (normal / warning
+/// / critical) over a single pacing gradient bar, mirroring the editor's live
+/// preview so the switcher card reads as the same language.
 private struct StudioThemesThumbnail: View {
     @EnvironmentObject private var themeStore: ThemeStore
 
     var body: some View {
         let theme = themeStore.current
-        return VStack(spacing: DS.Spacing.xs) {
-            HStack(spacing: -7) {
-                swatch(theme.gaugeNormal)
-                swatch(theme.gaugeWarning)
-                swatch(theme.gaugeCritical)
+        let thresholds = themeStore.thresholds
+        return VStack(spacing: 9) {
+            HStack(spacing: 10) {
+                ring(pct: 32, color: theme.gaugeColor(for: 32, thresholds: thresholds))
+                ring(pct: 71, color: theme.gaugeColor(for: 71, thresholds: thresholds))
+                ring(pct: 94, color: theme.gaugeColor(for: 94, thresholds: thresholds))
             }
-            HStack(spacing: 4) {
-                pacingChip(theme.pacingChill)
-                pacingChip(theme.pacingOnTrack)
-                pacingChip(theme.pacingWarning)
-                pacingChip(theme.pacingHot)
+            HStack(spacing: 0) {
+                segment(theme.pacingColor(for: .chill))
+                segment(theme.pacingColor(for: .onTrack))
+                segment(theme.pacingColor(for: .warning))
+                segment(theme.pacingColor(for: .hot))
             }
+            .frame(height: 5)
+            .clipShape(Capsule())
         }
     }
 
-    private func swatch(_ hex: String) -> some View {
-        Circle()
-            .fill(Color(hex: hex))
-            .frame(width: 22, height: 22)
-            .overlay(Circle().stroke(Color.black.opacity(0.45), lineWidth: 1.5))
+    private func ring(pct: Int, color: Color) -> some View {
+        ZStack {
+            Circle()
+                .stroke(Color.white.opacity(0.10), lineWidth: 3)
+            Circle()
+                .trim(from: 0, to: CGFloat(min(max(pct, 0), 100)) / 100)
+                .stroke(color, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+        }
+        .frame(width: 22, height: 22)
     }
 
-    private func pacingChip(_ hex: String) -> some View {
-        Capsule()
-            .fill(Color(hex: hex))
-            .frame(width: 13, height: 5)
+    private func segment(_ color: Color) -> some View {
+        Rectangle()
+            .fill(color)
+            .frame(maxWidth: .infinity)
     }
 }
