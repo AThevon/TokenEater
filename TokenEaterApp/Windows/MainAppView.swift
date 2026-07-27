@@ -9,6 +9,7 @@ struct MainAppView: View {
 
     @State private var selectedSpace: AppSpace = .monitoring
     @State private var selectedSettingsSection: SettingsSection = .general
+    @State private var selectedStudioSection: StudioSection = .popover
     @State private var powerHovering = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -87,6 +88,8 @@ struct MainAppView: View {
                     MonitoringView(insightsStore: insightsStore)
                 case .history:
                     HistoryView(store: historyStore)
+                case .studio:
+                    StudioRootView(selection: $selectedStudioSection)
                 case .settings:
                     SettingsRootView(selection: $selectedSettingsSection)
                 }
@@ -119,6 +122,11 @@ struct MainAppView: View {
             if let sub = target.settingsSection {
                 withAnimation(DS.Motion.springSnap) {
                     selectedSettingsSection = sub
+                }
+            }
+            if let surface = target.studioSection {
+                withAnimation(DS.Motion.springSnap) {
+                    selectedStudioSection = surface
                 }
             }
         }

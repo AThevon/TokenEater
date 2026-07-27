@@ -46,11 +46,13 @@ enum DS {
         static let textTertiary  = Color(hex: "#63636E")
         static let textDisabled  = Color(hex: "#63636E").opacity(0.4)
 
-        // Module accents -> three hues already native to the site.
+        // Module accents -> hues native to the site plus the Studio violet.
         // Stats = lime green (brand primary), History = info blue,
-        // Settings = warm orange. Opacity capped at 0.15 when used as fill.
+        // Studio = violet, Settings = warm orange. Opacity capped at 0.15
+        // when used as fill.
         static let accentStats    = Color(hex: "#32CE6A") // brand green -> data, confidence
         static let accentHistory  = Color(hex: "#60A5FA") // info blue -> time, narrative
+        static let accentStudio   = Color(hex: "#A78BFA") // violet -> craft, customization
         static let accentSettings = Color(hex: "#FFB347") // warm orange -> config, control
 
         // Brand green variants (for pressed / light states on primary actions)

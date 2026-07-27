@@ -640,6 +640,15 @@
 "sidebar.notifications.subtitle" = "Choisis quels événements déclenchent une notif. Toggles indépendants.";
 "sidebar.settings" = "Réglages";
 
+/* Studio */
+"sidebar.studio" = "Studio";
+"studio.surface.popover" = "Popover";
+"studio.surface.popover.hint" = "Éléments, disposition, templates";
+"studio.surface.menuBar" = "Barre de menus";
+"studio.surface.menuBar.hint" = "Segments et styles";
+"studio.surface.themes" = "Thèmes";
+"studio.surface.themes.hint" = "Couleurs et glow";
+
 /* Popover customization */
 "popover.settings.title" = "Popover";
 "popover.settings.subtitle" = "Partez d'un template, puis composez votre popover élément par élément.";

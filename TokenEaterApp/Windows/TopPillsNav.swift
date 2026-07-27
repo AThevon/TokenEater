@@ -121,6 +121,7 @@ struct TopPillsNav: View {
         switch space {
         case .monitoring: DS.Palette.accentStats
         case .history:  DS.Palette.accentHistory
+        case .studio:   DS.Palette.accentStudio
         case .settings: DS.Palette.accentSettings
         }
     }
