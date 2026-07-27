@@ -85,14 +85,13 @@ struct MenuBarRendererTests {
 struct MenuBarOutageBadgeTests {
 
     static func sampleRenderData(
-        pinnedMetrics: Set<MetricID> = [.fiveHour],
+        segments: [MenuBarSegment] = [MenuBarSegment(kind: .session, style: .labelValue)],
         outageActive: Bool = false,
         outageHealth: VendorHealth = .healthy,
         nextPollSeconds: Int? = nil
     ) -> MenuBarRenderer.RenderData {
         MenuBarRenderer.RenderData(
-            pinnedMetrics: pinnedMetrics,
-            displaySonnet: false,
+            composition: MenuBarComposition(segments: segments),
             fiveHourPct: 10,
             sevenDayPct: 5,
             sonnetPct: 0,
@@ -102,8 +101,6 @@ struct MenuBarOutageBadgeTests {
             sessionPacingDelta: 0,
             sessionPacingZone: .onTrack,
             hasSessionPacing: false,
-            sessionPacingDisplayMode: .dotDelta,
-            weeklyPacingDisplayMode: .dotDelta,
             hasConfig: true,
             hasError: false,
             isAwaitingRefresh: false,
@@ -117,14 +114,11 @@ struct MenuBarOutageBadgeTests {
             sonnetResetDate: nil,
             designResetDate: nil,
             hasFiveHourBucket: true,
-            resetDisplayFormat: .relative,
             resetTextColorHex: "",
             sessionPeriodColorHex: "",
             smartResetColor: false,
             smartColorProfile: .balanced,
             pacingMargin: 10,
-            menuBarStyle: .classic,
-            pacingShape: .circle,
             designPct: 0,
             hasDesign: false,
             fablePct: 0,
@@ -156,12 +150,12 @@ struct MenuBarOutageBadgeTests {
     @Test("pinned serviceStatus with .down is non-template and wider than .healthy")
     func pinnedServiceStatusDownWiderThanHealthy() {
         let healthy = Self.sampleRenderData(
-            pinnedMetrics: [.serviceStatus],
+            segments: [MenuBarSegment(kind: .serviceStatus, style: .glyph)],
             outageHealth: .healthy,
             nextPollSeconds: nil
         )
         let down = Self.sampleRenderData(
-            pinnedMetrics: [.serviceStatus],
+            segments: [MenuBarSegment(kind: .serviceStatus, style: .glyph)],
             outageHealth: .down,
             nextPollSeconds: 125
         )
@@ -283,30 +277,24 @@ struct MenuBarExtraCreditsRenderTests {
 
     /// Full RenderData with neutral defaults; tests override only what matters.
     private func data(
-        pinned: Set<MetricID> = [.extraCredits],
+        segments: [MenuBarSegment] = [MenuBarSegment(kind: .extraCredits, style: .labelValue)],
         hasExtraCredits: Bool = true,
-        extraCreditsPct: Int = 67,
-        style: MenuBarStyle = .classic
+        extraCreditsPct: Int = 67
     ) -> MenuBarRenderer.RenderData {
         MenuBarRenderer.RenderData(
-            pinnedMetrics: pinned,
-            displaySonnet: false,
+            composition: MenuBarComposition(segments: segments),
             fiveHourPct: 0, sevenDayPct: 0, sonnetPct: 0,
             weeklyPacingDelta: 0, weeklyPacingZone: .onTrack, hasWeeklyPacing: false,
             sessionPacingDelta: 0, sessionPacingZone: .onTrack, hasSessionPacing: false,
-            sessionPacingDisplayMode: .dotDelta, weeklyPacingDisplayMode: .dotDelta,
             hasConfig: true, hasError: false, isAwaitingRefresh: false,
             themeColors: .default, thresholds: .default,
             menuBarMonochrome: false,
             fiveHourReset: "", fiveHourResetAbsolute: "",
             fiveHourResetDate: nil, sevenDayResetDate: nil, sonnetResetDate: nil, designResetDate: nil,
             hasFiveHourBucket: false,
-            resetDisplayFormat: .relative,
             resetTextColorHex: "", sessionPeriodColorHex: "",
             smartResetColor: false, smartColorProfile: .balanced,
             pacingMargin: 10,
-            menuBarStyle: style,
-            pacingShape: .circle,
             designPct: 0, hasDesign: false,
             fablePct: 0, hasFable: false, fableResetDate: nil,
             outageActive: false, outageHealth: .healthy, nextPollSeconds: nil,
@@ -314,26 +302,28 @@ struct MenuBarExtraCreditsRenderTests {
         )
     }
 
-    @Test("EC pinned + pool enabled renders a value (non-template image)")
+    @Test("EC segment + pool enabled renders a value (non-template image)")
     func renderedWhenEnabled() {
         let image = MenuBarRenderer.renderUncached(data(hasExtraCredits: true))
-        // The pinned-metrics path produces a non-template text image; the
-        // logo fallback is a template. So a non-template image proves EC drew.
+        // The composition path produces a non-template text image; the logo
+        // fallback is a template. So a non-template image proves EC drew.
         #expect(image.isTemplate == false)
         #expect(image.size.width > 0)
     }
 
-    @Test("EC pinned but pool disabled falls back to the logo (template image)")
+    @Test("EC segment but pool disabled falls back to the logo (template image)")
     func logoFallbackWhenDisabled() {
-        // Only EC is pinned and it's filtered out → ordered list is empty →
-        // the renderer returns the template logo instead of a 0-width sliver.
+        // Only EC is in the composition and it's filtered out → no visible
+        // segment → the renderer returns the template logo, not a 0-width sliver.
         let image = MenuBarRenderer.renderUncached(data(hasExtraCredits: false))
         #expect(image.isTemplate == true)
     }
 
-    @Test("EC renders in badge style too")
-    func renderedInBadgeStyle() {
-        let image = MenuBarRenderer.renderUncached(data(hasExtraCredits: true, style: .badge))
+    @Test("EC renders in pill style too")
+    func renderedInPillStyle() {
+        let image = MenuBarRenderer.renderUncached(
+            data(segments: [MenuBarSegment(kind: .extraCredits, style: .pill)], hasExtraCredits: true)
+        )
         #expect(image.isTemplate == false)
         #expect(image.size.width > 0)
     }

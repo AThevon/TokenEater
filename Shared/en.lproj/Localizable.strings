@@ -713,13 +713,58 @@
 "popoverTemplate.fableFirst" = "Fable First";
 "popoverTemplate.complete" = "Complete";
 
+/* Composable menu bar editor */
+"menuBar.editor.templates" = "Templates";
+"menuBar.editor.segments" = "Segments";
+"menuBar.editor.addSegment" = "Add segment";
+"menuBar.editor.family.metrics" = "Metrics";
+"menuBar.editor.family.pacing" = "Pacing";
+"menuBar.editor.family.status" = "Status";
+"menuBar.editor.unavailable" = "not available on your plan";
+"menuBar.editor.saveTemplate" = "Save as template";
+"menuBar.editor.saveTemplate.short" = "Save current";
+"menuBar.editor.saveTemplate.message" = "Saves the current menu bar layout so you can reapply it later.";
+"menuBar.editor.saveTemplate.placeholder" = "Template name";
+"menuBar.editor.save" = "Save";
+"menuBar.editor.cancel" = "Cancel";
+"menuBar.editor.deleteTemplate" = "Delete template";
+"menuBar.editor.preview" = "Preview";
+"menuBar.editor.preview.hint" = "Click a segment to select it in the list";
+"menuBar.editor.empty" = "Empty - the menu bar shows the app icon";
+"menuBar.editor.emptyList" = "No segments. Add one, or the menu bar shows just the app icon.";
+
+"menuBarSegment.session" = "Session (5h)";
+"menuBarSegment.weekly" = "Weekly";
+"menuBarSegment.sonnet" = "Sonnet";
+"menuBarSegment.design" = "Design";
+"menuBarSegment.fable" = "Fable";
+"menuBarSegment.extraCredits" = "Extra Credits";
+"menuBarSegment.sessionPacing" = "Session pacing";
+"menuBarSegment.weeklyPacing" = "Weekly pacing";
+"menuBarSegment.sessionReset" = "Session reset countdown";
+"menuBarSegment.serviceStatus" = "Service status";
+
+"menuBarStyle.segment.labelValue" = "Label + value";
+"menuBarStyle.segment.valueOnly" = "Value only";
+"menuBarStyle.segment.mono" = "Mono";
+"menuBarStyle.segment.pill" = "Pill";
+"menuBarStyle.segment.dot" = "Dot";
+"menuBarStyle.segment.dotDelta" = "Dot + delta";
+"menuBarStyle.segment.delta" = "Delta";
+"menuBarStyle.segment.text" = "Text";
+"menuBarStyle.segment.glyph" = "Glyph";
+
+"menuBarTemplate.classic" = "Classic";
+"menuBarTemplate.minimalist" = "Minimalist";
+"menuBarTemplate.pills" = "Pills";
+"menuBarTemplate.pacingFocus" = "Pacing focus";
+"menuBarTemplate.complete" = "Complete";
+
+
 "menubar.updated.never" = "never";
 
 /* Menu bar style picker */
 "settings.menubar.style" = "Style";
-"menuBarStyle.classic" = "Classic";
-"menuBarStyle.mono" = "Mono";
-"menuBarStyle.badge" = "Badge";
 
 /* Pacing shape picker */
 "settings.pacing.shape" = "Pacing indicator shape";
