@@ -79,8 +79,12 @@ final class DisplaySettingsStore: ObservableObject {
     @Published var sessionPeriodColorHex: String {
         didSet { UserDefaults.standard.set(sessionPeriodColorHex, forKey: "sessionPeriodColorHex") }
     }
-    /// Controls whether the Sonnet satellite appears in the popover Classic
-    /// variant AND in the dashboard constellation. The menu-bar visibility of
+    /// LEGACY (pre-5.9): gated the Sonnet satellite in the old popover
+    /// layouts. The composable popover replaced these switches with real
+    /// elements; the stored values are read exactly once by
+    /// `PopoverConfigMigrator` and have no UI or render-time consumer
+    /// anymore. Kept (with persistence) so the one-shot migration of the
+    /// legacy `popoverConfig` blob stays faithful. Menu-bar visibility of
     /// Sonnet is driven by `pinnedMetrics.contains(.sonnet)`, independently.
     @Published var displaySonnet: Bool {
         didSet { UserDefaults.standard.set(displaySonnet, forKey: "displaySonnet") }
@@ -93,8 +97,7 @@ final class DisplaySettingsStore: ObservableObject {
     @Published var displayFable: Bool {
         didSet { UserDefaults.standard.set(displayFable, forKey: "displayFable") }
     }
-    /// Same as `displayDesign` but for the paid Extra Credits pool. Only
-    /// surfaced in settings when `UsageStore.hasExtraCredits` is true.
+    /// Same as `displayDesign` but for the paid Extra Credits pool.
     @Published var displayExtraCredits: Bool {
         didSet { UserDefaults.standard.set(displayExtraCredits, forKey: "displayExtraCredits") }
     }

@@ -86,8 +86,6 @@
 "settings.group.chrome.hint" = "Style and shape of the bar.";
 "settings.group.pin" = "What to pin";
 "settings.group.pin.hint" = "Tap a chip to pin or unpin a metric. Active chips reveal their format options inline.";
-"settings.group.extras" = "Extra metrics";
-"settings.group.extras.hint" = "Shown on the dashboard constellation (and the menu bar for Sonnet).";
 "settings.group.colors" = "Colors";
 "settings.group.colors.hint" = "Theme the menu bar text. Smart Color (in Themes) takes over the reset countdown when enabled.";
 "settings.metric.format" = "Format";
@@ -677,6 +675,8 @@
 "popover.editor.showReset" = "Show reset countdown below";
 "popover.editor.preview.hint" = "Click an element to select it in the list";
 "popover.cell.resetLabel" = "%@ reset";
+"popover.empty" = "Nothing to show right now";
+"popover.empty.hint" = "Add elements in Settings > Popover";
 
 "popoverElement.session" = "Session (5h)";
 "popoverElement.weekly" = "Weekly";

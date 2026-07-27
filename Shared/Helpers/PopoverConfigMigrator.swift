@@ -9,23 +9,65 @@ import Foundation
 /// The old blob is deliberately left in UserDefaults so downgrading restores
 /// the previous popover untouched.
 enum PopoverConfigMigrator {
+    /// Account-presence snapshot at migration time, read from the cached
+    /// usage in shared.json. The legacy renderer gated the Design / Fable /
+    /// Extra Credits satellites on `displayX && hasX` at every render;
+    /// migration must apply the same gate or a stale toggle (e.g. Design
+    /// enabled during the research preview, access lost since) would flip
+    /// the layout shape the user never saw. Sonnet was never presence-gated.
+    struct AccountPresence {
+        var hasDesign: Bool
+        var hasFable: Bool
+        var hasExtraCredits: Bool
+
+        init(hasDesign: Bool = true, hasFable: Bool = true, hasExtraCredits: Bool = true) {
+            self.hasDesign = hasDesign
+            self.hasFable = hasFable
+            self.hasExtraCredits = hasExtraCredits
+        }
+
+        /// Derives presence exactly like `UsageStore.updateUI` does. A nil
+        /// cache (fresh machine, wiped shared dir) trusts the toggles, which
+        /// matches the optimistic pre-refresh state of the old renderer.
+        init(cachedUsage: UsageResponse?) {
+            guard let usage = cachedUsage else {
+                self.init()
+                return
+            }
+            self.init(
+                hasDesign: usage.sevenDayDesign != nil,
+                hasFable: usage.sevenDayFable != nil,
+                hasExtraCredits: usage.extraUsage?.isEnabled == true
+            )
+        }
+    }
+
     /// - Parameters:
     ///   - displaySonnet...displayExtraCredits: the legacy "Show X" switches
     ///     that gated the extra satellites outside the block system. An
-    ///     enabled switch becomes a real element (presence on the account is
-    ///     still checked at render time, as before).
+    ///     enabled switch becomes a real element when the account also has
+    ///     the metric (same render-time gate as the old layouts).
     static func migrate(
         _ config: PopoverConfig,
         displaySonnet: Bool,
         displayDesign: Bool,
         displayFable: Bool,
-        displayExtraCredits: Bool
+        displayExtraCredits: Bool,
+        presence: AccountPresence = AccountPresence()
     ) -> PopoverComposition {
+        // The old init reconciled per variant: an all-hidden layout rendered
+        // as that variant's defaults. Reproduce it before converting so an
+        // all-hidden Compact blob still migrates to Compact chips, not to
+        // the global Classic fallback.
+        var config = config
+        if !config.hasVisibleContent(for: .classic) { config.classic = .classicDefault }
+        if !config.hasVisibleContent(for: .compact) { config.compact = .compactDefault }
+
         let extras = extraKinds(
             sonnet: displaySonnet,
-            design: displayDesign,
-            fable: displayFable,
-            extraCredits: displayExtraCredits
+            design: displayDesign && presence.hasDesign,
+            fable: displayFable && presence.hasFable,
+            extraCredits: displayExtraCredits && presence.hasExtraCredits
         )
 
         let elements: [PopoverElement]
@@ -92,21 +134,53 @@ enum PopoverConfigMigrator {
         var out: [PopoverElement] = extras.map {
             PopoverElement(kind: $0, style: .gaugeRing, width: .third)
         }
+        // The legacy renderer paired only consecutive VISIBLE chips with
+        // chips and tiles with tiles; anything unpaired rendered full width.
+        // Reproduce that so a lone chip doesn't shrink to half after the
+        // migration. Hidden chips/tiles default to half (they render nothing
+        // until the user unhides them in the new editor anyway).
+        let pairedWidths = legacyCompactWidths(layout.middle)
         for state in layout.middle {
             switch state.id {
             case .sessionChip:
-                out.append(PopoverElement(kind: .session, style: .chip, width: .half, isHidden: state.hidden, options: .init(showReset: true)))
+                out.append(PopoverElement(kind: .session, style: .chip, width: pairedWidths[state.id] ?? .half, isHidden: state.hidden, options: .init(showReset: true)))
             case .weeklyChip:
-                out.append(PopoverElement(kind: .weekly, style: .chip, width: .half, isHidden: state.hidden, options: .init(showReset: true)))
+                out.append(PopoverElement(kind: .weekly, style: .chip, width: pairedWidths[state.id] ?? .half, isHidden: state.hidden, options: .init(showReset: true)))
             case .sessionPaceTile:
-                out.append(PopoverElement(kind: .sessionPacing, style: .paceTile, width: .half, isHidden: state.hidden))
+                out.append(PopoverElement(kind: .sessionPacing, style: .paceTile, width: pairedWidths[state.id] ?? .half, isHidden: state.hidden))
             case .weeklyPaceTile:
-                out.append(PopoverElement(kind: .weeklyPacing, style: .paceTile, width: .half, isHidden: state.hidden))
+                out.append(PopoverElement(kind: .weeklyPacing, style: .paceTile, width: pairedWidths[state.id] ?? .half, isHidden: state.hidden))
             default:
                 if let element = utilityElement(for: state) { out.append(element) }
             }
         }
         return out
+    }
+
+    /// Widths the legacy Compact grouping produced: consecutive visible
+    /// same-family blocks (chip+chip, tile+tile) shared a row at half width,
+    /// unpaired ones stretched full width.
+    private static func legacyCompactWidths(_ middle: [BlockState]) -> [PopoverBlockID: PopoverElementWidth] {
+        let chips: Set<PopoverBlockID> = [.sessionChip, .weeklyChip]
+        let tiles: Set<PopoverBlockID> = [.sessionPaceTile, .weeklyPaceTile]
+        let visible = middle.filter { !$0.hidden }.map(\.id)
+
+        var widths: [PopoverBlockID: PopoverElementWidth] = [:]
+        var i = 0
+        while i < visible.count {
+            let id = visible[i]
+            let family: Set<PopoverBlockID>? = chips.contains(id) ? chips : (tiles.contains(id) ? tiles : nil)
+            guard let family else { i += 1; continue }
+            if i + 1 < visible.count, family.contains(visible[i + 1]) {
+                widths[id] = .half
+                widths[visible[i + 1]] = .half
+                i += 2
+            } else {
+                widths[id] = .full
+                i += 1
+            }
+        }
+        return widths
     }
 
     // MARK: - Focus

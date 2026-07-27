@@ -86,8 +86,6 @@
 "settings.group.chrome.hint" = "Style et forme de la barre.";
 "settings.group.pin" = "À épingler";
 "settings.group.pin.hint" = "Clique sur une puce pour épingler une métrique. Les puces actives ouvrent leurs options en place.";
-"settings.group.extras" = "Métriques supplémentaires";
-"settings.group.extras.hint" = "Affichées sur la constellation du dashboard (et la barre de menus pour Sonnet).";
 "settings.group.colors" = "Couleurs";
 "settings.group.colors.hint" = "Couleur du texte. Smart Color (dans Themes) reprend la main sur le countdown quand il est activé.";
 "settings.metric.format" = "Format";
@@ -677,6 +675,8 @@
 "popover.editor.showReset" = "Afficher le reset en dessous";
 "popover.editor.preview.hint" = "Cliquez sur un élément pour le sélectionner dans la liste";
 "popover.cell.resetLabel" = "Reset %@";
+"popover.empty" = "Rien à afficher pour le moment";
+"popover.empty.hint" = "Ajoutez des éléments dans Réglages > Popover";
 
 "popoverElement.session" = "Session (5h)";
 "popoverElement.weekly" = "Hebdomadaire";

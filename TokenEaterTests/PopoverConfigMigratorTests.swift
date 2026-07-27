@@ -49,6 +49,22 @@ struct PopoverConfigMigratorTests {
         #expect(Array(head.dropFirst()).allSatisfy { $0.width == .third && $0.style == .gaugeRing })
     }
 
+    @Test("Classic: a stale Design toggle without account access keeps the equal-rings shape")
+    func classicStaleToggleKeepsEqualRings() {
+        // displayDesign was left on (research preview) but the cached usage
+        // says the account no longer has Design: the legacy renderer gated
+        // the satellite on presence at every render and kept equal rings.
+        let result = PopoverConfigMigrator.migrate(
+            defaultConfig(variant: .classic),
+            displaySonnet: false, displayDesign: true,
+            displayFable: false, displayExtraCredits: false,
+            presence: .init(hasDesign: false)
+        )
+        #expect(result.elements[0].kind == .session)
+        #expect(result.elements[0].width == .half)
+        #expect(!result.elements.contains { $0.kind == .design })
+    }
+
     @Test("Classic hidden flags survive migration")
     func classicHiddenPreserved() {
         var config = defaultConfig(variant: .classic)
@@ -92,6 +108,45 @@ struct PopoverConfigMigratorTests {
         #expect(result.elements[1].kind == .design)
         #expect(result.elements[0].style == .gaugeRing)
         #expect(result.elements[0].width == .third)
+    }
+
+    @Test("Compact: a lone visible chip migrates full width like the legacy grouping")
+    func compactLoneChipFullWidth() {
+        var config = defaultConfig(variant: .compact)
+        // Hide weeklyChip: sessionChip is unpaired in the visible sequence,
+        // the legacy renderer stretched it full width.
+        config.compact.middle[1].hidden = true
+        let result = migrate(config)
+        #expect(result.elements.first { $0.kind == .session }?.width == .full)
+        #expect(result.elements.first { $0.kind == .weekly }?.isHidden == true)
+        // The two tiles still pair up at half width.
+        #expect(result.elements.first { $0.kind == .sessionPacing }?.width == .half)
+        #expect(result.elements.first { $0.kind == .weeklyPacing }?.width == .half)
+    }
+
+    @Test("Compact: interleaved chips and tiles migrate full width (legacy never paired across families)")
+    func compactInterleavedFullWidth() {
+        var config = defaultConfig(variant: .compact)
+        // [sessionChip, sessionPaceTile, weeklyChip, weeklyPaceTile, ...]
+        let tile = config.compact.middle.remove(at: 2)
+        config.compact.middle.insert(tile, at: 1)
+        let result = migrate(config)
+        for kind in [PopoverElementKind.session, .weekly, .sessionPacing, .weeklyPacing] {
+            #expect(result.elements.first { $0.kind == kind }?.width == .full, "\(kind) should be full width")
+        }
+    }
+
+    @Test("Compact all-hidden legacy blob migrates to the Compact defaults, not the Classic fallback")
+    func compactAllHiddenFallsBackToCompactDefault() {
+        var config = defaultConfig(variant: .compact)
+        for idx in config.compact.middle.indices {
+            config.compact.middle[idx].hidden = true
+        }
+        let result = migrate(config)
+        #expect(result.hasVisibleContent)
+        // The old init reconciled the variant to its defaults (chips), so the
+        // migrated composition must be chips too, not the Classic rings.
+        #expect(result.elements.first { $0.kind == .session }?.style == .chip)
     }
 
     // MARK: - Focus

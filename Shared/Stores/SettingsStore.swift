@@ -370,7 +370,12 @@ final class SettingsStore: ObservableObject {
                 displaySonnet: displayStore.displaySonnet,
                 displayDesign: displayStore.displayDesign,
                 displayFable: displayStore.displayFable,
-                displayExtraCredits: displayStore.displayExtraCredits
+                displayExtraCredits: displayStore.displayExtraCredits,
+                // Presence from the cached usage, so a stale toggle (metric
+                // no longer on the account) can't flip the layout shape.
+                presence: PopoverConfigMigrator.AccountPresence(
+                    cachedUsage: sharedFileService.cachedUsage?.usage
+                )
             ))
         } else {
             self.popoverComposition = .default

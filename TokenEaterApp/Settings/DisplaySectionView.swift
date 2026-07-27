@@ -55,7 +55,6 @@ struct DisplaySectionView: View {
 
                 chromeGroup
                 pinGroup
-                extrasGroup
                 colorsGroup
 
                 ResetSectionButton(
@@ -265,52 +264,6 @@ struct DisplaySectionView: View {
         }
     }
 
-    // MARK: - Extras group (dashboard constellation + menu bar Sonnet)
-
-    /// The "Show Sonnet / Design / Fable / Extra Credits" switches used to
-    /// live in the popover settings; the composable popover replaced them
-    /// with real elements, but the dashboard constellation (and the menu bar
-    /// for Sonnet) still reads them, so they now live here.
-    private var extrasGroup: some View {
-        groupSection(title: "settings.group.extras", subtitle: "settings.group.extras.hint") {
-            VStack(spacing: 8) {
-                extrasToggleRow(isOn: $settingsStore.display.displaySonnet, label: String(localized: "metric.sonnet"))
-                if usageStore.hasDesign {
-                    extrasToggleRow(isOn: $settingsStore.display.displayDesign, label: String(localized: "metric.design"))
-                }
-                if usageStore.hasFable {
-                    extrasToggleRow(isOn: $settingsStore.display.displayFable, label: String(localized: "metric.fable"))
-                }
-                if usageStore.hasExtraCredits {
-                    extrasToggleRow(isOn: $settingsStore.display.displayExtraCredits, label: String(localized: "metric.extraCredits"))
-                }
-            }
-        }
-    }
-
-    private func extrasToggleRow(isOn: Binding<Bool>, label: String) -> some View {
-        HStack(spacing: 10) {
-            Toggle("", isOn: isOn)
-                .toggleStyle(.switch)
-                .tint(DS.Palette.accentSettings)
-                .labelsHidden()
-            Text(label)
-                .font(.system(size: 12))
-                .foregroundStyle(.white.opacity(0.85))
-            Spacer()
-        }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 14)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(0.04))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-        )
-    }
-
     // MARK: - Colors group
 
     private var colorsGroup: some View {
@@ -498,9 +451,6 @@ struct DisplaySectionView: View {
         settingsStore.resetDisplayFormat = .relative
         settingsStore.resetTextColorHex = ""
         settingsStore.sessionPeriodColorHex = ""
-        settingsStore.displaySonnet = true
-        settingsStore.displayDesign = true
-        settingsStore.displayFable = true
         // Local @State mirrors so the toggle UI reflects the reset immediately.
         showFiveHour = settingsStore.pinnedMetrics.contains(.fiveHour)
         showSessionReset = settingsStore.pinnedMetrics.contains(.sessionReset)

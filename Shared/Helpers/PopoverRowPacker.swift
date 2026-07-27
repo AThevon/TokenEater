@@ -9,18 +9,23 @@ import Foundation
 /// the user declares is what they see.
 enum PopoverRowPacker {
     static func pack(_ elements: [PopoverElement]) -> [[PopoverElement]] {
-        var rows: [[PopoverElement]] = []
-        var current: [PopoverElement] = []
+        packIndices(elements.map(\.effectiveWidth)).map { row in row.map { elements[$0] } }
+    }
 
-        for element in elements {
-            let width = element.effectiveWidth
+    /// Index-based variant shared with `PopoverGridLayout`, which only knows
+    /// its subviews' widths (via a LayoutValueKey), not the elements.
+    static func packIndices(_ widths: [PopoverElementWidth]) -> [[Int]] {
+        var rows: [[Int]] = []
+        var current: [Int] = []
+
+        for (index, width) in widths.enumerated() {
             if let first = current.first,
-               first.effectiveWidth == width,
+               widths[first] == width,
                current.count < width.rowCapacity {
-                current.append(element)
+                current.append(index)
             } else {
                 if !current.isEmpty { rows.append(current) }
-                current = [element]
+                current = [index]
             }
         }
         if !current.isEmpty { rows.append(current) }

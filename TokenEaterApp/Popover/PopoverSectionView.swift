@@ -416,9 +416,12 @@ private struct TemplateSchematic: View {
     var body: some View {
         let rows = PopoverRowPacker.pack(composition.visibleElements).prefix(Self.maxRows)
         VStack(spacing: 3) {
+            // Offset identity on purpose: built-in compositions mint fresh
+            // element UUIDs on every access, id-keyed cells would defeat
+            // SwiftUI diffing and recreate every rectangle each render.
             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                 HStack(spacing: 3) {
-                    ForEach(row) { element in
+                    ForEach(Array(row.enumerated()), id: \.offset) { _, element in
                         RoundedRectangle(cornerRadius: 2)
                             .fill(highlighted ? Color.blue.opacity(0.55) : Color.white.opacity(0.22))
                             .frame(maxWidth: .infinity)
@@ -491,39 +494,51 @@ private struct ElementListEditor: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            ForEach(settingsStore.popoverComposition.elements) { element in
-                ElementRow(
-                    element: element,
-                    isSelected: selectedElementID == element.id,
-                    isDragging: draggingID == element.id,
-                    isAvailable: isAvailable(element.kind),
-                    canDisable: canDisable(element),
-                    onSelect: {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
-                            selectedElementID = (selectedElementID == element.id) ? nil : element.id
-                        }
-                    },
-                    onToggleHidden: { toggleHidden(element) },
-                    onDelete: { delete(element) },
-                    onStyle: { setStyle($0, for: element) },
-                    onWidth: { setWidth($0, for: element) },
-                    onContent: { setContent($0, for: element) },
-                    onToggleReset: { toggleReset(element) }
-                )
-                .id(element.id)
-                .onDrag {
-                    draggingID = element.id
-                    return NSItemProvider(object: element.id.uuidString as NSString)
-                }
-                .onDrop(
-                    of: [.text],
-                    delegate: ElementDropDelegate(
-                        item: element.id,
-                        elements: elementsBinding,
-                        draggingID: $draggingID
-                    )
-                )
+            elementRows
+        }
+        // Catch-all so a drop released in the 8pt gaps between rows (outside
+        // any row's drop target) still ends the drag session cleanly instead
+        // of leaving the dragged row stuck in its lifted style. A drag
+        // cancelled outside the list entirely (Escape, drop on the preview)
+        // still leaks draggingID until the next drag; that limitation is
+        // inherited from the pre-5.9 editor, SwiftUI offers no drag-ended
+        // callback for onDrag.
+        .onDrop(of: [.text], delegate: ListGapDropDelegate(draggingID: $draggingID))
+    }
+
+    private var elementRows: some View {
+        ForEach(settingsStore.popoverComposition.elements) { element in
+            ElementRow(
+                element: element,
+                isSelected: selectedElementID == element.id,
+                isDragging: draggingID == element.id,
+                isAvailable: isAvailable(element.kind),
+                canDisable: canDisable(element),
+                onSelect: {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                        selectedElementID = (selectedElementID == element.id) ? nil : element.id
+                    }
+                },
+                onToggleHidden: { toggleHidden(element) },
+                onDelete: { delete(element) },
+                onStyle: { setStyle($0, for: element) },
+                onWidth: { setWidth($0, for: element) },
+                onContent: { setContent($0, for: element) },
+                onToggleReset: { toggleReset(element) }
+            )
+            .id(element.id)
+            .onDrag {
+                draggingID = element.id
+                return NSItemProvider(object: element.id.uuidString as NSString)
             }
+            .onDrop(
+                of: [.text],
+                delegate: ElementDropDelegate(
+                    item: element.id,
+                    elements: elementsBinding,
+                    draggingID: $draggingID
+                )
+            )
         }
     }
 
@@ -543,10 +558,20 @@ private struct ElementListEditor: View {
         }
     }
 
-    /// The last visible element can be neither hidden nor deleted, so the
-    /// popover can never end up empty.
+    /// Whether hiding or deleting this element is allowed. The guard counts
+    /// only elements that are visible AND available on the account: removing
+    /// an unavailable element (e.g. a Fable arc after a plan downgrade)
+    /// never empties the rendered popover, so it must always be removable,
+    /// and it must never count as the "one element" keeping the popover
+    /// non-empty. The renderer still has an empty-state fallback for the
+    /// data-dependent cases validation can't see (pacing before the first
+    /// refresh).
     private func canDisable(_ element: PopoverElement) -> Bool {
-        element.isHidden || settingsStore.popoverComposition.visibleElements.count > 1
+        if element.isHidden { return true }
+        guard isAvailable(element.kind) else { return true }
+        let availableVisible = settingsStore.popoverComposition.visibleElements
+            .filter { isAvailable($0.kind) }
+        return availableVisible.count > 1
     }
 
     private func mutate(_ id: UUID, _ transform: (inout PopoverElement) -> Void) {
@@ -821,6 +846,22 @@ private struct ElementRow: View {
     }
 }
 
+/// Container-level catch-all: ends the drag session when the drop lands in
+/// the spacing gaps between rows, clearing the lifted styling.
+private struct ListGapDropDelegate: DropDelegate {
+    @Binding var draggingID: UUID?
+
+    func performDrop(info: DropInfo) -> Bool {
+        let wasDragging = draggingID != nil
+        draggingID = nil
+        return wasDragging
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: draggingID != nil ? .move : .cancel)
+    }
+}
+
 /// Drop delegate for reordering elements. Swaps the dragged element into the
 /// hovered slot on every drag tick for instant feedback.
 private struct ElementDropDelegate: DropDelegate {
@@ -841,11 +882,14 @@ private struct ElementDropDelegate: DropDelegate {
     }
 
     func performDrop(info: DropInfo) -> Bool {
+        // A nil draggingID means this session wasn't started by our onDrag
+        // (external text drag) - decline instead of swallowing the drop.
+        let wasDragging = draggingID != nil
         draggingID = nil
-        return true
+        return wasDragging
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
-        DropProposal(operation: .move)
+        DropProposal(operation: draggingID != nil ? .move : .cancel)
     }
 }
