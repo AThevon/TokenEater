@@ -120,7 +120,7 @@ final class StatusBarController: NSObject {
         Timer.publish(every: 60, on: .main, in: .common).autoconnect()
             .sink { [weak self] _ in
                 guard let self,
-                      self.settingsStore.pinnedMetrics.contains(.sessionReset) else { return }
+                      self.settingsStore.menuBarComposition.visibleSegments.contains(where: { $0.kind == .sessionReset }) else { return }
                 self.usageStore.refreshResetCountdown()
             }
             .store(in: &cancellables)
@@ -308,52 +308,9 @@ final class StatusBarController: NSObject {
     // MARK: - Menu Bar Icon
 
     private func updateMenuBarIcon() {
-        let image = MenuBarRenderer.render(MenuBarRenderer.RenderData(
-            pinnedMetrics: settingsStore.pinnedMetrics,
-            displaySonnet: settingsStore.displaySonnet,
-            fiveHourPct: usageStore.fiveHourPct,
-            sevenDayPct: usageStore.sevenDayPct,
-            sonnetPct: usageStore.sonnetPct,
-            weeklyPacingDelta: Int(usageStore.pacingResult?.delta ?? 0),
-            weeklyPacingZone: usageStore.pacingResult?.zone ?? .onTrack,
-            hasWeeklyPacing: usageStore.pacingResult != nil,
-            sessionPacingDelta: Int(usageStore.fiveHourPacing?.delta ?? 0),
-            sessionPacingZone: usageStore.fiveHourPacing?.zone ?? .onTrack,
-            hasSessionPacing: usageStore.fiveHourPacing != nil,
-            sessionPacingDisplayMode: settingsStore.sessionPacingDisplayMode,
-            weeklyPacingDisplayMode: settingsStore.weeklyPacingDisplayMode,
-            hasConfig: usageStore.hasConfig,
-            hasError: usageStore.hasError,
-            isAwaitingRefresh: usageStore.isAwaitingRefresh,
-            themeColors: themeStore.current,
-            thresholds: themeStore.thresholds,
-            menuBarMonochrome: themeStore.menuBarMonochrome,
-            fiveHourReset: usageStore.fiveHourReset,
-            fiveHourResetAbsolute: usageStore.fiveHourResetAbsolute,
-            fiveHourResetDate: usageStore.lastUsage?.fiveHour?.resetsAtDate,
-            sevenDayResetDate: usageStore.lastUsage?.sevenDay?.resetsAtDate,
-            sonnetResetDate: usageStore.lastUsage?.sevenDaySonnet?.resetsAtDate,
-            designResetDate: usageStore.lastUsage?.sevenDayDesign?.resetsAtDate,
-            hasFiveHourBucket: usageStore.lastUsage?.fiveHour != nil,
-            resetDisplayFormat: settingsStore.resetDisplayFormat,
-            resetTextColorHex: settingsStore.resetTextColorHex,
-            sessionPeriodColorHex: settingsStore.sessionPeriodColorHex,
-            smartResetColor: settingsStore.smartColorEnabled,
-            smartColorProfile: settingsStore.smartColorProfile,
-            pacingMargin: Double(settingsStore.pacingMargin),
-            menuBarStyle: settingsStore.menuBarStyle,
-            pacingShape: settingsStore.pacingShape,
-            designPct: usageStore.designPct,
-            hasDesign: usageStore.hasDesign,
-            fablePct: usageStore.fablePct,
-            hasFable: usageStore.hasFable,
-            fableResetDate: usageStore.lastUsage?.sevenDayFable?.resetsAtDate,
-            outageActive: settingsStore.statusShowMenuBarBadge && vendorStatusStore.isDegraded,
-            outageHealth: vendorStatusStore.worstHealth,
-            nextPollSeconds: vendorStatusStore.nextPollDate.map { max(0, Int(ceil($0.timeIntervalSinceNow))) },
-            extraCreditsPct: usageStore.extraCreditsPct,
-            hasExtraCredits: usageStore.hasExtraCredits
-        ))
+        let image = MenuBarRenderer.render(
+            .live(usage: usageStore, theme: themeStore, settings: settingsStore, vendor: vendorStatusStore)
+        )
         statusItem.button?.image = image
     }
 
@@ -361,7 +318,8 @@ final class StatusBarController: NSObject {
     /// menu-bar countdown ticks without waking the CPU every second otherwise.
     private func updateCountdownTimer() {
         let badgeCountdown = settingsStore.statusShowMenuBarBadge && vendorStatusStore.isDegraded
-        let pinCountdown = settingsStore.pinnedMetrics.contains(.serviceStatus) && vendorStatusStore.worstHealth == .down
+        let hasStatusSegment = settingsStore.menuBarComposition.visibleSegments.contains { $0.kind == .serviceStatus }
+        let pinCountdown = hasStatusSegment && vendorStatusStore.worstHealth == .down
         let active = badgeCountdown || pinCountdown
         if active, countdownCancellable == nil {
             countdownCancellable = Timer.publish(every: 1, on: .main, in: .common)
