@@ -58,7 +58,12 @@ struct PopoverElementCellView: View {
             switch element.kind {
             case .openButton: PopoverOpenButton()
             case .quitButton: PopoverQuitButtonCell(width: element.effectiveWidth)
+            case .refreshButton: PopoverRefreshButtonCell()
             default: EmptyView()
+            }
+        case .badge:
+            if element.kind == .planBadge {
+                PlanBadgeCell()
             }
         }
     }
@@ -457,6 +462,57 @@ private struct PopoverQuitButtonCell: View {
             }
             .buttonStyle(.plain)
         }
+    }
+}
+
+// MARK: - Plan badge (ex-header chrome, v2 composable element)
+
+private struct PlanBadgeCell: View {
+    @EnvironmentObject private var usageStore: UsageStore
+
+    var body: some View {
+        Text(usageStore.planType.displayLabel)
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(.white.opacity(0.85))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(usageStore.planType.badgeColor.opacity(0.22))
+            .clipShape(Capsule())
+            .overlay(Capsule().stroke(usageStore.planType.badgeColor.opacity(0.35), lineWidth: 0.5))
+    }
+}
+
+// MARK: - Refresh button (ex-header chrome, v2 composable element)
+
+private struct PopoverRefreshButtonCell: View {
+    @EnvironmentObject private var usageStore: UsageStore
+
+    var body: some View {
+        Button {
+            Task { await usageStore.refresh(force: true) }
+        } label: {
+            HStack(spacing: 6) {
+                if usageStore.isLoading {
+                    ProgressView()
+                        .scaleEffect(0.45)
+                        .frame(width: 12, height: 12)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 9, weight: .semibold))
+                }
+                Text(String(localized: "popover.cell.refresh"))
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .foregroundStyle(.white.opacity(0.7))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .background(.white.opacity(0.08))
+            .clipShape(Capsule())
+            .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 0.5))
+        }
+        .buttonStyle(.plain)
+        .disabled(usageStore.isLoading)
+        .help(String(localized: "contextmenu.refresh"))
     }
 }
 

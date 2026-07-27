@@ -28,8 +28,10 @@ extension EnvironmentValues {
 
 // MARK: - Renderer
 
-/// The composable popover renderer: fixed chrome (header, status + error
-/// banners), then the element grid. Replaces the three variant layouts.
+/// The composable popover renderer: fixed chrome (status + error banners),
+/// then the element grid. Replaces the three variant layouts. The old fixed
+/// header (plan badge + refresh button) is composition v2 elements now; only
+/// its top breathing room remains as chrome.
 struct ComposablePopoverView: View {
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var settingsStore: SettingsStore
@@ -38,7 +40,7 @@ struct ComposablePopoverView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            PopoverHeader()
+            Color.clear.frame(height: 12)
 
             VendorStatusBanner()
 

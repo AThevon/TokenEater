@@ -661,9 +661,6 @@
 "sidebar.settings.subtitle" = "Proxy, intervalle de rafraîchissement et autres préférences globales.";
 "popover.settings.preview" = "Aperçu";
 "popover.settings.reset" = "Réinitialiser";
-"popover.zone.general" = "Général";
-"popover.option.showPlanBadge" = "Afficher le badge du plan (PRO / MAX / TEAM)";
-"popover.option.showRefreshButton" = "Afficher le bouton de rafraîchissement manuel";
 
 /* Éditeur du popover composable */
 "popover.editor.templates" = "Templates";
@@ -700,6 +697,9 @@
 "popoverElement.timestamp" = "Horodatage de mise à jour";
 "popoverElement.openButton" = "Bouton Open TokenEater";
 "popoverElement.quitButton" = "Bouton Quitter";
+"popoverElement.planBadge" = "Badge du plan";
+"popoverElement.refreshButton" = "Bouton actualiser";
+"popover.cell.refresh" = "Actualiser";
 
 "popoverStyle.gaugeRing" = "Anneau";
 "popoverStyle.chip" = "Chip";
@@ -710,6 +710,7 @@
 "popoverStyle.paceText" = "Texte";
 "popoverStyle.utilityRow" = "Ligne";
 "popoverStyle.actionButton" = "Bouton";
+"popoverStyle.badge" = "Badge";
 
 "popoverWidth.full" = "Pleine largeur";
 "popoverWidth.half" = "Demi-largeur";

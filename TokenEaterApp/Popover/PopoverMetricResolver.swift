@@ -88,6 +88,7 @@ enum PopoverMetricResolver {
         case .extraCredits: return usage.hasExtraCredits
         case .sessionPacing: return usage.fiveHourPacing != nil
         case .weeklyPacing: return usage.pacingResult != nil
+        case .planBadge: return usage.planType != .unknown
         default: return true
         }
     }

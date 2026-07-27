@@ -661,9 +661,6 @@
 "sidebar.settings.subtitle" = "Proxy, refresh interval, and other global preferences.";
 "popover.settings.preview" = "Preview";
 "popover.settings.reset" = "Reset to default";
-"popover.zone.general" = "General";
-"popover.option.showPlanBadge" = "Show plan badge (PRO / MAX / TEAM)";
-"popover.option.showRefreshButton" = "Show manual refresh button";
 
 /* Composable popover editor */
 "popover.editor.templates" = "Templates";
@@ -700,6 +697,9 @@
 "popoverElement.timestamp" = "Updated timestamp";
 "popoverElement.openButton" = "Open TokenEater button";
 "popoverElement.quitButton" = "Quit button";
+"popoverElement.planBadge" = "Plan badge";
+"popoverElement.refreshButton" = "Refresh button";
+"popover.cell.refresh" = "Refresh";
 
 "popoverStyle.gaugeRing" = "Ring";
 "popoverStyle.chip" = "Chip";
@@ -710,6 +710,7 @@
 "popoverStyle.paceText" = "Text";
 "popoverStyle.utilityRow" = "Row";
 "popoverStyle.actionButton" = "Button";
+"popoverStyle.badge" = "Badge";
 
 "popoverWidth.full" = "Full width";
 "popoverWidth.half" = "Half width";

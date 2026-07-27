@@ -80,8 +80,12 @@ enum PopoverConfigMigrator {
             elements = migrateFocus(config.focus, hero: config.focusHero, extras: extras)
         }
 
+        // Version 1 on purpose: the legacy config predates the chrome
+        // elements, so `PopoverChromeMigrator` must still convert the two
+        // header toggles below into real elements.
         return PopoverComposition(
             elements: elements,
+            version: 1,
             showPlanBadge: config.showPlanBadge,
             showRefreshButton: config.showRefreshButton
         )

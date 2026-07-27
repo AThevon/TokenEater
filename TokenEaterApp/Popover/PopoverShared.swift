@@ -44,89 +44,9 @@ enum PopoverColors {
     }
 }
 
-// MARK: - PRO badge + loading indicator
-
-struct PopoverHeader: View {
-    @EnvironmentObject private var usageStore: UsageStore
-    @EnvironmentObject private var settingsStore: SettingsStore
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var refreshHovering: Bool = false
-
-    private var showBadge: Bool {
-        settingsStore.popoverComposition.showPlanBadge && usageStore.planType != .unknown
-    }
-
-    private var showButton: Bool {
-        settingsStore.popoverComposition.showRefreshButton
-    }
-
-    /// Top breathing room when both header items are hidden.
-    private var emptyHeaderHeight: CGFloat { 12 }
-
-    /// Bottom padding under the header when at least one item is shown.
-    private var headerBottomPadding: CGFloat { 14 }
-
-    var body: some View {
-        if !showBadge && !showButton {
-            Color.clear.frame(height: emptyHeaderHeight)
-        } else {
-            HStack(spacing: 0) {
-                if showBadge {
-                    Text(usageStore.planType.displayLabel)
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(usageStore.planType.badgeColor.opacity(0.3))
-                        .clipShape(Capsule())
-                }
-                Spacer(minLength: 0)
-                if showButton {
-                    refreshButton
-                }
-            }
-            .frame(height: 22)
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, headerBottomPadding)
-        }
-    }
-
-    @ViewBuilder private var refreshButton: some View {
-        Button {
-            Task { await usageStore.refresh(force: true) }
-        } label: {
-            Group {
-                if usageStore.isLoading {
-                    ProgressView()
-                        .scaleEffect(0.5)
-                } else {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(refreshHovering ? Color.blue : .white.opacity(0.55))
-                }
-            }
-            .frame(width: 22, height: 22)
-            .background(
-                Circle()
-                    .fill(refreshHovering ? Color.blue.opacity(0.18) : .white.opacity(0.04))
-                    .overlay(
-                        Circle().stroke(
-                            refreshHovering ? Color.blue.opacity(0.55) : .white.opacity(0.08),
-                            lineWidth: 1
-                        )
-                    )
-            )
-            .scaleEffect(refreshHovering && !reduceMotion ? 1.05 : 1.0)
-        }
-        .buttonStyle(.plain)
-        .disabled(usageStore.isLoading)
-        .help(String(localized: "contextmenu.refresh"))
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.15)) { refreshHovering = hovering }
-        }
-    }
-}
+// The fixed header (plan badge + refresh button) that used to live here is
+// composition v2 elements now -> `PlanBadgeCell` / `PopoverRefreshButtonCell`
+// in `PopoverCells.swift`, migrated by `PopoverChromeMigrator`.
 
 // MARK: - Error banner
 

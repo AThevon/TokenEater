@@ -371,14 +371,21 @@ final class SettingsStore: ObservableObject {
 
         // Popover composition. Load order: new blob, else one-shot migration
         // of the legacy variant-based config (preserving what the user saw
-        // before 5.9), else the Classic template.
+        // before 5.9), else the Classic template. Whatever path produced it,
+        // `PopoverChromeMigrator` then lifts a v1 result's fixed header
+        // chrome into regular elements (no-op on v2).
         let hadCompositionBlob = UserDefaults.standard.data(forKey: "popoverComposition") != nil
+        // Version the stored blob was written at -> when below current, the
+        // chrome-migrated result must be persisted at the end of init
+        // (didSet does not fire during init).
+        var storedPopoverVersion = PopoverComposition.currentVersion
         if let data = UserDefaults.standard.data(forKey: "popoverComposition"),
            let decoded = try? JSONDecoder().decode(PopoverComposition.self, from: data) {
-            self.popoverComposition = Self.reconcile(decoded)
+            storedPopoverVersion = decoded.version
+            self.popoverComposition = PopoverChromeMigrator.migrate(Self.reconcile(decoded))
         } else if let legacy = UserDefaults.standard.data(forKey: "popoverConfig"),
                   let config = try? JSONDecoder().decode(PopoverConfig.self, from: legacy) {
-            self.popoverComposition = Self.reconcile(PopoverConfigMigrator.migrate(
+            self.popoverComposition = PopoverChromeMigrator.migrate(Self.reconcile(PopoverConfigMigrator.migrate(
                 config,
                 displaySonnet: displayStore.displaySonnet,
                 displayDesign: displayStore.displayDesign,
@@ -389,7 +396,7 @@ final class SettingsStore: ObservableObject {
                 presence: PopoverConfigMigrator.AccountPresence(
                     cachedUsage: sharedFileService.cachedUsage?.usage
                 )
-            ))
+            )))
         } else {
             self.popoverComposition = .default
         }
@@ -446,7 +453,7 @@ final class SettingsStore: ObservableObject {
 
         // didSet doesn't fire during init - persist the migrated / default
         // compositions now so the one-shot migrations are durable.
-        if !hadCompositionBlob {
+        if !hadCompositionBlob || storedPopoverVersion < PopoverComposition.currentVersion {
             savePopoverComposition()
         }
         if !hadMenuBarBlob {

@@ -43,7 +43,6 @@ struct PopoverSectionView: View {
                     ScrollView(.vertical, showsIndicators: true) {
                         VStack(alignment: .leading, spacing: 16) {
                             templatesSection
-                            chromeSection
                             elementsSection
                             Spacer(minLength: 12)
                         }
@@ -86,7 +85,6 @@ struct PopoverSectionView: View {
                     .padding(.vertical, 8)
 
                     templatesSection
-                    chromeSection
                     elementsSection
                     Spacer(minLength: 12)
                 }
@@ -213,46 +211,6 @@ struct PopoverSectionView: View {
         templateName = ""
     }
 
-    // MARK: - Chrome (fixed header toggles)
-
-    private var chromeSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            editorSectionLabel("popover.zone.general")
-
-            chromeToggleRow(
-                isOn: $settingsStore.popoverComposition.showPlanBadge,
-                label: String(localized: "popover.option.showPlanBadge")
-            )
-            chromeToggleRow(
-                isOn: $settingsStore.popoverComposition.showRefreshButton,
-                label: String(localized: "popover.option.showRefreshButton")
-            )
-        }
-    }
-
-    private func chromeToggleRow(isOn: Binding<Bool>, label: String) -> some View {
-        HStack(spacing: 10) {
-            Toggle("", isOn: isOn)
-                .toggleStyle(.switch)
-                .tint(DS.Palette.accentSettings)
-                .labelsHidden()
-            Text(label)
-                .font(.system(size: 12))
-                .foregroundStyle(.white.opacity(0.85))
-            Spacer()
-        }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 14)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(0.04))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-        )
-    }
-
     // MARK: - Elements
 
     private var elementsSection: some View {
@@ -280,6 +238,8 @@ struct PopoverSectionView: View {
                 addButton(for: .weeklyPacing)
             }
             Section(String(localized: "popover.editor.family.utilities")) {
+                addButton(for: .planBadge)
+                addButton(for: .refreshButton)
                 addButton(for: .watchers)
                 addButton(for: .timestamp)
                 addButton(for: .openButton)
@@ -328,6 +288,7 @@ struct PopoverSectionView: View {
         case .design: return usageStore.hasDesign
         case .fable: return usageStore.hasFable
         case .extraCredits: return usageStore.hasExtraCredits
+        case .planBadge: return usageStore.planType != .unknown
         default: return true
         }
     }
@@ -439,7 +400,7 @@ private struct TemplateSchematic: View {
         case .gaugeRing, .arc: return 13
         case .chip, .bigText, .paceTile: return 8
         case .paceBar: return 6
-        case .paceText, .utilityRow, .actionButton: return 4
+        case .paceText, .utilityRow, .actionButton, .badge: return 4
         }
     }
 }
