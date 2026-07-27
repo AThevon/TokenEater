@@ -510,11 +510,18 @@ private struct ElementListEditor: View {
         $settingsStore.popoverComposition.elements
     }
 
+    // Plan-level availability, mirroring `accountHasKind` in the add menu
+    // (data-level gates like pacing-before-first-refresh are the renderer's
+    // empty-state fallback, not the editor's job). `.planBadge` must be here:
+    // with no known plan the renderer filters it out, so the editor must not
+    // count it toward the "keep one element visible" guard, and must keep it
+    // freely removable.
     private func isAvailable(_ kind: PopoverElementKind) -> Bool {
         switch kind {
         case .design: return usageStore.hasDesign
         case .fable: return usageStore.hasFable
         case .extraCredits: return usageStore.hasExtraCredits
+        case .planBadge: return usageStore.planType != .unknown
         default: return true
         }
     }

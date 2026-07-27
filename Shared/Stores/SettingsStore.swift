@@ -410,9 +410,18 @@ final class SettingsStore: ObservableObject {
             self.popoverComposition = .default
         }
 
+        var popoverTemplatesChanged = false
         if let data = UserDefaults.standard.data(forKey: "popoverUserTemplates"),
            let decoded = try? JSONDecoder().decode([PopoverUserTemplate].self, from: data) {
-            self.popoverUserTemplates = decoded
+            // Chrome-migrate any template saved before composition v2, so
+            // applying it never resurrects the pre-element header state.
+            let migrated = decoded.map { template in
+                var template = template
+                template.composition = PopoverChromeMigrator.migrate(template.composition)
+                return template
+            }
+            self.popoverUserTemplates = migrated
+            popoverTemplatesChanged = migrated != decoded
         } else {
             self.popoverUserTemplates = []
         }
@@ -464,6 +473,9 @@ final class SettingsStore: ObservableObject {
         // compositions now so the one-shot migrations are durable.
         if !hadCompositionBlob || storedPopoverVersion < PopoverComposition.currentVersion {
             savePopoverComposition()
+        }
+        if popoverTemplatesChanged {
+            savePopoverUserTemplates()
         }
         if !hadMenuBarBlob {
             saveMenuBarComposition()

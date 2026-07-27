@@ -713,7 +713,7 @@
 "popoverElement.openButton" = "Bouton Open TokenEater";
 "popoverElement.quitButton" = "Bouton Quitter";
 "popoverElement.planBadge" = "Badge du plan";
-"popoverElement.refreshButton" = "Bouton actualiser";
+"popoverElement.refreshButton" = "Bouton Actualiser";
 "popover.cell.refresh" = "Actualiser";
 
 "popoverStyle.gaugeRing" = "Anneau";

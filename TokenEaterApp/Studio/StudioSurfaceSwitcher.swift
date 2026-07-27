@@ -142,7 +142,11 @@ private struct StudioMenuBarThumbnail: View {
             settings: settingsStore,
             vendor: vendorStatusStore
         )
-        let image = MenuBarRenderer.renderWithHitRects(data).image
+        // Same RenderData as the real status item -> `render(_:)` is the
+        // memoized path shared with StatusBarController, so this is a cache
+        // hit almost every time instead of a fresh synchronous raster, and
+        // it shows the outage badge faithfully.
+        let image = MenuBarRenderer.render(data)
         return ZStack {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(Color(nsColor: NSColor(red: 0.13, green: 0.13, blue: 0.14, alpha: 1)))
