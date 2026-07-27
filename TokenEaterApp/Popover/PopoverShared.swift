@@ -53,33 +53,18 @@ struct PopoverHeader: View {
     @State private var refreshHovering: Bool = false
 
     private var showBadge: Bool {
-        settingsStore.popoverConfig.showPlanBadge && usageStore.planType != .unknown
+        settingsStore.popoverComposition.showPlanBadge && usageStore.planType != .unknown
     }
 
     private var showButton: Bool {
-        settingsStore.popoverConfig.showRefreshButton
+        settingsStore.popoverComposition.showRefreshButton
     }
 
     /// Top breathing room when both header items are hidden.
-    /// Tuned per variant - each layout has different visual density above
-    /// the hero zone, so a flat value would feel cramped on Classic and
-    /// excessive on Focus.
-    private var emptyHeaderHeight: CGFloat {
-        switch settingsStore.popoverConfig.activeVariant {
-        case .classic: return 16
-        case .compact: return 12
-        case .focus: return 6
-        }
-    }
+    private var emptyHeaderHeight: CGFloat { 12 }
 
     /// Bottom padding under the header when at least one item is shown.
-    /// Focus has a tighter hero zone - 14 leaves an awkward gap there.
-    private var headerBottomPadding: CGFloat {
-        switch settingsStore.popoverConfig.activeVariant {
-        case .classic, .compact: return 14
-        case .focus: return 4
-        }
-    }
+    private var headerBottomPadding: CGFloat { 14 }
 
     var body: some View {
         if !showBadge && !showButton {
@@ -509,128 +494,5 @@ struct PopoverPacingRow: View {
     }
 }
 
-// MARK: - Ring blocks (hero / satellite / equal) used by Classic
-
-/// Big hero ring used when `displaySonnet = true`. Pure visual, no
-/// pin-toggle affordance - users who want to pin a metric do it from the
-/// Menu bar settings section.
-struct PopoverHeroRing: View {
-    @EnvironmentObject private var usageStore: UsageStore
-    @EnvironmentObject private var themeStore: ThemeStore
-    @EnvironmentObject private var settingsStore: SettingsStore
-
-    var body: some View {
-        let pct = usageStore.fiveHourPct
-        let resetDate = usageStore.lastUsage?.fiveHour?.resetsAtDate
-        let windowDuration: TimeInterval = 5 * 3600
-        let color = PopoverColors.gauge(pct: pct, resetDate: resetDate, windowDuration: windowDuration, theme: themeStore, settings: settingsStore)
-        VStack(spacing: 8) {
-            ZStack {
-                RingGauge(
-                    percentage: pct,
-                    gradient: PopoverColors.gaugeGradient(pct: pct, resetDate: resetDate, windowDuration: windowDuration, theme: themeStore, settings: settingsStore),
-                    size: 100,
-                    glowColor: color,
-                    glowRadius: 6
-                )
-                VStack(spacing: 2) {
-                    GlowText(
-                        "\(pct)%",
-                        font: .system(size: 24, weight: .black, design: .rounded),
-                        color: color,
-                        glowRadius: 4
-                    )
-                    Text(String(localized: "metric.session"))
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.5))
-                }
-            }
-            if !usageStore.fiveHourReset.isEmpty {
-                Text(String(format: String(localized: "metric.reset"), usageStore.fiveHourReset))
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.35))
-            }
-        }
-    }
-}
-
-/// Small satellite ring (40px). Used for Weekly or Sonnet when
-/// `displaySonnet = true`.
-struct PopoverSatelliteRing: View {
-    @EnvironmentObject private var themeStore: ThemeStore
-    @EnvironmentObject private var settingsStore: SettingsStore
-
-    let label: String
-    let pct: Int
-    let resetDate: Date?
-    let windowDuration: TimeInterval
-
-    var body: some View {
-        let color = PopoverColors.gauge(pct: pct, resetDate: resetDate, windowDuration: windowDuration, theme: themeStore, settings: settingsStore)
-        VStack(spacing: 4) {
-            ZStack {
-                RingGauge(
-                    percentage: pct,
-                    gradient: PopoverColors.gaugeGradient(pct: pct, resetDate: resetDate, windowDuration: windowDuration, theme: themeStore, settings: settingsStore),
-                    size: 40,
-                    glowColor: color,
-                    glowRadius: 3
-                )
-                GlowText(
-                    "\(pct)%",
-                    font: .system(size: 10, weight: .black, design: .rounded),
-                    color: color,
-                    glowRadius: 2
-                )
-            }
-            Text(label)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.white.opacity(0.5))
-        }
-    }
-}
-
-/// Medium ring (70px) used in the "two equal rings" layout (Classic without
-/// Sonnet). Includes an optional reset countdown below.
-struct PopoverEqualRing: View {
-    @EnvironmentObject private var themeStore: ThemeStore
-    @EnvironmentObject private var settingsStore: SettingsStore
-
-    let label: String
-    let pct: Int
-    /// Empty string = hide the row.
-    let resetText: String
-    let resetDate: Date?
-    let windowDuration: TimeInterval
-
-    var body: some View {
-        let color = PopoverColors.gauge(pct: pct, resetDate: resetDate, windowDuration: windowDuration, theme: themeStore, settings: settingsStore)
-        VStack(spacing: 8) {
-            ZStack {
-                RingGauge(
-                    percentage: pct,
-                    gradient: PopoverColors.gaugeGradient(pct: pct, resetDate: resetDate, windowDuration: windowDuration, theme: themeStore, settings: settingsStore),
-                    size: 70,
-                    glowColor: color,
-                    glowRadius: 4
-                )
-                VStack(spacing: 2) {
-                    GlowText(
-                        "\(pct)%",
-                        font: .system(size: 16, weight: .black, design: .rounded),
-                        color: color,
-                        glowRadius: 3
-                    )
-                    Text(label)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.5))
-                }
-            }
-            if !resetText.isEmpty {
-                Text(String(format: String(localized: "metric.reset"), resetText))
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.35))
-            }
-        }
-    }
-}
+// The ring / chip / arc metric views that used to live here moved to
+// `PopoverCells.swift` as width-aware cells of the composable grid.

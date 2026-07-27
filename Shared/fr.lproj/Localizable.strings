@@ -642,7 +642,7 @@
 
 /* Popover customization */
 "popover.settings.title" = "Popover";
-"popover.settings.subtitle" = "Choisissez un layout et personnalisez ce qui s'affiche quand vous cliquez sur l'icône de la barre de menus.";
+"popover.settings.subtitle" = "Partez d'un template, puis composez votre popover élément par élément.";
 
 /* Section subtitles */
 "sidebar.display.subtitle" = "Choisissez les métriques qui s'affichent dans la barre de menus et leur apparence.";
@@ -653,50 +653,65 @@
 "popover.settings.preview" = "Aperçu";
 "popover.settings.reset" = "Réinitialiser";
 "popover.zone.general" = "Général";
-"popover.zone.hero" = "Hero";
-"popover.zone.content" = "Contenu";
 "popover.option.showPlanBadge" = "Afficher le badge du plan (PRO / MAX / TEAM)";
 "popover.option.showRefreshButton" = "Afficher le bouton de rafraîchissement manuel";
-"popover.option.showSonnet" = "Afficher l'anneau Sonnet (variant Classic)";
-"popover.option.showDesign" = "Afficher l'anneau Design (variant Classic)";
-"popover.option.showExtraCredits" = "Afficher l'anneau Crédits sup.";
-"settings.group.extra" = "Métriques supplémentaires dans la barre de menus";
 
-"popoverVariant.classic" = "Classique";
-"popoverVariant.compact" = "Compact";
-"popoverVariant.focus" = "Focus";
+/* Éditeur du popover composable */
+"popover.editor.templates" = "Templates";
+"popover.editor.elements" = "Éléments";
+"popover.editor.addElement" = "Ajouter un élément";
+"popover.editor.family.metrics" = "Métriques";
+"popover.editor.family.pacing" = "Pacing";
+"popover.editor.family.utilities" = "Utilitaires";
+"popover.editor.unavailable" = "indisponible sur votre plan";
+"popover.editor.saveTemplate" = "Enregistrer comme template";
+"popover.editor.saveTemplate.short" = "Enregistrer";
+"popover.editor.saveTemplate.message" = "Enregistre la composition actuelle pour la réappliquer plus tard.";
+"popover.editor.saveTemplate.placeholder" = "Nom du template";
+"popover.editor.save" = "Enregistrer";
+"popover.editor.cancel" = "Annuler";
+"popover.editor.deleteTemplate" = "Supprimer le template";
+"popover.editor.content.percent" = "Afficher le pourcentage";
+"popover.editor.content.reset" = "Afficher le compte à rebours du reset";
+"popover.editor.showReset" = "Afficher le reset en dessous";
+"popover.editor.preview.hint" = "Cliquez sur un élément pour le sélectionner dans la liste";
+"popover.cell.resetLabel" = "Reset %@";
+"popover.empty" = "Rien à afficher pour le moment";
+"popover.empty.hint" = "Ajoutez des éléments dans Réglages > Popover";
 
-"popoverBlock.sessionRing" = "Anneau session (5h)";
-"popoverBlock.weeklyRing" = "Anneau hebdomadaire";
-"popoverBlock.sessionPaceBar" = "Pacing session";
-"popoverBlock.weeklyPaceBar" = "Pacing hebdomadaire";
-"popoverBlock.sessionChip" = "Chip session";
-"popoverBlock.weeklyChip" = "Chip hebdomadaire";
-"popoverBlock.sessionPaceTile" = "Tuile pacing session";
-"popoverBlock.weeklyPaceTile" = "Tuile pacing hebdo";
-"popoverBlock.sessionPaceMini" = "Pacing session (mini)";
-"popoverBlock.weeklyPaceMini" = "Pacing hebdo (mini)";
-"popoverBlock.watchers" = "Agent watchers";
-"popoverBlock.timestamp" = "Horodatage de mise à jour";
-"popoverBlock.openTokenEaterButton" = "Bouton Open TokenEater";
-"popoverBlock.quitButton" = "Bouton Quit";
+"popoverElement.session" = "Session (5h)";
+"popoverElement.weekly" = "Hebdomadaire";
+"popoverElement.sonnet" = "Sonnet";
+"popoverElement.design" = "Design";
+"popoverElement.fable" = "Fable";
+"popoverElement.extraCredits" = "Crédits sup.";
+"popoverElement.sessionPacing" = "Pacing session";
+"popoverElement.weeklyPacing" = "Pacing hebdo";
+"popoverElement.watchers" = "Agent watchers";
+"popoverElement.timestamp" = "Horodatage de mise à jour";
+"popoverElement.openButton" = "Bouton Open TokenEater";
+"popoverElement.quitButton" = "Bouton Quitter";
 
-"focusHero.sessionReset" = "Compte à rebours session";
-"focusHero.weeklyReset" = "Compte à rebours hebdo";
-"focusHero.sessionValue" = "Pourcentage session";
-"focusHero.weeklyValue" = "Pourcentage hebdo";
+"popoverStyle.gaugeRing" = "Anneau";
+"popoverStyle.chip" = "Chip";
+"popoverStyle.arc" = "Arc";
+"popoverStyle.bigText" = "Grand texte";
+"popoverStyle.paceBar" = "Barre";
+"popoverStyle.paceTile" = "Tuile";
+"popoverStyle.paceText" = "Texte";
+"popoverStyle.utilityRow" = "Ligne";
+"popoverStyle.actionButton" = "Bouton";
 
-"focus.hero.sessionReset" = "Avant reset session";
-"focus.hero.weeklyReset" = "Avant reset hebdo";
-"focus.hero.sessionValue" = "Usage session";
-"focus.hero.weeklyValue" = "Usage hebdo";
-"focus.sat.sessionReset" = "Reset";
-"focus.sat.weeklyReset" = "Reset hebdo";
-"focus.sat.sessionValue" = "Session";
-"focus.sat.weeklyValue" = "Hebdo";
+"popoverWidth.full" = "Pleine largeur";
+"popoverWidth.half" = "Demi-largeur";
+"popoverWidth.third" = "Tiers de largeur";
 
-"compact.chip.sessionLeft" = "%@ restant";
-"compact.chip.weeklyLeft" = "dans %@";
+"popoverTemplate.classic" = "Classique";
+"popoverTemplate.compact" = "Compact";
+"popoverTemplate.focus" = "Focus";
+"popoverTemplate.minimalist" = "Minimaliste";
+"popoverTemplate.fableFirst" = "Fable d'abord";
+"popoverTemplate.complete" = "Complet";
 
 "menubar.updated.never" = "jamais";
 
@@ -717,7 +732,7 @@
 /* Menu bar icon right-click menu */
 "contextmenu.refresh" = "Rafraîchir maintenant";
 "contextmenu.open" = "Ouvrir TokenEater...";
-"contextmenu.variant" = "Layout du popover";
+"contextmenu.template" = "Template du popover";
 "contextmenu.watchers.enable" = "Activer les Agent Watchers";
 "contextmenu.watchers.disable" = "Désactiver les Agent Watchers";
 "contextmenu.settings" = "Réglages";
@@ -789,7 +804,6 @@
 /* Fable (limite hebdomadaire Claude Fable) */
 "metric.fable" = "Fable";
 "widget.fable" = "Fable";
-"popover.option.showFable" = "Afficher l'anneau Fable (variant Classic)";
 "settings.notifications.track.fable" = "Suivre la semaine Claude Fable";
 "notif.title.fable.pace" = "En avance sur le rythme Fable";
 "notif.body.fable.pace" = "Tu es au-dessus d'un rythme Fable régulier, pas proche du plafond. Rien d'alarmant si c'est voulu.";

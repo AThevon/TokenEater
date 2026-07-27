@@ -451,9 +451,6 @@ struct DisplaySectionView: View {
         settingsStore.resetDisplayFormat = .relative
         settingsStore.resetTextColorHex = ""
         settingsStore.sessionPeriodColorHex = ""
-        settingsStore.displaySonnet = true
-        settingsStore.displayDesign = true
-        settingsStore.displayFable = true
         // Local @State mirrors so the toggle UI reflects the reset immediately.
         showFiveHour = settingsStore.pinnedMetrics.contains(.fiveHour)
         showSessionReset = settingsStore.pinnedMetrics.contains(.sessionReset)

@@ -68,12 +68,16 @@ final class SettingsStore: ObservableObject {
     }
 
     // MARK: - Popover
-    /// Full layout configuration for the menu-bar popover. 3 variants share this
-    /// struct; switching `activeVariant` leaves the other variants untouched so
-    /// the user can keep 3 distinct preferences. Persisted as JSON under
-    /// `popoverConfig` in UserDefaults.
-    @Published var popoverConfig: PopoverConfig {
-        didSet { savePopoverConfig() }
+    /// The composable popover: one ordered list of elements (kind + style +
+    /// width). Persisted as JSON under `popoverComposition` in UserDefaults.
+    /// The legacy `popoverConfig` blob is migrated once (see init) and left
+    /// in place so a downgrade restores the pre-5.9 popover untouched.
+    @Published var popoverComposition: PopoverComposition {
+        didSet { savePopoverComposition() }
+    }
+    /// Compositions the user saved under a name from the popover editor.
+    @Published var popoverUserTemplates: [PopoverUserTemplate] {
+        didSet { savePopoverUserTemplates() }
     }
     @Published var hasCompletedOnboarding: Bool {
         didSet { UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding") }
@@ -317,7 +321,10 @@ final class SettingsStore: ObservableObject {
         self.pacing = PacingSettingsStore(sharedFileService: sharedFileService)
         self.notification = NotificationSettingsStore()
         self.overlay = OverlaySettingsStore()
-        self.display = DisplaySettingsStore(sharedFileService: sharedFileService)
+        // Local so the popover migration below can read the legacy display
+        // toggles without touching `self` before init completes.
+        let displayStore = DisplaySettingsStore(sharedFileService: sharedFileService)
+        self.display = displayStore
 
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
         self.proxyEnabled = UserDefaults.standard.bool(forKey: "proxyEnabled")
@@ -349,14 +356,36 @@ final class SettingsStore: ObservableObject {
         }()
         self.statusShowMenuBarBadge = SettingsDefaults.bool(key: "statusShowMenuBarBadge", default: true)
 
-        // Popover layout config. Fresh install or decode failure -> defaults
-        // that reproduce the v4.10.x popover visually (Classic variant, all
-        // blocks visible).
-        if let data = UserDefaults.standard.data(forKey: "popoverConfig"),
-           let decoded = try? JSONDecoder().decode(PopoverConfig.self, from: data) {
-            self.popoverConfig = Self.reconcile(decoded)
+        // Popover composition. Load order: new blob, else one-shot migration
+        // of the legacy variant-based config (preserving what the user saw
+        // before 5.9), else the Classic template.
+        let hadCompositionBlob = UserDefaults.standard.data(forKey: "popoverComposition") != nil
+        if let data = UserDefaults.standard.data(forKey: "popoverComposition"),
+           let decoded = try? JSONDecoder().decode(PopoverComposition.self, from: data) {
+            self.popoverComposition = Self.reconcile(decoded)
+        } else if let legacy = UserDefaults.standard.data(forKey: "popoverConfig"),
+                  let config = try? JSONDecoder().decode(PopoverConfig.self, from: legacy) {
+            self.popoverComposition = Self.reconcile(PopoverConfigMigrator.migrate(
+                config,
+                displaySonnet: displayStore.displaySonnet,
+                displayDesign: displayStore.displayDesign,
+                displayFable: displayStore.displayFable,
+                displayExtraCredits: displayStore.displayExtraCredits,
+                // Presence from the cached usage, so a stale toggle (metric
+                // no longer on the account) can't flip the layout shape.
+                presence: PopoverConfigMigrator.AccountPresence(
+                    cachedUsage: sharedFileService.cachedUsage?.usage
+                )
+            ))
         } else {
-            self.popoverConfig = .default
+            self.popoverComposition = .default
+        }
+
+        if let data = UserDefaults.standard.data(forKey: "popoverUserTemplates"),
+           let decoded = try? JSONDecoder().decode([PopoverUserTemplate].self, from: data) {
+            self.popoverUserTemplates = decoded
+        } else {
+            self.popoverUserTemplates = []
         }
 
         // The piège: a @Published child only emits the parent's objectWillChange
@@ -376,24 +405,31 @@ final class SettingsStore: ObservableObject {
         self.displayRelay = display.objectWillChange.sink { [weak self] in
             self?.objectWillChange.send()
         }
+
+        // didSet doesn't fire during init - persist the migrated / default
+        // composition now so the one-shot migration is durable.
+        if !hadCompositionBlob {
+            savePopoverComposition()
+        }
     }
 
     // MARK: - Popover persistence
 
-    private func savePopoverConfig() {
-        guard let data = try? JSONEncoder().encode(popoverConfig) else { return }
-        UserDefaults.standard.set(data, forKey: "popoverConfig")
+    private func savePopoverComposition() {
+        guard let data = try? JSONEncoder().encode(popoverComposition) else { return }
+        UserDefaults.standard.set(data, forKey: "popoverComposition")
     }
 
-    /// Ensures a decoded config still satisfies the validation rules (at least
-    /// one visible block in hero+middle for non-focus variants). If anything is
-    /// off, fall back to defaults for that variant only.
-    private static func reconcile(_ config: PopoverConfig) -> PopoverConfig {
-        var fixed = config
-        if !fixed.hasVisibleContent(for: .classic) { fixed.classic = .classicDefault }
-        if !fixed.hasVisibleContent(for: .compact) { fixed.compact = .compactDefault }
-        // Focus always valid by construction (hero driven by focusHero radio).
-        return fixed
+    private func savePopoverUserTemplates() {
+        guard let data = try? JSONEncoder().encode(popoverUserTemplates) else { return }
+        UserDefaults.standard.set(data, forKey: "popoverUserTemplates")
+    }
+
+    /// Ensures a decoded composition still satisfies the validation rules
+    /// (at least one visible element). Anything off falls back to the default
+    /// template rather than rendering an empty popover.
+    private static func reconcile(_ composition: PopoverComposition) -> PopoverComposition {
+        composition.hasVisibleContent ? composition : .default
     }
 
     // MARK: - Metrics
