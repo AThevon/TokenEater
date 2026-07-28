@@ -237,6 +237,10 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
     @ViewBuilder
     private func addButton(for kind: MenuBarSegmentKind) -> some View {
         let available = accountHasKind(kind)
+        // Not disabled when unavailable: let the user pre-place a metric the
+        // account does not have yet so the layout is future-proof; the
+        // renderer keeps it hidden until the data actually shows up. The label
+        // flags that it is not active yet.
         Button {
             addSegment(kind)
         } label: {
@@ -246,7 +250,6 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
                 systemImage: kind.symbolName
             )
         }
-        .disabled(!available)
     }
 
     private func accountHasKind(_ kind: MenuBarSegmentKind) -> Bool {

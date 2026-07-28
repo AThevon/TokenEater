@@ -298,6 +298,11 @@ struct PopoverSectionView: View {
     @ViewBuilder
     private func addButton(for kind: PopoverElementKind) -> some View {
         let available = accountHasKind(kind)
+        // Not disabled when unavailable: a user can pre-place a metric the
+        // account does not have yet (Design, Extra Credits, Fable) so their
+        // layout is future-proof - the render-time gate keeps it hidden until
+        // the account actually gains the data, at which point it appears on
+        // its own. The label just flags that it is not active yet.
         Button {
             addElement(kind)
         } label: {
@@ -307,11 +312,11 @@ struct PopoverSectionView: View {
                 systemImage: kind.symbolName
             )
         }
-        .disabled(!available)
     }
 
-    /// Plan-level availability for the add menu (data-presence gating at
-    /// render time is separate and stays live).
+    /// Whether the metric is currently active on the account. Only labels the
+    /// add-menu entry; it does not block adding (see `addButton`). Render-time
+    /// presence gating stays live and separate.
     private func accountHasKind(_ kind: PopoverElementKind) -> Bool {
         switch kind {
         case .design: return usageStore.hasDesign

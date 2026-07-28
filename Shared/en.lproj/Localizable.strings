@@ -694,7 +694,7 @@
 "popover.editor.family.metrics" = "Metrics";
 "popover.editor.family.pacing" = "Pacing";
 "popover.editor.family.utilities" = "Utilities";
-"popover.editor.unavailable" = "not available on your plan";
+"popover.editor.unavailable" = "not active on this account";
 "popover.editor.saveTemplate" = "Save as template";
 "popover.editor.saveTemplate.short" = "Save current";
 "popover.editor.saveTemplate.message" = "Saves the current composition so you can reapply it later.";
@@ -755,7 +755,7 @@
 "menuBar.editor.family.metrics" = "Metrics";
 "menuBar.editor.family.pacing" = "Pacing";
 "menuBar.editor.family.status" = "Status";
-"menuBar.editor.unavailable" = "not available on your plan";
+"menuBar.editor.unavailable" = "not active on this account";
 "menuBar.editor.saveTemplate" = "Save as template";
 "menuBar.editor.saveTemplate.short" = "Save current";
 "menuBar.editor.saveTemplate.message" = "Saves the current menu bar layout so you can reapply it later.";
