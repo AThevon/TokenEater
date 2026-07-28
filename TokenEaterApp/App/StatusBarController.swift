@@ -39,6 +39,16 @@ final class StatusBarController: NSObject {
         self.vendorStatusStore = vendorStatusStore
         self.tokenFileMonitor = tokenFileMonitor
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        // Track the item under a stable, app-specific identity rather than the
+        // generic "Item-0" the system assigns by default. On macOS 26 the OS
+        // (Control Center) manages menu-bar-item visibility, and a corrupted
+        // managed state for "Item-0" left the NSStatusItem existing (its
+        // visibility prefs still flipped) but with no menu bar window ever
+        // created, so the icon never appeared and no defaults edit recovered it
+        // (#236). A distinct autosaveName gives the item a fresh tracking
+        // identity, sidestepping the stuck "Item-0" state, and persists its
+        // position properly going forward.
+        self.statusItem.autosaveName = "TokenEaterStatusItem"
         self.statusItem.isVisible = settingsStore.showMenuBar
 
         super.init()
