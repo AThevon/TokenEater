@@ -11,6 +11,10 @@ final class StatusBarController: NSObject {
     private var localKeyMonitor: Any?
     private var appDeactivateObserver: NSObjectProtocol?
     private var spaceChangeObserver: NSObjectProtocol?
+    /// App that held focus just before the popover opened (captured before we
+    /// activate ourselves). Used to tell a real app switch from the spurious
+    /// resign the fullscreen menu-bar auto-hide causes.
+    private var popoverOriginAppPID: pid_t?
     private var cancellables = Set<AnyCancellable>()
     private var countdownCancellable: AnyCancellable?
 
@@ -519,6 +523,10 @@ final class StatusBarController: NSObject {
             dismissPopover()
         } else {
             guard let button = statusItem.button else { return }
+            // Capture the app we're opening over BEFORE we steal focus, so the
+            // resign handler can tell "focus returned here" (spurious fullscreen
+            // menu-bar hide) from "user switched to a different app".
+            popoverOriginAppPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
             installPopoverContent()
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             NSApp.activate(ignoringOtherApps: true)
@@ -711,10 +719,32 @@ final class StatusBarController: NSObject {
         // App deactivation (Cmd-Tab, clicking another app) and Space changes
         // close it too, restoring the dismissal .transient gave us for free
         // before we switched to .applicationDefined for the fullscreen fix.
+        //
+        // Fullscreen trap: over a fullscreen Space the menu bar auto-hides as
+        // soon as the cursor leaves it, and that hide resigns our app active -
+        // a spurious deactivation, not a real app switch. It fired on the first
+        // mouse move and closed the popover (confirmed via instrumentation:
+        // SHOWN -> didResignActive on cursor move). Guard on the menu bar being
+        // visible: a genuine Cmd-Tab in windowed mode keeps it visible (still
+        // dismisses), while the fullscreen auto-hide leaves it hidden (skip).
+        // A real Cmd-Tab away in fullscreen still dismisses via the Space-change
+        // observer below. Deferred one runloop so the menu bar state has
+        // settled by the time we read it.
         appDeactivateObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            self?.dismissPopover()
+            // Deferred one runloop so `frontmostApplication` reflects who is
+            // active AFTER the switch, not us mid-resign.
+            DispatchQueue.main.async {
+                guard let self else { return }
+                let nowFront = NSWorkspace.shared.frontmostApplication?.processIdentifier
+                // Focus returned to the app we opened over -> the fullscreen
+                // menu-bar auto-hide resigned us spuriously; keep the popover.
+                // A genuinely different app now front means a real switch.
+                if let nowFront, nowFront != self.popoverOriginAppPID {
+                    self.dismissPopover()
+                }
+            }
         }
         spaceChangeObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
