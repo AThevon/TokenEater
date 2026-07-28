@@ -234,7 +234,6 @@ final class StatusBarController: NSObject {
             trackFiveHour: settingsStore.notifTrackFiveHour,
             trackWeekly: settingsStore.notifTrackWeekly,
             trackSonnet: settingsStore.notifTrackSonnet,
-            trackDesign: settingsStore.notifTrackDesign,
             trackFable: settingsStore.notifTrackFable,
             sendRecovery: settingsStore.notifSendRecovery,
             pacingHot: settingsStore.notifPacingHot,

@@ -15,14 +15,8 @@ struct UsageResponse: Codable {
     /// tagged `scope.model.display_name == "Fable"`. `init(from:)` reads the
     /// dedicated key first and falls back to the array. Shown as a "Fable" tile.
     let sevenDayFable: UsageBucket?
-    /// Claude Design. Anthropic codenamed it `seven_day_omelette` during the
-    /// initial rollout, then moved the quota under `omelette_promotional` (the
-    /// legacy key now returns null on migrated accounts). We read both and keep
-    /// whichever is populated so the Design card survives the rename. Exposed as
-    /// `sevenDayDesign` internally and labelled "Design" in the UI.
-    let sevenDayDesign: UsageBucket?
-    /// New paid-credits pool that surfaced alongside Design. Rendered as a
-    /// dedicated card rather than a ring, only visible when `isEnabled` is true.
+    /// New paid-credits pool. Rendered as a dedicated card rather than a ring,
+    /// only visible when `isEnabled` is true.
     let extraUsage: ExtraUsage?
 
     enum CodingKeys: String, CodingKey {
@@ -33,15 +27,12 @@ struct UsageResponse: Codable {
         case sevenDayOpus = "seven_day_opus"
         case sevenDayCowork = "seven_day_cowork"
         case sevenDayFable = "seven_day_fable"
-        case sevenDayDesign = "seven_day_omelette"
         case extraUsage = "extra_usage"
     }
 
     /// Keys with no backing stored property, read in `init(from:)` only. Kept
     /// out of `CodingKeys` so the synthesized `Encodable` stays property-aligned.
     private enum FallbackKeys: String, CodingKey {
-        /// Post-rollout home of the Claude Design quota (was `seven_day_omelette`).
-        case sevenDayDesignPromo = "omelette_promotional"
         /// Array of per-scope limit entries. The new home of per-model weekly
         /// quotas (`weekly_scoped`) as Anthropic retires the `seven_day_*` keys.
         case limits
@@ -55,7 +46,6 @@ struct UsageResponse: Codable {
         sevenDayOpus: UsageBucket? = nil,
         sevenDayCowork: UsageBucket? = nil,
         sevenDayFable: UsageBucket? = nil,
-        sevenDayDesign: UsageBucket? = nil,
         extraUsage: ExtraUsage? = nil
     ) {
         self.fiveHour = fiveHour
@@ -65,7 +55,6 @@ struct UsageResponse: Codable {
         self.sevenDayOpus = sevenDayOpus
         self.sevenDayCowork = sevenDayCowork
         self.sevenDayFable = sevenDayFable
-        self.sevenDayDesign = sevenDayDesign
         self.extraUsage = extraUsage
     }
 
@@ -93,11 +82,6 @@ struct UsageResponse: Codable {
         sevenDayOpus = (try? container.decode(UsageBucket.self, forKey: .sevenDayOpus)) ?? scoped("Opus")
         sevenDayCowork = try? container.decode(UsageBucket.self, forKey: .sevenDayCowork)
         sevenDayFable = (try? container.decode(UsageBucket.self, forKey: .sevenDayFable)) ?? scoped("Fable")
-        // Prefer the legacy key, then the promotional key Anthropic migrated the
-        // quota to, then the `limits` array. Any of them may be null/absent.
-        let designLegacy = try? container.decode(UsageBucket.self, forKey: .sevenDayDesign)
-        let designPromo = fallback.flatMap { try? $0.decode(UsageBucket.self, forKey: .sevenDayDesignPromo) }
-        sevenDayDesign = designLegacy ?? designPromo ?? scoped("Design")
         extraUsage = try? container.decode(ExtraUsage.self, forKey: .extraUsage)
     }
 }

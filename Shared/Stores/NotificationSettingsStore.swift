@@ -22,9 +22,6 @@ final class NotificationSettingsStore: ObservableObject {
     @Published var trackSonnet: Bool {
         didSet { UserDefaults.standard.set(trackSonnet, forKey: "notifTrackSonnet") }
     }
-    @Published var trackDesign: Bool {
-        didSet { UserDefaults.standard.set(trackDesign, forKey: "notifTrackDesign") }
-    }
     @Published var trackFable: Bool {
         didSet { UserDefaults.standard.set(trackFable, forKey: "notifTrackFable") }
     }
@@ -80,7 +77,6 @@ final class NotificationSettingsStore: ObservableObject {
         self.trackFiveHour = SettingsDefaults.bool(key: "notifTrackFiveHour", default: true)
         self.trackWeekly = SettingsDefaults.bool(key: "notifTrackWeekly", default: true)
         self.trackSonnet = SettingsDefaults.bool(key: "notifTrackSonnet", default: false)
-        self.trackDesign = SettingsDefaults.bool(key: "notifTrackDesign", default: true)
         self.trackFable = SettingsDefaults.bool(key: "notifTrackFable", default: true)
         self.sendRecovery = SettingsDefaults.bool(key: "notifSendRecovery", default: true)
         self.pacingHot = SettingsDefaults.bool(key: "notifPacingHot", default: true)

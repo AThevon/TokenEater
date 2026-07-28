@@ -55,13 +55,10 @@ final class SettingsStore: ObservableObject {
     var displaySonnet: Bool {
         get { display.displaySonnet } set { display.displaySonnet = newValue }
     }
-    var displayDesign: Bool {
-        get { display.displayDesign } set { display.displayDesign = newValue }
-    }
     var displayFable: Bool {
         get { display.displayFable } set { display.displayFable = newValue }
     }
-    /// Same as `displayDesign` but for the paid Extra Credits pool. Only
+    /// Same as `displayFable` but for the paid Extra Credits pool. Only
     /// surfaced in settings when `UsageStore.hasExtraCredits` is true.
     var displayExtraCredits: Bool {
         get { display.displayExtraCredits } set { display.displayExtraCredits = newValue }
@@ -204,9 +201,6 @@ final class SettingsStore: ObservableObject {
     }
     var notifTrackSonnet: Bool {
         get { notification.trackSonnet } set { notification.trackSonnet = newValue }
-    }
-    var notifTrackDesign: Bool {
-        get { notification.trackDesign } set { notification.trackDesign = newValue }
     }
     var notifTrackFable: Bool {
         get { notification.trackFable } set { notification.trackFable = newValue }
@@ -397,7 +391,6 @@ final class SettingsStore: ObservableObject {
             self.popoverComposition = PopoverChromeMigrator.migrate(Self.reconcile(PopoverConfigMigrator.migrate(
                 config,
                 displaySonnet: displayStore.displaySonnet,
-                displayDesign: displayStore.displayDesign,
                 displayFable: displayStore.displayFable,
                 displayExtraCredits: displayStore.displayExtraCredits,
                 // Presence from the cached usage, so a stale toggle (metric

@@ -57,9 +57,9 @@ struct MonitoringView: View {
     }
 
     /// Maps a tile id to the matching `ModelFamily` (nil = all-models).
-    /// `design` / `cowork` map to nil because they're not present in
-    /// the JSONL stream that `SessionHistoryService` aggregates - they
-    /// fall back to the minimal back-of-card content.
+    /// `cowork` maps to nil because it's not present in the JSONL stream
+    /// that `SessionHistoryService` aggregates - it falls back to the
+    /// minimal back-of-card content.
     private func tileFamily(for id: String) -> ModelFamily? {
         switch id {
         case "sonnet": return .sonnet
@@ -70,7 +70,7 @@ struct MonitoringView: View {
     }
 
     /// True only for tiles whose family is represented in the JSONL data
-    /// (weekly, sonnet, opus). Design / Cowork get the simple back.
+    /// (weekly, sonnet, opus). Cowork gets the simple back.
     private func hasRichBack(tileId: String) -> Bool {
         ["weekly", "sonnet", "opus"].contains(tileId)
     }
@@ -476,7 +476,7 @@ struct MonitoringView: View {
 
     private var metricsGrid: some View {
         // Width-filling rows instead of a fixed 3-column grid: the number of
-        // secondary tiles varies (Design/Opus/Cowork are shown only when their
+        // secondary tiles varies (Opus/Cowork are shown only when their
         // API bucket exists), so a fixed grid left an empty trailing cell when
         // the count was not a multiple of 3. Each row's tiles stretch to fill
         // the full width, so there is never a hole regardless of tile count.
@@ -530,17 +530,6 @@ struct MonitoringView: View {
                 windowDuration: weekWindow
             )
         ]
-        if usageStore.hasDesign {
-            tiles.append(TileDescriptor(
-                id: "design",
-                label: String(localized: "metric.design"),
-                icon: "paintbrush.pointed.fill",
-                pct: usageStore.designPct,
-                resetText: usageStore.designReset.isEmpty ? nil : usageStore.designReset,
-                resetDate: usageStore.lastUsage?.sevenDayDesign?.resetsAtDate,
-                windowDuration: weekWindow
-            ))
-        }
         if usageStore.hasOpus {
             tiles.append(TileDescriptor(
                 id: "opus",

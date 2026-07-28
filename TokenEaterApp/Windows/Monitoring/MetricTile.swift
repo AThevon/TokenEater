@@ -25,7 +25,7 @@ struct MetricTile: View {
     let smartProfile: SmartColorProfile
     let themeStore: ThemeStore
     /// 7d insights snapshot when the tile family has data. Nil for
-    /// design / cowork tiles where the JSONL feed has nothing relevant.
+    /// cowork tiles where the JSONL feed has nothing relevant.
     let insights: TileInsightsSnapshot?
     /// True once the insights store has done its first load. Lets the
     /// back face show a "loading..." placeholder vs a "no data" one.
@@ -254,9 +254,9 @@ struct MetricTile: View {
         }
     }
 
-    /// Fallback when no JSONL family data exists for this tile (design /
-    /// cowork). Keeps the card useful by surfacing the full reset date
-    /// instead of leaving the back empty.
+    /// Fallback when no JSONL family data exists for this tile (cowork).
+    /// Keeps the card useful by surfacing the full reset date instead of
+    /// leaving the back empty.
     @ViewBuilder
     private func fallbackBackBody(color: Color) -> some View {
         Spacer(minLength: 0)

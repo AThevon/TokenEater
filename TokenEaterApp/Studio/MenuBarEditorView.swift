@@ -209,7 +209,7 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
     private var addSegmentMenu: some View {
         Menu {
             Section(String(localized: "menuBar.editor.family.metrics")) {
-                let metricKinds: [MenuBarSegmentKind] = [.session, .weekly, .sonnet, .design, .fable, .extraCredits]
+                let metricKinds: [MenuBarSegmentKind] = [.session, .weekly, .sonnet, .fable, .extraCredits]
                 ForEach(metricKinds) { addButton(for: $0) }
             }
             Section(String(localized: "menuBar.editor.family.pacing")) {
@@ -254,7 +254,6 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
 
     private func accountHasKind(_ kind: MenuBarSegmentKind) -> Bool {
         switch kind {
-        case .design: return usageStore.hasDesign
         case .fable: return usageStore.hasFable
         case .extraCredits: return usageStore.hasExtraCredits
         default: return true
@@ -558,7 +557,6 @@ private struct MenuBarSegmentListEditor: View {
 
     private func isAvailable(_ kind: MenuBarSegmentKind) -> Bool {
         switch kind {
-        case .design: return usageStore.hasDesign
         case .fable: return usageStore.hasFable
         case .extraCredits: return usageStore.hasExtraCredits
         default: return true

@@ -10,18 +10,15 @@ import Foundation
 /// the previous popover untouched.
 enum PopoverConfigMigrator {
     /// Account-presence snapshot at migration time, read from the cached
-    /// usage in shared.json. The legacy renderer gated the Design / Fable /
-    /// Extra Credits satellites on `displayX && hasX` at every render;
-    /// migration must apply the same gate or a stale toggle (e.g. Design
-    /// enabled during the research preview, access lost since) would flip
-    /// the layout shape the user never saw. Sonnet was never presence-gated.
+    /// usage in shared.json. The legacy renderer gated the Fable / Extra
+    /// Credits satellites on `displayX && hasX` at every render; migration
+    /// must apply the same gate or a stale toggle would flip the layout shape
+    /// the user never saw. Sonnet was never presence-gated.
     struct AccountPresence {
-        var hasDesign: Bool
         var hasFable: Bool
         var hasExtraCredits: Bool
 
-        init(hasDesign: Bool = true, hasFable: Bool = true, hasExtraCredits: Bool = true) {
-            self.hasDesign = hasDesign
+        init(hasFable: Bool = true, hasExtraCredits: Bool = true) {
             self.hasFable = hasFable
             self.hasExtraCredits = hasExtraCredits
         }
@@ -35,7 +32,6 @@ enum PopoverConfigMigrator {
                 return
             }
             self.init(
-                hasDesign: usage.sevenDayDesign != nil,
                 hasFable: usage.sevenDayFable != nil,
                 hasExtraCredits: usage.extraUsage?.isEnabled == true
             )
@@ -50,7 +46,6 @@ enum PopoverConfigMigrator {
     static func migrate(
         _ config: PopoverConfig,
         displaySonnet: Bool,
-        displayDesign: Bool,
         displayFable: Bool,
         displayExtraCredits: Bool,
         presence: AccountPresence = AccountPresence()
@@ -65,7 +60,6 @@ enum PopoverConfigMigrator {
 
         let extras = extraKinds(
             sonnet: displaySonnet,
-            design: displayDesign && presence.hasDesign,
             fable: displayFable && presence.hasFable,
             extraCredits: displayExtraCredits && presence.hasExtraCredits
         )
@@ -251,11 +245,10 @@ enum PopoverConfigMigrator {
     }
 
     private static func extraKinds(
-        sonnet: Bool, design: Bool, fable: Bool, extraCredits: Bool
+        sonnet: Bool, fable: Bool, extraCredits: Bool
     ) -> [PopoverElementKind] {
         var kinds: [PopoverElementKind] = []
         if sonnet { kinds.append(.sonnet) }
-        if design { kinds.append(.design) }
         if fable { kinds.append(.fable) }
         if extraCredits { kinds.append(.extraCredits) }
         return kinds

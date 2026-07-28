@@ -7,7 +7,6 @@ final class MockNotificationService: NotificationServiceProtocol {
         fiveHour: MetricSnapshot,
         sevenDay: MetricSnapshot,
         sonnet: MetricSnapshot,
-        design: MetricSnapshot,
         fable: MetricSnapshot,
         sessionPacing: PacingZone?,
         weeklyPacing: PacingZone?,
@@ -33,14 +32,13 @@ final class MockNotificationService: NotificationServiceProtocol {
         fiveHour: MetricSnapshot,
         sevenDay: MetricSnapshot,
         sonnet: MetricSnapshot,
-        design: MetricSnapshot,
         fable: MetricSnapshot,
         sessionPacing: PacingZone?,
         weeklyPacing: PacingZone?,
         extraUsage: ExtraUsage?,
         toggles: NotificationToggles
     ) {
-        lastEvaluation = (fiveHour, sevenDay, sonnet, design, fable, sessionPacing, weeklyPacing, extraUsage, toggles)
+        lastEvaluation = (fiveHour, sevenDay, sonnet, fable, sessionPacing, weeklyPacing, extraUsage, toggles)
     }
 
     func notifyTokenExpired(toggle: Bool) {

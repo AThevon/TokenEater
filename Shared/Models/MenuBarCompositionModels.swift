@@ -15,7 +15,7 @@ import Foundation
 /// What a menu bar segment shows.
 enum MenuBarSegmentKind: String, Codable, CaseIterable, Identifiable {
     // Usage metrics (percentage)
-    case session, weekly, sonnet, design, fable, extraCredits
+    case session, weekly, sonnet, fable, extraCredits
     // Pacing (delta vs linear pace)
     case sessionPacing, weeklyPacing
     // Status / time
@@ -27,7 +27,7 @@ enum MenuBarSegmentKind: String, Codable, CaseIterable, Identifiable {
 
     var family: Family {
         switch self {
-        case .session, .weekly, .sonnet, .design, .fable, .extraCredits:
+        case .session, .weekly, .sonnet, .fable, .extraCredits:
             return .usage
         case .sessionPacing, .weeklyPacing:
             return .pacing
@@ -54,7 +54,7 @@ enum MenuBarSegmentKind: String, Codable, CaseIterable, Identifiable {
     /// Presence-gated kinds render nothing (and the editor greys them) when the
     /// account lacks the metric, matching the pre-5.10 menu bar.
     var isPresenceGated: Bool {
-        self == .design || self == .fable || self == .extraCredits
+        self == .fable || self == .extraCredits
     }
 }
 
@@ -254,7 +254,6 @@ extension MenuBarSegmentKind {
         case .session: return "bolt.fill"
         case .weekly: return "calendar"
         case .sonnet: return "quote.opening"
-        case .design: return "paintbrush.pointed.fill"
         case .fable: return "books.vertical.fill"
         case .extraCredits: return "creditcard.fill"
         case .sessionPacing, .weeklyPacing: return "speedometer"

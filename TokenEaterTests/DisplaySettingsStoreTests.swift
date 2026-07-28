@@ -11,7 +11,7 @@ struct DisplaySettingsStoreTests {
         "smartColorEnabled", "smartResetColor", "smartColorProfile", "glowIntensity",
         "menuBarStyle", "pacingShape", "sessionPacingDisplayMode", "weeklyPacingDisplayMode",
         "pacingDisplayMode", "resetTextColorHex", "sessionPeriodColorHex",
-        "displaySonnet", "displayDesign", "showSessionReset",
+        "displaySonnet", "showSessionReset",
     ]
     private func clean() { displayKeys.forEach { UserDefaults.standard.removeObject(forKey: $0) } }
 
@@ -33,7 +33,6 @@ struct DisplaySettingsStoreTests {
         #expect(store.resetTextColorHex == "")
         #expect(store.sessionPeriodColorHex == "")
         #expect(store.displaySonnet == false)
-        #expect(store.displayDesign == false)
     }
 
     @Test("changing menuBarStyle persists to UserDefaults")

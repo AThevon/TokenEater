@@ -8,9 +8,7 @@
 
 /* Metrics */
 "metric.session" = "5h";
-"metric.design" = "Design";
 "metric.serviceStatus" = "Service status";
-"settings.group.design" = "Claude Design";
 
 /* Extra usage (paid credits pool) */
 "dashboard.extra.title" = "Extra credits";
@@ -55,7 +53,6 @@
 "widget.pacing.title" = "Weekly Pace";
 "widget.pacing.session" = "5h";
 "widget.pacing.weekly" = "7d";
-"widget.design" = "Design";
 "widget.extra" = "Extra Credits";
 "widget.title.extraCredits" = "Extra Credits";
 "widget.description.extraCredits" = "Track your paid Extra Credits pool: spend, monthly limit and percentage used";
@@ -273,10 +270,8 @@
 "notif.title.weekly.green" = "Weekly reset";
 "notif.title.weekly.pace" = "Ahead of weekly pace";
 "notif.title.sonnet.pace" = "Ahead of Sonnet pace";
-"notif.title.design.pace" = "Ahead of Design pace";
 "notif.body.weekly.pace" = "You're ahead of an even weekly burn rate, not near the cap. Fine if intentional.";
 "notif.body.sonnet.pace" = "You're ahead of an even Sonnet burn rate, not near the cap. Fine if intentional.";
-"notif.body.design.pace" = "You're ahead of an even Design burn rate, not near the cap. Fine if intentional.";
 "notif.body.weekly.orange" = "Resets %@";
 "notif.body.weekly.orange.fallback" = "Past the weekly warning";
 "notif.body.weekly.red" = "Take it slow until %@";
@@ -294,17 +289,6 @@
 "notif.body.sonnet.red.fallback" = "Sonnet pool almost out";
 "notif.body.sonnet.green" = "Sonnet refilled at %@";
 "notif.body.sonnet.green.fallback" = "Sonnet refilled, you're back";
-
-/* Notifications - Design weekly */
-"notif.title.design.orange" = "Design pool heavy";
-"notif.title.design.red" = "Design almost gone";
-"notif.title.design.green" = "Design reset";
-"notif.body.design.orange" = "Resets %@";
-"notif.body.design.orange.fallback" = "Past the Design warning";
-"notif.body.design.red" = "Ease off until %@";
-"notif.body.design.red.fallback" = "Design pool almost out";
-"notif.body.design.green" = "Design refilled at %@";
-"notif.body.design.green.fallback" = "Design refilled, you're back";
 
 /* Notifications - Extra credits */
 "notif.title.extra.orange" = "Extra pool getting low";
@@ -337,7 +321,6 @@
 "settings.notifications.track.fivehour" = "Track 5h session";
 "settings.notifications.track.weekly" = "Track 7d weekly";
 "settings.notifications.track.sonnet" = "Track Sonnet weekly";
-"settings.notifications.track.design" = "Track Claude Design weekly";
 "settings.notifications.recovery" = "Send recovery notifications";
 "settings.notifications.recovery.hint" = "When OFF, only escalations fire (no \"you're back\" message).";
 "settings.notifications.group.pacing" = "Pacing";
@@ -713,7 +696,6 @@
 "popoverElement.session" = "Session (5h)";
 "popoverElement.weekly" = "Weekly";
 "popoverElement.sonnet" = "Sonnet";
-"popoverElement.design" = "Design";
 "popoverElement.fable" = "Fable";
 "popoverElement.extraCredits" = "Extra Credits";
 "popoverElement.sessionPacing" = "Session pacing";
@@ -771,7 +753,6 @@
 "menuBarSegment.session" = "Session (5h)";
 "menuBarSegment.weekly" = "Weekly";
 "menuBarSegment.sonnet" = "Sonnet";
-"menuBarSegment.design" = "Design";
 "menuBarSegment.fable" = "Fable";
 "menuBarSegment.extraCredits" = "Extra Credits";
 "menuBarSegment.sessionPacing" = "Session pacing";

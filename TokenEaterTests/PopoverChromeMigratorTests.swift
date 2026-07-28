@@ -96,7 +96,6 @@ struct PopoverChromeMigratorTests {
         let migrated = PopoverConfigMigrator.migrate(
             PopoverConfig.default,
             displaySonnet: false,
-            displayDesign: false,
             displayFable: false,
             displayExtraCredits: false
         )

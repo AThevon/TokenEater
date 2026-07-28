@@ -28,7 +28,6 @@ enum MenuBarRenderer {
         let fiveHourResetDate: Date?
         let sevenDayResetDate: Date?
         let sonnetResetDate: Date?
-        let designResetDate: Date?
         /// True when the API returned a `five_hour` bucket at all. Independent
         /// from whether `resets_at` was populated - Anthropic can return the
         /// bucket with `utilization: 0` and no `resets_at` when you're between
@@ -40,8 +39,6 @@ enum MenuBarRenderer {
         let smartResetColor: Bool
         let smartColorProfile: SmartColorProfile
         let pacingMargin: Double
-        let designPct: Int
-        let hasDesign: Bool
         let fablePct: Int
         let hasFable: Bool
         let fableResetDate: Date?
@@ -349,7 +346,6 @@ enum MenuBarRenderer {
     /// and the row recompacts (falling back to the logo if all are filtered).
     private static func isSegmentAvailable(_ kind: MenuBarSegmentKind, data: RenderData) -> Bool {
         switch kind {
-        case .design: return data.hasDesign
         case .fable: return data.hasFable
         case .extraCredits: return data.hasExtraCredits
         case .sessionReset, .sessionPacing: return data.hasFiveHourBucket
@@ -522,7 +518,6 @@ enum MenuBarRenderer {
         case .session: return data.fiveHourPct
         case .weekly: return data.sevenDayPct
         case .sonnet: return data.sonnetPct
-        case .design: return data.designPct
         case .fable: return data.fablePct
         case .extraCredits: return data.extraCreditsPct
         default: return 0
@@ -534,7 +529,6 @@ enum MenuBarRenderer {
         case .session: return MetricID.fiveHour.shortLabel
         case .weekly: return MetricID.sevenDay.shortLabel
         case .sonnet: return MetricID.sonnet.shortLabel
-        case .design: return MetricID.design.shortLabel
         case .fable: return MetricID.fable.shortLabel
         case .extraCredits: return MetricID.extraCredits.shortLabel
         default: return ""
@@ -546,7 +540,6 @@ enum MenuBarRenderer {
         case .session: return data.fiveHourResetDate
         case .weekly: return data.sevenDayResetDate
         case .sonnet: return data.sonnetResetDate
-        case .design: return data.designResetDate
         case .fable: return data.fableResetDate
         default: return nil  // extraCredits: no reset window -> static threshold
         }
@@ -555,7 +548,7 @@ enum MenuBarRenderer {
     private static func usageWindow(_ kind: MenuBarSegmentKind) -> TimeInterval {
         switch kind {
         case .session: return 5 * 3600
-        case .weekly, .sonnet, .design, .fable: return 7 * 86_400
+        case .weekly, .sonnet, .fable: return 7 * 86_400
         default: return 0  // extraCredits: windowless
         }
     }

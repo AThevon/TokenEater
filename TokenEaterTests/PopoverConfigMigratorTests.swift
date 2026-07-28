@@ -6,11 +6,11 @@ struct PopoverConfigMigratorTests {
 
     private func migrate(
         _ config: PopoverConfig,
-        sonnet: Bool = false, design: Bool = false, fable: Bool = false, extraCredits: Bool = false
+        sonnet: Bool = false, fable: Bool = false, extraCredits: Bool = false
     ) -> PopoverComposition {
         PopoverConfigMigrator.migrate(
             config,
-            displaySonnet: sonnet, displayDesign: design,
+            displaySonnet: sonnet,
             displayFable: fable, displayExtraCredits: extraCredits
         )
     }
@@ -49,20 +49,20 @@ struct PopoverConfigMigratorTests {
         #expect(Array(head.dropFirst()).allSatisfy { $0.width == .third && $0.style == .gaugeRing })
     }
 
-    @Test("Classic: a stale Design toggle without account access keeps the equal-rings shape")
+    @Test("Classic: a stale Fable toggle without account access keeps the equal-rings shape")
     func classicStaleToggleKeepsEqualRings() {
-        // displayDesign was left on (research preview) but the cached usage
-        // says the account no longer has Design: the legacy renderer gated
-        // the satellite on presence at every render and kept equal rings.
+        // displayFable was left on but the cached usage says the account no
+        // longer has Fable: the legacy renderer gated the satellite on
+        // presence at every render and kept equal rings.
         let result = PopoverConfigMigrator.migrate(
             defaultConfig(variant: .classic),
-            displaySonnet: false, displayDesign: true,
-            displayFable: false, displayExtraCredits: false,
-            presence: .init(hasDesign: false)
+            displaySonnet: false,
+            displayFable: true, displayExtraCredits: false,
+            presence: .init(hasFable: false)
         )
         #expect(result.elements[0].kind == .session)
         #expect(result.elements[0].width == .half)
-        #expect(!result.elements.contains { $0.kind == .design })
+        #expect(!result.elements.contains { $0.kind == .fable })
     }
 
     @Test("Classic hidden flags survive migration")
@@ -103,9 +103,9 @@ struct PopoverConfigMigratorTests {
 
     @Test("Compact extras become a leading thirds satellite-ring row")
     func compactExtras() {
-        let result = migrate(defaultConfig(variant: .compact), sonnet: true, design: true)
+        let result = migrate(defaultConfig(variant: .compact), sonnet: true, fable: true)
         #expect(result.elements[0].kind == .sonnet)
-        #expect(result.elements[1].kind == .design)
+        #expect(result.elements[1].kind == .fable)
         #expect(result.elements[0].style == .gaugeRing)
         #expect(result.elements[0].width == .third)
     }
@@ -198,7 +198,7 @@ struct PopoverConfigMigratorTests {
     @Test("every migrated variant yields a valid non-empty composition")
     func migratedCompositionsAreValid() {
         for variant in PopoverVariant.allCases {
-            let result = migrate(defaultConfig(variant: variant), sonnet: true, design: true, fable: true, extraCredits: true)
+            let result = migrate(defaultConfig(variant: variant), sonnet: true, fable: true, extraCredits: true)
             #expect(result.hasVisibleContent)
             for element in result.elements {
                 #expect(element.kind.allowedStyles.contains(element.style))

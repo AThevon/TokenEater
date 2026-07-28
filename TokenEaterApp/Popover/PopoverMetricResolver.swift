@@ -43,12 +43,6 @@ enum PopoverMetricResolver {
                 pct: usage.sonnetPct,
                 resetDate: usage.lastUsage?.sevenDaySonnet?.resetsAtDate
             )
-        case .design:
-            return weeklySnapshot(
-                label: String(localized: "metric.design"),
-                pct: usage.designPct,
-                resetDate: usage.lastUsage?.sevenDayDesign?.resetsAtDate
-            )
         case .fable:
             return weeklySnapshot(
                 label: String(localized: "metric.fable"),
@@ -83,7 +77,6 @@ enum PopoverMetricResolver {
     /// satellite behavior.
     static func isAvailable(_ kind: PopoverElementKind, usage: UsageStore) -> Bool {
         switch kind {
-        case .design: return usage.hasDesign
         case .fable: return usage.hasFable
         case .extraCredits: return usage.hasExtraCredits
         case .sessionPacing: return usage.fiveHourPacing != nil

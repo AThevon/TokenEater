@@ -11,7 +11,7 @@ import Foundation
 /// What an element shows.
 enum PopoverElementKind: String, Codable, CaseIterable, Identifiable {
     // Usage metrics (percentage + reset window)
-    case session, weekly, sonnet, design, fable, extraCredits
+    case session, weekly, sonnet, fable, extraCredits
     // Pacing metrics (delta vs linear pace)
     case sessionPacing, weeklyPacing
     // Utility rows
@@ -25,7 +25,7 @@ enum PopoverElementKind: String, Codable, CaseIterable, Identifiable {
 
     var family: Family {
         switch self {
-        case .session, .weekly, .sonnet, .design, .fable, .extraCredits:
+        case .session, .weekly, .sonnet, .fable, .extraCredits:
             return .usage
         case .sessionPacing, .weeklyPacing:
             return .pacing
@@ -392,7 +392,6 @@ enum PopoverBuiltinTemplate: String, CaseIterable, Identifiable {
                 PopoverElement(kind: .weekly, style: .gaugeRing, width: .third),
                 PopoverElement(kind: .sonnet, style: .gaugeRing, width: .third),
                 PopoverElement(kind: .fable, style: .gaugeRing, width: .third),
-                PopoverElement(kind: .design, style: .gaugeRing, width: .third),
                 PopoverElement(kind: .extraCredits, style: .gaugeRing, width: .third),
                 PopoverElement(kind: .sessionPacing, style: .paceBar, width: .full),
                 PopoverElement(kind: .weeklyPacing, style: .paceBar, width: .full),
@@ -426,7 +425,6 @@ extension PopoverElementKind {
         case .session: return "bolt.fill"
         case .weekly: return "calendar"
         case .sonnet: return "quote.opening"
-        case .design: return "paintbrush.pointed.fill"
         case .fable: return "books.vertical.fill"
         case .extraCredits: return "creditcard.fill"
         case .sessionPacing, .weeklyPacing: return "speedometer"

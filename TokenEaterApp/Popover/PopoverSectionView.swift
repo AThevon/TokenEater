@@ -257,7 +257,7 @@ struct PopoverSectionView: View {
     private var addElementMenu: some View {
         Menu {
             Section(String(localized: "popover.editor.family.metrics")) {
-                let metricKinds: [PopoverElementKind] = [.session, .weekly, .sonnet, .design, .fable, .extraCredits]
+                let metricKinds: [PopoverElementKind] = [.session, .weekly, .sonnet, .fable, .extraCredits]
                 ForEach(metricKinds) { kind in
                     addButton(for: kind)
                 }
@@ -299,7 +299,7 @@ struct PopoverSectionView: View {
     private func addButton(for kind: PopoverElementKind) -> some View {
         let available = accountHasKind(kind)
         // Not disabled when unavailable: a user can pre-place a metric the
-        // account does not have yet (Design, Extra Credits, Fable) so their
+        // account does not have yet (Extra Credits, Fable) so their
         // layout is future-proof - the render-time gate keeps it hidden until
         // the account actually gains the data, at which point it appears on
         // its own. The label just flags that it is not active yet.
@@ -319,7 +319,6 @@ struct PopoverSectionView: View {
     /// presence gating stays live and separate.
     private func accountHasKind(_ kind: PopoverElementKind) -> Bool {
         switch kind {
-        case .design: return usageStore.hasDesign
         case .fable: return usageStore.hasFable
         case .extraCredits: return usageStore.hasExtraCredits
         case .planBadge: return usageStore.planType != .unknown
@@ -614,7 +613,6 @@ private struct ElementListEditor: View {
     // freely removable.
     private func isAvailable(_ kind: PopoverElementKind) -> Bool {
         switch kind {
-        case .design: return usageStore.hasDesign
         case .fable: return usageStore.hasFable
         case .extraCredits: return usageStore.hasExtraCredits
         case .planBadge: return usageStore.planType != .unknown

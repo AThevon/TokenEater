@@ -39,8 +39,7 @@ enum HistoryRange: String, CaseIterable, Codable, Sendable {
 /// Coarse model identity used for chart colouring + filter chips. Fable is the
 /// Mythos-class tier above Opus and gets its own family; Opus 4.8/4.7/4.6 are
 /// kept distinct (the user might run several back-to-back), Sonnet/Haiku
-/// collapse all minor versions, anything unrecognised lands in `.other`. Design
-/// intentionally absent: it never appears in Claude Code JSONL files.
+/// collapse all minor versions, anything unrecognised lands in `.other`.
 enum ModelKind: String, CaseIterable, Codable, Hashable, Sendable {
     case fable
     case opus48
