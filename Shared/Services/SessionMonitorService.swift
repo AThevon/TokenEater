@@ -112,15 +112,6 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
             return
         }
 
-        var cwdToProcesses: [String: [ClaudeProcessInfo]] = [:]
-        for proc in processes {
-            cwdToProcesses[proc.cwd, default: []].append(proc)
-            if let range = proc.cwd.range(of: "/.claude/worktrees/") {
-                let canonical = String(proc.cwd[proc.cwd.startIndex..<range.lowerBound])
-                cwdToProcesses[canonical, default: []].append(proc)
-            }
-        }
-
         guard let projectDirs = try? fm.contentsOfDirectory(
             at: projectsDir,
             includingPropertiesForKeys: [.contentModificationDateKey, .isDirectoryKey],
@@ -130,91 +121,146 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
             return
         }
 
+        // Authoritative pid -> session mapping from Claude Code's registry
+        // (`~/.claude/sessions/<pid>.json`), for the running pids only.
+        let registry = readSessionRegistry(pids: Set(processes.map { $0.pid }))
+
+        // Index every transcript once (filenames + mtime, no content reads).
+        // A transcript is named "<sessionId>.jsonl", so this maps a sessionId
+        // to its file wherever it lives - which is how we resolve a `--resume`d
+        // session whose transcript sits under its ORIGINAL project dir, not the
+        // directory the process happened to be launched from (#233).
+        //
+        // Freshness note: mtime comes from each JSONL, not the dir's own mtime.
+        // On APFS/HFS a dir's mtime only changes on add/remove/rename, not when
+        // Claude appends to an existing JSONL, so dir mtime would hide every
+        // ongoing conversation. Reading cached URLResourceValues here stays
+        // cheap versus `readAndParse()` per file.
+        struct TranscriptRef { let url: URL; let mtime: Date; let dir: URL }
+        var bySessionId: [String: TranscriptRef] = [:]
+        var dirFiles: [(dir: URL, files: [(url: URL, mtime: Date)])] = []
+        for dir in projectDirs where dir.hasDirectoryPath {
+            guard let urls = try? fm.contentsOfDirectory(
+                at: dir,
+                includingPropertiesForKeys: [.contentModificationDateKey],
+                options: [.skipsHiddenFiles]
+            ) else { continue }
+            var files: [(url: URL, mtime: Date)] = []
+            for url in urls where url.pathExtension == "jsonl" {
+                let mtime = (try? url.resourceValues(forKeys: [.contentModificationDateKey])
+                    .contentModificationDate) ?? .distantPast
+                files.append((url, mtime))
+                let sid = url.deletingPathExtension().lastPathComponent
+                if let existing = bySessionId[sid], existing.mtime >= mtime { continue }
+                bySessionId[sid] = TranscriptRef(url: url, mtime: mtime, dir: dir)
+            }
+            if !files.isEmpty { dirFiles.append((dir, files)) }
+        }
+
         var activeSessions: [ClaudeSession] = []
+        var consumedPids = Set<Int32>()
+        var emittedSessionIds = Set<String>()
 
-        // Freshness is derived from each dir's newest JSONL mtime - NOT from the dir's own
-        // mtime. On APFS/HFS, a directory's mtime only changes when an entry is added, removed,
-        // or renamed: appending to an existing JSONL (what Claude Code does on every message
-        // of an ongoing conversation) does not touch the parent dir's mtime. Filtering on dir
-        // mtime therefore hides every session whose JSONL already existed when the 30-min
-        // window started, which is most of them. We still get the original perf benefit (skip
-        // reading file contents for dead projects) because listing a dir with cached
-        // URLResourceValues is cheap compared to `readAndParse()` on every JSONL.
-        let freshnessCutoff = Date().addingTimeInterval(-projectDirFreshness)
-        let sortedDirs = projectDirs
-            .filter { $0.hasDirectoryPath }
-            // Process longer paths first so worktree-specific dirs match before parent project dirs.
-            .sorted { $0.lastPathComponent.count > $1.lastPathComponent.count }
+        // PRIMARY pass: registry-driven. A running process tells us its exact
+        // sessionId, so we render THAT transcript instead of guessing by
+        // working directory. No freshness gate here: the process is provably
+        // alive, so its session is live even if idle for a while.
+        for proc in processes {
+            guard let entry = registry[proc.pid],
+                  let sid = entry.sessionId,
+                  let ref = bySessionId[sid],
+                  let result = readAndParse(file: ref.url) else { continue }
 
-        for dir in sortedDirs {
-            // Decorate-sort-undecorate: read each JSONL's mtime exactly once via the cached
-            // URLResourceValues populated by `includingPropertiesForKeys`. The previous
-            // implementation called `attributesOfItem(atPath:)` inside the sort comparator,
-            // which ran 2 * O(N log N) syscalls per dir and dominated CPU at steady state.
-            let jsonlFiles: [(url: URL, mtime: Date)]
-            do {
-                let urls = try fm.contentsOfDirectory(
-                    at: dir,
-                    includingPropertiesForKeys: [.contentModificationDateKey],
-                    options: [.skipsHiddenFiles]
-                ).filter { $0.pathExtension == "jsonl" }
+            let startedAt = readFirstTimestamp(of: ref.url) ?? ref.mtime
+            let resolvedState: SessionState
+            if result.state == .thinking,
+               let compactState = checkCompacting(sessionId: sid, projectDir: ref.dir) {
+                resolvedState = compactState
+            } else {
+                resolvedState = result.state
+            }
+            activeSessions.append(ClaudeSession(
+                id: sid,
+                projectPath: result.projectPath,
+                gitBranch: result.gitBranch,
+                userSessionName: userName(from: entry, sessionId: sid),
+                model: result.model,
+                state: resolvedState,
+                lastUpdate: ref.mtime,
+                startedAt: startedAt,
+                processPid: proc.pid,
+                sourceKind: proc.sourceKind,
+                contextTokens: result.contextTokens,
+                contextMax: result.contextMax
+            ))
+            consumedPids.insert(proc.pid)
+            emittedSessionIds.insert(sid)
+        }
 
-                jsonlFiles = urls.map { url in
-                    let mtime = (try? url.resourceValues(forKeys: [.contentModificationDateKey])
-                        .contentModificationDate) ?? .distantPast
-                    return (url, mtime)
+        // FALLBACK pass: the pre-registry heuristic for any process without a
+        // usable registry entry (older Claude Code, or a transcript we could
+        // not locate) - match by working directory, newest transcript first,
+        // over fresh dirs only.
+        let remaining = processes.filter { !consumedPids.contains($0.pid) }
+        if !remaining.isEmpty {
+            var cwdToProcesses: [String: [ClaudeProcessInfo]] = [:]
+            for proc in remaining {
+                cwdToProcesses[proc.cwd, default: []].append(proc)
+                if let range = proc.cwd.range(of: "/.claude/worktrees/") {
+                    let canonical = String(proc.cwd[proc.cwd.startIndex..<range.lowerBound])
+                    cwdToProcesses[canonical, default: []].append(proc)
                 }
-            } catch { continue }
+            }
 
-            let sortedFiles = jsonlFiles.sorted { $0.mtime > $1.mtime }
+            let freshnessCutoff = Date().addingTimeInterval(-projectDirFreshness)
+            // Longer dir paths first so worktree-specific dirs match before parent projects.
+            let sortedDirs = dirFiles.sorted { $0.dir.lastPathComponent.count > $1.dir.lastPathComponent.count }
 
-            // Skip dirs whose newest JSONL is stale. This replaces the old dir-mtime filter
-            // and is the actual signal of "any session here was active recently".
-            guard let newest = sortedFiles.first, newest.mtime >= freshnessCutoff else { continue }
+            outer: for entry in sortedDirs {
+                let sortedFiles = entry.files.sorted { $0.mtime > $1.mtime }
+                guard let newest = sortedFiles.first, newest.mtime >= freshnessCutoff else { continue }
 
-            for (file, mtime) in sortedFiles {
-                guard let result = readAndParse(file: file) else { continue }
+                for (file, mtime) in sortedFiles {
+                    let sessionId = file.deletingPathExtension().lastPathComponent
+                    if emittedSessionIds.contains(sessionId) { continue }
+                    guard let result = readAndParse(file: file) else { continue }
+                    guard let process = matchProcess(projectPath: result.projectPath, in: cwdToProcesses) else { continue }
 
-                guard let process = matchProcess(projectPath: result.projectPath, in: cwdToProcesses) else { continue }
-
-                let sessionId = file.deletingPathExtension().lastPathComponent
-                let startedAt = readFirstTimestamp(of: file) ?? mtime
-
-                let resolvedState: SessionState
-                if result.state == .thinking,
-                   let compactState = checkCompacting(sessionId: sessionId, projectDir: dir) {
-                    resolvedState = compactState
-                } else {
-                    resolvedState = result.state
-                }
-
-                let session = ClaudeSession(
-                    id: sessionId,
-                    projectPath: result.projectPath,
-                    gitBranch: result.gitBranch,
-                    userSessionName: readUserSessionName(pid: process.pid, sessionId: sessionId),
-                    model: result.model,
-                    state: resolvedState,
-                    lastUpdate: mtime,
-                    startedAt: startedAt,
-                    processPid: process.pid,
-                    sourceKind: process.sourceKind,
-                    contextTokens: result.contextTokens,
-                    contextMax: result.contextMax
-                )
-                activeSessions.append(session)
-
-                let matchedPid = process.pid
-                for (key, procs) in cwdToProcesses {
-                    let filtered = procs.filter { $0.pid != matchedPid }
-                    if filtered.isEmpty {
-                        cwdToProcesses.removeValue(forKey: key)
+                    let startedAt = readFirstTimestamp(of: file) ?? mtime
+                    let resolvedState: SessionState
+                    if result.state == .thinking,
+                       let compactState = checkCompacting(sessionId: sessionId, projectDir: entry.dir) {
+                        resolvedState = compactState
                     } else {
-                        cwdToProcesses[key] = filtered
+                        resolvedState = result.state
                     }
-                }
+                    activeSessions.append(ClaudeSession(
+                        id: sessionId,
+                        projectPath: result.projectPath,
+                        gitBranch: result.gitBranch,
+                        userSessionName: readUserSessionName(pid: process.pid, sessionId: sessionId),
+                        model: result.model,
+                        state: resolvedState,
+                        lastUpdate: mtime,
+                        startedAt: startedAt,
+                        processPid: process.pid,
+                        sourceKind: process.sourceKind,
+                        contextTokens: result.contextTokens,
+                        contextMax: result.contextMax
+                    ))
+                    emittedSessionIds.insert(sessionId)
 
-                if cwdToProcesses.isEmpty { break }
+                    let matchedPid = process.pid
+                    for (key, procs) in cwdToProcesses {
+                        let filtered = procs.filter { $0.pid != matchedPid }
+                        if filtered.isEmpty {
+                            cwdToProcesses.removeValue(forKey: key)
+                        } else {
+                            cwdToProcesses[key] = filtered
+                        }
+                    }
+                    if cwdToProcesses.isEmpty { break outer }
+                }
             }
         }
 
@@ -254,17 +300,55 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
     /// writes `nameSource: "derived"` for auto names but drops the field
     /// entirely after a /rename, so only an explicit derived/auto marker
     /// disqualifies the name.
-    private func readUserSessionName(pid: Int32, sessionId: String) -> String? {
-        struct RegistryEntry: Decodable {
-            let sessionId: String?
-            let name: String?
-            let nameSource: String?
-        }
+    /// Decoded shape of a `~/.claude/sessions/<pid>.json` registry entry.
+    private struct SessionRegistryEntry: Decodable {
+        let sessionId: String?
+        let name: String?
+        let nameSource: String?
+    }
 
+    private func readUserSessionName(pid: Int32, sessionId: String) -> String? {
         let file = claudeSessionsDir.appendingPathComponent("\(pid).json")
         guard let data = try? Data(contentsOf: file),
-              let entry = try? JSONDecoder().decode(RegistryEntry.self, from: data),
-              entry.sessionId == sessionId,
+              let entry = try? JSONDecoder().decode(SessionRegistryEntry.self, from: data) else {
+            return nil
+        }
+        return userName(from: entry, sessionId: sessionId)
+    }
+
+    /// Load the session registry entries for the given running pids, keyed by
+    /// pid. Each `<pid>.json` carries the exact `sessionId` the process is on,
+    /// which is what lets the scan pick the right transcript for a `--resume`d
+    /// session instead of guessing by working directory (#233).
+    private func readSessionRegistry(pids: Set<Int32>) -> [Int32: SessionRegistryEntry] {
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(
+            at: claudeSessionsDir,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else { return [:] }
+
+        var out: [Int32: SessionRegistryEntry] = [:]
+        for file in files where file.pathExtension == "json" {
+            guard let pid = Int32(file.deletingPathExtension().lastPathComponent),
+                  pids.contains(pid),
+                  let data = try? Data(contentsOf: file),
+                  let entry = try? JSONDecoder().decode(SessionRegistryEntry.self, from: data) else { continue }
+            out[pid] = entry
+        }
+        return out
+    }
+
+    /// The user-set session name from a registry entry, or nil. Valid only when
+    /// the entry's sessionId matches (guards against a stale file left by a
+    /// dead process whose pid was reused) and the name was user-set: auto
+    /// names like `myproject-01` are less informative than the branch/project
+    /// fallback and are ignored. "User-set" means nameSource is "user" OR
+    /// absent: Claude Code 2.1.202 writes `nameSource: "derived"` for auto
+    /// names but drops the field entirely after a `/rename`, so only an
+    /// explicit derived/auto marker disqualifies the name.
+    private func userName(from entry: SessionRegistryEntry, sessionId: String) -> String? {
+        guard entry.sessionId == sessionId,
               entry.nameSource == nil || entry.nameSource == "user",
               let name = entry.name, !name.isEmpty else {
             return nil
