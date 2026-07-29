@@ -167,16 +167,6 @@ struct UsageWidgetView: View {
                     windowDuration: 7 * 86_400
                 )
             }
-            if let design = usage.sevenDayDesign {
-                LargeUsageBarView(
-                    icon: "paintbrush.pointed.fill",
-                    label: String(localized: "widget.design"),
-                    resetInfo: formatResetDate(design.resetsAtDate),
-                    utilization: design.utilization,
-                    resetDate: design.resetsAtDate,
-                    windowDuration: 7 * 86_400
-                )
-            }
             if let fable = usage.sevenDayFable {
                 LargeUsageBarView(
                     icon: "books.vertical.fill",

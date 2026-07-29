@@ -9,7 +9,9 @@ struct MainAppView: View {
 
     @State private var selectedSpace: AppSpace = .monitoring
     @State private var selectedSettingsSection: SettingsSection = .general
+    @State private var selectedStudioSection: StudioSection = .popover
     @State private var powerHovering = false
+    @State private var showWhatsNew = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Blur burst transition between spaces. `displayedSpace` lags
@@ -87,6 +89,8 @@ struct MainAppView: View {
                     MonitoringView(insightsStore: insightsStore)
                 case .history:
                     HistoryView(store: historyStore)
+                case .studio:
+                    StudioRootView(selection: $selectedStudioSection)
                 case .settings:
                     SettingsRootView(selection: $selectedSettingsSection)
                 }
@@ -103,12 +107,51 @@ struct MainAppView: View {
         .padding(.horizontal, DS.Spacing.sm)
         .padding(.bottom, DS.Spacing.sm)
         .dsWindowBackground()
+        .overlayPreferenceValue(StudioPillAnchorKey.self) { anchor in
+            if studioIntroVisible, let anchor {
+                GeometryReader { geo in
+                    let pill = geo[anchor]
+                    let bubbleWidth: CGFloat = 260
+                    let x = max(DS.Spacing.sm,
+                                min(pill.midX - bubbleWidth / 2,
+                                    geo.size.width - bubbleWidth - DS.Spacing.sm))
+                    StudioIntroBubble(
+                        arrowX: pill.midX - x,
+                        onOpen: { showWhatsNew = true },
+                        onDismiss: {
+                            withAnimation(DS.Motion.springSnap) {
+                                settingsStore.hasSeenStudioIntro = true
+                            }
+                        }
+                    )
+                    .frame(width: bubbleWidth)
+                    .offset(x: x, y: pill.maxY + 4)
+                    .transition(.opacity)
+                }
+            }
+        }
         .overlay {
             if updateStore.updateState.isModalVisible {
                 UpdateModalView()
                     .transition(.opacity)
                     .animation(DS.Motion.springSoft, value: updateStore.updateState.isModalVisible)
             }
+        }
+        .sheet(isPresented: $showWhatsNew, onDismiss: {
+            // Every exit path is view-once: seeing the sheet is seeing the intro.
+            settingsStore.hasSeenStudioIntro = true
+        }) {
+            WhatsNewSheet(
+                onOpenStudio: {
+                    settingsStore.hasSeenStudioIntro = true
+                    showWhatsNew = false
+                    selectedSpace = .studio
+                },
+                onLater: {
+                    settingsStore.hasSeenStudioIntro = true
+                    showWhatsNew = false
+                }
+            )
         }
         .onReceive(NotificationCenter.default.publisher(for: .navigateToSection)) { notification in
             guard let payload = notification.userInfo?["section"] as? String,
@@ -121,10 +164,28 @@ struct MainAppView: View {
                     selectedSettingsSection = sub
                 }
             }
+            if let surface = target.studioSection {
+                withAnimation(DS.Motion.springSnap) {
+                    selectedStudioSection = surface
+                }
+            }
         }
         .onChange(of: selectedSpace) { _, newSpace in
             performSpaceTransition(to: newSpace)
+            // Reaching the Studio by any road retires the discovery bubble.
+            if newSpace == .studio && !settingsStore.hasSeenStudioIntro {
+                settingsStore.hasSeenStudioIntro = true
+            }
         }
+    }
+
+    /// The one-shot Studio discovery bubble: upgrading users only (fresh
+    /// installs get the flag set at onboarding completion), gone forever
+    /// once seen, dismissed, or the Studio is visited.
+    private var studioIntroVisible: Bool {
+        settingsStore.hasCompletedOnboarding
+            && !settingsStore.hasSeenStudioIntro
+            && !showWhatsNew
     }
 
     // MARK: - Blur burst transition between spaces

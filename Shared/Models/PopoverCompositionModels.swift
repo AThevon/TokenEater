@@ -11,13 +11,13 @@ import Foundation
 /// What an element shows.
 enum PopoverElementKind: String, Codable, CaseIterable, Identifiable {
     // Usage metrics (percentage + reset window)
-    case session, weekly, sonnet, design, fable, extraCredits
+    case session, weekly, sonnet, fable, extraCredits
     // Pacing metrics (delta vs linear pace)
     case sessionPacing, weeklyPacing
     // Utility rows
-    case watchers, timestamp
+    case watchers, timestamp, planBadge
     // Action buttons
-    case openButton, quitButton
+    case openButton, quitButton, refreshButton
 
     var id: String { rawValue }
 
@@ -25,25 +25,38 @@ enum PopoverElementKind: String, Codable, CaseIterable, Identifiable {
 
     var family: Family {
         switch self {
-        case .session, .weekly, .sonnet, .design, .fable, .extraCredits:
+        case .session, .weekly, .sonnet, .fable, .extraCredits:
             return .usage
         case .sessionPacing, .weeklyPacing:
             return .pacing
-        case .watchers, .timestamp:
+        case .watchers, .timestamp, .planBadge:
             return .utility
-        case .openButton, .quitButton:
+        case .openButton, .quitButton, .refreshButton:
             return .action
         }
+    }
+
+    /// The ex-header chrome (plan badge + refresh button). These pack into
+    /// their own full-width row and never merge with the metric grid, so
+    /// hiding one leaves the other on its own line rather than pairing it
+    /// with the next metric.
+    var isChrome: Bool {
+        self == .planBadge || self == .refreshButton
     }
 
     /// Styles this kind can render as. The editor filters its style menu with
     /// this; `PopoverCompositionModelsTests` asserts the matrix stays sane.
     var allowedStyles: [PopoverElementStyle] {
-        switch family {
-        case .usage: return [.gaugeRing, .chip, .arc, .bigText]
-        case .pacing: return [.paceBar, .paceTile, .paceText]
-        case .utility: return [.utilityRow]
-        case .action: return [.actionButton]
+        switch self {
+        case .planBadge:
+            return [.badge]
+        default:
+            switch family {
+            case .usage: return [.gaugeRing, .chip, .arc, .bigText]
+            case .pacing: return [.paceBar, .paceTile, .paceText]
+            case .utility: return [.utilityRow]
+            case .action: return [.actionButton]
+            }
         }
     }
 }
@@ -69,8 +82,10 @@ enum PopoverElementStyle: String, Codable, CaseIterable, Identifiable {
     case paceText
     /// Fixed style for watchers / timestamp.
     case utilityRow
-    /// Fixed style for Open / Quit.
+    /// Fixed style for Open / Quit / Refresh.
     case actionButton
+    /// Small centered capsule (the plan badge, ex-header chrome).
+    case badge
 
     var id: String { rawValue }
 
@@ -81,7 +96,7 @@ enum PopoverElementStyle: String, Codable, CaseIterable, Identifiable {
             return [.full, .half, .third]
         case .arc, .paceBar, .utilityRow:
             return [.full]
-        case .chip, .paceTile, .paceText, .actionButton:
+        case .chip, .paceTile, .paceText, .actionButton, .badge:
             return [.full, .half]
         }
     }
@@ -89,7 +104,7 @@ enum PopoverElementStyle: String, Codable, CaseIterable, Identifiable {
     /// The width a freshly-added element of this style starts at.
     var defaultWidth: PopoverElementWidth {
         switch self {
-        case .gaugeRing, .chip, .bigText, .paceTile:
+        case .gaugeRing, .chip, .bigText, .paceTile, .badge:
             return .half
         case .arc, .paceBar, .paceText, .utilityRow, .actionButton:
             return .full
@@ -212,19 +227,34 @@ struct PopoverElement: Codable, Equatable, Identifiable {
 // MARK: - Composition
 
 struct PopoverComposition: Codable, Equatable {
+    /// Schema version written by this build. v1 = fixed header chrome driven
+    /// by the two legacy toggles below; v2 = the plan badge and the refresh
+    /// button are regular elements (see `PopoverChromeMigrator`).
+    static let currentVersion = 2
+
     /// Ordered list; order = render order top to bottom.
     var elements: [PopoverElement]
-    /// PRO / MAX / TEAM badge in the fixed header chrome.
+    /// Version of the blob this composition was decoded from (or
+    /// `currentVersion` for compositions built in code).
+    var version: Int
+    /// Legacy header toggle (pre-v2). Only meaningful on version-1
+    /// compositions; kept so the migrator and downgraded builds can read it.
     var showPlanBadge: Bool
-    /// Manual refresh button in the fixed header chrome.
+    /// Legacy header toggle (pre-v2). Same story as `showPlanBadge`.
     var showRefreshButton: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case elements, version, showPlanBadge, showRefreshButton
+    }
 
     init(
         elements: [PopoverElement],
+        version: Int = PopoverComposition.currentVersion,
         showPlanBadge: Bool = true,
         showRefreshButton: Bool = true
     ) {
         self.elements = elements
+        self.version = version
         self.showPlanBadge = showPlanBadge
         self.showRefreshButton = showRefreshButton
     }
@@ -234,8 +264,30 @@ struct PopoverComposition: Codable, Equatable {
         // Lossy element list: an element a newer version wrote with an unknown
         // kind/style is silently dropped, everything else survives.
         elements = c.decodeLossyArray(PopoverElement.self, forKey: .elements)
+        version = (try? c.decodeIfPresent(Int.self, forKey: .version)) ?? 1
         showPlanBadge = (try? c.decodeIfPresent(Bool.self, forKey: .showPlanBadge)) ?? true
         showRefreshButton = (try? c.decodeIfPresent(Bool.self, forKey: .showRefreshButton)) ?? true
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(elements, forKey: .elements)
+        try c.encode(version, forKey: .version)
+        // On v2 compositions the legacy toggles mirror the chrome elements'
+        // visibility, so a downgraded build (which drops the unknown kinds
+        // from the element list) still shows the header the user expects.
+        try c.encode(
+            version >= 2 ? chromeElementVisible(.planBadge) : showPlanBadge,
+            forKey: .showPlanBadge
+        )
+        try c.encode(
+            version >= 2 ? chromeElementVisible(.refreshButton) : showRefreshButton,
+            forKey: .showRefreshButton
+        )
+    }
+
+    private func chromeElementVisible(_ kind: PopoverElementKind) -> Bool {
+        elements.contains { $0.kind == kind && !$0.isHidden }
     }
 
     var visibleElements: [PopoverElement] { elements.filter { !$0.isHidden } }
@@ -243,6 +295,20 @@ struct PopoverComposition: Codable, Equatable {
     /// Validation gate used by `SettingsStore.reconcile` - an all-hidden or
     /// empty composition falls back to the default template.
     var hasVisibleContent: Bool { !visibleElements.isEmpty }
+
+    /// Structural match ignoring element UUIDs (and the legacy toggles /
+    /// version), so the editor can tell which template the current
+    /// composition came from - built-ins mint fresh ids on every access, so
+    /// plain `==` would never match.
+    func isEquivalent(to other: PopoverComposition) -> Bool {
+        guard elements.count == other.elements.count else { return false }
+        for (a, b) in zip(elements, other.elements) where
+            a.kind != b.kind || a.style != b.style || a.width != b.width
+            || a.isHidden != b.isHidden || a.options != b.options {
+            return false
+        }
+        return true
+    }
 
     static let `default` = PopoverBuiltinTemplate.classic.composition
 }
@@ -260,12 +326,21 @@ enum PopoverBuiltinTemplate: String, CaseIterable, Identifiable {
         NSLocalizedString("popoverTemplate.\(rawValue)", comment: "")
     }
 
+    /// The ex-header chrome pair every template starts with -> plan badge on
+    /// the left, refresh button on the right (one half+half row).
+    private static var chromeRow: [PopoverElement] {
+        [
+            PopoverElement(kind: .planBadge, style: .badge, width: .half),
+            PopoverElement(kind: .refreshButton, style: .actionButton, width: .half),
+        ]
+    }
+
     /// Fresh element instances (new UUIDs) on every access, so applying a
     /// template twice never collides ids with a live composition.
     var composition: PopoverComposition {
         switch self {
         case .classic:
-            return PopoverComposition(elements: [
+            return PopoverComposition(elements: Self.chromeRow + [
                 PopoverElement(kind: .session, style: .gaugeRing, width: .half, options: .init(showReset: true)),
                 PopoverElement(kind: .weekly, style: .gaugeRing, width: .half, options: .init(showReset: true)),
                 PopoverElement(kind: .sessionPacing, style: .paceBar, width: .full),
@@ -276,7 +351,7 @@ enum PopoverBuiltinTemplate: String, CaseIterable, Identifiable {
                 PopoverElement(kind: .quitButton, style: .actionButton, width: .full),
             ])
         case .compact:
-            return PopoverComposition(elements: [
+            return PopoverComposition(elements: Self.chromeRow + [
                 PopoverElement(kind: .session, style: .chip, width: .half, options: .init(showReset: true)),
                 PopoverElement(kind: .weekly, style: .chip, width: .half, options: .init(showReset: true)),
                 PopoverElement(kind: .sessionPacing, style: .paceTile, width: .half),
@@ -287,7 +362,7 @@ enum PopoverBuiltinTemplate: String, CaseIterable, Identifiable {
                 PopoverElement(kind: .quitButton, style: .actionButton, width: .full),
             ])
         case .focus:
-            return PopoverComposition(elements: [
+            return PopoverComposition(elements: Self.chromeRow + [
                 PopoverElement(kind: .session, style: .arc, width: .full, options: .init(content: .resetCountdown)),
                 PopoverElement(kind: .session, style: .bigText, width: .half, options: .init(content: .percent)),
                 PopoverElement(kind: .weekly, style: .bigText, width: .half, options: .init(content: .percent)),
@@ -299,25 +374,24 @@ enum PopoverBuiltinTemplate: String, CaseIterable, Identifiable {
                 PopoverElement(kind: .quitButton, style: .actionButton, width: .full),
             ])
         case .minimalist:
-            return PopoverComposition(elements: [
+            return PopoverComposition(elements: Self.chromeRow + [
                 PopoverElement(kind: .session, style: .gaugeRing, width: .half, options: .init(showReset: true)),
                 PopoverElement(kind: .weekly, style: .gaugeRing, width: .half, options: .init(showReset: true)),
                 PopoverElement(kind: .timestamp, style: .utilityRow, width: .full),
             ])
         case .fableFirst:
-            return PopoverComposition(elements: [
+            return PopoverComposition(elements: Self.chromeRow + [
                 PopoverElement(kind: .fable, style: .arc, width: .full, options: .init(content: .percent)),
                 PopoverElement(kind: .session, style: .bigText, width: .half, options: .init(content: .percent)),
                 PopoverElement(kind: .weekly, style: .bigText, width: .half, options: .init(content: .percent)),
                 PopoverElement(kind: .timestamp, style: .utilityRow, width: .full),
             ])
         case .complete:
-            return PopoverComposition(elements: [
+            return PopoverComposition(elements: Self.chromeRow + [
                 PopoverElement(kind: .session, style: .gaugeRing, width: .full, options: .init(showReset: true)),
                 PopoverElement(kind: .weekly, style: .gaugeRing, width: .third),
                 PopoverElement(kind: .sonnet, style: .gaugeRing, width: .third),
                 PopoverElement(kind: .fable, style: .gaugeRing, width: .third),
-                PopoverElement(kind: .design, style: .gaugeRing, width: .third),
                 PopoverElement(kind: .extraCredits, style: .gaugeRing, width: .third),
                 PopoverElement(kind: .sessionPacing, style: .paceBar, width: .full),
                 PopoverElement(kind: .weeklyPacing, style: .paceBar, width: .full),
@@ -351,14 +425,15 @@ extension PopoverElementKind {
         case .session: return "bolt.fill"
         case .weekly: return "calendar"
         case .sonnet: return "quote.opening"
-        case .design: return "paintbrush.pointed.fill"
         case .fable: return "books.vertical.fill"
         case .extraCredits: return "creditcard.fill"
         case .sessionPacing, .weeklyPacing: return "speedometer"
         case .watchers: return "eye.fill"
         case .timestamp: return "clock"
+        case .planBadge: return "checkmark.seal.fill"
         case .openButton: return "diamond.fill"
         case .quitButton: return "power"
+        case .refreshButton: return "arrow.clockwise"
         }
     }
 }

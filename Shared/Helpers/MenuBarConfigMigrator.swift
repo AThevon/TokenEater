@@ -13,7 +13,7 @@ enum MenuBarConfigMigrator {
     /// it means the migrated composition looks identical to what the user saw.
     private static let legacyOrder: [MetricID] = [
         .serviceStatus, .sessionReset, .fiveHour, .sessionPacing,
-        .sevenDay, .weeklyPacing, .sonnet, .design, .fable, .extraCredits,
+        .sevenDay, .weeklyPacing, .sonnet, .fable, .extraCredits,
     ]
 
     static func migrate(
@@ -25,7 +25,7 @@ enum MenuBarConfigMigrator {
         pacingShape: PacingShape
     ) -> MenuBarComposition {
         // Every pinned metric becomes a segment - including presence-gated ones
-        // (Design / Fable / Extra Credits) that happen to be absent right now.
+        // (Fable / Extra Credits) that happen to be absent right now.
         // The renderer already gates presence at draw time (isSegmentAvailable),
         // exactly like the pre-5.10 menu bar which kept the pin and re-showed it
         // when the metric returned. Dropping it here instead would permanently
@@ -51,7 +51,6 @@ enum MenuBarConfigMigrator {
         case .fiveHour: return .session
         case .sevenDay: return .weekly
         case .sonnet: return .sonnet
-        case .design: return .design
         case .fable: return .fable
         case .extraCredits: return .extraCredits
         case .sessionPacing: return .sessionPacing

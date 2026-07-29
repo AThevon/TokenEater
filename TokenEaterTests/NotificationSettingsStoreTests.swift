@@ -8,7 +8,7 @@ struct NotificationSettingsStoreTests {
 
     private let keys = [
         "notificationsEnabled", "notifTrackFiveHour", "notifTrackWeekly",
-        "notifTrackSonnet", "notifTrackDesign", "notifSendRecovery",
+        "notifTrackSonnet", "notifSendRecovery",
         "notifPacingHot", "notifPacingWarning",
         "notifResetReminderSession", "notifResetReminderWeekly",
         "notifResetReminderSessionOffset", "notifResetReminderWeeklyOffset",
@@ -24,7 +24,6 @@ struct NotificationSettingsStoreTests {
         #expect(store.trackFiveHour == true)
         #expect(store.trackWeekly == true)
         #expect(store.trackSonnet == false)
-        #expect(store.trackDesign == true)
         #expect(store.sendRecovery == true)
         #expect(store.pacingHot == true)
         #expect(store.pacingWarning == false)

@@ -70,10 +70,9 @@ private enum Surface: String {
     case fiveHour
     case weekly
     case sonnet
-    case design
     case fable
 
-    /// `weekly` and `sonnet`/`design` share the long-form body (date-based)
+    /// `weekly` and `sonnet` share the long-form body (date-based)
     /// but each gets its own title to avoid generic alerts.
     var bodyFamily: String {
         self == .fiveHour ? "fivehour" : rawValue
@@ -121,7 +120,6 @@ final class NotificationService: NotificationServiceProtocol {
         fiveHour: MetricSnapshot,
         sevenDay: MetricSnapshot,
         sonnet: MetricSnapshot,
-        design: MetricSnapshot,
         fable: MetricSnapshot,
         sessionPacing: PacingZone?,
         weeklyPacing: PacingZone?,
@@ -145,9 +143,6 @@ final class NotificationService: NotificationServiceProtocol {
         }
         if toggles.trackSonnet {
             checkSurface(.sonnet, snapshot: sonnet, pacing: weeklyPacing, toggles: toggles)
-        }
-        if toggles.trackDesign {
-            checkSurface(.design, snapshot: design, pacing: weeklyPacing, toggles: toggles)
         }
         if toggles.trackFable {
             checkSurface(.fable, snapshot: fable, pacing: weeklyPacing, toggles: toggles)
@@ -450,7 +445,7 @@ final class NotificationService: NotificationServiceProtocol {
             return level == .red
                 ? NSLocalizedString("notif.body.fivehour.red.fallback", comment: "")
                 : NSLocalizedString("notif.body.fivehour.orange.fallback", comment: "")
-        case .weekly, .sonnet, .design, .fable:
+        case .weekly, .sonnet, .fable:
             if let resetsAt, resetsAt.timeIntervalSinceNow > 0 {
                 let dateTime = NotificationBodyFormatter.formatDateTime(resetsAt)
                 let key = level == .red
@@ -472,7 +467,7 @@ final class NotificationService: NotificationServiceProtocol {
         case .fiveHour:
             let time = NotificationBodyFormatter.formatTime(resetsAt)
             return String(format: NSLocalizedString("notif.body.fivehour.green", comment: ""), time)
-        case .weekly, .sonnet, .design, .fable:
+        case .weekly, .sonnet, .fable:
             let dateTime = NotificationBodyFormatter.formatDateTime(resetsAt)
             return String(format: NSLocalizedString("notif.body.\(surface.bodyFamily).green", comment: ""), dateTime)
         }

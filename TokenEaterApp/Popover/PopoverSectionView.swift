@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// Settings panel for the composable popover. Templates on top (built-ins +
-/// user-saved), then the element list - the single source of edition: add,
-/// reorder (drag), restyle, resize, hide, delete. The live preview renders
-/// the real popover; tapping a cell there selects its row here.
+/// Studio editor for the composable popover. Three columns: a template rail
+/// on the left (built-ins + user-saved), the element list in the middle (the
+/// single source of edition: add, reorder, restyle, resize, hide, delete),
+/// and the live popover pinned on the right so every edit is visible without
+/// scrolling. Tapping a cell in the preview selects its row in the list.
 struct PopoverSectionView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var usageStore: UsageStore
@@ -12,8 +13,9 @@ struct PopoverSectionView: View {
     @State private var showSaveDialog = false
     @State private var templateName = ""
 
-    /// Width threshold below which the two-column layout becomes unreadable.
-    private let horizontalThreshold: CGFloat = 680
+    /// Width below which the three-column layout stops fitting and we fall
+    /// back to a single scrolling column.
+    private let horizontalThreshold: CGFloat = 780
 
     var body: some View {
         GeometryReader { geo in
@@ -37,39 +39,39 @@ struct PopoverSectionView: View {
 
     private var horizontalLayout: some View {
         HStack(alignment: .top, spacing: 16) {
-            VStack(alignment: .leading, spacing: 16) {
-                header
-                ScrollViewReader { proxy in
-                    ScrollView(.vertical, showsIndicators: true) {
-                        VStack(alignment: .leading, spacing: 16) {
-                            templatesSection
-                            chromeSection
-                            elementsSection
-                            Spacer(minLength: 12)
-                        }
+            // Left: template rail (scrolls independently).
+            templatesRail
+
+            // Middle: the element list (scrolls). Auto-scrolls to the row
+            // that matches a preview tap.
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: true) {
+                    elementsSection
                         .padding(.bottom, 8)
-                    }
-                    .onChange(of: selectedElementID) { _, id in
-                        guard let id else { return }
-                        withAnimation(.easeInOut(duration: 0.25)) {
-                            proxy.scrollTo(id, anchor: .center)
-                        }
+                }
+                .onChange(of: selectedElementID) { _, id in
+                    guard let id else { return }
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        proxy.scrollTo(id, anchor: .center)
                     }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(.leading, 24)
-            .padding(.top, 24)
 
-            VStack(alignment: .center, spacing: 14) {
-                LivePopoverPreview(selectedElementID: $selectedElementID)
-                resetButton
-                Spacer(minLength: 0)
+            // Right: the real popover. Scrolls on its own so a tall
+            // composition's preview can be seen in full instead of being
+            // clipped at the bottom.
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .center, spacing: 14) {
+                    LivePopoverPreview(selectedElementID: $selectedElementID)
+                    resetButton
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 2)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .padding(.trailing, 24)
-            .padding(.top, 24)
+            .frame(width: 312)
         }
+        .padding(20)
     }
 
     private var verticalLayout: some View {
@@ -86,7 +88,6 @@ struct PopoverSectionView: View {
                     .padding(.vertical, 8)
 
                     templatesSection
-                    chromeSection
                     elementsSection
                     Spacer(minLength: 12)
                 }
@@ -110,20 +111,53 @@ struct PopoverSectionView: View {
     }
 
     private var resetButton: some View {
-        Button {
+        StudioResetButton {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                 settingsStore.popoverComposition = PopoverBuiltinTemplate.classic.composition
             }
             selectedElementID = nil
-        } label: {
-            Label(String(localized: "popover.settings.reset"), systemImage: "arrow.uturn.backward")
-                .font(.system(size: 11, weight: .medium))
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(.white.opacity(0.55))
     }
 
     // MARK: - Templates
+
+    // MARK: - Active / modified state
+
+    private var current: PopoverComposition { settingsStore.popoverComposition }
+
+    /// The saved template that matches the current composition, if any.
+    private var activeUserTemplateID: UUID? {
+        settingsStore.popoverUserTemplates.first { $0.composition.isEquivalent(to: current) }?.id
+    }
+
+    /// The built-in that matches (only when no saved template already did).
+    private var activeBuiltin: PopoverBuiltinTemplate? {
+        guard activeUserTemplateID == nil else { return nil }
+        return PopoverBuiltinTemplate.allCases.first { $0.composition.isEquivalent(to: current) }
+    }
+
+    /// The current composition diverges from every template -> a custom, not
+    /// yet saved, state.
+    private var isModified: Bool {
+        activeUserTemplateID == nil && activeBuiltin == nil
+    }
+
+    /// Vertical template rail for the three-column Studio layout: the custom
+    /// state (when modified) on top, then saved templates (newest first),
+    /// then the built-ins.
+    private var templatesRail: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            editorSectionLabel("popover.editor.templates")
+
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 8) {
+                    templateCards
+                }
+                .padding(.vertical, 2)
+            }
+        }
+        .frame(width: 108)
+    }
 
     private var templatesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -131,62 +165,48 @@ struct PopoverSectionView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(PopoverBuiltinTemplate.allCases) { template in
-                        TemplateCard(
-                            name: template.localizedName,
-                            composition: template.composition
-                        ) {
-                            apply(template.composition)
-                        }
-                    }
-                    ForEach(settingsStore.popoverUserTemplates) { template in
-                        TemplateCard(
-                            name: template.name,
-                            composition: template.composition,
-                            isUserTemplate: true
-                        ) {
-                            apply(template.composition)
-                        }
-                        .contextMenu {
-                            Button(role: .destructive) {
-                                settingsStore.popoverUserTemplates.removeAll { $0.id == template.id }
-                            } label: {
-                                Label(String(localized: "popover.editor.deleteTemplate"), systemImage: "trash")
-                            }
-                        }
-                    }
-                    saveTemplateCard
+                    templateCards
                 }
                 .padding(.vertical, 2)
             }
         }
     }
 
-    private var saveTemplateCard: some View {
-        Button {
-            templateName = ""
-            showSaveDialog = true
-        } label: {
-            VStack(spacing: 6) {
-                Image(systemName: "plus")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.5))
-                Text(String(localized: "popover.editor.saveTemplate.short"))
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.5))
-                    .multilineTextAlignment(.center)
+    @ViewBuilder
+    private var templateCards: some View {
+        if isModified {
+            CustomStateCard {
+                templateName = ""
+                showSaveDialog = true
             }
-            .frame(width: 92, height: 96)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.white.opacity(0.02))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .strokeBorder(Color.white.opacity(0.12), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                    )
-            )
         }
-        .buttonStyle(.plain)
+        // Saved templates first, newest on top (saves insert at index 0).
+        ForEach(settingsStore.popoverUserTemplates) { template in
+            TemplateCard(
+                name: template.name,
+                composition: template.composition,
+                isUserTemplate: true,
+                isActive: template.id == activeUserTemplateID
+            ) {
+                apply(template.composition)
+            }
+            .contextMenu {
+                Button(role: .destructive) {
+                    settingsStore.popoverUserTemplates.removeAll { $0.id == template.id }
+                } label: {
+                    Label(String(localized: "popover.editor.deleteTemplate"), systemImage: "trash")
+                }
+            }
+        }
+        ForEach(PopoverBuiltinTemplate.allCases) { template in
+            TemplateCard(
+                name: template.localizedName,
+                composition: template.composition,
+                isActive: template == activeBuiltin
+            ) {
+                apply(template.composition)
+            }
+        }
     }
 
     private func apply(_ composition: PopoverComposition) {
@@ -207,50 +227,12 @@ struct PopoverSectionView: View {
             name = "\(trimmed) \(counter)"
             counter += 1
         }
-        settingsStore.popoverUserTemplates.append(
-            PopoverUserTemplate(name: name, composition: settingsStore.popoverComposition)
+        // Newest on top -> the just-saved template lands above the built-ins.
+        settingsStore.popoverUserTemplates.insert(
+            PopoverUserTemplate(name: name, composition: settingsStore.popoverComposition),
+            at: 0
         )
         templateName = ""
-    }
-
-    // MARK: - Chrome (fixed header toggles)
-
-    private var chromeSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            editorSectionLabel("popover.zone.general")
-
-            chromeToggleRow(
-                isOn: $settingsStore.popoverComposition.showPlanBadge,
-                label: String(localized: "popover.option.showPlanBadge")
-            )
-            chromeToggleRow(
-                isOn: $settingsStore.popoverComposition.showRefreshButton,
-                label: String(localized: "popover.option.showRefreshButton")
-            )
-        }
-    }
-
-    private func chromeToggleRow(isOn: Binding<Bool>, label: String) -> some View {
-        HStack(spacing: 10) {
-            Toggle("", isOn: isOn)
-                .toggleStyle(.switch)
-                .tint(DS.Palette.accentSettings)
-                .labelsHidden()
-            Text(label)
-                .font(.system(size: 12))
-                .foregroundStyle(.white.opacity(0.85))
-            Spacer()
-        }
-        .padding(.vertical, 6)
-        .padding(.horizontal, 14)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.white.opacity(0.04))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-        )
     }
 
     // MARK: - Elements
@@ -270,7 +252,7 @@ struct PopoverSectionView: View {
     private var addElementMenu: some View {
         Menu {
             Section(String(localized: "popover.editor.family.metrics")) {
-                let metricKinds: [PopoverElementKind] = [.session, .weekly, .sonnet, .design, .fable, .extraCredits]
+                let metricKinds: [PopoverElementKind] = [.session, .weekly, .sonnet, .fable, .extraCredits]
                 ForEach(metricKinds) { kind in
                     addButton(for: kind)
                 }
@@ -280,6 +262,8 @@ struct PopoverSectionView: View {
                 addButton(for: .weeklyPacing)
             }
             Section(String(localized: "popover.editor.family.utilities")) {
+                addButton(for: .planBadge)
+                addButton(for: .refreshButton)
                 addButton(for: .watchers)
                 addButton(for: .timestamp)
                 addButton(for: .openButton)
@@ -309,6 +293,11 @@ struct PopoverSectionView: View {
     @ViewBuilder
     private func addButton(for kind: PopoverElementKind) -> some View {
         let available = accountHasKind(kind)
+        // Not disabled when unavailable: a user can pre-place a metric the
+        // account does not have yet (Extra Credits, Fable) so their
+        // layout is future-proof - the render-time gate keeps it hidden until
+        // the account actually gains the data, at which point it appears on
+        // its own. The label just flags that it is not active yet.
         Button {
             addElement(kind)
         } label: {
@@ -318,16 +307,16 @@ struct PopoverSectionView: View {
                 systemImage: kind.symbolName
             )
         }
-        .disabled(!available)
     }
 
-    /// Plan-level availability for the add menu (data-presence gating at
-    /// render time is separate and stays live).
+    /// Whether the metric is currently active on the account. Only labels the
+    /// add-menu entry; it does not block adding (see `addButton`). Render-time
+    /// presence gating stays live and separate.
     private func accountHasKind(_ kind: PopoverElementKind) -> Bool {
         switch kind {
-        case .design: return usageStore.hasDesign
         case .fable: return usageStore.hasFable
         case .extraCredits: return usageStore.hasExtraCredits
+        case .planBadge: return usageStore.planType != .unknown
         default: return true
         }
     }
@@ -363,14 +352,27 @@ private struct TemplateCard: View {
     let name: String
     let composition: PopoverComposition
     var isUserTemplate: Bool = false
+    var isActive: Bool = false
     let onApply: () -> Void
 
     @State private var hovering = false
 
+    private var fill: Color {
+        if isActive { return DS.Palette.accentStudio.opacity(0.16) }
+        if hovering { return Color.blue.opacity(0.12) }
+        return Color.white.opacity(0.03)
+    }
+
+    private var stroke: Color {
+        if isActive { return DS.Palette.accentStudio.opacity(0.6) }
+        if hovering { return Color.blue.opacity(0.5) }
+        return Color.white.opacity(0.07)
+    }
+
     var body: some View {
         Button(action: onApply) {
             VStack(spacing: 7) {
-                TemplateSchematic(composition: composition, highlighted: hovering)
+                TemplateSchematic(composition: composition, highlighted: hovering || isActive)
                 HStack(spacing: 3) {
                     if isUserTemplate {
                         Image(systemName: "person.fill")
@@ -379,7 +381,7 @@ private struct TemplateCard: View {
                     }
                     Text(name)
                         .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(hovering ? .white : .white.opacity(0.65))
+                        .foregroundStyle(isActive || hovering ? .white : .white.opacity(0.65))
                         .lineLimit(1)
                 }
             }
@@ -387,13 +389,21 @@ private struct TemplateCard: View {
             .frame(width: 92, height: 96)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(hovering ? Color.blue.opacity(0.12) : Color.white.opacity(0.03))
+                    .fill(fill)
                     .overlay(
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(hovering ? Color.blue.opacity(0.5) : Color.white.opacity(0.07), lineWidth: 1)
+                            .stroke(stroke, lineWidth: 1)
                     )
             )
-            .scaleEffect(hovering ? 1.02 : 1.0)
+            .overlay(alignment: .topTrailing) {
+                if isActive {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(DS.Palette.accentStudio)
+                        .padding(5)
+                }
+            }
+            .scaleEffect(hovering && !isActive ? 1.02 : 1.0)
         }
         .buttonStyle(.plain)
         .onHover { isHovering in
@@ -401,6 +411,47 @@ private struct TemplateCard: View {
                 hovering = isHovering
             }
         }
+    }
+}
+
+/// Shown at the top of the template list when the current composition no
+/// longer matches any template. Doubles as the save affordance -> tapping it
+/// saves the current composition as a new user template at the top.
+private struct CustomStateCard: View {
+    let onSave: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: onSave) {
+            VStack(spacing: 6) {
+                Image(systemName: "bookmark.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(DS.Palette.accentStudio)
+                Text(String(localized: "editor.custom.modified"))
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(DS.Palette.accentStudio)
+                    .textCase(.uppercase)
+                    .tracking(0.5)
+                Text(String(localized: "editor.custom.save"))
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.white.opacity(hovering ? 0.9 : 0.6))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+            }
+            .padding(8)
+            .frame(width: 92, height: 96)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(DS.Palette.accentStudio.opacity(hovering ? 0.16 : 0.10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(DS.Palette.accentStudio.opacity(0.55), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    )
+            )
+            .scaleEffect(hovering ? 1.02 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .onHover { h in withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) { hovering = h } }
     }
 }
 
@@ -439,7 +490,7 @@ private struct TemplateSchematic: View {
         case .gaugeRing, .arc: return 13
         case .chip, .bigText, .paceTile: return 8
         case .paceBar: return 6
-        case .paceText, .utilityRow, .actionButton: return 4
+        case .paceText, .utilityRow, .actionButton, .badge: return 4
         }
     }
 }
@@ -549,11 +600,17 @@ private struct ElementListEditor: View {
         $settingsStore.popoverComposition.elements
     }
 
+    // Plan-level availability, mirroring `accountHasKind` in the add menu
+    // (data-level gates like pacing-before-first-refresh are the renderer's
+    // empty-state fallback, not the editor's job). `.planBadge` must be here:
+    // with no known plan the renderer filters it out, so the editor must not
+    // count it toward the "keep one element visible" guard, and must keep it
+    // freely removable.
     private func isAvailable(_ kind: PopoverElementKind) -> Bool {
         switch kind {
-        case .design: return usageStore.hasDesign
         case .fable: return usageStore.hasFable
         case .extraCredits: return usageStore.hasExtraCredits
+        case .planBadge: return usageStore.planType != .unknown
         default: return true
         }
     }
@@ -747,21 +804,12 @@ private struct ElementRow: View {
                 }
             }
         } label: {
-            HStack(spacing: 4) {
-                Text(element.style.localizedLabel)
-                    .font(.system(size: 10, weight: .semibold))
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 7, weight: .bold))
-            }
-            .foregroundStyle(.white.opacity(0.75))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(
-                Capsule().fill(Color.white.opacity(0.06))
-                    .overlay(Capsule().stroke(Color.white.opacity(0.1), lineWidth: 0.5))
-            )
+            EditorPickerLabel(caption: "editor.pick.style", value: element.style.localizedLabel)
         }
-        .menuStyle(.borderlessButton)
+        .menuStyle(.button)
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .tint(.secondary)
         .menuIndicator(.hidden)
         .fixedSize()
     }

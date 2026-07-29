@@ -82,6 +82,9 @@ struct OnboardingHero: View {
         Button {
             viewModel.completeOnboarding()
             settingsStore.hasCompletedOnboarding = true
+            // A fresh install discovers the Studio through the nav itself;
+            // the what's-new intro is for upgrading users only.
+            settingsStore.hasSeenStudioIntro = true
         } label: {
             Text("onboarding.finish")
                 .font(.system(size: 12, weight: .semibold))

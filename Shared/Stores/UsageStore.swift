@@ -22,13 +22,9 @@ final class UsageStore: ObservableObject {
     @Published var coworkPct: Int = 0
     @Published var fablePct: Int = 0
     @Published var oauthAppsPct: Int = 0
-    @Published var designPct: Int = 0
     @Published var hasOpus: Bool = false
     @Published var hasCowork: Bool = false
     @Published var hasFable: Bool = false
-    @Published var hasDesign: Bool = false
-    @Published var designReset: String = ""
-    @Published var designResetAbsolute: String = ""
     @Published var fableReset: String = ""
     @Published var fableResetAbsolute: String = ""
     @Published var sonnetReset: String = ""
@@ -59,7 +55,7 @@ final class UsageStore: ObservableObject {
     }
 
     /// True when the paid Extra Credits pool is provisioned and turned on for
-    /// this account. Mirrors `hasDesign`/`hasOpus`: drives whether the metric
+    /// this account. Mirrors `hasOpus`: drives whether the metric
     /// can be pinned to the menu bar and shown in the widgets.
     var hasExtraCredits: Bool { extraUsage?.isEnabled == true }
 
@@ -378,11 +374,9 @@ final class UsageStore: ObservableObject {
         coworkPct = Int(usage.sevenDayCowork?.utilization ?? 0)
         fablePct = Int(usage.sevenDayFable?.utilization ?? 0)
         oauthAppsPct = Int(usage.sevenDayOauthApps?.utilization ?? 0)
-        designPct = Int(usage.sevenDayDesign?.utilization ?? 0)
         hasOpus = usage.sevenDayOpus != nil
         hasCowork = usage.sevenDayCowork != nil
         hasFable = usage.sevenDayFable != nil
-        hasDesign = usage.sevenDayDesign != nil
         extraUsage = usage.extraUsage
 
         refreshResetCountdown()
@@ -397,10 +391,6 @@ final class UsageStore: ObservableObject {
         let weekly = ResetCountdownFormatter.weekly(from: lastUsage?.sevenDay?.resetsAtDate)
         sevenDayReset = weekly.relative
         sevenDayResetAbsolute = weekly.absolute
-        // Design shares the 7d cadence.
-        let design = ResetCountdownFormatter.weekly(from: lastUsage?.sevenDayDesign?.resetsAtDate)
-        designReset = design.relative
-        designResetAbsolute = design.absolute
         // Fable is a weekly bucket with its own reset timestamp.
         let fable = ResetCountdownFormatter.weekly(from: lastUsage?.sevenDayFable?.resetsAtDate)
         fableReset = fable.relative
@@ -441,12 +431,6 @@ final class UsageStore: ObservableObject {
             windowDuration: 7 * 86_400,
             utilization: usage.sevenDaySonnet?.utilization ?? Double(sonnetPct)
         )
-        let designSnap = MetricSnapshot(
-            pct: designPct,
-            resetsAt: usage.sevenDayDesign?.resetsAtDate,
-            windowDuration: 7 * 86_400,
-            utilization: usage.sevenDayDesign?.utilization ?? Double(designPct)
-        )
         let fableSnap = MetricSnapshot(
             pct: fablePct,
             resetsAt: usage.sevenDayFable?.resetsAtDate,
@@ -458,7 +442,6 @@ final class UsageStore: ObservableObject {
             fiveHour: fiveHourSnap,
             sevenDay: sevenDaySnap,
             sonnet: sonnetSnap,
-            design: designSnap,
             fable: fableSnap,
             sessionPacing: fiveHourPacing?.zone,
             weeklyPacing: pacingZone,

@@ -3,7 +3,7 @@ import Foundation
 /// Lays out the dashboard's secondary metric tiles into rows that always fill
 /// the full row width, so a variable number of visible tiles never leaves an
 /// empty trailing cell (the old fixed 3-column `LazyVGrid` left a hole whenever
-/// the tile count was not a multiple of 3 - e.g. when the Design card is absent).
+/// the tile count was not a multiple of 3 - e.g. when a satellite card is absent).
 ///
 /// Up to 3 tiles per row, except a count of exactly 4 lays out as 2x2 to avoid a
 /// lone full-width tile on the second row.

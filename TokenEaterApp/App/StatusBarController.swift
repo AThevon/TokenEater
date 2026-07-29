@@ -248,7 +248,6 @@ final class StatusBarController: NSObject {
             trackFiveHour: settingsStore.notifTrackFiveHour,
             trackWeekly: settingsStore.notifTrackWeekly,
             trackSonnet: settingsStore.notifTrackSonnet,
-            trackDesign: settingsStore.notifTrackDesign,
             trackFable: settingsStore.notifTrackFable,
             sendRecovery: settingsStore.notifSendRecovery,
             pacingHot: settingsStore.notifPacingHot,
@@ -444,6 +443,26 @@ final class StatusBarController: NSObject {
         menu.addItem(watchers)
 
         menu.addItem(.separator())
+
+        // Studio submenu (direct surface shortcuts)
+        let studioItem = NSMenuItem(
+            title: String(localized: "sidebar.studio"),
+            action: nil,
+            keyEquivalent: ""
+        )
+        let studioSub = NSMenu()
+        for surface in StudioSection.allCases {
+            let item = NSMenuItem(
+                title: surface.label,
+                action: #selector(contextOpenSection(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.representedObject = "studio.\(surface.rawValue)"
+            studioSub.addItem(item)
+        }
+        studioItem.submenu = studioSub
+        menu.addItem(studioItem)
 
         // Settings submenu (direct section shortcuts)
         let settingsItem = NSMenuItem(

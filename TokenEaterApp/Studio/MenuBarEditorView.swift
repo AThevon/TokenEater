@@ -1,12 +1,19 @@
 import SwiftUI
 
-/// Composable menu bar editor: template gallery, a reorderable segment list
-/// (the single source of edition), and a live NSImage preview whose segments
-/// are clickable (click a segment to select its row). Writes go to
+/// Composable menu bar editor: three columns in the Studio -> a template
+/// rail on the left, the reorderable segment list in the middle (the single
+/// source of edition), and a live NSImage preview pinned on the right whose
+/// segments are clickable (click a segment to select its row). Writes go to
 /// `settingsStore.menuBarComposition`, which both this view and the status bar
 /// observe. Unlike the popover, an empty menu bar is legitimate (the renderer
 /// draws the app icon), so there is no "can't remove the last one" guard.
-struct MenuBarEditorView: View {
+///
+/// `previewHeader` sits above the preview (the show-in-menu-bar toggle) and
+/// `previewFooter` sits under it (colour controls + reset); the menu bar
+/// preview is short, so its column has the spare height for them. Both are
+/// injected by `DisplaySectionView` so the surrounding chrome lives with the
+/// code that owns those settings.
+struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var usageStore: UsageStore
 
@@ -14,12 +21,19 @@ struct MenuBarEditorView: View {
     @State private var showSaveDialog = false
     @State private var templateName = ""
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            MenuBarLivePreview(selectedSegmentID: $selectedSegmentID)
+    @ViewBuilder var previewHeader: () -> PreviewHeader
+    @ViewBuilder var previewFooter: () -> PreviewFooter
 
-            templatesSection
-            segmentsSection
+    /// Width below which the three-column layout stops fitting.
+    private let horizontalThreshold: CGFloat = 780
+
+    var body: some View {
+        GeometryReader { geo in
+            if geo.size.width >= horizontalThreshold {
+                horizontalLayout
+            } else {
+                verticalLayout
+            }
         }
         .alert(String(localized: "menuBar.editor.saveTemplate"), isPresented: $showSaveDialog) {
             TextField(String(localized: "menuBar.editor.saveTemplate.placeholder"), text: $templateName)
@@ -31,62 +45,128 @@ struct MenuBarEditorView: View {
         }
     }
 
+    // MARK: - Layouts
+
+    private var horizontalLayout: some View {
+        HStack(alignment: .top, spacing: 16) {
+            // Left: template rail (scrolls independently).
+            templatesRail
+
+            // Middle: the segment list, the only column that scrolls.
+            ScrollView(.vertical, showsIndicators: true) {
+                segmentsSection
+                    .padding(.bottom, 8)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+            // Right: the toggle, the live menu bar item, then the colour
+            // controls + reset (the short preview leaves room below it). The
+            // preview stays at the top so an edit is always visible.
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 16) {
+                    previewHeader()
+                    MenuBarLivePreview(selectedSegmentID: $selectedSegmentID)
+                    previewFooter()
+                }
+            }
+            .frame(width: 300)
+        }
+        .padding(20)
+    }
+
+    private var verticalLayout: some View {
+        ScrollView(.vertical, showsIndicators: true) {
+            VStack(alignment: .leading, spacing: 16) {
+                previewHeader()
+                MenuBarLivePreview(selectedSegmentID: $selectedSegmentID)
+                previewFooter()
+                templatesSection
+                segmentsSection
+            }
+            .padding(20)
+        }
+    }
+
+    // MARK: - Active / modified state
+
+    private var current: MenuBarComposition { settingsStore.menuBarComposition }
+
+    private var activeUserTemplateID: UUID? {
+        settingsStore.menuBarUserTemplates.first { $0.composition.isEquivalent(to: current) }?.id
+    }
+
+    private var activeBuiltin: MenuBarBuiltinTemplate? {
+        guard activeUserTemplateID == nil else { return nil }
+        return MenuBarBuiltinTemplate.allCases.first { $0.composition.isEquivalent(to: current) }
+    }
+
+    private var isModified: Bool {
+        activeUserTemplateID == nil && activeBuiltin == nil
+    }
+
     // MARK: - Templates
+
+    /// Vertical template rail: custom state (when modified) on top, then saved
+    /// templates (newest first), then built-ins.
+    private var templatesRail: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            editorLabel("menuBar.editor.templates")
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 8) {
+                    templateCards
+                }
+                .padding(.vertical, 2)
+            }
+        }
+        .frame(width: 104)
+    }
 
     private var templatesSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             editorLabel("menuBar.editor.templates")
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(MenuBarBuiltinTemplate.allCases) { template in
-                        MenuBarTemplateCard(name: template.localizedName, composition: template.composition) {
-                            apply(template.composition)
-                        }
-                    }
-                    ForEach(settingsStore.menuBarUserTemplates) { template in
-                        MenuBarTemplateCard(name: template.name, composition: template.composition, isUserTemplate: true) {
-                            apply(template.composition)
-                        }
-                        .contextMenu {
-                            Button(role: .destructive) {
-                                settingsStore.menuBarUserTemplates.removeAll { $0.id == template.id }
-                            } label: {
-                                Label(String(localized: "menuBar.editor.deleteTemplate"), systemImage: "trash")
-                            }
-                        }
-                    }
-                    saveTemplateCard
+                    templateCards
                 }
                 .padding(.vertical, 2)
             }
         }
     }
 
-    private var saveTemplateCard: some View {
-        Button {
-            templateName = ""
-            showSaveDialog = true
-        } label: {
-            VStack(spacing: 6) {
-                Image(systemName: "plus")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.5))
-                Text(String(localized: "menuBar.editor.saveTemplate.short"))
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.5))
-                    .multilineTextAlignment(.center)
+    @ViewBuilder
+    private var templateCards: some View {
+        if isModified {
+            MenuBarCustomStateCard {
+                templateName = ""
+                showSaveDialog = true
             }
-            .frame(width: 88, height: 62)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.white.opacity(0.02))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .strokeBorder(Color.white.opacity(0.12), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                    )
-            )
         }
-        .buttonStyle(.plain)
+        ForEach(settingsStore.menuBarUserTemplates) { template in
+            MenuBarTemplateCard(
+                name: template.name,
+                composition: template.composition,
+                isUserTemplate: true,
+                isActive: template.id == activeUserTemplateID
+            ) {
+                apply(template.composition)
+            }
+            .contextMenu {
+                Button(role: .destructive) {
+                    settingsStore.menuBarUserTemplates.removeAll { $0.id == template.id }
+                } label: {
+                    Label(String(localized: "menuBar.editor.deleteTemplate"), systemImage: "trash")
+                }
+            }
+        }
+        ForEach(MenuBarBuiltinTemplate.allCases) { template in
+            MenuBarTemplateCard(
+                name: template.localizedName,
+                composition: template.composition,
+                isActive: template == activeBuiltin
+            ) {
+                apply(template.composition)
+            }
+        }
     }
 
     private func apply(_ composition: MenuBarComposition) {
@@ -105,8 +185,10 @@ struct MenuBarEditorView: View {
             name = "\(trimmed) \(counter)"
             counter += 1
         }
-        settingsStore.menuBarUserTemplates.append(
-            MenuBarUserTemplate(name: name, composition: settingsStore.menuBarComposition)
+        // Newest on top -> the just-saved template lands above the built-ins.
+        settingsStore.menuBarUserTemplates.insert(
+            MenuBarUserTemplate(name: name, composition: settingsStore.menuBarComposition),
+            at: 0
         )
         templateName = ""
     }
@@ -127,7 +209,7 @@ struct MenuBarEditorView: View {
     private var addSegmentMenu: some View {
         Menu {
             Section(String(localized: "menuBar.editor.family.metrics")) {
-                let metricKinds: [MenuBarSegmentKind] = [.session, .weekly, .sonnet, .design, .fable, .extraCredits]
+                let metricKinds: [MenuBarSegmentKind] = [.session, .weekly, .sonnet, .fable, .extraCredits]
                 ForEach(metricKinds) { addButton(for: $0) }
             }
             Section(String(localized: "menuBar.editor.family.pacing")) {
@@ -155,6 +237,10 @@ struct MenuBarEditorView: View {
     @ViewBuilder
     private func addButton(for kind: MenuBarSegmentKind) -> some View {
         let available = accountHasKind(kind)
+        // Not disabled when unavailable: let the user pre-place a metric the
+        // account does not have yet so the layout is future-proof; the
+        // renderer keeps it hidden until the data actually shows up. The label
+        // flags that it is not active yet.
         Button {
             addSegment(kind)
         } label: {
@@ -164,12 +250,10 @@ struct MenuBarEditorView: View {
                 systemImage: kind.symbolName
             )
         }
-        .disabled(!available)
     }
 
     private func accountHasKind(_ kind: MenuBarSegmentKind) -> Bool {
         switch kind {
-        case .design: return usageStore.hasDesign
         case .fable: return usageStore.hasFable
         case .extraCredits: return usageStore.hasExtraCredits
         default: return true
@@ -200,29 +284,91 @@ private struct MenuBarTemplateCard: View {
     let name: String
     let composition: MenuBarComposition
     var isUserTemplate: Bool = false
+    var isActive: Bool = false
     let onApply: () -> Void
 
     @State private var hovering = false
 
+    private var fill: Color {
+        if isActive { return DS.Palette.accentStudio.opacity(0.16) }
+        if hovering { return Color.blue.opacity(0.12) }
+        return Color.white.opacity(0.03)
+    }
+
+    private var stroke: Color {
+        if isActive { return DS.Palette.accentStudio.opacity(0.6) }
+        if hovering { return Color.blue.opacity(0.5) }
+        return Color.white.opacity(0.07)
+    }
+
     var body: some View {
         Button(action: onApply) {
             VStack(spacing: 7) {
-                MenuBarTemplateSchematic(composition: composition, highlighted: hovering)
+                MenuBarTemplateSchematic(composition: composition, highlighted: hovering || isActive)
                     .frame(height: 20)
                 HStack(spacing: 3) {
                     if isUserTemplate {
                         Image(systemName: "person.fill").font(.system(size: 7)).foregroundStyle(.white.opacity(0.4))
                     }
                     Text(name).font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(hovering ? .white : .white.opacity(0.65)).lineLimit(1)
+                        .foregroundStyle(isActive || hovering ? .white : .white.opacity(0.65)).lineLimit(1)
                 }
             }
             .padding(8)
             .frame(width: 88, height: 62)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(hovering ? Color.blue.opacity(0.12) : Color.white.opacity(0.03))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(hovering ? Color.blue.opacity(0.5) : Color.white.opacity(0.07), lineWidth: 1))
+                    .fill(fill)
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(stroke, lineWidth: 1))
+            )
+            .overlay(alignment: .topTrailing) {
+                if isActive {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(DS.Palette.accentStudio)
+                        .padding(4)
+                }
+            }
+            .scaleEffect(hovering && !isActive ? 1.02 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .onHover { h in withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) { hovering = h } }
+    }
+}
+
+/// Menu bar equivalent of the popover's custom-state card. Shown at the top of
+/// the template list when the composition diverges from every template; saves
+/// the current one as a new user template on top.
+private struct MenuBarCustomStateCard: View {
+    let onSave: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: onSave) {
+            VStack(spacing: 4) {
+                Image(systemName: "bookmark.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(DS.Palette.accentStudio)
+                Text(String(localized: "editor.custom.modified"))
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(DS.Palette.accentStudio)
+                    .textCase(.uppercase)
+                    .tracking(0.5)
+                Text(String(localized: "editor.custom.save"))
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(.white.opacity(hovering ? 0.9 : 0.6))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+            }
+            .padding(6)
+            .frame(width: 88, height: 62)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(DS.Palette.accentStudio.opacity(hovering ? 0.16 : 0.10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .strokeBorder(DS.Palette.accentStudio.opacity(0.55), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    )
             )
             .scaleEffect(hovering ? 1.02 : 1.0)
         }
@@ -411,7 +557,6 @@ private struct MenuBarSegmentListEditor: View {
 
     private func isAvailable(_ kind: MenuBarSegmentKind) -> Bool {
         switch kind {
-        case .design: return usageStore.hasDesign
         case .fable: return usageStore.hasFable
         case .extraCredits: return usageStore.hasExtraCredits
         default: return true
@@ -524,9 +669,9 @@ private struct MenuBarSegmentRow: View {
                 }
             }
         } label: {
-            pickerLabel(segment.effectiveStyle.localizedLabel)
+            EditorPickerLabel(caption: "editor.pick.style", value: segment.effectiveStyle.localizedLabel)
         }
-        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+        .menuStyle(.button).buttonStyle(.bordered).controlSize(.small).tint(.secondary).menuIndicator(.hidden).fixedSize()
     }
 
     private var shapeMenu: some View {
@@ -540,9 +685,9 @@ private struct MenuBarSegmentRow: View {
                 }
             }
         } label: {
-            pickerLabel(segment.options.pacingShape.glyph)
+            EditorPickerLabel(caption: "editor.pick.shape", value: segment.options.pacingShape.localizedLabel)
         }
-        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+        .menuStyle(.button).buttonStyle(.bordered).controlSize(.small).tint(.secondary).menuIndicator(.hidden).fixedSize()
     }
 
     private var formatMenu: some View {
@@ -556,18 +701,31 @@ private struct MenuBarSegmentRow: View {
                 }
             }
         } label: {
-            pickerLabel(segment.options.resetFormat.localizedLabel)
+            EditorPickerLabel(caption: "editor.pick.format", value: segment.options.resetFormat.localizedLabel)
         }
-        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+        .menuStyle(.button).buttonStyle(.bordered).controlSize(.small).tint(.secondary).menuIndicator(.hidden).fixedSize()
     }
+}
 
-    private func pickerLabel(_ text: String) -> some View {
-        HStack(spacing: 4) {
-            Text(text).font(.system(size: 10, weight: .semibold))
-            Image(systemName: "chevron.up.chevron.down").font(.system(size: 7, weight: .bold))
+/// Label content for the segment / element picker menus. Kept minimal (a type
+/// icon + the current value); the menu itself is rendered with the system
+/// `.bordered` button + `.button` menu style at the call site, which draws a
+/// real button frame and the native disclosure chevron - unmistakably a
+/// control, unlike a custom `Menu` label whose background/chevron the
+/// borderless style silently dropped. The control's plain name is a tooltip.
+struct EditorPickerLabel: View {
+    let caption: LocalizedStringKey
+    let value: String
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Text(value)
+                .font(.system(size: 11, weight: .medium))
+                .lineLimit(1)
+            Image(systemName: "chevron.down")
+                .font(.system(size: 8, weight: .semibold))
+                .opacity(0.6)
         }
-        .foregroundStyle(.white.opacity(0.75))
-        .padding(.horizontal, 8).padding(.vertical, 4)
-        .background(Capsule().fill(Color.white.opacity(0.06)).overlay(Capsule().stroke(Color.white.opacity(0.1), lineWidth: 0.5)))
+        .help(Text(caption))
     }
 }

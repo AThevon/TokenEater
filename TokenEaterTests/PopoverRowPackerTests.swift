@@ -43,7 +43,7 @@ struct PopoverRowPackerTests {
             element(.weekly, .gaugeRing, .third),
             element(.sonnet, .gaugeRing, .third),
             element(.fable, .gaugeRing, .third),
-            element(.design, .gaugeRing, .third),
+            element(.extraCredits, .gaugeRing, .third),
         ])
         #expect(rows.count == 2)
         #expect(rows[0].count == 3)

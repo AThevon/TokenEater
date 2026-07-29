@@ -8,9 +8,7 @@
 
 /* Metrics */
 "metric.session" = "5h";
-"metric.design" = "Design";
 "metric.serviceStatus" = "Service status";
-"settings.group.design" = "Claude Design";
 
 /* Extra usage (paid credits pool) */
 "dashboard.extra.title" = "Extra credits";
@@ -55,7 +53,6 @@
 "widget.pacing.title" = "Weekly Pace";
 "widget.pacing.session" = "5h";
 "widget.pacing.weekly" = "7d";
-"widget.design" = "Design";
 "widget.extra" = "Extra Credits";
 "widget.title.extraCredits" = "Extra Credits";
 "widget.description.extraCredits" = "Track your paid Extra Credits pool: spend, monthly limit and percentage used";
@@ -273,10 +270,8 @@
 "notif.title.weekly.green" = "Weekly reset";
 "notif.title.weekly.pace" = "Ahead of weekly pace";
 "notif.title.sonnet.pace" = "Ahead of Sonnet pace";
-"notif.title.design.pace" = "Ahead of Design pace";
 "notif.body.weekly.pace" = "You're ahead of an even weekly burn rate, not near the cap. Fine if intentional.";
 "notif.body.sonnet.pace" = "You're ahead of an even Sonnet burn rate, not near the cap. Fine if intentional.";
-"notif.body.design.pace" = "You're ahead of an even Design burn rate, not near the cap. Fine if intentional.";
 "notif.body.weekly.orange" = "Resets %@";
 "notif.body.weekly.orange.fallback" = "Past the weekly warning";
 "notif.body.weekly.red" = "Take it slow until %@";
@@ -294,17 +289,6 @@
 "notif.body.sonnet.red.fallback" = "Sonnet pool almost out";
 "notif.body.sonnet.green" = "Sonnet refilled at %@";
 "notif.body.sonnet.green.fallback" = "Sonnet refilled, you're back";
-
-/* Notifications - Design weekly */
-"notif.title.design.orange" = "Design pool heavy";
-"notif.title.design.red" = "Design almost gone";
-"notif.title.design.green" = "Design reset";
-"notif.body.design.orange" = "Resets %@";
-"notif.body.design.orange.fallback" = "Past the Design warning";
-"notif.body.design.red" = "Ease off until %@";
-"notif.body.design.red.fallback" = "Design pool almost out";
-"notif.body.design.green" = "Design refilled at %@";
-"notif.body.design.green.fallback" = "Design refilled, you're back";
 
 /* Notifications - Extra credits */
 "notif.title.extra.orange" = "Extra pool getting low";
@@ -337,7 +321,6 @@
 "settings.notifications.track.fivehour" = "Track 5h session";
 "settings.notifications.track.weekly" = "Track 7d weekly";
 "settings.notifications.track.sonnet" = "Track Sonnet weekly";
-"settings.notifications.track.design" = "Track Claude Design weekly";
 "settings.notifications.recovery" = "Send recovery notifications";
 "settings.notifications.recovery.hint" = "When OFF, only escalations fire (no \"you're back\" message).";
 "settings.notifications.group.pacing" = "Pacing";
@@ -640,6 +623,41 @@
 "sidebar.notifications.subtitle" = "Pick which events should fire a notification. Toggles run independently.";
 "sidebar.settings" = "Settings";
 
+/* Studio */
+"sidebar.studio" = "Studio";
+"studio.surface.popover" = "Popover";
+"studio.surface.popover.hint" = "Elements, layout, templates";
+"studio.surface.menuBar" = "Menu bar";
+"studio.surface.menuBar.hint" = "Segments and styles";
+"studio.surface.themes" = "Themes";
+"studio.surface.themes.hint" = "Colours and glow";
+"theme.preview.title" = "Preview";
+"theme.preview.gauges" = "Gauges";
+"theme.preview.pacing" = "Pacing";
+"editor.custom.modified" = "Modified";
+"editor.custom.save" = "Save theme";
+"editor.pick.style" = "Style";
+"editor.pick.shape" = "Shape";
+"editor.pick.format" = "Format";
+"editor.pick.width" = "Width";
+"editor.pick.value" = "Value";
+"editor.reset" = "Reset to default";
+"studio.intro.badge" = "NEW";
+"studio.intro.text" = "The Studio is here. Popover, menu bar and themes, all in one place.";
+"studio.intro.cta" = "See what's new";
+"whatsnew.title" = "What's new";
+"whatsnew.subtitle" = "This update rethinks how you customize TokenEater.";
+"whatsnew.studio.title" = "The Studio";
+"whatsnew.studio.text" = "A new space gathering all visual customization, with live previews.";
+"whatsnew.popover.title" = "Composable popover";
+"whatsnew.popover.text" = "Build your popover element by element: styles, widths, and order.";
+"whatsnew.menubar.title" = "Composable menu bar";
+"whatsnew.menubar.text" = "Compose the menu bar item segment by segment, right down to the style.";
+"whatsnew.templates.title" = "Templates";
+"whatsnew.templates.text" = "Start from the built-ins or save your own, on both surfaces.";
+"whatsnew.later" = "Later";
+"whatsnew.open" = "Open the Studio";
+
 /* Popover customization */
 "popover.settings.title" = "Popover";
 "popover.settings.subtitle" = "Start from a template, then compose your popover element by element.";
@@ -652,9 +670,6 @@
 "sidebar.settings.subtitle" = "Proxy, refresh interval, and other global preferences.";
 "popover.settings.preview" = "Preview";
 "popover.settings.reset" = "Reset to default";
-"popover.zone.general" = "General";
-"popover.option.showPlanBadge" = "Show plan badge (PRO / MAX / TEAM)";
-"popover.option.showRefreshButton" = "Show manual refresh button";
 
 /* Composable popover editor */
 "popover.editor.templates" = "Templates";
@@ -663,7 +678,7 @@
 "popover.editor.family.metrics" = "Metrics";
 "popover.editor.family.pacing" = "Pacing";
 "popover.editor.family.utilities" = "Utilities";
-"popover.editor.unavailable" = "not available on your plan";
+"popover.editor.unavailable" = "not active on this account";
 "popover.editor.saveTemplate" = "Save as template";
 "popover.editor.saveTemplate.short" = "Save current";
 "popover.editor.saveTemplate.message" = "Saves the current composition so you can reapply it later.";
@@ -682,7 +697,6 @@
 "popoverElement.session" = "Session (5h)";
 "popoverElement.weekly" = "Weekly";
 "popoverElement.sonnet" = "Sonnet";
-"popoverElement.design" = "Design";
 "popoverElement.fable" = "Fable";
 "popoverElement.extraCredits" = "Extra Credits";
 "popoverElement.sessionPacing" = "Session pacing";
@@ -691,6 +705,9 @@
 "popoverElement.timestamp" = "Updated timestamp";
 "popoverElement.openButton" = "Open TokenEater button";
 "popoverElement.quitButton" = "Quit button";
+"popoverElement.planBadge" = "Plan badge";
+"popoverElement.refreshButton" = "Refresh button";
+"popover.cell.open" = "Open";
 
 "popoverStyle.gaugeRing" = "Ring";
 "popoverStyle.chip" = "Chip";
@@ -701,6 +718,7 @@
 "popoverStyle.paceText" = "Text";
 "popoverStyle.utilityRow" = "Row";
 "popoverStyle.actionButton" = "Button";
+"popoverStyle.badge" = "Badge";
 
 "popoverWidth.full" = "Full width";
 "popoverWidth.half" = "Half width";
@@ -720,7 +738,7 @@
 "menuBar.editor.family.metrics" = "Metrics";
 "menuBar.editor.family.pacing" = "Pacing";
 "menuBar.editor.family.status" = "Status";
-"menuBar.editor.unavailable" = "not available on your plan";
+"menuBar.editor.unavailable" = "not active on this account";
 "menuBar.editor.saveTemplate" = "Save as template";
 "menuBar.editor.saveTemplate.short" = "Save current";
 "menuBar.editor.saveTemplate.message" = "Saves the current menu bar layout so you can reapply it later.";
@@ -736,7 +754,6 @@
 "menuBarSegment.session" = "Session (5h)";
 "menuBarSegment.weekly" = "Weekly";
 "menuBarSegment.sonnet" = "Sonnet";
-"menuBarSegment.design" = "Design";
 "menuBarSegment.fable" = "Fable";
 "menuBarSegment.extraCredits" = "Extra Credits";
 "menuBarSegment.sessionPacing" = "Session pacing";

@@ -89,15 +89,11 @@ final class DisplaySettingsStore: ObservableObject {
     @Published var displaySonnet: Bool {
         didSet { UserDefaults.standard.set(displaySonnet, forKey: "displaySonnet") }
     }
-    /// Same as `displaySonnet` but for Claude Design.
-    @Published var displayDesign: Bool {
-        didSet { UserDefaults.standard.set(displayDesign, forKey: "displayDesign") }
-    }
-    /// Same as `displayDesign` but for Claude Fable.
+    /// Same as `displaySonnet` but for Claude Fable.
     @Published var displayFable: Bool {
         didSet { UserDefaults.standard.set(displayFable, forKey: "displayFable") }
     }
-    /// Same as `displayDesign` but for the paid Extra Credits pool.
+    /// Same as `displayFable` but for the paid Extra Credits pool.
     @Published var displayExtraCredits: Bool {
         didSet { UserDefaults.standard.set(displayExtraCredits, forKey: "displayExtraCredits") }
     }
@@ -175,18 +171,14 @@ final class DisplaySettingsStore: ObservableObject {
         }
         self.pinnedMetrics = legacyPinned
 
-        // displaySonnet and displayDesign default to false for everyone -
-        // the satellites are opt-in. Users who had the old behaviour (sonnet
-        // pinned automatically toggled displaySonnet to true) keep whatever
-        // they had saved.
+        // displaySonnet defaults to false for everyone - the satellites are
+        // opt-in. Users who had the old behaviour (sonnet pinned automatically
+        // toggled displaySonnet to true) keep whatever they had saved.
         if UserDefaults.standard.object(forKey: "displaySonnet") != nil {
             self.displaySonnet = UserDefaults.standard.bool(forKey: "displaySonnet")
         } else {
             self.displaySonnet = false
         }
-        self.displayDesign = UserDefaults.standard.object(forKey: "displayDesign") != nil
-            ? UserDefaults.standard.bool(forKey: "displayDesign")
-            : false
         self.displayFable = UserDefaults.standard.object(forKey: "displayFable") != nil
             ? UserDefaults.standard.bool(forKey: "displayFable")
             : false

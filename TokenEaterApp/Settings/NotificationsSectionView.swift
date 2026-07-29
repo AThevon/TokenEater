@@ -49,7 +49,6 @@ struct NotificationsSectionView: View {
         settingsStore.notifTrackFiveHour = true
         settingsStore.notifTrackWeekly = true
         settingsStore.notifTrackSonnet = false
-        settingsStore.notifTrackDesign = true
         settingsStore.notifSendRecovery = true
         settingsStore.notifPacingHot = true
         settingsStore.notifPacingWarning = false
@@ -143,7 +142,6 @@ struct NotificationsSectionView: View {
                 darkToggle(String(localized: "settings.notifications.track.fivehour"), isOn: $settingsStore.notification.trackFiveHour)
                 darkToggle(String(localized: "settings.notifications.track.weekly"), isOn: $settingsStore.notification.trackWeekly)
                 darkToggle(String(localized: "settings.notifications.track.sonnet"), isOn: $settingsStore.notification.trackSonnet)
-                darkToggle(String(localized: "settings.notifications.track.design"), isOn: $settingsStore.notification.trackDesign)
                 darkToggle(String(localized: "settings.notifications.track.fable"), isOn: $settingsStore.notification.trackFable)
                 Divider().padding(.vertical, 2)
                 darkToggle(String(localized: "settings.notifications.recovery"), isOn: $settingsStore.notification.sendRecovery)

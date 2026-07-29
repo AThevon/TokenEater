@@ -55,13 +55,10 @@ final class SettingsStore: ObservableObject {
     var displaySonnet: Bool {
         get { display.displaySonnet } set { display.displaySonnet = newValue }
     }
-    var displayDesign: Bool {
-        get { display.displayDesign } set { display.displayDesign = newValue }
-    }
     var displayFable: Bool {
         get { display.displayFable } set { display.displayFable = newValue }
     }
-    /// Same as `displayDesign` but for the paid Extra Credits pool. Only
+    /// Same as `displayFable` but for the paid Extra Credits pool. Only
     /// surfaced in settings when `UsageStore.hasExtraCredits` is true.
     var displayExtraCredits: Bool {
         get { display.displayExtraCredits } set { display.displayExtraCredits = newValue }
@@ -94,6 +91,14 @@ final class SettingsStore: ObservableObject {
     }
     @Published var hasCompletedOnboarding: Bool {
         didSet { UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding") }
+    }
+
+    /// One-shot discovery flag for the Studio intro (nav bubble + what's-new
+    /// sheet). Flips true the first time the user sees, dismisses, or reaches
+    /// the Studio; also set on onboarding completion so fresh installs never
+    /// get an upgrade pitch for a feature they onboarded with.
+    @Published var hasSeenStudioIntro: Bool {
+        didSet { UserDefaults.standard.set(hasSeenStudioIntro, forKey: "hasSeenStudioIntro") }
     }
 
     // Proxy
@@ -196,9 +201,6 @@ final class SettingsStore: ObservableObject {
     }
     var notifTrackSonnet: Bool {
         get { notification.trackSonnet } set { notification.trackSonnet = newValue }
-    }
-    var notifTrackDesign: Bool {
-        get { notification.trackDesign } set { notification.trackDesign = newValue }
     }
     var notifTrackFable: Bool {
         get { notification.trackFable } set { notification.trackFable = newValue }
@@ -340,6 +342,7 @@ final class SettingsStore: ObservableObject {
         self.display = displayStore
 
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+        self.hasSeenStudioIntro = UserDefaults.standard.bool(forKey: "hasSeenStudioIntro")
         self.proxyEnabled = UserDefaults.standard.bool(forKey: "proxyEnabled")
         self.proxyHost = UserDefaults.standard.string(forKey: "proxyHost") ?? "127.0.0.1"
         self.proxyPort = {
@@ -371,17 +374,23 @@ final class SettingsStore: ObservableObject {
 
         // Popover composition. Load order: new blob, else one-shot migration
         // of the legacy variant-based config (preserving what the user saw
-        // before 5.9), else the Classic template.
+        // before 5.9), else the Classic template. Whatever path produced it,
+        // `PopoverChromeMigrator` then lifts a v1 result's fixed header
+        // chrome into regular elements (no-op on v2).
         let hadCompositionBlob = UserDefaults.standard.data(forKey: "popoverComposition") != nil
+        // Version the stored blob was written at -> when below current, the
+        // chrome-migrated result must be persisted at the end of init
+        // (didSet does not fire during init).
+        var storedPopoverVersion = PopoverComposition.currentVersion
         if let data = UserDefaults.standard.data(forKey: "popoverComposition"),
            let decoded = try? JSONDecoder().decode(PopoverComposition.self, from: data) {
-            self.popoverComposition = Self.reconcile(decoded)
+            storedPopoverVersion = decoded.version
+            self.popoverComposition = PopoverChromeMigrator.migrate(Self.reconcile(decoded))
         } else if let legacy = UserDefaults.standard.data(forKey: "popoverConfig"),
                   let config = try? JSONDecoder().decode(PopoverConfig.self, from: legacy) {
-            self.popoverComposition = Self.reconcile(PopoverConfigMigrator.migrate(
+            self.popoverComposition = PopoverChromeMigrator.migrate(Self.reconcile(PopoverConfigMigrator.migrate(
                 config,
                 displaySonnet: displayStore.displaySonnet,
-                displayDesign: displayStore.displayDesign,
                 displayFable: displayStore.displayFable,
                 displayExtraCredits: displayStore.displayExtraCredits,
                 // Presence from the cached usage, so a stale toggle (metric
@@ -389,14 +398,23 @@ final class SettingsStore: ObservableObject {
                 presence: PopoverConfigMigrator.AccountPresence(
                     cachedUsage: sharedFileService.cachedUsage?.usage
                 )
-            ))
+            )))
         } else {
             self.popoverComposition = .default
         }
 
+        var popoverTemplatesChanged = false
         if let data = UserDefaults.standard.data(forKey: "popoverUserTemplates"),
            let decoded = try? JSONDecoder().decode([PopoverUserTemplate].self, from: data) {
-            self.popoverUserTemplates = decoded
+            // Chrome-migrate any template saved before composition v2, so
+            // applying it never resurrects the pre-element header state.
+            let migrated = decoded.map { template in
+                var template = template
+                template.composition = PopoverChromeMigrator.migrate(template.composition)
+                return template
+            }
+            self.popoverUserTemplates = migrated
+            popoverTemplatesChanged = migrated != decoded
         } else {
             self.popoverUserTemplates = []
         }
@@ -446,8 +464,11 @@ final class SettingsStore: ObservableObject {
 
         // didSet doesn't fire during init - persist the migrated / default
         // compositions now so the one-shot migrations are durable.
-        if !hadCompositionBlob {
+        if !hadCompositionBlob || storedPopoverVersion < PopoverComposition.currentVersion {
             savePopoverComposition()
+        }
+        if popoverTemplatesChanged {
+            savePopoverUserTemplates()
         }
         if !hadMenuBarBlob {
             saveMenuBarComposition()

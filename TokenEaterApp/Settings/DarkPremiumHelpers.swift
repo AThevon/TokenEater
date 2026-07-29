@@ -121,3 +121,21 @@ struct ResetSectionButton: View {
         }
     }
 }
+
+/// Subtle, centered "Reset to default" control used under the Studio editor
+/// previews (popover / menu bar / themes) so the reset reads the same on all
+/// three: a muted icon + label, immediate (no confirmation), instead of the
+/// red destructive text used elsewhere in Settings.
+struct StudioResetButton: View {
+    let onReset: () -> Void
+
+    var body: some View {
+        Button(action: onReset) {
+            Label(String(localized: "editor.reset"), systemImage: "arrow.uturn.backward")
+                .font(.system(size: 11, weight: .medium))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.white.opacity(0.55))
+        .frame(maxWidth: .infinity)
+    }
+}

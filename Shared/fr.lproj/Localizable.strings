@@ -8,9 +8,7 @@
 
 /* Metrics */
 "metric.session" = "5h";
-"metric.design" = "Design";
 "metric.serviceStatus" = "État du service";
-"settings.group.design" = "Claude Design";
 
 /* Extra usage (paid credits pool) */
 "dashboard.extra.title" = "Crédits supplémentaires";
@@ -55,7 +53,6 @@
 "widget.pacing.title" = "Rythme hebdo";
 "widget.pacing.session" = "5h";
 "widget.pacing.weekly" = "7j";
-"widget.design" = "Design";
 "widget.extra" = "Crédits sup.";
 "widget.title.extraCredits" = "Crédits supplémentaires";
 "widget.description.extraCredits" = "Suivez votre pool de crédits supplémentaires payants : dépenses, limite mensuelle et pourcentage utilisé";
@@ -273,10 +270,8 @@
 "notif.title.weekly.green" = "Semaine relancée";
 "notif.title.weekly.pace" = "En avance sur le rythme hebdo";
 "notif.title.sonnet.pace" = "En avance sur le rythme Sonnet";
-"notif.title.design.pace" = "En avance sur le rythme Design";
 "notif.body.weekly.pace" = "Tu es au-dessus d'un rythme hebdo régulier, pas proche du plafond. Rien d'alarmant si c'est voulu.";
 "notif.body.sonnet.pace" = "Tu es au-dessus d'un rythme Sonnet régulier, pas proche du plafond. Rien d'alarmant si c'est voulu.";
-"notif.body.design.pace" = "Tu es au-dessus d'un rythme Design régulier, pas proche du plafond. Rien d'alarmant si c'est voulu.";
 "notif.body.weekly.orange" = "Reset %@";
 "notif.body.weekly.orange.fallback" = "Au-delà du seuil hebdo";
 "notif.body.weekly.red" = "Tranquille jusqu'au %@";
@@ -294,17 +289,6 @@
 "notif.body.sonnet.red.fallback" = "Pool Sonnet presque vide";
 "notif.body.sonnet.green" = "Sonnet rechargé le %@";
 "notif.body.sonnet.green.fallback" = "Sonnet rechargé, t'es de retour";
-
-/* Notifications - Design hebdo */
-"notif.title.design.orange" = "Pool Design bien entamé";
-"notif.title.design.red" = "Design presque épuisé";
-"notif.title.design.green" = "Design relancé";
-"notif.body.design.orange" = "Reset %@";
-"notif.body.design.orange.fallback" = "Au-delà du seuil Design";
-"notif.body.design.red" = "Mollo jusqu'au %@";
-"notif.body.design.red.fallback" = "Pool Design presque vide";
-"notif.body.design.green" = "Design rechargé le %@";
-"notif.body.design.green.fallback" = "Design rechargé, t'es de retour";
 
 /* Notifications - Extra credits */
 "notif.title.extra.orange" = "Pool extra qui baisse";
@@ -337,7 +321,6 @@
 "settings.notifications.track.fivehour" = "Suivre la session 5h";
 "settings.notifications.track.weekly" = "Suivre la semaine 7j";
 "settings.notifications.track.sonnet" = "Suivre la semaine Sonnet";
-"settings.notifications.track.design" = "Suivre la semaine Claude Design";
 "settings.notifications.recovery" = "Notifs de retour à la normale";
 "settings.notifications.recovery.hint" = "Si OFF, seules les escalades passent (pas de message \"t'es de retour\").";
 "settings.notifications.group.pacing" = "Pacing";
@@ -640,6 +623,41 @@
 "sidebar.notifications.subtitle" = "Choisis quels événements déclenchent une notif. Toggles indépendants.";
 "sidebar.settings" = "Réglages";
 
+/* Studio */
+"sidebar.studio" = "Studio";
+"studio.surface.popover" = "Popover";
+"studio.surface.popover.hint" = "Éléments, disposition, templates";
+"studio.surface.menuBar" = "Barre de menus";
+"studio.surface.menuBar.hint" = "Segments et styles";
+"studio.surface.themes" = "Thèmes";
+"studio.surface.themes.hint" = "Couleurs et glow";
+"theme.preview.title" = "Aperçu";
+"theme.preview.gauges" = "Jauges";
+"theme.preview.pacing" = "Pacing";
+"editor.custom.modified" = "Modifié";
+"editor.custom.save" = "Enregistrer";
+"editor.pick.style" = "Style";
+"editor.pick.shape" = "Forme";
+"editor.pick.format" = "Format";
+"editor.pick.width" = "Largeur";
+"editor.pick.value" = "Valeur";
+"editor.reset" = "Réinitialiser";
+"studio.intro.badge" = "NOUVEAU";
+"studio.intro.text" = "Le Studio est là. Popover, barre de menus et thèmes, au même endroit.";
+"studio.intro.cta" = "Voir les nouveautés";
+"whatsnew.title" = "Nouveautés";
+"whatsnew.subtitle" = "Cette mise à jour repense la personnalisation de TokenEater.";
+"whatsnew.studio.title" = "Le Studio";
+"whatsnew.studio.text" = "Un nouvel espace qui regroupe toute la personnalisation visuelle, avec aperçus live.";
+"whatsnew.popover.title" = "Popover composable";
+"whatsnew.popover.text" = "Construisez votre popover élément par élément : styles, largeurs, ordre.";
+"whatsnew.menubar.title" = "Barre de menus composable";
+"whatsnew.menubar.text" = "Composez l'item de la barre de menus segment par segment, style compris.";
+"whatsnew.templates.title" = "Templates";
+"whatsnew.templates.text" = "Partez des templates intégrés ou enregistrez les vôtres, sur les deux surfaces.";
+"whatsnew.later" = "Plus tard";
+"whatsnew.open" = "Ouvrir le Studio";
+
 /* Popover customization */
 "popover.settings.title" = "Popover";
 "popover.settings.subtitle" = "Partez d'un template, puis composez votre popover élément par élément.";
@@ -652,9 +670,6 @@
 "sidebar.settings.subtitle" = "Proxy, intervalle de rafraîchissement et autres préférences globales.";
 "popover.settings.preview" = "Aperçu";
 "popover.settings.reset" = "Réinitialiser";
-"popover.zone.general" = "Général";
-"popover.option.showPlanBadge" = "Afficher le badge du plan (PRO / MAX / TEAM)";
-"popover.option.showRefreshButton" = "Afficher le bouton de rafraîchissement manuel";
 
 /* Éditeur du popover composable */
 "popover.editor.templates" = "Templates";
@@ -663,7 +678,7 @@
 "popover.editor.family.metrics" = "Métriques";
 "popover.editor.family.pacing" = "Pacing";
 "popover.editor.family.utilities" = "Utilitaires";
-"popover.editor.unavailable" = "indisponible sur votre plan";
+"popover.editor.unavailable" = "pas actif sur ce compte";
 "popover.editor.saveTemplate" = "Enregistrer comme template";
 "popover.editor.saveTemplate.short" = "Enregistrer";
 "popover.editor.saveTemplate.message" = "Enregistre la composition actuelle pour la réappliquer plus tard.";
@@ -682,7 +697,6 @@
 "popoverElement.session" = "Session (5h)";
 "popoverElement.weekly" = "Hebdomadaire";
 "popoverElement.sonnet" = "Sonnet";
-"popoverElement.design" = "Design";
 "popoverElement.fable" = "Fable";
 "popoverElement.extraCredits" = "Crédits sup.";
 "popoverElement.sessionPacing" = "Pacing session";
@@ -691,6 +705,9 @@
 "popoverElement.timestamp" = "Horodatage de mise à jour";
 "popoverElement.openButton" = "Bouton Open TokenEater";
 "popoverElement.quitButton" = "Bouton Quitter";
+"popoverElement.planBadge" = "Badge du plan";
+"popoverElement.refreshButton" = "Bouton Actualiser";
+"popover.cell.open" = "Ouvrir";
 
 "popoverStyle.gaugeRing" = "Anneau";
 "popoverStyle.chip" = "Chip";
@@ -701,6 +718,7 @@
 "popoverStyle.paceText" = "Texte";
 "popoverStyle.utilityRow" = "Ligne";
 "popoverStyle.actionButton" = "Bouton";
+"popoverStyle.badge" = "Badge";
 
 "popoverWidth.full" = "Pleine largeur";
 "popoverWidth.half" = "Demi-largeur";
@@ -720,7 +738,7 @@
 "menuBar.editor.family.metrics" = "Métriques";
 "menuBar.editor.family.pacing" = "Pacing";
 "menuBar.editor.family.status" = "Statut";
-"menuBar.editor.unavailable" = "indisponible sur votre plan";
+"menuBar.editor.unavailable" = "pas actif sur ce compte";
 "menuBar.editor.saveTemplate" = "Enregistrer comme template";
 "menuBar.editor.saveTemplate.short" = "Enregistrer";
 "menuBar.editor.saveTemplate.message" = "Enregistre la disposition actuelle du menu bar pour la réappliquer plus tard.";
@@ -736,7 +754,6 @@
 "menuBarSegment.session" = "Session (5h)";
 "menuBarSegment.weekly" = "Hebdomadaire";
 "menuBarSegment.sonnet" = "Sonnet";
-"menuBarSegment.design" = "Design";
 "menuBarSegment.fable" = "Fable";
 "menuBarSegment.extraCredits" = "Crédits sup.";
 "menuBarSegment.sessionPacing" = "Pacing session";

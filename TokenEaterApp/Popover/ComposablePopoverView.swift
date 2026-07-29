@@ -28,8 +28,10 @@ extension EnvironmentValues {
 
 // MARK: - Renderer
 
-/// The composable popover renderer: fixed chrome (header, status + error
-/// banners), then the element grid. Replaces the three variant layouts.
+/// The composable popover renderer: fixed chrome (status + error banners),
+/// then the element grid. Replaces the three variant layouts. The old fixed
+/// header (plan badge + refresh button) is composition v2 elements now; only
+/// its top breathing room remains as chrome.
 struct ComposablePopoverView: View {
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var settingsStore: SettingsStore
@@ -38,7 +40,7 @@ struct ComposablePopoverView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            PopoverHeader()
+            Color.clear.frame(height: 12)
 
             VendorStatusBanner()
 
@@ -93,6 +95,7 @@ private struct PopoverGrid: View {
             ForEach(visible) { element in
                 cell(element, rowIndex: rowIndexByID[element.id] ?? 0)
                     .layoutValue(key: PopoverGridWidthKey.self, value: element.effectiveWidth)
+                    .layoutValue(key: PopoverGridChromeKey.self, value: element.kind.isChrome)
             }
         }
         // Edit-time reflow: flat stable ids make position changes animate as
@@ -167,6 +170,13 @@ private struct PopoverGridWidthKey: LayoutValueKey {
     static let defaultValue: PopoverElementWidth = .full
 }
 
+/// Marks the header-chrome cells (plan badge + refresh). A chrome row is
+/// packed on its own and laid out full-width so badge stays leading and
+/// refresh stays trailing whether one or both are visible.
+private struct PopoverGridChromeKey: LayoutValueKey {
+    static let defaultValue: Bool = false
+}
+
 /// Places one flat run of cells into centered rows. Row formation delegates
 /// to `PopoverRowPacker.packIndices` so the renderer, the editor schematics,
 /// and the tests all share the same rule.
@@ -190,7 +200,7 @@ private struct PopoverGridLayout: Layout {
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         var y = bounds.minY
         for row in rowGroups(subviews) {
-            let cellW = cellWidth(for: rowWidth(row, subviews: subviews), totalWidth: bounds.width)
+            let cellW = cellWidth(row, subviews: subviews, totalWidth: bounds.width)
             let heights = row.map {
                 subviews[$0].sizeThatFits(ProposedViewSize(width: cellW, height: nil)).height
             }
@@ -210,7 +220,14 @@ private struct PopoverGridLayout: Layout {
     }
 
     private func rowGroups(_ subviews: Subviews) -> [[Int]] {
-        PopoverRowPacker.packIndices(subviews.map { $0[PopoverGridWidthKey.self] })
+        PopoverRowPacker.packIndices(
+            subviews.map { $0[PopoverGridWidthKey.self] },
+            groups: subviews.map { $0[PopoverGridChromeKey.self] ? 1 : 0 }
+        )
+    }
+
+    private func isChromeRow(_ row: [Int], subviews: Subviews) -> Bool {
+        row.first.map { subviews[$0][PopoverGridChromeKey.self] } ?? false
     }
 
     private func rowWidth(_ row: [Int], subviews: Subviews) -> PopoverElementWidth {
@@ -218,15 +235,23 @@ private struct PopoverGridLayout: Layout {
     }
 
     private func rowHeight(_ row: [Int], subviews: Subviews, totalWidth: CGFloat) -> CGFloat {
-        let cellW = cellWidth(for: rowWidth(row, subviews: subviews), totalWidth: totalWidth)
+        let cellW = cellWidth(row, subviews: subviews, totalWidth: totalWidth)
         return row.map {
             subviews[$0].sizeThatFits(ProposedViewSize(width: cellW, height: nil)).height
         }.max() ?? 0
     }
 
-    /// Fractions resolve against the proposed width (300 - 2x16 = 268):
-    /// full 268, half 130, third 84.
-    private func cellWidth(for width: PopoverElementWidth, totalWidth: CGFloat) -> CGFloat {
+    /// Cell width for a row. Chrome rows (badge / refresh) divide the full
+    /// width by their element count so the row spans edge to edge whether one
+    /// or both are visible; metric rows resolve against the width fraction
+    /// (300 - 2x16 = 268 usable: full 268, half 130, third 84).
+    private func cellWidth(_ row: [Int], subviews: Subviews, totalWidth: CGFloat) -> CGFloat {
+        if isChromeRow(row, subviews: subviews) {
+            let count = CGFloat(max(row.count, 1))
+            let spacing = cellSpacing * (count - 1)
+            return ((totalWidth - spacing) / count).rounded(.down)
+        }
+        let width = rowWidth(row, subviews: subviews)
         let spacing = cellSpacing * CGFloat(width.rowCapacity - 1)
         return ((totalWidth - spacing) / CGFloat(width.rowCapacity)).rounded(.down)
     }

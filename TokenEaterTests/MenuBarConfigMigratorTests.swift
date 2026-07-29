@@ -73,10 +73,9 @@ struct MenuBarConfigMigratorTests {
         // The old menu bar kept the pin and re-showed it when the metric
         // returned; the migrator must not drop it (extra credits' isEnabled is
         // transient). Render-time isSegmentAvailable hides it while absent.
-        let result = migrate(pins: [.fiveHour, .design, .fable, .extraCredits])
+        let result = migrate(pins: [.fiveHour, .fable, .extraCredits])
         let kinds = result.segments.map(\.kind)
         #expect(kinds.contains(.session))
-        #expect(kinds.contains(.design))
         #expect(kinds.contains(.fable))
         #expect(kinds.contains(.extraCredits))
     }
