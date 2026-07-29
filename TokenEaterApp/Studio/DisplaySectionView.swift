@@ -24,9 +24,7 @@ struct DisplaySectionView: View {
             },
             previewFooter: {
                 colorsGroup
-                ResetSectionButton(
-                    confirmTitle: String(localized: "settings.display.reset.confirm")
-                ) {
+                StudioResetButton {
                     resetDisplayDefaults()
                 }
             }

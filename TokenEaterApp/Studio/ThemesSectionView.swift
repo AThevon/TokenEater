@@ -48,7 +48,6 @@ struct ThemesSectionView: View {
                     if themeStore.selectedPreset == "custom" {
                         customColorsCard
                     }
-                    resetButton
                     Spacer(minLength: 8)
                 }
                 .padding(.bottom, 8)
@@ -58,6 +57,7 @@ struct ThemesSectionView: View {
             VStack(alignment: .leading, spacing: 12) {
                 editorSectionLabel("theme.preview.title")
                 themePreview
+                resetButton
                 Spacer(minLength: 0)
             }
             .frame(width: 260, alignment: .top)
@@ -218,13 +218,13 @@ struct ThemesSectionView: View {
     }
 
     private var resetButton: some View {
-        ResetSectionButton(
-            confirmTitle: String(localized: "settings.theme.reset.confirm")
-        ) {
-            themeStore.resetToDefaults()
-            settingsStore.resetTextColorHex = ""
-            settingsStore.sessionPeriodColorHex = ""
-            themeStore.menuBarMonochrome = false
+        StudioResetButton {
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
+                themeStore.resetToDefaults()
+                settingsStore.resetTextColorHex = ""
+                settingsStore.sessionPeriodColorHex = ""
+                themeStore.menuBarMonochrome = false
+            }
         }
     }
 

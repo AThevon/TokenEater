@@ -111,17 +111,12 @@ struct PopoverSectionView: View {
     }
 
     private var resetButton: some View {
-        Button {
+        StudioResetButton {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                 settingsStore.popoverComposition = PopoverBuiltinTemplate.classic.composition
             }
             selectedElementID = nil
-        } label: {
-            Label(String(localized: "popover.settings.reset"), systemImage: "arrow.uturn.backward")
-                .font(.system(size: 11, weight: .medium))
         }
-        .buttonStyle(.plain)
-        .foregroundStyle(.white.opacity(0.55))
     }
 
     // MARK: - Templates

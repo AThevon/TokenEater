@@ -641,6 +641,7 @@
 "editor.pick.format" = "Format";
 "editor.pick.width" = "Largeur";
 "editor.pick.value" = "Valeur";
+"editor.reset" = "Réinitialiser";
 "studio.intro.badge" = "NOUVEAU";
 "studio.intro.text" = "Le Studio est là. Popover, barre de menus et thèmes, au même endroit.";
 "studio.intro.cta" = "Voir les nouveautés";
