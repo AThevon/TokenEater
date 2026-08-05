@@ -18,6 +18,10 @@ struct HeroPacingGraph: View {
     let expectedUsage: Double
     let deltaColor: Color
     let trajectoryColor: Color
+    /// Sampled real trajectory over the window (#240). Two or more points draw
+    /// the actual cumulative curve; fewer falls back to the straight origin->now
+    /// segment (the app has no history yet, e.g. a fresh window).
+    var trajectory: [PacingTrajectoryPoint] = []
 
     var body: some View {
         GeometryReader { geo in
@@ -70,12 +74,27 @@ struct HeroPacingGraph: View {
                 }
                 .fill(deltaColor.opacity(0.22))
 
-                // Trajectory line - solid in the gauge colour.
+                // Trajectory line - solid in the gauge colour. With sampled
+                // history it's the real curve (origin -> each reading);
+                // otherwise a single straight segment to the current point. In
+                // both cases it terminates exactly on `actualPoint` so the curve
+                // stays welded to the marker + delta fill even when the samples
+                // are stale (e.g. relaunched mid-window before the first
+                // refresh) - samples are always at date < now, so actualPoint is
+                // never left of the last sample and the line can't backtrack.
                 Path { path in
                     path.move(to: originPoint)
+                    if trajectory.count >= 2 {
+                        for p in trajectory {
+                            path.addLine(to: CGPoint(
+                                x: pad + plotW * min(max(p.expected, 0), 100) / 100,
+                                y: h - pad - plotH * min(max(p.actual, 0), 100) / 100
+                            ))
+                        }
+                    }
                     path.addLine(to: actualPoint)
                 }
-                .stroke(trajectoryColor, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .stroke(trajectoryColor, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
 
                 // Current point marker.
                 Circle()

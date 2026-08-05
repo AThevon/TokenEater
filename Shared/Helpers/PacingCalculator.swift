@@ -4,7 +4,7 @@ enum PacingCalculator {
     /// Messages cycle through 3 variants per zone, picked deterministically from
     /// the absolute delta so the same metric does not flip wording on every refresh.
     /// Two surface families: short (5h session, sprint feel) and long (weekly,
-    /// marathon feel). Sonnet weekly buckets reuse the long set.
+    /// marathon feel). Sonnet and per-model (Fable) weekly buckets reuse the long set.
     private static let sessionMessages: [PacingZone: [String]] = [
         .chill:   ["pacing.session.chill.1", "pacing.session.chill.2", "pacing.session.chill.3"],
         .onTrack: ["pacing.session.ontrack.1", "pacing.session.ontrack.2", "pacing.session.ontrack.3"],
@@ -28,6 +28,7 @@ enum PacingCalculator {
         case .fiveHour: usageBucket = usage.fiveHour
         case .sevenDay: usageBucket = usage.sevenDay
         case .sonnet: usageBucket = usage.sevenDaySonnet
+        case .fable: usageBucket = usage.sevenDayFable
         }
         return calculateForBucket(usageBucket, bucket: bucket, margin: margin, now: now, activeDays: activeDays, activeHours: activeHours)
     }

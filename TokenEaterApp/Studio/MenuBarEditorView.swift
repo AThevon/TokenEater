@@ -215,6 +215,7 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
             Section(String(localized: "menuBar.editor.family.pacing")) {
                 addButton(for: .sessionPacing)
                 addButton(for: .weeklyPacing)
+                addButton(for: .fablePacing)
             }
             Section(String(localized: "menuBar.editor.family.status")) {
                 addButton(for: .sessionReset)
@@ -254,7 +255,7 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
 
     private func accountHasKind(_ kind: MenuBarSegmentKind) -> Bool {
         switch kind {
-        case .fable: return usageStore.hasFable
+        case .fable, .fablePacing: return usageStore.hasFable
         case .extraCredits: return usageStore.hasExtraCredits
         default: return true
         }
@@ -557,7 +558,7 @@ private struct MenuBarSegmentListEditor: View {
 
     private func isAvailable(_ kind: MenuBarSegmentKind) -> Bool {
         switch kind {
-        case .fable: return usageStore.hasFable
+        case .fable, .fablePacing: return usageStore.hasFable
         case .extraCredits: return usageStore.hasExtraCredits
         default: return true
         }

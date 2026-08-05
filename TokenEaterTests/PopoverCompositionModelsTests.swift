@@ -21,6 +21,13 @@ struct PopoverCompositionModelsTests {
         }
     }
 
+    @Test("fablePacing is a pacing element with the pacing style set (#241)")
+    func fablePacingElementShape() {
+        #expect(PopoverElementKind.fablePacing.family == .pacing)
+        #expect(PopoverElementKind.fablePacing.allowedStyles == [.paceBar, .paceTile, .paceText])
+        #expect(!PopoverElementKind.fablePacing.isChrome)
+    }
+
     @Test("effectiveWidth clamps an illegal width to the closest legal one")
     func effectiveWidthClamps() {
         let arc = PopoverElement(kind: .session, style: .arc, width: .third)

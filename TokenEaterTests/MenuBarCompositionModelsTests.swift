@@ -11,6 +11,13 @@ struct MenuBarCompositionModelsTests {
         }
     }
 
+    @Test("fablePacing is a presence-gated pacing segment (#241)")
+    func fablePacingSegmentShape() {
+        #expect(MenuBarSegmentKind.fablePacing.family == .pacing)
+        #expect(MenuBarSegmentKind.fablePacing.isPresenceGated)
+        #expect(MenuBarSegmentKind.fablePacing.allowedStyles == [.dot, .dotDelta, .delta, .pill])
+    }
+
     @Test("effectiveStyle clamps an illegal style to the kind's first legal one")
     func effectiveStyleClamps() {
         // A usage kind can't render as a pacing dot.

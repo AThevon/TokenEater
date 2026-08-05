@@ -33,20 +33,28 @@ struct PopoverElementCellView: View {
         case .paceBar:
             if let pacing = PopoverMetricResolver.pacing(for: element.kind, usage: usageStore) {
                 PopoverPacingRow(
-                    label: element.kind == .weeklyPacing
-                        ? String(localized: "pacing.weekly.label")
-                        : String(localized: "pacing.session.label"),
+                    label: paceLabel,
                     pacing: pacing,
-                    showWorkweekBadge: element.kind == .weeklyPacing
+                    // The workweek schedule adjusts every weekly bucket (weekly +
+                    // per-model Fable); only the intraday session is never adjusted.
+                    showWorkweekBadge: element.kind != .sessionPacing
                 )
+            } else {
+                // Idle: the bucket exists (the cell only renders for available
+                // kinds) but has no active window yet -> muted "-" placeholder.
+                PaceIdleRow(label: paceLabel)
             }
         case .paceTile:
             if let pacing = PopoverMetricResolver.pacing(for: element.kind, usage: usageStore) {
                 PaceTileCell(label: paceShortLabel, pacing: pacing)
+            } else {
+                PaceIdleCardCell(label: paceShortLabel, verticalPadding: 10)
             }
         case .paceText:
             if let pacing = PopoverMetricResolver.pacing(for: element.kind, usage: usageStore) {
                 PaceTextCell(label: paceShortLabel, pacing: pacing)
+            } else {
+                PaceIdleCardCell(label: paceShortLabel, verticalPadding: 8)
             }
         case .utilityRow:
             switch element.kind {
@@ -68,10 +76,20 @@ struct PopoverElementCellView: View {
         }
     }
 
+    private var paceLabel: String {
+        switch element.kind {
+        case .weeklyPacing: return String(localized: "pacing.weekly.label")
+        case .fablePacing: return String(localized: "pacing.fable.label")
+        default: return String(localized: "pacing.session.label")
+        }
+    }
+
     private var paceShortLabel: String {
-        element.kind == .weeklyPacing
-            ? String(localized: "pacing.weekly.label.short")
-            : String(localized: "pacing.session.label.short")
+        switch element.kind {
+        case .weeklyPacing: return String(localized: "pacing.weekly.label.short")
+        case .fablePacing: return String(localized: "pacing.fable.label.short")
+        default: return String(localized: "pacing.session.label.short")
+        }
     }
 }
 
@@ -375,6 +393,49 @@ private struct BigTextCell: View {
                 theme: themeStore, settings: settingsStore
             )
         }
+    }
+}
+
+// MARK: - Pace idle (bucket present, no active window yet -> muted "-")
+
+/// Idle paceBar: the label with a muted dash where the bar + delta would be.
+/// No card, matching the active paceBar row's chrome-free layout.
+private struct PaceIdleRow: View {
+    let label: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.white.opacity(0.4))
+            Spacer(minLength: 0)
+            Text("-")
+                .font(.system(size: 12, weight: .black, design: .rounded))
+                .foregroundStyle(.white.opacity(0.3))
+                .frame(width: 48, alignment: .trailing)
+        }
+    }
+}
+
+/// Idle paceTile / paceText: the carded label with a muted dash instead of the
+/// bar / delta. Shared by both carded styles (they differ only in padding).
+private struct PaceIdleCardCell: View {
+    let label: String
+    let verticalPadding: CGFloat
+
+    var body: some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.white.opacity(0.55))
+            Spacer()
+            Text("-")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.35))
+        }
+        .padding(.vertical, verticalPadding)
+        .padding(.horizontal, 10)
+        .popoverCard()
     }
 }
 

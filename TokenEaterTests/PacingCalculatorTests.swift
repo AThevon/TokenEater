@@ -34,6 +34,46 @@ struct PacingCalculatorTests {
         #expect(result == nil)
     }
 
+    // MARK: - Fable bucket (#241)
+
+    @Test("fable bucket computes pacing from its own reset window")
+    func fableBucketComputesPacing() {
+        let now = Self.stableNow()
+        let usage = UsageResponse.fixture(
+            fableUtil: 80,
+            fableResetsAt: makeResetsAt(elapsedFraction: 0.5, now: now)
+        )
+        let result = PacingCalculator.calculate(from: usage, bucket: .fable, now: now)
+        // 80% used at 50% elapsed -> well ahead of pace.
+        #expect(result?.zone == .hot)
+        #expect(result?.actualUsage == 80)
+    }
+
+    @Test("fable pacing is nil when there is no fable bucket")
+    func fableBucketNilWhenAbsent() {
+        // Default fixture leaves fable nil.
+        let usage = UsageResponse.fixture()
+        #expect(PacingCalculator.calculate(from: usage, bucket: .fable) == nil)
+    }
+
+    @Test("fable pacing is nil when the fable bucket has no reset")
+    func fableBucketNilWithoutReset() {
+        let usage = UsageResponse.fixture(fableUtil: 40, fableResetsAt: nil)
+        #expect(PacingCalculator.calculate(from: usage, bucket: .fable) == nil)
+    }
+
+    @Test("calculateAll includes the fable bucket when present")
+    func calculateAllIncludesFable() {
+        let now = Self.stableNow()
+        let usage = UsageResponse.fixture(
+            fableUtil: 20,
+            fableResetsAt: makeResetsAt(elapsedFraction: 0.5, now: now)
+        )
+        let all = PacingCalculator.calculateAll(from: usage, now: now)
+        #expect(all[.fable] != nil)
+        #expect(all[.fable]?.zone == .chill)
+    }
+
     // MARK: - Zone classification
 
     @Test("chill zone when utilization far below expected")

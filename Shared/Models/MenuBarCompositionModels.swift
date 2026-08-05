@@ -17,7 +17,7 @@ enum MenuBarSegmentKind: String, Codable, CaseIterable, Identifiable {
     // Usage metrics (percentage)
     case session, weekly, sonnet, fable, extraCredits
     // Pacing (delta vs linear pace)
-    case sessionPacing, weeklyPacing
+    case sessionPacing, weeklyPacing, fablePacing
     // Status / time
     case sessionReset, serviceStatus
 
@@ -29,7 +29,7 @@ enum MenuBarSegmentKind: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .session, .weekly, .sonnet, .fable, .extraCredits:
             return .usage
-        case .sessionPacing, .weeklyPacing:
+        case .sessionPacing, .weeklyPacing, .fablePacing:
             return .pacing
         case .sessionReset, .serviceStatus:
             return .status
@@ -54,7 +54,7 @@ enum MenuBarSegmentKind: String, Codable, CaseIterable, Identifiable {
     /// Presence-gated kinds render nothing (and the editor greys them) when the
     /// account lacks the metric, matching the pre-5.10 menu bar.
     var isPresenceGated: Bool {
-        self == .fable || self == .extraCredits
+        self == .fable || self == .extraCredits || self == .fablePacing
     }
 }
 
@@ -256,7 +256,7 @@ extension MenuBarSegmentKind {
         case .sonnet: return "quote.opening"
         case .fable: return "books.vertical.fill"
         case .extraCredits: return "creditcard.fill"
-        case .sessionPacing, .weeklyPacing: return "speedometer"
+        case .sessionPacing, .weeklyPacing, .fablePacing: return "speedometer"
         case .sessionReset: return "clock.arrow.circlepath"
         case .serviceStatus: return "dot.radiowaves.left.and.right"
         }
