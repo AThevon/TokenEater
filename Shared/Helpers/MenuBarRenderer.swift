@@ -351,10 +351,14 @@ enum MenuBarRenderer {
         switch kind {
         case .fable: return data.hasFable
         case .extraCredits: return data.hasExtraCredits
+        // Pacing segments follow a 3-state model: absent (bucket missing) ->
+        // drawn nothing; idle (bucket present, no active window yet) -> a muted
+        // "-" placeholder from `pacingContent`; active -> shape + delta. So
+        // availability here gates on the bucket's PRESENCE, and the window
+        // check (`has*Pacing`) drives the placeholder in `pacingContent`.
         case .sessionReset, .sessionPacing: return data.hasFiveHourBucket
-        case .weeklyPacing: return data.hasWeeklyPacing
-        case .fablePacing: return data.hasFablePacing
-        default: return true
+        case .fablePacing: return data.hasFable
+        default: return true // weeklyPacing + non-gated kinds: present with config
         }
     }
 
@@ -417,16 +421,17 @@ enum MenuBarRenderer {
     }
 
     private static func pacingContent(kind: MenuBarSegmentKind, style: MenuBarSegmentStyle, shape: PacingShape, data: RenderData) -> SegmentVisual.Content {
-        // weekly / fable pacing only render when their data exists
-        // (isSegmentAvailable gate), so treat them as always having data here;
-        // only the session can reach this with no pacing yet (placeholder).
-        let hasData = kind == .sessionPacing ? data.hasSessionPacing : true
+        // A pacing segment reaches here whenever its bucket is present
+        // (isSegmentAvailable). `hasData` is whether there's an active window to
+        // compute a pace against; when false the segment draws a muted "-"
+        // placeholder (idle) rather than a bogus 0% delta.
+        let hasData: Bool
         let zone: PacingZone
         let delta: Int
         switch kind {
-        case .sessionPacing: zone = data.sessionPacingZone; delta = data.sessionPacingDelta
-        case .fablePacing:   zone = data.fablePacingZone;   delta = data.fablePacingDelta
-        default:             zone = data.weeklyPacingZone;  delta = data.weeklyPacingDelta
+        case .sessionPacing: hasData = data.hasSessionPacing; zone = data.sessionPacingZone; delta = data.sessionPacingDelta
+        case .fablePacing:   hasData = data.hasFablePacing;   zone = data.fablePacingZone;   delta = data.fablePacingDelta
+        default:             hasData = data.hasWeeklyPacing;  zone = data.weeklyPacingZone;  delta = data.weeklyPacingDelta
         }
         let tint = hasData ? colorForZone(zone, data: data) : NSColor.tertiaryLabelColor
         let sign = delta >= 0 ? "+" : ""

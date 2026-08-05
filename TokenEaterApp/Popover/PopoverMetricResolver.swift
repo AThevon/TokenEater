@@ -80,9 +80,15 @@ enum PopoverMetricResolver {
         switch kind {
         case .fable: return usage.hasFable
         case .extraCredits: return usage.hasExtraCredits
-        case .sessionPacing: return usage.fiveHourPacing != nil
-        case .weeklyPacing: return usage.pacingResult != nil
-        case .fablePacing: return usage.fablePacing != nil
+        // Pacing follows the 3-state model (absent / idle / active): available
+        // when the underlying bucket is PRESENT, so an idle bucket (present but
+        // no active window yet) still renders its "-" placeholder cell instead
+        // of vanishing. `pacing(for:)` returns nil for idle -> the cell draws
+        // the placeholder; a truly absent bucket returns false here and the row
+        // recompacts.
+        case .sessionPacing: return usage.lastUsage?.fiveHour != nil
+        case .weeklyPacing: return usage.lastUsage?.sevenDay != nil
+        case .fablePacing: return usage.hasFable
         case .planBadge: return usage.planType != .unknown
         default: return true
         }

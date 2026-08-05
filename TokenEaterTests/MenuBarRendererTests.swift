@@ -328,3 +328,55 @@ struct MenuBarExtraCreditsRenderTests {
         #expect(image.size.width > 0)
     }
 }
+
+/// Fable pacing 3-state gating (#241 + idle status): absent (no Fable bucket)
+/// draws nothing; idle (bucket present, no active window) draws a placeholder;
+/// active draws the shape + delta.
+@Suite("MenuBarRenderer Fable pacing idle/absent gating")
+struct MenuBarFablePacingRenderTests {
+
+    private func data(
+        hasFable: Bool,
+        hasFablePacing: Bool
+    ) -> MenuBarRenderer.RenderData {
+        MenuBarRenderer.RenderData(
+            composition: MenuBarComposition(segments: [MenuBarSegment(kind: .fablePacing, style: .dotDelta)]),
+            fiveHourPct: 0, sevenDayPct: 0, sonnetPct: 0,
+            weeklyPacingDelta: 0, weeklyPacingZone: .onTrack, hasWeeklyPacing: false,
+            sessionPacingDelta: 0, sessionPacingZone: .onTrack, hasSessionPacing: false,
+            fablePacingDelta: 12, fablePacingZone: .warning, hasFablePacing: hasFablePacing,
+            hasConfig: true, hasError: false, isAwaitingRefresh: false,
+            themeColors: .default, thresholds: .default,
+            menuBarMonochrome: false,
+            fiveHourReset: "", fiveHourResetAbsolute: "",
+            fiveHourResetDate: nil, sevenDayResetDate: nil, sonnetResetDate: nil,
+            hasFiveHourBucket: false,
+            resetTextColorHex: "", sessionPeriodColorHex: "",
+            smartResetColor: false, smartColorProfile: .balanced,
+            pacingMargin: 10,
+            fablePct: 0, hasFable: hasFable, fableResetDate: nil,
+            outageActive: false, outageHealth: .healthy, nextPollSeconds: nil,
+            extraCreditsPct: 0, hasExtraCredits: false
+        )
+    }
+
+    @Test("Fable pacing absent (no bucket) -> only segment filtered out -> logo fallback")
+    func absentDrawsNothing() {
+        let image = MenuBarRenderer.renderUncached(data(hasFable: false, hasFablePacing: false))
+        #expect(image.isTemplate == true) // logo template = nothing drawable
+    }
+
+    @Test("Fable pacing idle (bucket present, no window) -> placeholder renders")
+    func idleDrawsPlaceholder() {
+        let image = MenuBarRenderer.renderUncached(data(hasFable: true, hasFablePacing: false))
+        #expect(image.isTemplate == false) // a real (non-logo) segment drew
+        #expect(image.size.width > 0)
+    }
+
+    @Test("Fable pacing active (bucket + window) -> shape + delta renders")
+    func activeDrawsPacing() {
+        let image = MenuBarRenderer.renderUncached(data(hasFable: true, hasFablePacing: true))
+        #expect(image.isTemplate == false)
+        #expect(image.size.width > 0)
+    }
+}
