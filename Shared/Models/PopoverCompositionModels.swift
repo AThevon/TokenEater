@@ -13,7 +13,7 @@ enum PopoverElementKind: String, Codable, CaseIterable, Identifiable {
     // Usage metrics (percentage + reset window)
     case session, weekly, sonnet, fable, extraCredits
     // Pacing metrics (delta vs linear pace)
-    case sessionPacing, weeklyPacing
+    case sessionPacing, weeklyPacing, fablePacing
     // Utility rows
     case watchers, timestamp, planBadge
     // Action buttons
@@ -27,7 +27,7 @@ enum PopoverElementKind: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .session, .weekly, .sonnet, .fable, .extraCredits:
             return .usage
-        case .sessionPacing, .weeklyPacing:
+        case .sessionPacing, .weeklyPacing, .fablePacing:
             return .pacing
         case .watchers, .timestamp, .planBadge:
             return .utility
@@ -427,7 +427,7 @@ extension PopoverElementKind {
         case .sonnet: return "quote.opening"
         case .fable: return "books.vertical.fill"
         case .extraCredits: return "creditcard.fill"
-        case .sessionPacing, .weeklyPacing: return "speedometer"
+        case .sessionPacing, .weeklyPacing, .fablePacing: return "speedometer"
         case .watchers: return "eye.fill"
         case .timestamp: return "clock"
         case .planBadge: return "checkmark.seal.fill"

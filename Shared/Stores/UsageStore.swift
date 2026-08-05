@@ -14,6 +14,11 @@ final class UsageStore: ObservableObject {
     @Published var pacingResult: PacingResult?
     @Published var fiveHourPacing: PacingResult?
     @Published var sonnetPacing: PacingResult?
+    @Published var fablePacing: PacingResult?
+    /// Dated 5h-session utilization readings over the current window, powering
+    /// the hero pacing graph's real trajectory (#240). Appended on each live
+    /// refresh, persisted to UserDefaults so it survives relaunches.
+    @Published var sessionSamples: [PacingSample] = []
     @Published var lastUpdate: Date?
     @Published var isLoading = false
     @Published var errorState: AppErrorState = .none
@@ -119,6 +124,36 @@ final class UsageStore: ObservableObject {
         self.tokenProvider = tokenProvider
         self.sharedFileService = sharedFileService
         self.notificationService = notificationService
+        self.sessionSamples = Self.loadSessionSamples()
+    }
+
+    // MARK: - Session pacing samples (#240)
+
+    private static let sessionSamplesKey = "sessionPacingSamples"
+
+    private static func loadSessionSamples() -> [PacingSample] {
+        guard let data = UserDefaults.standard.data(forKey: sessionSamplesKey),
+              let decoded = try? JSONDecoder().decode([PacingSample].self, from: data) else {
+            return []
+        }
+        return decoded
+    }
+
+    /// Records the live 5h utilization as a dated sample and persists the
+    /// windowed buffer. Only called on a real successful sync (never on the
+    /// cached-load path), so a relaunch doesn't inject a stale "now" point.
+    private func appendSessionSample(from usage: UsageResponse) {
+        guard let bucket = usage.fiveHour, let reset = bucket.resetsAtDate else { return }
+        sessionSamples = PacingSampleBuffer.append(
+            sessionSamples,
+            utilization: bucket.utilization,
+            resetDate: reset,
+            windowDuration: 5 * 3600,
+            now: Date()
+        )
+        if let data = try? JSONEncoder().encode(sessionSamples) {
+            UserDefaults.standard.set(data, forKey: Self.sessionSamplesKey)
+        }
     }
 
     func refresh(thresholds: UsageThresholds = .default, force: Bool = false) async {
@@ -351,6 +386,7 @@ final class UsageStore: ObservableObject {
     /// post-401 retry so the two can never drift.
     private func applySuccess(usage: UsageResponse) {
         updateUI(from: usage)
+        appendSessionSample(from: usage)
         errorState = .none
         lastAPIError = nil
         lastUpdate = Date()
@@ -468,5 +504,6 @@ final class UsageStore: ObservableObject {
         }
         fiveHourPacing = allPacing[.fiveHour]
         sonnetPacing = allPacing[.sonnet]
+        fablePacing = allPacing[.fable]
     }
 }

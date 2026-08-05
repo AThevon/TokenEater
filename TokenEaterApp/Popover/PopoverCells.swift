@@ -33,11 +33,11 @@ struct PopoverElementCellView: View {
         case .paceBar:
             if let pacing = PopoverMetricResolver.pacing(for: element.kind, usage: usageStore) {
                 PopoverPacingRow(
-                    label: element.kind == .weeklyPacing
-                        ? String(localized: "pacing.weekly.label")
-                        : String(localized: "pacing.session.label"),
+                    label: paceLabel,
                     pacing: pacing,
-                    showWorkweekBadge: element.kind == .weeklyPacing
+                    // The workweek schedule adjusts every weekly bucket (weekly +
+                    // per-model Fable); only the intraday session is never adjusted.
+                    showWorkweekBadge: element.kind != .sessionPacing
                 )
             }
         case .paceTile:
@@ -68,10 +68,20 @@ struct PopoverElementCellView: View {
         }
     }
 
+    private var paceLabel: String {
+        switch element.kind {
+        case .weeklyPacing: return String(localized: "pacing.weekly.label")
+        case .fablePacing: return String(localized: "pacing.fable.label")
+        default: return String(localized: "pacing.session.label")
+        }
+    }
+
     private var paceShortLabel: String {
-        element.kind == .weeklyPacing
-            ? String(localized: "pacing.weekly.label.short")
-            : String(localized: "pacing.session.label.short")
+        switch element.kind {
+        case .weeklyPacing: return String(localized: "pacing.weekly.label.short")
+        case .fablePacing: return String(localized: "pacing.fable.label.short")
+        default: return String(localized: "pacing.session.label.short")
+        }
     }
 }
 

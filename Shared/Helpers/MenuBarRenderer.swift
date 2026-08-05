@@ -14,6 +14,9 @@ enum MenuBarRenderer {
         let sessionPacingDelta: Int
         let sessionPacingZone: PacingZone
         let hasSessionPacing: Bool
+        let fablePacingDelta: Int
+        let fablePacingZone: PacingZone
+        let hasFablePacing: Bool
         let hasConfig: Bool
         let hasError: Bool
         /// Token expired/unreadable but a prior snapshot exists (#218). Keep the
@@ -350,6 +353,7 @@ enum MenuBarRenderer {
         case .extraCredits: return data.hasExtraCredits
         case .sessionReset, .sessionPacing: return data.hasFiveHourBucket
         case .weeklyPacing: return data.hasWeeklyPacing
+        case .fablePacing: return data.hasFablePacing
         default: return true
         }
     }
@@ -413,11 +417,17 @@ enum MenuBarRenderer {
     }
 
     private static func pacingContent(kind: MenuBarSegmentKind, style: MenuBarSegmentStyle, shape: PacingShape, data: RenderData) -> SegmentVisual.Content {
-        // weeklyPacing only renders when hasWeeklyPacing (isSegmentAvailable),
-        // so treat it as always having data here; session may show a placeholder.
+        // weekly / fable pacing only render when their data exists
+        // (isSegmentAvailable gate), so treat them as always having data here;
+        // only the session can reach this with no pacing yet (placeholder).
         let hasData = kind == .sessionPacing ? data.hasSessionPacing : true
-        let zone = kind == .sessionPacing ? data.sessionPacingZone : data.weeklyPacingZone
-        let delta = kind == .sessionPacing ? data.sessionPacingDelta : data.weeklyPacingDelta
+        let zone: PacingZone
+        let delta: Int
+        switch kind {
+        case .sessionPacing: zone = data.sessionPacingZone; delta = data.sessionPacingDelta
+        case .fablePacing:   zone = data.fablePacingZone;   delta = data.fablePacingDelta
+        default:             zone = data.weeklyPacingZone;  delta = data.weeklyPacingDelta
+        }
         let tint = hasData ? colorForZone(zone, data: data) : NSColor.tertiaryLabelColor
         let sign = delta >= 0 ? "+" : ""
         let glyph = shape.glyph

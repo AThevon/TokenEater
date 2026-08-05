@@ -382,7 +382,12 @@ struct MonitoringView: View {
                         actualUsage: pacing.actualUsage,
                         expectedUsage: pacing.expectedUsage,
                         deltaColor: pacing.delta > 0 ? DS.Palette.semanticWarning : DS.Palette.brandPrimary,
-                        trajectoryColor: gaugeColor
+                        trajectoryColor: gaugeColor,
+                        trajectory: PacingSampleBuffer.trajectory(
+                            usageStore.sessionSamples,
+                            resetDate: usageStore.lastUsage?.fiveHour?.resetsAtDate,
+                            windowDuration: 5 * 3600
+                        )
                     )
                     .frame(maxWidth: .infinity)
                     .frame(height: 92)

@@ -11,11 +11,12 @@ enum PacingBucket: String, CaseIterable {
     case fiveHour
     case sevenDay
     case sonnet
+    case fable
 
     var periodDuration: TimeInterval {
         switch self {
         case .fiveHour: return 5 * 3600
-        case .sevenDay, .sonnet: return 7 * 24 * 3600
+        case .sevenDay, .sonnet, .fable: return 7 * 24 * 3600
         }
     }
 
@@ -24,6 +25,7 @@ enum PacingBucket: String, CaseIterable {
         case .fiveHour: return .fiveHour
         case .sevenDay: return .sevenDay
         case .sonnet: return .sonnet
+        case .fable: return .fable
         }
     }
 }
@@ -35,6 +37,24 @@ struct PacingResult {
     let zone: PacingZone
     let message: String
     let resetDate: Date?
+}
+
+/// One dated utilization reading, accumulated over a reset window so the hero
+/// pacing graph can draw the *real* cumulative trajectory (the "hockey stick"
+/// #240 asked for) instead of a single straight origin->now segment. Persisted
+/// app-side; the buffering/windowing lives in `PacingSampleBuffer`.
+struct PacingSample: Codable, Equatable {
+    let date: Date
+    /// Whole-window utilization percentage (0...100) at `date`.
+    let utilization: Double
+}
+
+/// A sampled point mapped into the hero graph's chart coordinates: `expected`
+/// is the elapsed fraction of the window (x, 0...100), `actual` the utilization
+/// at that moment (y, 0...100).
+struct PacingTrajectoryPoint: Equatable {
+    let expected: Double
+    let actual: Double
 }
 
 /// Workweek pacing configuration. When `enabled`, the pacing "expected" line

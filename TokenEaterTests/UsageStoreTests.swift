@@ -536,6 +536,35 @@ struct UsageStoreTests {
         #expect(store.sonnetPacing?.zone == .chill)
     }
 
+    @Test("refresh populates fablePacing when a fable bucket with a reset exists (#241)")
+    func refreshPopulatesFablePacing() async {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        let fableReset = Date().addingTimeInterval(3.5 * 24 * 3600) // mid weekly window
+        let usage = UsageResponse.fixture(
+            fableUtil: 80,
+            fableResetsAt: formatter.string(from: fableReset)
+        )
+        let (store, _, _, _, _) = makeSUT(usage: usage)
+
+        await store.refresh()
+
+        #expect(store.hasFable == true)
+        #expect(store.fablePacing != nil)
+        #expect(store.fablePacing?.zone == .hot) // 80% used at ~50% elapsed
+    }
+
+    @Test("fablePacing stays nil when there is no fable bucket (#241)")
+    func refreshNilFablePacing() async {
+        let usage = UsageResponse.fixture() // no fable
+        let (store, _, _, _, _) = makeSUT(usage: usage)
+
+        await store.refresh()
+
+        #expect(store.hasFable == false)
+        #expect(store.fablePacing == nil)
+    }
+
     // MARK: - new buckets (opus, cowork)
 
     @Test("refresh extracts opus and cowork percentages")

@@ -94,6 +94,7 @@
 "settings.session.reset" = "Show reset countdown";
 "pacing.session.label" = "Session pacing";
 "pacing.weekly.label" = "Weekly pacing";
+"pacing.fable.label" = "Fable pacing";
 "pacing.sonnet.label" = "Sonnet pacing";
 "settings.display.sonnet" = "Display Sonnet";
 "settings.metrics.pinned" = "Pinned metrics";
@@ -701,6 +702,7 @@
 "popoverElement.extraCredits" = "Extra Credits";
 "popoverElement.sessionPacing" = "Session pacing";
 "popoverElement.weeklyPacing" = "Weekly pacing";
+"popoverElement.fablePacing" = "Fable pacing";
 "popoverElement.watchers" = "Agent watchers";
 "popoverElement.timestamp" = "Updated timestamp";
 "popoverElement.openButton" = "Open TokenEater button";
@@ -758,6 +760,7 @@
 "menuBarSegment.extraCredits" = "Extra Credits";
 "menuBarSegment.sessionPacing" = "Session pacing";
 "menuBarSegment.weeklyPacing" = "Weekly pacing";
+"menuBarSegment.fablePacing" = "Fable pacing";
 "menuBarSegment.sessionReset" = "Session reset countdown";
 "menuBarSegment.serviceStatus" = "Service status";
 
@@ -802,6 +805,7 @@
 
 "pacing.session.label.short" = "Session";
 "pacing.weekly.label.short" = "Weekly";
+"pacing.fable.label.short" = "Fable";
 
 /* MARK: - Onboarding (rework 2026-04) */
 

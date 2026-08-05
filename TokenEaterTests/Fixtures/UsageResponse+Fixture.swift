@@ -18,15 +18,20 @@ extension UsageResponse {
         fiveHourUtil: Double = 42,
         sevenDayUtil: Double = 65,
         sonnetUtil: Double = 30,
+        fableUtil: Double? = nil,
         fiveHourResetsAt: String? = nil,
         sevenDayResetsAt: String? = nil,
         sonnetResetsAt: String? = nil,
+        fableResetsAt: String? = nil,
         extraUsage: ExtraUsage? = nil
     ) -> UsageResponse {
         UsageResponse(
             fiveHour: .fixture(utilization: fiveHourUtil, resetsAt: fiveHourResetsAt),
             sevenDay: .fixture(utilization: sevenDayUtil, resetsAt: sevenDayResetsAt),
             sevenDaySonnet: .fixture(utilization: sonnetUtil, resetsAt: sonnetResetsAt),
+            // Fable stays nil unless a util is provided, so existing tests that
+            // assert `hasFable == false` keep passing.
+            sevenDayFable: fableUtil.map { .fixture(utilization: $0, resetsAt: fableResetsAt) },
             extraUsage: extraUsage
         )
     }

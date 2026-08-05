@@ -68,6 +68,7 @@ enum PopoverMetricResolver {
         switch kind {
         case .sessionPacing: return usage.fiveHourPacing
         case .weeklyPacing: return usage.pacingResult
+        case .fablePacing: return usage.fablePacing
         default: return nil
         }
     }
@@ -81,6 +82,7 @@ enum PopoverMetricResolver {
         case .extraCredits: return usage.hasExtraCredits
         case .sessionPacing: return usage.fiveHourPacing != nil
         case .weeklyPacing: return usage.pacingResult != nil
+        case .fablePacing: return usage.fablePacing != nil
         case .planBadge: return usage.planType != .unknown
         default: return true
         }

@@ -260,6 +260,7 @@ struct PopoverSectionView: View {
             Section(String(localized: "popover.editor.family.pacing")) {
                 addButton(for: .sessionPacing)
                 addButton(for: .weeklyPacing)
+                addButton(for: .fablePacing)
             }
             Section(String(localized: "popover.editor.family.utilities")) {
                 addButton(for: .planBadge)
@@ -314,7 +315,7 @@ struct PopoverSectionView: View {
     /// presence gating stays live and separate.
     private func accountHasKind(_ kind: PopoverElementKind) -> Bool {
         switch kind {
-        case .fable: return usageStore.hasFable
+        case .fable, .fablePacing: return usageStore.hasFable
         case .extraCredits: return usageStore.hasExtraCredits
         case .planBadge: return usageStore.planType != .unknown
         default: return true
@@ -608,7 +609,7 @@ private struct ElementListEditor: View {
     // freely removable.
     private func isAvailable(_ kind: PopoverElementKind) -> Bool {
         switch kind {
-        case .fable: return usageStore.hasFable
+        case .fable, .fablePacing: return usageStore.hasFable
         case .extraCredits: return usageStore.hasExtraCredits
         case .planBadge: return usageStore.planType != .unknown
         default: return true
