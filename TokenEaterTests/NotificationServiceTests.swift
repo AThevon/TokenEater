@@ -57,10 +57,13 @@ struct NotificationServiceTests {
         #expect(!center.addedIDs.contains("escalation_fiveHour"))
     }
 
-    @Test("recovery to green fires when sendRecovery is on")
+    @Test("recovery to green fires on a real window reset")
     func recoveryFiresWhenEnabled() {
         let (service, center, state) = makeSUT()
         state.levels["lastLevel_fiveHour"] = UsageLevel.red.rawValue
+        // A real reset: the last-seen boundary is well in the past and the new
+        // snapshot's resets_at has jumped forward (#244 gate).
+        state.resetsAts["lastResetsAt_fiveHour"] = Date().addingTimeInterval(-10 * 3600)
 
         service.evaluate(
             fiveHour: snap(10), sevenDay: snap(0), sonnet: snap(0), fable: snap(0),
@@ -69,6 +72,26 @@ struct NotificationServiceTests {
 
         #expect(center.addedIDs.contains("recovery_fiveHour"))
         #expect(state.levels["lastLevel_fiveHour"] == UsageLevel.green.rawValue)
+    }
+
+    @Test("recovery does NOT fire on a mid-window level dip without a real reset (#244)")
+    func recoveryDoesNotFireMidWindow() {
+        let (service, center, state) = makeSUT()
+        state.levels["lastLevel_weekly"] = UsageLevel.red.rawValue
+        // Same window: the last-seen reset boundary equals the snapshot's
+        // resets_at (nothing rolled). A red->green dip must stay silent, or the
+        // user gets a false "weekly reset" notification mid-week.
+        let weekly = MetricSnapshot(pct: 10, resetsAt: Date().addingTimeInterval(2 * 24 * 3600), windowDuration: 7 * 86_400)
+        state.resetsAts["lastResetsAt_weekly"] = weekly.resetsAt
+
+        service.evaluate(
+            fiveHour: snap(0), sevenDay: weekly, sonnet: snap(0), fable: snap(0),
+            sessionPacing: nil, weeklyPacing: nil, extraUsage: nil, toggles: toggles(sendRecovery: true)
+        )
+
+        #expect(!center.addedIDs.contains("recovery_weekly"))
+        // The level is still advanced (dedup), only the notification is suppressed.
+        #expect(state.levels["lastLevel_weekly"] == UsageLevel.green.rawValue)
     }
 
     @Test("recovery stays silent when sendRecovery is off")
