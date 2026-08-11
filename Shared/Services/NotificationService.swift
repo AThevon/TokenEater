@@ -183,6 +183,23 @@ final class NotificationService: NotificationServiceProtocol {
                     profile: toggles.smartColorProfile)
             : absoluteLevel
 
+        // Track the window reset boundary. A real reset moves `resets_at`
+        // meaningfully forward (the window rolled); a mid-window refresh keeps
+        // it stable. The recovery ("new cycle") alert is gated on this so it
+        // no longer fires just because Smart Color eased the level back to
+        // green mid-window (#244) - which produced a false "weekly reset"
+        // notification on a random weekday. The baseline updates every call,
+        // independent of the level-change guard below.
+        let resetKey = "lastResetsAt_\(surface.rawValue)"
+        let previousReset = state.lastResetsAt(forKey: resetKey)
+        let windowDidReset: Bool = {
+            guard let now = snapshot.resetsAt, let previousReset else { return false }
+            return now.timeIntervalSince(previousReset) > 3600
+        }()
+        if let resetsAt = snapshot.resetsAt {
+            state.setLastResetsAt(resetsAt, forKey: resetKey)
+        }
+
         guard current != previous else { return }
         state.setLastLevel(current.rawValue, forKey: key)
 
@@ -194,7 +211,7 @@ final class NotificationService: NotificationServiceProtocol {
 
         if current > previous {
             notifyEscalation(surface: surface, level: current, snapshot: snapshot, pacing: pacing, paceDriven: paceDriven)
-        } else if current == .green && previous > .green && toggles.sendRecovery {
+        } else if current == .green && previous > .green && toggles.sendRecovery && windowDidReset {
             notifyRecovery(surface: surface, snapshot: snapshot)
         }
     }

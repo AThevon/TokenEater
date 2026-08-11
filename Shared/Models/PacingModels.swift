@@ -37,6 +37,30 @@ struct PacingResult {
     let zone: PacingZone
     let message: String
     let resetDate: Date?
+    /// When (in real calendar time) the steady-pace line catches up to the
+    /// current usage, i.e. the delta returns to 0 if the user stops now (#245).
+    /// nil when already at/under pace (delta <= 0) or there is no window.
+    /// Honors the workweek schedule: off time is not counted, so the date lands
+    /// on the next active moment when pacing is schedule-adjusted.
+    let coolingDate: Date?
+
+    init(
+        delta: Double,
+        expectedUsage: Double,
+        actualUsage: Double,
+        zone: PacingZone,
+        message: String,
+        resetDate: Date?,
+        coolingDate: Date? = nil
+    ) {
+        self.delta = delta
+        self.expectedUsage = expectedUsage
+        self.actualUsage = actualUsage
+        self.zone = zone
+        self.message = message
+        self.resetDate = resetDate
+        self.coolingDate = coolingDate
+    }
 }
 
 /// One dated utilization reading, accumulated over a reset window so the hero

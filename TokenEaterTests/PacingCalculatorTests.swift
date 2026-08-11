@@ -74,6 +74,93 @@ struct PacingCalculatorTests {
         #expect(all[.fable]?.zone == .chill)
     }
 
+    // MARK: - Cooling date (#245: time back to 0%)
+
+    @Test("coolingDate is when the pace line catches up to usage (rolling)")
+    func coolingDateRolling() throws {
+        let now = Self.stableNow()
+        let duration: TimeInterval = 7 * 24 * 3600
+        // 70% used at 50% elapsed -> delta +20 -> pace catches up in (20/100)*7d = 1.4 days.
+        let usage = UsageResponse.fixture(
+            sevenDayUtil: 70,
+            sevenDayResetsAt: makeResetsAt(elapsedFraction: 0.5, now: now)
+        )
+        let result = PacingCalculator.calculate(from: usage, now: now)
+        let cooling = try #require(result?.coolingDate)
+        let expected = now.addingTimeInterval(0.2 * duration)
+        #expect(abs(cooling.timeIntervalSince(expected)) < 60)
+    }
+
+    @Test("coolingDate is nil when at or under pace")
+    func coolingDateNilUnderPace() {
+        let now = Self.stableNow()
+        let usage = UsageResponse.fixture(
+            sevenDayUtil: 20,
+            sevenDayResetsAt: makeResetsAt(elapsedFraction: 0.5, now: now)
+        )
+        #expect(PacingCalculator.calculate(from: usage, now: now)?.coolingDate == nil)
+    }
+
+    @Test("coolingDate never exceeds the reset date")
+    func coolingDateCapped() throws {
+        let now = Self.stableNow()
+        // Early in the window + maxed usage -> the raw catch-up would overshoot,
+        // must clamp to the reset.
+        let usage = UsageResponse.fixture(
+            sevenDayUtil: 100,
+            sevenDayResetsAt: makeResetsAt(elapsedFraction: 0.1, now: now)
+        )
+        let result = PacingCalculator.calculate(from: usage, now: now)
+        let cooling = try #require(result?.coolingDate)
+        let reset = try #require(result?.resetDate)
+        #expect(cooling <= reset)
+        #expect(cooling > now)
+    }
+
+    @Test("coolingDate honors the workweek schedule (future, before reset)")
+    func coolingDateWorkweek() throws {
+        let now = Self.stableNow()
+        // High usage early in the window keeps the delta positive regardless of
+        // which weekday `now` lands on, so the assertions stay deterministic.
+        let usage = UsageResponse.fixture(
+            sevenDayUtil: 90,
+            sevenDayResetsAt: makeResetsAt(elapsedFraction: 0.15, now: now)
+        )
+        let result = PacingCalculator.calculate(from: usage, now: now, activeDays: [2, 3, 4, 5, 6])
+        let cooling = try #require(result?.coolingDate)
+        let reset = try #require(result?.resetDate)
+        #expect(cooling > now)
+        #expect(cooling <= reset)
+    }
+
+    @Test("coolingDate lands exactly where accumulated active time equals the pace debt (workweek)")
+    func coolingDateWorkweekInvariant() throws {
+        let now = Self.stableNow()
+        let activeDays: Set<Int> = [2, 3, 4, 5, 6] // Mon-Fri
+        // Moderate usage early in the window keeps `needed` well under the
+        // remaining active time, so the walk crosses (never hits the reset
+        // fallback), making the invariant below exact and weekday-independent.
+        let usage = UsageResponse.fixture(
+            sevenDayUtil: 40,
+            sevenDayResetsAt: makeResetsAt(elapsedFraction: 0.1, now: now)
+        )
+        let result = PacingCalculator.calculate(from: usage, now: now, activeDays: activeDays)
+        let cooling = try #require(result?.coolingDate)
+        let reset = try #require(result?.resetDate)
+        let delta = try #require(result?.delta)
+
+        // The pace catches up after burning off `(delta/100) * totalActive`
+        // seconds of ACTIVE time. So the active seconds between now and the
+        // landing date must equal that debt - this pins the interval walk
+        // (accumulation + interpolation) regardless of which weekday `now` is.
+        let duration: TimeInterval = 7 * 24 * 3600
+        let start = reset.addingTimeInterval(-duration)
+        let totalActive = PacingCalculator.activeSeconds(from: start, to: reset, activeDays: activeDays)
+        let needed = (delta / 100) * totalActive
+        let landedActive = PacingCalculator.activeSeconds(from: now, to: cooling, activeDays: activeDays)
+        #expect(abs(landedActive - needed) < 2) // within 2s of the exact crossing
+    }
+
     // MARK: - Zone classification
 
     @Test("chill zone when utilization far below expected")

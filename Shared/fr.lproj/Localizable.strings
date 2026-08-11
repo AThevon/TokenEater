@@ -95,6 +95,7 @@
 "pacing.session.label" = "Rythme session";
 "pacing.weekly.label" = "Rythme hebdomadaire";
 "pacing.fable.label" = "Rythme Fable";
+"pacing.cooldown" = "retour à 0%% dans %@";
 "pacing.sonnet.label" = "Rythme Sonnet";
 "settings.display.sonnet" = "Afficher Sonnet";
 "settings.metrics.pinned" = "Métriques épinglées";
