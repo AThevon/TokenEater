@@ -129,13 +129,49 @@ enum PacingCalculator {
         let messageKey = pool.isEmpty ? "" : pool[index]
         let message = messageKey.isEmpty ? "" : String(localized: String.LocalizationValue(messageKey))
 
+        let coolingDate = coolingDate(
+            delta: delta, now: now, startOfPeriod: startOfPeriod, resetsAt: resetsAt,
+            duration: duration, usesCalendarTime: bucket == .fiveHour || isFullWindow,
+            activeDays: activeDays, activeHours: activeHours
+        )
+
         return PacingResult(
             delta: delta,
             expectedUsage: expectedUsage,
             actualUsage: usageBucket.utilization,
             zone: zone,
             message: message,
-            resetDate: resetsAt
+            resetDate: resetsAt,
+            coolingDate: coolingDate
         )
+    }
+
+    /// When the steady-pace line catches up to current usage (delta -> 0) if the
+    /// user stops now (#245). nil when at/under pace. The delta must be regained
+    /// in units of *expected pace*, which advances at `100/duration` per real
+    /// second in the rolling case, or only during active time under a workweek
+    /// schedule - so the workweek case walks the active intervals and lands the
+    /// date on real calendar time (including any off-time it has to wait out).
+    /// Always <= resetsAt: at reset the expected pace is 100% >= usage, so the
+    /// crossing necessarily happens within the window.
+    private static func coolingDate(
+        delta: Double, now: Date, startOfPeriod: Date, resetsAt: Date,
+        duration: TimeInterval, usesCalendarTime: Bool,
+        activeDays: Set<Int>, activeHours: (start: Int, end: Int)?
+    ) -> Date? {
+        guard delta > 0 else { return nil }
+        if usesCalendarTime {
+            let secondsNeeded = (delta / 100) * duration
+            return min(now.addingTimeInterval(secondsNeeded), resetsAt)
+        }
+        let totalActive = activeSeconds(from: startOfPeriod, to: resetsAt, activeDays: activeDays, hours: activeHours)
+        guard totalActive > 0 else { return nil }
+        var needed = (delta / 100) * totalActive
+        for iv in activeIntervals(from: now, to: resetsAt, activeDays: activeDays, hours: activeHours) {
+            let len = iv.end.timeIntervalSince(iv.start)
+            if needed <= len { return iv.start.addingTimeInterval(needed) }
+            needed -= len
+        }
+        return resetsAt
     }
 }

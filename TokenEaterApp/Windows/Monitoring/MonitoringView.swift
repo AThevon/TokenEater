@@ -580,15 +580,23 @@ struct MonitoringView: View {
                     .frame(maxWidth: .infinity)
             }
             if let pacing = usageStore.pacingResult {
-                pacingCard(pacing: pacing, label: String(localized: "pacing.weekly.label"), icon: "calendar.badge.clock", showWorkweekBadge: true)
+                pacingCard(pacing: pacing, label: String(localized: "pacing.weekly.label"), icon: "calendar.badge.clock", showWorkweekBadge: true, showCooldown: true)
                     .frame(maxWidth: .infinity)
             }
         }
     }
 
-    private func pacingCard(pacing: PacingResult, label: String, icon: String, showWorkweekBadge: Bool = false) -> some View {
+    private func pacingCard(pacing: PacingResult, label: String, icon: String, showWorkweekBadge: Bool = false, showCooldown: Bool = false) -> some View {
         let tint = themeStore.current.pacingColor(for: pacing.zone)
         let sign = pacing.delta >= 0 ? "+" : ""
+        // "back to 0% in 3d 14h" when ahead of pace (#245). Takes the caption
+        // line in place of the flavor message: when you're over, the ETA to
+        // catch back down is the more useful signal. nil when at/under pace.
+        let cooldownText: String? = {
+            guard showCooldown, let cooling = pacing.coolingDate else { return nil }
+            let relative = ResetCountdownFormatter.weekly(from: cooling).relative
+            return relative.isEmpty ? nil : String(format: String(localized: "pacing.cooldown"), relative)
+        }()
         let schedule = settingsStore.pacingSchedule
         let offRanges: [ClosedRange<Double>] = (showWorkweekBadge && schedule.isActive)
             ? (pacing.resetDate.map { schedule.offDayRanges(resetDate: $0) } ?? [])
@@ -637,7 +645,12 @@ struct MonitoringView: View {
 
             pacingTrack(actual: pacing.actualUsage, expected: pacing.expectedUsage, tint: tint, offDayRanges: offRanges, nowInOffDay: nowInOffDay, markerFraction: markerFraction)
 
-            if !pacing.message.isEmpty {
+            if let cooldownText {
+                Text(cooldownText)
+                    .font(DS.Typography.label)
+                    .foregroundStyle(tint.opacity(0.85))
+                    .lineLimit(1)
+            } else if !pacing.message.isEmpty {
                 Text(pacing.message)
                     .font(DS.Typography.label)
                     .foregroundStyle(tint.opacity(0.85))

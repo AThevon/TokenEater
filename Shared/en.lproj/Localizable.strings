@@ -95,6 +95,7 @@
 "pacing.session.label" = "Session pacing";
 "pacing.weekly.label" = "Weekly pacing";
 "pacing.fable.label" = "Fable pacing";
+"pacing.cooldown" = "back to 0%% in %@";
 "pacing.sonnet.label" = "Sonnet pacing";
 "settings.display.sonnet" = "Display Sonnet";
 "settings.metrics.pinned" = "Pinned metrics";
