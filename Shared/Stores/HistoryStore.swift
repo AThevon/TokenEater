@@ -15,6 +15,11 @@ final class HistoryStore: ObservableObject {
 
     @Published var filter: HistoryFilter = .all
 
+    /// Active tab of the chart card (Tokens / Projects / Sessions / Cache).
+    /// Lives in the store (hoisted in `MainAppView`) so the choice survives
+    /// navigating away from History and back.
+    @Published var statsTab: HistoryStatsTab = .tokens
+
     /// All buckets within the active range. Kept un-filtered so swapping the
     /// model filter is instant (no re-parse).
     @Published private(set) var buckets: [HistoryBucket] = []

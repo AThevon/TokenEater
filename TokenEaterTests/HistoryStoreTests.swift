@@ -107,4 +107,22 @@ struct HistoryStoreTests {
     func projectTotalName() {
         #expect(ProjectTotal(path: "/Users/t/dev/TokenEater", tokens: 1).name == "TokenEater")
     }
+
+    @Test("bucket cacheHitRate is cached over total, 0 when the bucket is empty")
+    func bucketCacheHitRate() {
+        let bucket = Self.bucket(2026, 5, 25, byModel: [.opus48: 100],
+                                 input: 60, output: 40, cacheRead: 250, cacheCreate: 150)
+        // cached = 400, total including cache = 500 -> 80%
+        #expect(abs(bucket.cacheHitRate - 0.8) < 0.0001)
+        #expect(Self.bucket(2026, 5, 26, byModel: [:]).cacheHitRate == 0)
+    }
+
+    @Test("every stats tab has an icon and a label key")
+    func statsTabsAreComplete() {
+        for tab in HistoryStatsTab.allCases {
+            #expect(!tab.icon.isEmpty)
+            #expect(tab.labelKey == "history.tab.\(tab.rawValue)")
+        }
+        #expect(HistoryStatsTab.allCases.first == .tokens)
+    }
 }

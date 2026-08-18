@@ -621,8 +621,13 @@
 "history.chip.avgPerSession" = "Moy / session";
 "history.chip.avgPerSession.sub" = "%d sessions";
 
-/* Project breakdown panel (behind the Top project chip) */
-"history.projects.title" = "Projets";
+/* Stats card tabs */
+"history.tab.tokens" = "Tokens";
+"history.tab.projects" = "Projets";
+"history.tab.sessions" = "Sessions";
+"history.tab.cache" = "Cache";
+
+/* Projects stats tab (ranked project breakdown) */
 "history.projects.caption" = "Tokens actifs · tous modèles";
 "history.projects.footer" = "%d projets · %@ tokens";
 "history.projects.help" = "Voir tous les projets sur cette période";
@@ -630,6 +635,7 @@
 /* Chart hover tooltip */
 "history.tooltip.tokens" = "tokens";
 "history.tooltip.sessions" = "%lld session(s)";
+"history.tooltip.avgPerSession" = "moy / session";
 "sidebar.display" = "Barre de menus";
 "sidebar.themes" = "Thèmes";
 "sidebar.pacing" = "Pacing";
