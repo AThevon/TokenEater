@@ -46,6 +46,13 @@ struct ClaudeSession: Identifiable, Sendable {
     var processPid: Int32?
     var sourceKind: SessionSourceKind = .unknown
 
+    /// Absolute path of the session's JSONL transcript, as resolved by the
+    /// scan. Stored (not derived from `projectPath`) because a `--resume`d
+    /// session keeps its transcript under the ORIGINAL project directory,
+    /// not the one the process was launched from (#233). Nil for sessions
+    /// built outside the scan (previews, tests).
+    var transcriptPath: String? = nil
+
     /// Current context window size in tokens (sum of input + cache_creation +
     /// cache_read + output from the most recent assistant turn). Nil until the
     /// session has produced at least one assistant response.

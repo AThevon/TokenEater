@@ -65,13 +65,18 @@ final class OverlayWindowController {
             }
             .store(in: &cancellables)
 
-        sessionStore.$sessions
-            .map { sessions in sessions.contains { !$0.isDead } }
+        // Show/hide follows the sessions the overlay actually renders:
+        // active minus user-hidden (#247). Hiding the last visible watcher
+        // must drop the panel, and a purge of hidden ids must bring it back.
+        Publishers.CombineLatest(sessionStore.$sessions, sessionStore.$hiddenSessionIds)
+            .map { sessions, hidden in
+                sessions.contains { !$0.isDead && !hidden.contains($0.id) }
+            }
             .removeDuplicates()
             .receive(on: RunLoop.main)
-            .sink { [weak self] hasActive in
+            .sink { [weak self] hasVisible in
                 guard let self, self.settingsStore.overlayEnabled else { return }
-                if hasActive {
+                if hasVisible {
                     self.showOverlay()
                 } else {
                     self.hideOverlay()
@@ -279,7 +284,7 @@ final class OverlayWindowController {
         let scale = CGFloat(settingsStore.overlayScale)
         let itemHeight: CGFloat = 40 * scale
         let itemSpacing: CGFloat = 6 * scale
-        let count = sessionStore.activeSessions.count
+        let count = sessionStore.overlaySessions.count
         let totalHeight = CGFloat(count) * itemHeight + CGFloat(max(0, count - 1)) * itemSpacing
         let startY = (overlayState.windowHeight - totalHeight) / 2 + overlayState.contentOffset
 

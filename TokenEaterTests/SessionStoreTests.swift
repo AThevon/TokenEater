@@ -122,4 +122,71 @@ struct SessionStoreTests {
         try await Task.sleep(nanoseconds: 100_000_000)
         #expect(store.topActiveModelName == "Sonnet")
     }
+
+    // MARK: - Hidden watchers (#247)
+
+    @Test("hideSession removes the session from overlaySessions only")
+    func hideSessionFiltersOverlayOnly() async throws {
+        let (store, mock) = makeStore()
+        store.bind()
+        let a = makeSampleSession(id: "a")
+        let b = makeSampleSession(id: "b")
+        mock.emit([a, b])
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        store.hideSession(id: "a")
+
+        #expect(store.overlaySessions.map(\.id) == ["b"])
+        // Monitoring consumers keep seeing the full active list.
+        #expect(store.activeSessions.count == 2)
+        #expect(store.hasActiveSessions == true)
+    }
+
+    @Test("overlaySessions still excludes dead sessions")
+    func overlaySessionsExcludesDead() async throws {
+        let (store, mock) = makeStore()
+        store.bind()
+        let alive = makeSampleSession(id: "alive", lastUpdate: Date())
+        let dead = makeSampleSession(id: "dead", lastUpdate: Date().addingTimeInterval(-120))
+        mock.emit([alive, dead])
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        #expect(store.overlaySessions.map(\.id) == ["alive"])
+    }
+
+    @Test("hidden ids are purged when their session leaves the scan")
+    func hiddenIdsPurgedWhenSessionGone() async throws {
+        let (store, mock) = makeStore()
+        store.bind()
+        mock.emit([makeSampleSession(id: "a"), makeSampleSession(id: "b")])
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        store.hideSession(id: "a")
+        #expect(store.hiddenSessionIds == ["a"])
+
+        // "a" disappears from the scan -> the hide is forgotten, so a later
+        // session reusing the same id (a resumed one) shows up again.
+        mock.emit([makeSampleSession(id: "b")])
+        try await Task.sleep(nanoseconds: 100_000_000)
+        #expect(store.hiddenSessionIds.isEmpty)
+
+        mock.emit([makeSampleSession(id: "a"), makeSampleSession(id: "b")])
+        try await Task.sleep(nanoseconds: 100_000_000)
+        #expect(store.overlaySessions.count == 2)
+    }
+
+    @Test("hide persists across scan ticks while the session lives")
+    func hidePersistsWhileSessionLives() async throws {
+        let (store, mock) = makeStore()
+        store.bind()
+        mock.emit([makeSampleSession(id: "a")])
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        store.hideSession(id: "a")
+
+        mock.emit([makeSampleSession(id: "a")])
+        try await Task.sleep(nanoseconds: 100_000_000)
+        #expect(store.overlaySessions.isEmpty)
+        #expect(store.hiddenSessionIds == ["a"])
+    }
 }

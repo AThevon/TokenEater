@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct OverlayView: View {
     @EnvironmentObject var sessionStore: SessionStore
@@ -15,8 +16,8 @@ struct OverlayView: View {
 
     var body: some View {
         VStack(alignment: leftSide ? .leading : .trailing, spacing: 4) {
-            ForEach(Array(sessionStore.activeSessions.enumerated()), id: \.element.id) { index, session in
-                let prox = proximity(for: index, in: sessionStore.activeSessions)
+            ForEach(Array(sessionStore.overlaySessions.enumerated()), id: \.element.id) { index, session in
+                let prox = proximity(for: index, in: sessionStore.overlaySessions)
 
                 SessionTraitView(session: session, proximity: prox, scale: scale, leftSide: leftSide) {
                     teleportToSession(session)
@@ -25,6 +26,7 @@ struct OverlayView: View {
                     .interactiveSpring(response: 0.18, dampingFraction: 0.78),
                     value: prox
                 )
+                .contextMenu { contextMenu(for: session) }
             }
         }
         .padding(.vertical, 12)
@@ -92,6 +94,62 @@ struct OverlayView: View {
         }
 
         return base
+    }
+
+    // MARK: - Context menu (#247)
+
+    /// Right-click quick actions on a watcher card. Everything is
+    /// non-destructive; "Hide" is scoped to the session's lifetime (the store
+    /// forgets the id once the session leaves the scan).
+    @ViewBuilder
+    private func contextMenu(for session: ClaudeSession) -> some View {
+        Button {
+            teleportToSession(session)
+        } label: {
+            Label(String(localized: "watcher.menu.jump"), systemImage: "arrow.up.forward.square")
+        }
+        .disabled(session.processPid == nil)
+
+        Divider()
+
+        Button {
+            NSWorkspace.shared.open(URL(fileURLWithPath: session.projectPath, isDirectory: true))
+        } label: {
+            Label(String(localized: "watcher.menu.openFinder"), systemImage: "folder")
+        }
+
+        Button {
+            copyToPasteboard(session.projectPath)
+        } label: {
+            Label(String(localized: "watcher.menu.copyPath"), systemImage: "doc.on.doc")
+        }
+
+        Button {
+            copyToPasteboard(session.id)
+        } label: {
+            Label(String(localized: "watcher.menu.copySessionId"), systemImage: "number")
+        }
+
+        if let transcriptPath = session.transcriptPath {
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: transcriptPath)])
+            } label: {
+                Label(String(localized: "watcher.menu.revealTranscript"), systemImage: "doc.text.magnifyingglass")
+            }
+        }
+
+        Divider()
+
+        Button {
+            sessionStore.hideSession(id: session.id)
+        } label: {
+            Label(String(localized: "watcher.menu.hide"), systemImage: "eye.slash")
+        }
+    }
+
+    private func copyToPasteboard(_ string: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(string, forType: .string)
     }
 
     // MARK: - Teleport

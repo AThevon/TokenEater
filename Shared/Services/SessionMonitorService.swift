@@ -190,6 +190,7 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
                 startedAt: startedAt,
                 processPid: proc.pid,
                 sourceKind: proc.sourceKind,
+                transcriptPath: ref.url.path,
                 contextTokens: result.contextTokens,
                 contextMax: result.contextMax
             ))
@@ -245,6 +246,7 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
                         startedAt: startedAt,
                         processPid: process.pid,
                         sourceKind: process.sourceKind,
+                        transcriptPath: file.path,
                         contextTokens: result.contextTokens,
                         contextMax: result.contextMax
                     ))
