@@ -595,6 +595,7 @@
 
 /* History view */
 "history.sessions.label" = "sessions";
+"history.sessions.label.singular" = "session";
 "history.range.24h" = "24h";
 "history.range.7d" = "7j";
 "history.range.30d" = "30j";

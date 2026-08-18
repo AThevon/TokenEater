@@ -34,6 +34,7 @@ final class OverlayWindowController {
     private var cancellables = Set<AnyCancellable>()
     private var globalMonitor: Any?
     private var localMonitor: Any?
+    private var screenObserver: NSObjectProtocol?
 
     private let sessionStore: SessionStore
     private let settingsStore: SettingsStore
@@ -127,6 +128,20 @@ final class OverlayWindowController {
         }
         .store(in: &cancellables)
 
+        // When the context menu closes, cursor tracking must settle the panel
+        // right away: the tracking loop only runs on mouse moves, so without
+        // this a menu dismissed via Escape would leave the panel capturing
+        // clicks (ignoresMouseEvents == false) until the next cursor move.
+        overlayState.$contextMenuSessionId
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] menuId in
+                guard let self, menuId == nil else { return }
+                self.lastCursorCheck = 0
+                self.updateCursorTracking()
+            }
+            .store(in: &cancellables)
+
         // Re-evaluate capture immediately when the trigger zone changes: drop
         // the "already active" stickiness and clamp the panel back to
         // pass-through until the cursor crosses the fresh enter threshold.
@@ -208,7 +223,9 @@ final class OverlayWindowController {
             return event
         }
 
-        NotificationCenter.default.addObserver(
+        // Token kept so hideOverlay can unregister: each show/hide cycle
+        // would otherwise stack one more block observer.
+        screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil,
             queue: .main
@@ -226,6 +243,8 @@ final class OverlayWindowController {
         if let lm = localMonitor { NSEvent.removeMonitor(lm) }
         globalMonitor = nil
         localMonitor = nil
+        if let so = screenObserver { NotificationCenter.default.removeObserver(so) }
+        screenObserver = nil
         panel?.orderOut(nil)
         panel = nil
     }

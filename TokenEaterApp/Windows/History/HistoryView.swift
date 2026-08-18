@@ -54,8 +54,10 @@ struct HistoryView: View {
             triggerChartReveal()
         }
         .onChange(of: store.statsTab) { _, _ in
+            // No reveal replay here: the tab crossfade carries the entrance,
+            // and replaying `chartReveal` would flash the page loading bar
+            // (isLoaderActive) for 0.6s on a switch where nothing loads.
             clearHover()
-            triggerChartReveal()
         }
     }
 
@@ -895,7 +897,9 @@ struct HistoryView: View {
                     .font(.system(size: 22, weight: .bold, design: .rounded))
                     .foregroundStyle(DS.Palette.textPrimary)
                     .monospacedDigit()
-                Text(String(localized: "history.sessions.label"))
+                Text(String(localized: bucket.sessionsCount == 1
+                    ? "history.sessions.label.singular"
+                    : "history.sessions.label"))
                     .font(.system(size: 10))
                     .foregroundStyle(DS.Palette.textTertiary)
             }
@@ -1308,16 +1312,18 @@ private struct ProjectsStatsList: View {
     @State private var revealed = false
     @State private var hoveredPath: String?
 
-    private var totalTokens: Int { projects.reduce(0) { $0 + $1.tokens } }
-    private var maxTokens: Int { projects.first?.tokens ?? 0 }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-            header
+        // Computed once per body evaluation and passed down: as computed
+        // properties these reductions would re-run for every row (O(n²)).
+        let total = projects.reduce(0) { $0 + $1.tokens }
+        let top = projects.first?.tokens ?? 0
+
+        return VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            header(total: total)
             ScrollView(.vertical) {
                 LazyVStack(spacing: 3) {
                     ForEach(Array(projects.enumerated()), id: \.element.id) { index, project in
-                        row(project, rank: index + 1)
+                        row(project, rank: index + 1, total: total, top: top)
                     }
                 }
                 .padding(.trailing, 2)
@@ -1326,23 +1332,23 @@ private struct ProjectsStatsList: View {
         .onAppear { revealed = true }
     }
 
-    private var header: some View {
+    private func header(total: Int) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(String(localized: "history.projects.caption"))
                 .font(.system(size: 10))
                 .foregroundStyle(DS.Palette.textTertiary)
             Spacer(minLength: DS.Spacing.sm)
             Text(String(format: String(localized: "history.projects.footer"),
-                        projects.count, TokenFormatter.compact(totalTokens)))
+                        projects.count, TokenFormatter.compact(total)))
                 .font(.system(size: 10))
                 .foregroundStyle(DS.Palette.textTertiary)
                 .monospacedDigit()
         }
     }
 
-    private func row(_ project: ProjectTotal, rank: Int) -> some View {
-        let share = totalTokens == 0 ? 0 : Double(project.tokens) / Double(totalTokens)
-        let barFraction = maxTokens == 0 ? 0 : CGFloat(project.tokens) / CGFloat(maxTokens)
+    private func row(_ project: ProjectTotal, rank: Int, total: Int, top: Int) -> some View {
+        let share = total == 0 ? 0 : Double(project.tokens) / Double(total)
+        let barFraction = top == 0 ? 0 : CGFloat(project.tokens) / CGFloat(top)
         let isHovered = hoveredPath == project.path
 
         return HStack(alignment: .center, spacing: 12) {
@@ -1415,13 +1421,14 @@ private struct ProjectsStatsList: View {
         .frame(height: 4)
     }
 
-    /// Spring deploy with a capped stagger so long lists don't drag the tail
-    /// past the 500ms budget. Reduce-motion users get static rows (opacity
-    /// and bars render at rest), so no animation is returned for them.
+    /// Spring deploy with a capped stagger: the last row starts at 0.15s and
+    /// the 0.35s-response spring settles the tail right around the 500ms
+    /// interaction budget. Reduce-motion users get static rows (opacity and
+    /// bars render at rest), so no animation is returned for them.
     private func rowAnimation(rank: Int) -> Animation? {
         guard !reduceMotion else { return nil }
-        let delay = min(Double(rank - 1) * 0.035, 0.30)
-        return .spring(response: 0.40, dampingFraction: 0.85).delay(delay)
+        let delay = min(Double(rank - 1) * 0.03, 0.15)
+        return .spring(response: 0.35, dampingFraction: 0.85).delay(delay)
     }
 
     private func sharePercentLabel(_ share: Double) -> String {

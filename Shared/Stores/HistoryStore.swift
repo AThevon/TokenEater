@@ -84,6 +84,7 @@ final class HistoryStore: ObservableObject {
                 await MainActor.run {
                     self.buckets = []
                     self.summary = .empty
+                    self.projectTotals = []
                     self.isLoading = false
                     self.hasLoadedOnce = true
                 }
