@@ -35,6 +35,11 @@ final class HistoryStore: ObservableObject {
     /// Total active tokens per family for the chip badges (e.g. "Opus · 1.2M").
     @Published private(set) var familyTotals: [ModelFamily: Int] = [:]
 
+    /// Ranked project breakdown over the visible range (highest tokens first).
+    /// Backs the panel behind the "Top project" chip. Always model-agnostic
+    /// (see `ProjectTotal`), so it only changes with the range, not the filter.
+    @Published private(set) var projectTotals: [ProjectTotal] = []
+
     // MARK: - Wiring
 
     private let service: SessionHistoryServiceProtocol
@@ -124,16 +129,11 @@ final class HistoryStore: ObservableObject {
             .max(by: { $0.value < $1.value })
             .map { (kind: $0.key, tokens: $0.value) }
 
-        // Top project: same idea over the project breakdown.
-        var projectTotals: [String: Int] = [:]
-        for bucket in filtered {
-            for (path, tokens) in bucket.tokensByProject {
-                projectTotals[path, default: 0] += tokens
-            }
-        }
-        let topProject: (path: String, tokens: Int)? = projectTotals
-            .max(by: { $0.value < $1.value })
-            .map { (path: $0.key, tokens: $0.value) }
+        // Top project + full ranking: same idea over the project breakdown.
+        let ranked = Self.rankedProjects(in: filtered)
+        projectTotals = ranked
+        let topProject: (path: String, tokens: Int)? = ranked.first
+            .map { (path: $0.path, tokens: $0.tokens) }
 
         // The previous-period delta only makes sense when `filter == .all`.
         // Filtered totals don't have an apples-to-apples previous comparison
@@ -195,6 +195,21 @@ final class HistoryStore: ObservableObject {
             }
         }
         return totals
+    }
+
+    /// Ranked project totals (active tokens, highest first) across the given
+    /// buckets. Ties break on path so the ordering is deterministic. Pure and
+    /// static so it can be unit-tested without a MainActor store instance.
+    nonisolated static func rankedProjects(in buckets: [HistoryBucket]) -> [ProjectTotal] {
+        var totals: [String: Int] = [:]
+        for bucket in buckets {
+            for (path, tokens) in bucket.tokensByProject {
+                totals[path, default: 0] += tokens
+            }
+        }
+        return totals
+            .map { ProjectTotal(path: $0.key, tokens: $0.value) }
+            .sorted { $0.tokens != $1.tokens ? $0.tokens > $1.tokens : $0.path < $1.path }
     }
 
     /// Total active tokens per `ModelKind` across the given buckets. Pure and

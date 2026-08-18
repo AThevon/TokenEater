@@ -11,6 +11,8 @@ struct HistoryView: View {
     @ObservedObject var store: HistoryStore
     @State private var hoveredBucket: HistoryBucket?
     @State private var chartReveal: Double = 1.0
+    @State private var showProjectsPanel = false
+    @State private var topProjectHovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Single source of truth for the page-level progress bar. Mirrors the
@@ -683,11 +685,7 @@ struct HistoryView: View {
                 value: heaviestLabel,
                 sub: heaviestSub
             )
-            chipCard(
-                label: "history.chip.topProject",
-                value: topProjectLabel,
-                sub: topProjectSub
-            )
+            topProjectChip
             chipCard(
                 label: "history.chip.topModel",
                 value: topModelLabel,
@@ -720,6 +718,77 @@ struct HistoryView: View {
         .padding(DS.Spacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
         .dsGlass(radius: DS.Radius.card)
+    }
+
+    /// The "Top project" chip, upgraded into the door to the full ranked
+    /// project breakdown (#248). Same visual language as its `chipCard`
+    /// siblings, plus a hover affordance and a click that opens the panel.
+    private var topProjectChip: some View {
+        Button {
+            showProjectsPanel.toggle()
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 4) {
+                    Text(String(localized: "history.chip.topProject"))
+                        .font(DS.Typography.micro)
+                        .tracking(0.8)
+                        .foregroundStyle(DS.Palette.textTertiary)
+                    Spacer(minLength: 0)
+                    Image(systemName: "list.bullet")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(DS.Palette.accentHistory)
+                        .opacity(topProjectHovered || showProjectsPanel ? 1 : 0.35)
+                }
+                Text(topProjectLabel)
+                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                    .foregroundStyle(DS.Palette.textPrimary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Text(topProjectSub)
+                    .font(.system(size: 10))
+                    .foregroundStyle(DS.Palette.textTertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .padding(DS.Spacing.sm)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: DS.Radius.card)
+                    .fill(DS.Palette.bgElevated.opacity(0.72))
+                    .background(
+                        .ultraThinMaterial,
+                        in: RoundedRectangle(cornerRadius: DS.Radius.card)
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: DS.Radius.card)
+                    .stroke(
+                        topProjectHovered || showProjectsPanel
+                            ? DS.Palette.accentHistory.opacity(0.45)
+                            : DS.Palette.glassBorder,
+                        lineWidth: 1
+                    )
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(store.projectTotals.isEmpty)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                topProjectHovered = hovering && !store.projectTotals.isEmpty
+            }
+        }
+        .help(String(localized: "history.projects.help"))
+        .popover(isPresented: $showProjectsPanel, arrowEdge: .bottom) {
+            ProjectBreakdownPanel(
+                projects: store.projectTotals,
+                rangeLabel: String(localized: String.LocalizationValue(store.range.labelKey)),
+                reduceMotion: reduceMotion
+            )
+            .background(DS.Palette.bgElevated)
+            .preferredColorScheme(.dark)
+        }
     }
 
     // MARK: - Computed presentation helpers
@@ -794,6 +863,184 @@ struct HistoryView: View {
         case .sonnet: return Color(hex: "#5BC489")
         case .haiku:  return Color(hex: "#4FB7B0")
         case .other:  return Color(hex: "#9B8BD9")
+        }
+    }
+}
+
+// MARK: - Project breakdown panel
+//
+// Ranked project list behind the "Top project" chip (#248). Each row carries
+// a share bar scaled against the heaviest project (relative bars stay
+// readable even when one project dominates) plus the absolute tokens and the
+// percent of the range total. The bars deploy left-to-right with a short
+// capped stagger on open; reduce-motion swaps the choreography for a single
+// crossfade. All motion is transform/opacity only.
+
+private struct ProjectBreakdownPanel: View {
+    let projects: [ProjectTotal]
+    let rangeLabel: String
+    let reduceMotion: Bool
+
+    @State private var revealed = false
+    @State private var hoveredPath: String?
+
+    private var totalTokens: Int { projects.reduce(0) { $0 + $1.tokens } }
+    private var maxTokens: Int { projects.first?.tokens ?? 0 }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header
+                .padding(.horizontal, DS.Spacing.md)
+                .padding(.top, DS.Spacing.md)
+                .padding(.bottom, DS.Spacing.sm)
+
+            ScrollView(.vertical) {
+                LazyVStack(spacing: 2) {
+                    ForEach(Array(projects.enumerated()), id: \.element.id) { index, project in
+                        row(project, rank: index + 1)
+                    }
+                }
+                .padding(.horizontal, DS.Spacing.xs)
+            }
+            .frame(maxHeight: 340)
+
+            footer
+                .padding(.horizontal, DS.Spacing.md)
+                .padding(.vertical, DS.Spacing.sm)
+        }
+        .frame(width: 330)
+        .onAppear { revealed = true }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                Text(String(localized: "history.projects.title"))
+                    .font(DS.Typography.micro)
+                    .tracking(0.8)
+                    .textCase(.uppercase)
+                    .foregroundStyle(DS.Palette.textTertiary)
+                Text(rangeLabel)
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .foregroundStyle(DS.Palette.accentHistory)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(
+                        Capsule()
+                            .fill(DS.Palette.accentHistory.opacity(0.14))
+                            .overlay(Capsule().stroke(DS.Palette.accentHistory.opacity(0.35), lineWidth: 0.6))
+                    )
+                Spacer(minLength: 0)
+            }
+            Text(String(localized: "history.projects.caption"))
+                .font(.system(size: 10))
+                .foregroundStyle(DS.Palette.textTertiary)
+        }
+    }
+
+    private func row(_ project: ProjectTotal, rank: Int) -> some View {
+        let share = totalTokens == 0 ? 0 : Double(project.tokens) / Double(totalTokens)
+        let barFraction = maxTokens == 0 ? 0 : CGFloat(project.tokens) / CGFloat(maxTokens)
+        let isHovered = hoveredPath == project.path
+
+        return HStack(alignment: .center, spacing: 10) {
+            Text(String(format: "%02d", rank))
+                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                .foregroundStyle(rank == 1 ? DS.Palette.accentHistory : DS.Palette.textTertiary)
+                .frame(width: 16, alignment: .trailing)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(project.name)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(DS.Palette.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+
+                shareBar(fraction: barFraction, rank: rank)
+            }
+
+            Spacer(minLength: 10)
+
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(TokenFormatter.compact(project.tokens))
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(DS.Palette.textPrimary)
+                    .monospacedDigit()
+                Text(sharePercentLabel(share))
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(DS.Palette.textTertiary)
+                    .monospacedDigit()
+            }
+        }
+        .padding(.horizontal, DS.Spacing.xs)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.small, style: .continuous)
+                .fill(isHovered ? DS.Palette.glassFillHi : Color.clear)
+        )
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                hoveredPath = hovering ? project.path : nil
+            }
+        }
+        .help(project.path)
+        .opacity(reduceMotion || revealed ? 1 : 0)
+        .animation(rowAnimation(rank: rank), value: revealed)
+    }
+
+    /// Relative share bar. The fill has its final width from layout; the
+    /// reveal animates `scaleEffect(x:)` from near-zero anchored leading, so
+    /// the deploy is compositor-only (no per-frame layout pass).
+    private func shareBar(fraction: CGFloat, rank: Int) -> some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(DS.Palette.glassFill)
+                RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [DS.Palette.accentHistory, DS.Palette.accentHistory.opacity(0.55)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: max(geo.size.width * fraction, fraction > 0 ? 3 : 0))
+                    .scaleEffect(x: revealed || reduceMotion ? 1 : 0.02, anchor: .leading)
+                    .animation(rowAnimation(rank: rank), value: revealed)
+            }
+        }
+        .frame(height: 3)
+    }
+
+    /// Spring deploy with a capped stagger so long lists don't drag the tail
+    /// past the 500ms budget. Reduce-motion users get static rows (opacity
+    /// and bars render at rest), so no animation is returned for them.
+    private func rowAnimation(rank: Int) -> Animation? {
+        guard !reduceMotion else { return nil }
+        let delay = min(Double(rank - 1) * 0.035, 0.30)
+        return .spring(response: 0.40, dampingFraction: 0.85).delay(delay)
+    }
+
+    private func sharePercentLabel(_ share: Double) -> String {
+        let percent = share * 100
+        if percent > 0 && percent < 1 { return "<1%" }
+        return String(format: "%.0f%%", percent)
+    }
+
+    private var footer: some View {
+        VStack(spacing: DS.Spacing.xs) {
+            Rectangle()
+                .fill(DS.Palette.glassBorderLo)
+                .frame(height: 1)
+            HStack {
+                Text(String(format: String(localized: "history.projects.footer"),
+                            projects.count, TokenFormatter.compact(totalTokens)))
+                    .font(.system(size: 10))
+                    .foregroundStyle(DS.Palette.textTertiary)
+                    .monospacedDigit()
+                Spacer()
+            }
         }
     }
 }

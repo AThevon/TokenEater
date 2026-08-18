@@ -200,6 +200,21 @@ struct HistoryBucket: Identifiable, Codable, Sendable {
     }
 }
 
+// MARK: - Project breakdown
+
+/// One row of the ranked project list behind the "Top project" chip. Tokens
+/// are active tokens (input + output) summed over the visible range. Project
+/// attribution is model-agnostic: the JSONL cache does not break projects
+/// down per model, so the ranking always reflects all models regardless of
+/// the active family filter.
+struct ProjectTotal: Identifiable, Equatable, Sendable {
+    let path: String
+    let tokens: Int
+
+    var id: String { path }
+    var name: String { URL(fileURLWithPath: path).lastPathComponent }
+}
+
 // MARK: - Summary
 
 /// One-line snapshot of the visible range, used to fill the hero card and the
