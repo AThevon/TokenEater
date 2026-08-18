@@ -14,6 +14,18 @@ final class OverlayState: ObservableObject {
     /// overlay is already hover-active. SwiftUI uses this for visual
     /// expansion so the visible expand tracks the click-capture zone.
     @Published var activationZone: CGFloat = 180
+
+    /// Id of the session whose context menu is currently open, nil otherwise
+    /// (#247). While non-nil the overlay freezes: cursor tracking stops
+    /// collapsing the cards (the cursor is on the menu, outside the panel)
+    /// and the panel stays interactive.
+    @Published var contextMenuSessionId: String? = nil
+
+    /// Snapshot of the rendered sessions taken when a context menu opens,
+    /// released on close. Rendering from the snapshot pins the rows while the
+    /// menu tracks, so the 2s scan republish can't reshuffle or restyle the
+    /// card under the open menu.
+    @Published var frozenSessions: [ClaudeSession]? = nil
 }
 
 @MainActor
@@ -68,9 +80,15 @@ final class OverlayWindowController {
         // Show/hide follows the sessions the overlay actually renders:
         // active minus user-hidden (#247). Hiding the last visible watcher
         // must drop the panel, and a purge of hidden ids must bring it back.
-        Publishers.CombineLatest(sessionStore.$sessions, sessionStore.$hiddenSessionIds)
-            .map { sessions, hidden in
-                sessions.contains { !$0.isDead && !hidden.contains($0.id) }
+        // An open context menu pins the panel: tearing it down would kill the
+        // menu mid-tracking; the close re-emits and settles the real state.
+        Publishers.CombineLatest3(
+            sessionStore.$sessions,
+            sessionStore.$hiddenSessionIds,
+            overlayState.$contextMenuSessionId
+        )
+            .map { sessions, hidden, openMenu in
+                openMenu != nil || sessions.contains { !$0.isDead && !hidden.contains($0.id) }
             }
             .removeDuplicates()
             .receive(on: RunLoop.main)
@@ -231,6 +249,16 @@ final class OverlayWindowController {
         lastCursorCheck = now
 
         guard let panel else { return }
+
+        // Freeze window while a watcher context menu is open (#247): the
+        // cursor is travelling over the menu, outside the panel frame, and
+        // the normal logic below would collapse the cards and flip the panel
+        // back to pass-through under the open menu.
+        if overlayState.contextMenuSessionId != nil {
+            panel.ignoresMouseEvents = false
+            return
+        }
+
         let mouse = NSEvent.mouseLocation
         let frame = panel.frame
 
