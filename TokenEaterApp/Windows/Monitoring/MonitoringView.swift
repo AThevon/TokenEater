@@ -524,8 +524,13 @@ struct MonitoringView: View {
                 resetText: usageStore.sevenDayReset,
                 resetDate: usageStore.lastUsage?.sevenDay?.resetsAtDate,
                 windowDuration: weekWindow
-            ),
-            TileDescriptor(
+            )
+        ]
+        // Sonnet only exists as a dedicated weekly pool on some plans; on the
+        // others the API returns no bucket and the tile would sit at a
+        // meaningless permanent 0%. Gate it like Opus/Cowork/Fable below.
+        if usageStore.hasSonnet {
+            tiles.append(TileDescriptor(
                 id: "sonnet",
                 label: String(localized: "metric.sonnet"),
                 icon: "text.quote",
@@ -533,8 +538,8 @@ struct MonitoringView: View {
                 resetText: usageStore.sonnetReset.isEmpty ? nil : usageStore.sonnetReset,
                 resetDate: usageStore.lastUsage?.sevenDaySonnet?.resetsAtDate,
                 windowDuration: weekWindow
-            )
-        ]
+            ))
+        }
         if usageStore.hasOpus {
             tiles.append(TileDescriptor(
                 id: "opus",

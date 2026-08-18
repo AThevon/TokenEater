@@ -73,4 +73,56 @@ struct HistoryStoreTests {
         #expect(out.first?.inputTokens == 10)
         #expect(out.first?.outputTokens == 20)
     }
+
+    @Test("rankedProjects sums tokens per project across buckets, highest first")
+    func rankedProjectsSumsAndSorts() {
+        let buckets = [
+            Self.bucket(2026, 5, 25, byModel: [.opus48: 100],
+                        byProject: ["/Users/t/small": 40, "/Users/t/big": 100]),
+            Self.bucket(2026, 5, 26, byModel: [.sonnet: 80],
+                        byProject: ["/Users/t/big": 60, "/Users/t/mid": 90])
+        ]
+        let ranked = HistoryStore.rankedProjects(in: buckets)
+        #expect(ranked.map(\.path) == ["/Users/t/big", "/Users/t/mid", "/Users/t/small"])
+        #expect(ranked.map(\.tokens) == [160, 90, 40])
+    }
+
+    @Test("rankedProjects breaks token ties on path for a stable order")
+    func rankedProjectsTieBreaksOnPath() {
+        let buckets = [
+            Self.bucket(2026, 5, 25, byModel: [.opus48: 100],
+                        byProject: ["/b": 50, "/a": 50])
+        ]
+        let ranked = HistoryStore.rankedProjects(in: buckets)
+        #expect(ranked.map(\.path) == ["/a", "/b"])
+    }
+
+    @Test("rankedProjects is empty for empty input")
+    func rankedProjectsEmpty() {
+        #expect(HistoryStore.rankedProjects(in: []).isEmpty)
+        #expect(HistoryStore.rankedProjects(in: [Self.bucket(2026, 5, 25, byModel: [.opus48: 10])]).isEmpty)
+    }
+
+    @Test("ProjectTotal.name is the path's last component")
+    func projectTotalName() {
+        #expect(ProjectTotal(path: "/Users/t/dev/TokenEater", tokens: 1).name == "TokenEater")
+    }
+
+    @Test("bucket cacheHitRate is cached over total, 0 when the bucket is empty")
+    func bucketCacheHitRate() {
+        let bucket = Self.bucket(2026, 5, 25, byModel: [.opus48: 100],
+                                 input: 60, output: 40, cacheRead: 250, cacheCreate: 150)
+        // cached = 400, total including cache = 500 -> 80%
+        #expect(abs(bucket.cacheHitRate - 0.8) < 0.0001)
+        #expect(Self.bucket(2026, 5, 26, byModel: [:]).cacheHitRate == 0)
+    }
+
+    @Test("every stats tab has an icon and a label key")
+    func statsTabsAreComplete() {
+        for tab in HistoryStatsTab.allCases {
+            #expect(!tab.icon.isEmpty)
+            #expect(tab.labelKey == "history.tab.\(tab.rawValue)")
+        }
+        #expect(HistoryStatsTab.allCases.first == .tokens)
+    }
 }

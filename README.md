@@ -30,9 +30,9 @@ A native macOS menu bar app + desktop widgets + floating overlay that tracks you
 
 - **Menu bar** — Live percentages, color-coded thresholds, and a fully composable popover dashboard: build it element by element (rings, chips, arcs, pacing bars... at full, half, or third width), start from built-in templates (Classic / Compact / Focus / Minimalist and more), and save your own.
 - **Dashboard** — Three-space layout (Monitoring / History / Settings) with flippable tiles surfacing 7d sparklines, peak day, and a pacing-vs-equilibrium graph.
-- **History** — Tokens-over-time browser sourced from Claude Code's local JSONL logs. Filter by model family (Opus / Sonnet / Haiku), switch range (24h / 7d / 30d / 90d), hover bars for daily breakdown, identify your heaviest day and top project at a glance.
+- **History** — Tokens-over-time browser sourced from Claude Code's local JSONL logs, with four stats tabs: Tokens (stacked chart by model family), Projects (ranked breakdown with share bars), Sessions (session counts over time), and Cache (hit-rate curve). Filter by model family, switch range (24h / 7d / 30d / 90d), hover for per-bucket details.
 - **Widgets** — Native WidgetKit widgets (usage gauges, progress bars, pacing) with reactive refresh.
-- **Agent Watchers** — Floating overlay showing active Claude Code sessions with dock-like hover effect. Click to jump to the right terminal (Terminal.app, iTerm2, tmux, Kitty, WezTerm). Frost or Neon style, with per-session context fraction.
+- **Agent Watchers** — Floating overlay showing active Claude Code sessions with dock-like hover effect. Click to jump to the right terminal (Terminal.app, iTerm2, tmux, Kitty, WezTerm), right-click for quick actions (open project in Finder, copy path or session id, reveal transcript, hide). Frost or Neon style, with per-session context fraction.
 - **Smart Color** — Risk-aware coloring that combines absolute usage, projection rate, and pacing into a continuous risk score with early-window confidence damping. Three temperaments (Confident / Balanced / Suspicious) to dial sensitivity to your appetite for risk.
 - **Smart pacing** — Are you burning through tokens or cruising? Four zones: chill, on track, warning, hot.
 - **Themes** — 4 presets + full custom colors. Configurable warning/critical thresholds.

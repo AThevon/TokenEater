@@ -11,6 +11,7 @@ struct HistoryView: View {
     @ObservedObject var store: HistoryStore
     @State private var hoveredBucket: HistoryBucket?
     @State private var chartReveal: Double = 1.0
+    @State private var topProjectHovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Single source of truth for the page-level progress bar. Mirrors the
@@ -51,6 +52,12 @@ struct HistoryView: View {
         }
         .onChange(of: store.buckets.count) { _, _ in
             triggerChartReveal()
+        }
+        .onChange(of: store.statsTab) { _, _ in
+            // No reveal replay here: the tab crossfade carries the entrance,
+            // and replaying `chartReveal` would flash the page loading bar
+            // (isLoaderActive) for 0.6s on a switch where nothing loads.
+            clearHover()
         }
     }
 
@@ -339,15 +346,92 @@ struct HistoryView: View {
         .disabled(!isPresent)
     }
 
-    // MARK: - Chart
+    // MARK: - Stats card (tabbed)
 
     private var chartCard: some View {
-        chart
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            statsTabBar
+            ZStack {
+                switch store.statsTab {
+                case .tokens:
+                    chart
+                        .transition(tabTransition)
+                case .projects:
+                    projectsTab
+                        .transition(tabTransition)
+                case .sessions:
+                    sessionsTab
+                        .transition(tabTransition)
+                case .cache:
+                    cacheTab
+                        .transition(tabTransition)
+                }
+            }
             .frame(height: 290)
-            .padding(DS.Spacing.md)
             .frame(maxWidth: .infinity)
-            .dsGlass(radius: DS.Radius.card)
+        }
+        .padding(DS.Spacing.md)
+        .frame(maxWidth: .infinity)
+        .dsGlass(radius: DS.Radius.card)
     }
+
+    /// Crossfade + a slight rise for the incoming tab, plain fade out for the
+    /// leaving one. Reduce-motion collapses to fade-only.
+    private var tabTransition: AnyTransition {
+        if reduceMotion { return .opacity }
+        return .asymmetric(
+            insertion: .opacity.combined(with: .offset(y: 6)),
+            removal: .opacity
+        )
+    }
+
+    /// Same pill language as the range picker, one pill per stats tab.
+    private var statsTabBar: some View {
+        HStack(spacing: 2) {
+            ForEach(HistoryStatsTab.allCases, id: \.rawValue) { tab in
+                statsTabPill(tab)
+            }
+        }
+        .padding(3)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(DS.Palette.glassFill)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(DS.Palette.glassBorderLo, lineWidth: 1)
+                )
+        )
+    }
+
+    private func statsTabPill(_ tab: HistoryStatsTab) -> some View {
+        let active = tab == store.statsTab
+        return Button {
+            selectTab(tab)
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: tab.icon)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(active ? DS.Palette.accentHistory : DS.Palette.textTertiary)
+                Text(String(localized: String.LocalizationValue(tab.labelKey)))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(active ? DS.Palette.textPrimary : DS.Palette.textTertiary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 5)
+            .background(rangeBackground(active: active))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func selectTab(_ tab: HistoryStatsTab) {
+        guard store.statsTab != tab else { return }
+        withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : DS.Motion.springLiquid) {
+            store.statsTab = tab
+        }
+    }
+
+    // MARK: - Chart (Tokens tab)
 
     @ViewBuilder
     private var chart: some View {
@@ -620,11 +704,22 @@ struct HistoryView: View {
     /// in the range. Keeps the empty axes visible behind so the user
     /// understands the chart frame is intact.
     private var filterEmptyOverlay: some View {
+        emptyOverlayBox(message: filterEmptyMessage)
+    }
+
+    /// Range-scoped empty overlay for the non-token tabs: the model filter
+    /// does not apply to them, so always use the "nothing logged" wording.
+    private var rangeEmptyOverlay: some View {
+        let rangeLabel = String(localized: String.LocalizationValue(store.range.labelKey))
+        return emptyOverlayBox(message: String(format: String(localized: "history.empty.filter.all"), rangeLabel))
+    }
+
+    private func emptyOverlayBox(message: String) -> some View {
         VStack(spacing: 6) {
             Image(systemName: "tray")
                 .font(.system(size: 22, weight: .light))
                 .foregroundStyle(DS.Palette.textTertiary.opacity(0.5))
-            Text(filterEmptyMessage)
+            Text(message)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(DS.Palette.textTertiary)
                 .multilineTextAlignment(.center)
@@ -669,6 +764,350 @@ struct HistoryView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    // MARK: - Projects tab (#248)
+
+    @ViewBuilder
+    private var projectsTab: some View {
+        if store.buckets.isEmpty && !store.isLoading {
+            emptyState
+        } else if store.projectTotals.isEmpty {
+            rangeEmptyOverlay
+        } else {
+            // `.id(range)` remounts the list when the window changes so the
+            // deploy choreography replays on fresh data.
+            ProjectsStatsList(projects: store.projectTotals, reduceMotion: reduceMotion)
+                .id(store.range)
+        }
+    }
+
+    // MARK: - Sessions tab
+
+    @ViewBuilder
+    private var sessionsTab: some View {
+        if store.buckets.isEmpty && !store.isLoading {
+            emptyState
+        } else {
+            sessionsChart
+        }
+    }
+
+    private var sessionsChart: some View {
+        let buckets = store.buckets
+        let count = buckets.count
+        let domain = ChartDomainCalculator.domain(range: store.range)
+        let unit: Calendar.Component = store.range.isHourly ? .hour : .day
+        let hasAny = buckets.contains { $0.sessionsCount > 0 }
+
+        return ZStack {
+            Chart {
+                ForEach(Array(buckets.enumerated()), id: \.element.id) { index, bucket in
+                    if bucket.sessionsCount > 0 {
+                        BarMark(
+                            x: .value("date", bucket.date, unit: unit),
+                            y: .value("sessions", bucket.sessionsCount)
+                        )
+                        .foregroundStyle(DS.Palette.accentHistory.gradient)
+                        .cornerRadius(3)
+                        .opacity(barOpacity(at: index, of: count))
+                    }
+                }
+
+                if let bucket = hoveredBucket {
+                    RuleMark(x: .value("date", bucket.date, unit: unit))
+                        .foregroundStyle(DS.Palette.textPrimary.opacity(0.18))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+
+                    PointMark(
+                        x: .value("date", bucket.date, unit: unit),
+                        y: .value("sessions", sessionsTooltipAnchorY(for: bucket, in: buckets))
+                    )
+                    .opacity(0)
+                    .annotation(
+                        position: .top,
+                        spacing: 10,
+                        overflowResolution: .init(x: .fit(to: .chart), y: .fit(to: .chart))
+                    ) {
+                        sessionsTooltipCard(for: bucket)
+                    }
+                }
+            }
+            .chartXScale(domain: domain.start...domain.end)
+            .chartOverlay { proxy in
+                GeometryReader { geo in
+                    Rectangle()
+                        .fill(Color.clear)
+                        .contentShape(Rectangle())
+                        .onContinuousHover { phase in
+                            switch phase {
+                            case .active(let location):
+                                handleChartHover(at: location, proxy: proxy, geo: geo, in: buckets)
+                            case .ended:
+                                clearHover()
+                            }
+                        }
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { value in
+                    AxisValueLabel {
+                        if let intValue = value.as(Int.self) {
+                            Text("\(intValue)")
+                                .font(.system(size: 9))
+                                .foregroundStyle(DS.Palette.textTertiary.opacity(0.5))
+                                .monospacedDigit()
+                        }
+                    }
+                    AxisGridLine()
+                        .foregroundStyle(DS.Palette.glassBorderLo)
+                }
+            }
+            .chartXAxis {
+                AxisMarks(values: .automatic(desiredCount: 7)) { _ in
+                    AxisValueLabel(format: store.range.isHourly ? .dateTime.hour() : .dateTime.month(.abbreviated).day(),
+                                   centered: true)
+                        .font(.system(size: 9))
+                        .foregroundStyle(DS.Palette.textTertiary.opacity(0.5))
+                }
+            }
+
+            if !hasAny {
+                rangeEmptyOverlay
+            }
+        }
+    }
+
+    /// Same anchoring idea as the tokens tooltip: peak of the hovered bar,
+    /// lifted to 60% of the tallest bar so short bars keep the tooltip high.
+    private func sessionsTooltipAnchorY(for bucket: HistoryBucket, in buckets: [HistoryBucket]) -> Int {
+        let max = buckets.map(\.sessionsCount).max() ?? 0
+        let floor = Int(Double(max) * 0.6)
+        return Swift.max(bucket.sessionsCount, floor)
+    }
+
+    private func sessionsTooltipCard(for bucket: HistoryBucket) -> some View {
+        tooltipShell {
+            Text(formatTooltipDate(bucket.date))
+                .font(.system(size: 9, weight: .semibold))
+                .tracking(0.6)
+                .foregroundStyle(DS.Palette.textTertiary)
+                .textCase(.uppercase)
+
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text("\(bucket.sessionsCount)")
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(DS.Palette.textPrimary)
+                    .monospacedDigit()
+                Text(String(localized: bucket.sessionsCount == 1
+                    ? "history.sessions.label.singular"
+                    : "history.sessions.label"))
+                    .font(.system(size: 10))
+                    .foregroundStyle(DS.Palette.textTertiary)
+            }
+
+            Rectangle()
+                .fill(DS.Palette.glassBorderLo)
+                .frame(height: 1)
+                .padding(.vertical, 1)
+
+            VStack(alignment: .leading, spacing: 5) {
+                tooltipStatLine(
+                    value: TokenFormatter.compact(bucket.totalActive),
+                    label: String(localized: "history.tooltip.tokens")
+                )
+                tooltipStatLine(
+                    value: TokenFormatter.compact(bucket.sessionsCount == 0 ? 0 : bucket.totalActive / bucket.sessionsCount),
+                    label: String(localized: "history.tooltip.avgPerSession")
+                )
+            }
+        }
+    }
+
+    // MARK: - Cache tab
+
+    @ViewBuilder
+    private var cacheTab: some View {
+        if store.buckets.isEmpty && !store.isLoading {
+            emptyState
+        } else {
+            cacheChart
+        }
+    }
+
+    private var cacheChart: some View {
+        // Buckets with zero traffic have no meaningful hit rate; dropping
+        // them keeps the curve from crashing to 0% on quiet days.
+        let buckets = store.buckets.filter { $0.totalIncludingCache > 0 }
+        let domain = ChartDomainCalculator.domain(range: store.range)
+        let unit: Calendar.Component = store.range.isHourly ? .hour : .day
+
+        return ZStack {
+            Chart {
+                ForEach(buckets) { bucket in
+                    AreaMark(
+                        x: .value("date", bucket.date, unit: unit),
+                        y: .value("hit", bucket.cacheHitRate * 100)
+                    )
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [DS.Palette.accentHistory.opacity(0.25), DS.Palette.accentHistory.opacity(0.02)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .interpolationMethod(.monotone)
+
+                    LineMark(
+                        x: .value("date", bucket.date, unit: unit),
+                        y: .value("hit", bucket.cacheHitRate * 100)
+                    )
+                    .foregroundStyle(DS.Palette.accentHistory)
+                    .lineStyle(StrokeStyle(lineWidth: 1.5))
+                    .interpolationMethod(.monotone)
+                    .symbol(.circle)
+                    .symbolSize(18)
+                }
+
+                if let bucket = hoveredBucket, bucket.totalIncludingCache > 0 {
+                    RuleMark(x: .value("date", bucket.date, unit: unit))
+                        .foregroundStyle(DS.Palette.textPrimary.opacity(0.18))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+
+                    PointMark(
+                        x: .value("date", bucket.date, unit: unit),
+                        y: .value("hit", bucket.cacheHitRate * 100)
+                    )
+                    .symbolSize(50)
+                    .foregroundStyle(DS.Palette.accentHistory)
+                    .annotation(
+                        position: .top,
+                        spacing: 10,
+                        overflowResolution: .init(x: .fit(to: .chart), y: .fit(to: .chart))
+                    ) {
+                        cacheTooltipCard(for: bucket)
+                    }
+                }
+            }
+            .chartXScale(domain: domain.start...domain.end)
+            .chartYScale(domain: 0...100)
+            .chartOverlay { proxy in
+                GeometryReader { geo in
+                    Rectangle()
+                        .fill(Color.clear)
+                        .contentShape(Rectangle())
+                        .onContinuousHover { phase in
+                            switch phase {
+                            case .active(let location):
+                                handleChartHover(at: location, proxy: proxy, geo: geo, in: buckets)
+                            case .ended:
+                                clearHover()
+                            }
+                        }
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading, values: [0, 50, 100]) { value in
+                    AxisValueLabel {
+                        if let intValue = value.as(Int.self) {
+                            Text("\(intValue)%")
+                                .font(.system(size: 9))
+                                .foregroundStyle(DS.Palette.textTertiary.opacity(0.5))
+                                .monospacedDigit()
+                        }
+                    }
+                    AxisGridLine()
+                        .foregroundStyle(DS.Palette.glassBorderLo)
+                }
+            }
+            .chartXAxis {
+                AxisMarks(values: .automatic(desiredCount: 7)) { _ in
+                    AxisValueLabel(format: store.range.isHourly ? .dateTime.hour() : .dateTime.month(.abbreviated).day(),
+                                   centered: true)
+                        .font(.system(size: 9))
+                        .foregroundStyle(DS.Palette.textTertiary.opacity(0.5))
+                }
+            }
+            .opacity(chartReveal)
+
+            if buckets.isEmpty {
+                rangeEmptyOverlay
+            }
+        }
+    }
+
+    private func cacheTooltipCard(for bucket: HistoryBucket) -> some View {
+        tooltipShell {
+            Text(formatTooltipDate(bucket.date))
+                .font(.system(size: 9, weight: .semibold))
+                .tracking(0.6)
+                .foregroundStyle(DS.Palette.textTertiary)
+                .textCase(.uppercase)
+
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(formatPercent(bucket.cacheHitRate * 100))
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(DS.Palette.textPrimary)
+                    .monospacedDigit()
+                Text(String(localized: "history.hero.cacheHit"))
+                    .font(.system(size: 10))
+                    .foregroundStyle(DS.Palette.textTertiary)
+            }
+
+            Rectangle()
+                .fill(DS.Palette.glassBorderLo)
+                .frame(height: 1)
+                .padding(.vertical, 1)
+
+            VStack(alignment: .leading, spacing: 5) {
+                tooltipStatLine(
+                    value: TokenFormatter.compact(bucket.cachedTokens),
+                    label: String(localized: "history.hero.cached")
+                )
+                tooltipStatLine(
+                    value: TokenFormatter.compact(bucket.totalActive),
+                    label: String(localized: "history.hero.active")
+                )
+            }
+        }
+    }
+
+    // MARK: - Shared tooltip chrome
+
+    private func tooltipShell<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 8, content: content)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(minWidth: 150, maxWidth: 240)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(DS.Palette.bgElevated)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(DS.Palette.glassBorder, lineWidth: 1)
+                    )
+            )
+            .shadow(color: .black.opacity(0.42), radius: 18, x: 0, y: 8)
+            .shadow(color: .black.opacity(0.22), radius: 4, x: 0, y: 2)
+            .transition(
+                .asymmetric(
+                    insertion: .scale(scale: 0.96, anchor: .bottom).combined(with: .opacity),
+                    removal: .opacity
+                )
+            )
+    }
+
+    private func tooltipStatLine(value: String, label: String) -> some View {
+        HStack(spacing: 6) {
+            Text(value)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(DS.Palette.textPrimary)
+                .monospacedDigit()
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundStyle(DS.Palette.textSecondary)
+            Spacer(minLength: 0)
+        }
+    }
+
     // MARK: - Footer chips
 
     private var footerChips: some View {
@@ -683,11 +1122,7 @@ struct HistoryView: View {
                 value: heaviestLabel,
                 sub: heaviestSub
             )
-            chipCard(
-                label: "history.chip.topProject",
-                value: topProjectLabel,
-                sub: topProjectSub
-            )
+            topProjectChip
             chipCard(
                 label: "history.chip.topModel",
                 value: topModelLabel,
@@ -720,6 +1155,69 @@ struct HistoryView: View {
         .padding(DS.Spacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
         .dsGlass(radius: DS.Radius.card)
+    }
+
+    /// The "Top project" chip doubles as a shortcut to the Projects stats tab
+    /// (#248). Same visual language as its `chipCard` siblings, plus a hover
+    /// affordance and an active border while the Projects tab is showing.
+    private var topProjectChip: some View {
+        let isActive = store.statsTab == .projects
+        return Button {
+            selectTab(.projects)
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 4) {
+                    Text(String(localized: "history.chip.topProject"))
+                        .font(DS.Typography.micro)
+                        .tracking(0.8)
+                        .foregroundStyle(DS.Palette.textTertiary)
+                    Spacer(minLength: 0)
+                    Image(systemName: "list.bullet")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(DS.Palette.accentHistory)
+                        .opacity(topProjectHovered || isActive ? 1 : 0.35)
+                }
+                Text(topProjectLabel)
+                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                    .foregroundStyle(DS.Palette.textPrimary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Text(topProjectSub)
+                    .font(.system(size: 10))
+                    .foregroundStyle(DS.Palette.textTertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .padding(DS.Spacing.sm)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: DS.Radius.card)
+                    .fill(DS.Palette.bgElevated.opacity(0.72))
+                    .background(
+                        .ultraThinMaterial,
+                        in: RoundedRectangle(cornerRadius: DS.Radius.card)
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: DS.Radius.card)
+                    .stroke(
+                        topProjectHovered || isActive
+                            ? DS.Palette.accentHistory.opacity(0.45)
+                            : DS.Palette.glassBorder,
+                        lineWidth: 1
+                    )
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(store.projectTotals.isEmpty)
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                topProjectHovered = hovering && !store.projectTotals.isEmpty
+            }
+        }
+        .help(String(localized: "history.projects.help"))
     }
 
     // MARK: - Computed presentation helpers
@@ -795,6 +1293,148 @@ struct HistoryView: View {
         case .haiku:  return Color(hex: "#4FB7B0")
         case .other:  return Color(hex: "#9B8BD9")
         }
+    }
+}
+
+// MARK: - Projects stats list (#248)
+//
+// Full-card ranked project list, the Projects tab of the stats card. Each row
+// carries a share bar scaled against the heaviest project (relative bars stay
+// readable even when one project dominates) plus the absolute tokens and the
+// percent of the range total. The bars deploy left-to-right with a short
+// capped stagger when the tab (or the range) changes; reduce-motion renders
+// everything at rest. All motion is transform/opacity only.
+
+private struct ProjectsStatsList: View {
+    let projects: [ProjectTotal]
+    let reduceMotion: Bool
+
+    @State private var revealed = false
+    @State private var hoveredPath: String?
+
+    var body: some View {
+        // Computed once per body evaluation and passed down: as computed
+        // properties these reductions would re-run for every row (O(n²)).
+        let total = projects.reduce(0) { $0 + $1.tokens }
+        let top = projects.first?.tokens ?? 0
+
+        return VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            header(total: total)
+            ScrollView(.vertical) {
+                LazyVStack(spacing: 3) {
+                    ForEach(Array(projects.enumerated()), id: \.element.id) { index, project in
+                        row(project, rank: index + 1, total: total, top: top)
+                    }
+                }
+                .padding(.trailing, 2)
+            }
+        }
+        .onAppear { revealed = true }
+    }
+
+    private func header(total: Int) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(String(localized: "history.projects.caption"))
+                .font(.system(size: 10))
+                .foregroundStyle(DS.Palette.textTertiary)
+            Spacer(minLength: DS.Spacing.sm)
+            Text(String(format: String(localized: "history.projects.footer"),
+                        projects.count, TokenFormatter.compact(total)))
+                .font(.system(size: 10))
+                .foregroundStyle(DS.Palette.textTertiary)
+                .monospacedDigit()
+        }
+    }
+
+    private func row(_ project: ProjectTotal, rank: Int, total: Int, top: Int) -> some View {
+        let share = total == 0 ? 0 : Double(project.tokens) / Double(total)
+        let barFraction = top == 0 ? 0 : CGFloat(project.tokens) / CGFloat(top)
+        let isHovered = hoveredPath == project.path
+
+        return HStack(alignment: .center, spacing: 12) {
+            Text(String(format: "%02d", rank))
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .foregroundStyle(rank == 1 ? DS.Palette.accentHistory : DS.Palette.textTertiary)
+                .frame(width: 20, alignment: .trailing)
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(project.name)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(DS.Palette.textPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+
+                shareBar(fraction: barFraction, rank: rank)
+            }
+
+            Spacer(minLength: 12)
+
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(TokenFormatter.compact(project.tokens))
+                    .font(.system(size: 12.5, weight: .semibold, design: .rounded))
+                    .foregroundStyle(DS.Palette.textPrimary)
+                    .monospacedDigit()
+                Text(sharePercentLabel(share))
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(DS.Palette.textTertiary)
+                    .monospacedDigit()
+            }
+        }
+        .padding(.horizontal, DS.Spacing.xs)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.small, style: .continuous)
+                .fill(isHovered ? DS.Palette.glassFillHi : Color.clear)
+        )
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.12)) {
+                hoveredPath = hovering ? project.path : nil
+            }
+        }
+        .help(project.path)
+        .opacity(reduceMotion || revealed ? 1 : 0)
+        .animation(rowAnimation(rank: rank), value: revealed)
+    }
+
+    /// Relative share bar. The fill has its final width from layout; the
+    /// reveal animates `scaleEffect(x:)` from near-zero anchored leading, so
+    /// the deploy is compositor-only (no per-frame layout pass).
+    private func shareBar(fraction: CGFloat, rank: Int) -> some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(DS.Palette.glassFill)
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [DS.Palette.accentHistory, DS.Palette.accentHistory.opacity(0.55)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: max(geo.size.width * fraction, fraction > 0 ? 3 : 0))
+                    .scaleEffect(x: revealed || reduceMotion ? 1 : 0.02, anchor: .leading)
+                    .animation(rowAnimation(rank: rank), value: revealed)
+            }
+        }
+        .frame(height: 4)
+    }
+
+    /// Spring deploy with a capped stagger: the last row starts at 0.15s and
+    /// the 0.35s-response spring settles the tail right around the 500ms
+    /// interaction budget. Reduce-motion users get static rows (opacity and
+    /// bars render at rest), so no animation is returned for them.
+    private func rowAnimation(rank: Int) -> Animation? {
+        guard !reduceMotion else { return nil }
+        let delay = min(Double(rank - 1) * 0.03, 0.15)
+        return .spring(response: 0.35, dampingFraction: 0.85).delay(delay)
+    }
+
+    private func sharePercentLabel(_ share: Double) -> String {
+        let percent = share * 100
+        if percent > 0 && percent < 1 { return "<1%" }
+        return String(format: "%.0f%%", percent)
     }
 }
 

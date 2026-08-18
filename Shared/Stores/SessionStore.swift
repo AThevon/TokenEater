@@ -5,12 +5,31 @@ import Combine
 final class SessionStore: ObservableObject {
     @Published var sessions: [ClaudeSession] = []
 
+    /// Session ids hidden from the overlay via the watcher card's context
+    /// menu, for the lifetime of each session only (#247). In-memory on
+    /// purpose: nothing is persisted, so a hidden watcher reappears with the
+    /// session's next run. Ids are purged as soon as their session leaves the
+    /// scan, keeping the set from growing across long app uptimes.
+    @Published private(set) var hiddenSessionIds: Set<String> = []
+
     var activeSessions: [ClaudeSession] {
         sessions.filter { !$0.isDead }
     }
 
     var hasActiveSessions: Bool {
         !activeSessions.isEmpty
+    }
+
+    /// What the Agent Watchers overlay actually renders: active sessions minus
+    /// the user-hidden ones. Kept separate from `activeSessions`, which also
+    /// feeds Monitoring (`topActiveModelName`) and must stay unfiltered.
+    var overlaySessions: [ClaudeSession] {
+        activeSessions.filter { !hiddenSessionIds.contains($0.id) }
+    }
+
+    /// Hide a watcher card until its session disappears from the scan.
+    func hideSession(id: String) {
+        hiddenSessionIds.insert(id)
     }
 
     /// Display name of the most-used model among the currently active
@@ -34,7 +53,17 @@ final class SessionStore: ObservableObject {
         cancellable = monitorService.sessionsPublisher
             .receive(on: RunLoop.main)
             .sink { [weak self] sessions in
-                self?.sessions = sessions
+                guard let self else { return }
+                self.sessions = sessions
+                // Session-scoped hide: once a hidden session leaves the scan,
+                // forget it so the next session in the same project shows up.
+                if !self.hiddenSessionIds.isEmpty {
+                    let liveIds = Set(sessions.map { $0.id })
+                    let stillLive = self.hiddenSessionIds.intersection(liveIds)
+                    if stillLive != self.hiddenSessionIds {
+                        self.hiddenSessionIds = stillLive
+                    }
+                }
             }
     }
 

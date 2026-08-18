@@ -540,6 +540,15 @@
 "settings.watchers.simple.idle" = "Idle - waiting for input";
 "settings.watchers.simple.working" = "Working - Claude is busy";
 "settings.watchers.behavior" = "Behavior";
+
+/* Watcher card context menu (right-click on an overlay card) */
+"watcher.menu.jump" = "Jump to Session";
+"watcher.menu.openFinder" = "Open Project in Finder";
+"watcher.menu.copyPath" = "Copy Project Path";
+"watcher.menu.copySessionId" = "Copy Session ID";
+"watcher.menu.revealTranscript" = "Reveal Session Transcript";
+"watcher.menu.hide" = "Hide This Watcher";
+
 "settings.watchers.dock" = "Dock effect";
 "settings.watchers.leftside" = "Left side";
 "settings.watchers.size" = "Card size";
@@ -586,6 +595,7 @@
 
 /* History view */
 "history.sessions.label" = "sessions";
+"history.sessions.label.singular" = "session";
 "history.range.24h" = "24h";
 "history.range.7d" = "7d";
 "history.range.30d" = "30d";
@@ -612,9 +622,21 @@
 "history.chip.avgPerSession" = "Avg / session";
 "history.chip.avgPerSession.sub" = "%d sessions";
 
+/* Stats card tabs */
+"history.tab.tokens" = "Tokens";
+"history.tab.projects" = "Projects";
+"history.tab.sessions" = "Sessions";
+"history.tab.cache" = "Cache";
+
+/* Projects stats tab (ranked project breakdown) */
+"history.projects.caption" = "Active tokens · all models";
+"history.projects.footer" = "%d projects · %@ tokens";
+"history.projects.help" = "Show every project in this range";
+
 /* Chart hover tooltip */
 "history.tooltip.tokens" = "tokens";
 "history.tooltip.sessions" = "%lld session(s)";
+"history.tooltip.avgPerSession" = "avg / session";
 "sidebar.display" = "Menu bar";
 "sidebar.themes" = "Themes";
 "sidebar.pacing" = "Pacing";

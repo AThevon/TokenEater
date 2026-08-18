@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct OverlayView: View {
     @EnvironmentObject var sessionStore: SessionStore
@@ -13,10 +14,17 @@ struct OverlayView: View {
     private var baseSpacing: CGFloat { 6 * scale }
     private var leftSide: Bool { overlayState.leftSide }
 
+    /// While a context menu is open the overlay renders the snapshot taken at
+    /// open time, so the 2s scan republish can't reshuffle the rows (or
+    /// rebuild the menu) mid-tracking. Live data otherwise.
+    private var displayedSessions: [ClaudeSession] {
+        overlayState.frozenSessions ?? sessionStore.overlaySessions
+    }
+
     var body: some View {
         VStack(alignment: leftSide ? .leading : .trailing, spacing: 4) {
-            ForEach(Array(sessionStore.activeSessions.enumerated()), id: \.element.id) { index, session in
-                let prox = proximity(for: index, in: sessionStore.activeSessions)
+            ForEach(Array(displayedSessions.enumerated()), id: \.element.id) { index, session in
+                let prox = proximity(for: index, in: displayedSessions)
 
                 SessionTraitView(session: session, proximity: prox, scale: scale, leftSide: leftSide) {
                     teleportToSession(session)
@@ -24,6 +32,18 @@ struct OverlayView: View {
                 .animation(
                     .interactiveSpring(response: 0.18, dampingFraction: 0.78),
                     value: prox
+                )
+                .overlay(
+                    WatcherContextMenuCatcher(
+                        session: session,
+                        onJump: { teleportToSession(session) },
+                        onHide: {
+                            endMenuFreeze()
+                            sessionStore.hideSession(id: session.id)
+                        },
+                        onMenuOpen: { beginMenuFreeze(for: session) },
+                        onMenuClose: { endMenuFreeze() }
+                    )
                 )
             }
         }
@@ -51,6 +71,13 @@ struct OverlayView: View {
     // MARK: - Dock-like proximity
 
     private func proximity(for index: Int, in sessions: [ClaudeSession]) -> CGFloat {
+        // Menu open -> hover state is pinned: the card that owns the menu
+        // stays fully expanded, its neighbours hold the base hover expansion,
+        // regardless of where the cursor travels (it is on the menu).
+        if let menuId = overlayState.contextMenuSessionId {
+            return sessions[index].id == menuId ? 1.0 : 0.75
+        }
+
         guard let cursor = overlayState.cursorInWindow else { return 0 }
 
         let wWidth = overlayState.windowWidth
@@ -92,6 +119,21 @@ struct OverlayView: View {
         }
 
         return base
+    }
+
+    // MARK: - Context menu freeze (#247)
+
+    /// Pin the overlay while the menu tracks: snapshot the rendered sessions
+    /// and record which card owns the menu so `proximity` keeps it expanded.
+    private func beginMenuFreeze(for session: ClaudeSession) {
+        overlayState.frozenSessions = sessionStore.overlaySessions
+        overlayState.contextMenuSessionId = session.id
+    }
+
+    private func endMenuFreeze() {
+        guard overlayState.contextMenuSessionId != nil else { return }
+        overlayState.frozenSessions = nil
+        overlayState.contextMenuSessionId = nil
     }
 
     // MARK: - Teleport

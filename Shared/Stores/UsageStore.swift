@@ -30,6 +30,10 @@ final class UsageStore: ObservableObject {
     @Published var hasOpus: Bool = false
     @Published var hasCowork: Bool = false
     @Published var hasFable: Bool = false
+    /// True when the plan carries a dedicated weekly Sonnet pool. Most plans
+    /// don't (Sonnet usage only counts toward the shared 5h/weekly buckets),
+    /// so surfaces gated on this avoid showing a permanently-0% Sonnet gauge.
+    @Published var hasSonnet: Bool = false
     @Published var fableReset: String = ""
     @Published var fableResetAbsolute: String = ""
     @Published var sonnetReset: String = ""
@@ -413,6 +417,7 @@ final class UsageStore: ObservableObject {
         hasOpus = usage.sevenDayOpus != nil
         hasCowork = usage.sevenDayCowork != nil
         hasFable = usage.sevenDayFable != nil
+        hasSonnet = usage.sevenDaySonnet != nil
         extraUsage = usage.extraUsage
 
         refreshResetCountdown()

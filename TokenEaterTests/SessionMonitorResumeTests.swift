@@ -100,6 +100,9 @@ struct SessionMonitorResumeTests {
         #expect(sessions.first?.id == env.sessionB)
         #expect(sessions.first?.projectPath == env.pathB)
         #expect(sessions.first?.userSessionName == "resumed work")
+        // #247: the transcript path is the resolved one (under checkout-b's
+        // project dir), never re-derived from the launch directory.
+        #expect(sessions.first?.transcriptPath?.hasSuffix("-checkout-b/\(env.sessionB).jsonl") == true)
     }
 
     @Test("without a registry entry it falls back to the working-directory match")
@@ -113,6 +116,7 @@ struct SessionMonitorResumeTests {
         #expect(sessions.count == 1)
         #expect(sessions.first?.id == env.sessionA)
         #expect(sessions.first?.projectPath == env.pathA)
+        #expect(sessions.first?.transcriptPath?.hasSuffix("-checkout-a/\(env.sessionA).jsonl") == true)
     }
 
     @Test("a stale registry sessionId that no longer exists falls back to cwd")

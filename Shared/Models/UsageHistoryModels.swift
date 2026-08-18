@@ -134,6 +134,29 @@ enum HistoryFilter: Hashable, Sendable {
     var isAll: Bool { if case .all = self { true } else { false } }
 }
 
+// MARK: - Stats tabs
+
+/// Display modes of the History chart card. `tokens` is the original
+/// stacked-by-model bar chart; the other tabs pivot the same buckets by
+/// project ranking, session count over time, and cache efficiency (#248).
+enum HistoryStatsTab: String, CaseIterable, Hashable, Sendable {
+    case tokens
+    case projects
+    case sessions
+    case cache
+
+    var labelKey: String { "history.tab.\(rawValue)" }
+
+    var icon: String {
+        switch self {
+        case .tokens:   return "chart.bar.fill"
+        case .projects: return "folder.fill"
+        case .sessions: return "circle.dashed"
+        case .cache:    return "arrow.triangle.2.circlepath"
+        }
+    }
+}
+
 // MARK: - Aggregates
 
 /// Per-bucket aggregate produced by `SessionHistoryService`. The bucket can be
@@ -171,6 +194,13 @@ struct HistoryBucket: Identifiable, Codable, Sendable {
         cacheReadTokens + cacheCreateTokens
     }
 
+    /// Share of this bucket's traffic served from cache, 0...1. Zero when the
+    /// bucket carried no tokens at all. Powers the Cache stats tab.
+    var cacheHitRate: Double {
+        let denom = totalIncludingCache
+        return denom == 0 ? 0 : Double(cachedTokens) / Double(denom)
+    }
+
     static let empty = HistoryBucket(
         date: .distantPast,
         tokensByModel: [:],
@@ -198,6 +228,21 @@ struct HistoryBucket: Identifiable, Codable, Sendable {
             cacheCreateTokens: lhs.cacheCreateTokens + rhs.cacheCreateTokens
         )
     }
+}
+
+// MARK: - Project breakdown
+
+/// One row of the ranked project list behind the "Top project" chip. Tokens
+/// are active tokens (input + output) summed over the visible range. Project
+/// attribution is model-agnostic: the JSONL cache does not break projects
+/// down per model, so the ranking always reflects all models regardless of
+/// the active family filter.
+struct ProjectTotal: Identifiable, Equatable, Sendable {
+    let path: String
+    let tokens: Int
+
+    var id: String { path }
+    var name: String { URL(fileURLWithPath: path).lastPathComponent }
 }
 
 // MARK: - Summary
