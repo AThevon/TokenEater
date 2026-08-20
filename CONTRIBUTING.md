@@ -89,6 +89,6 @@ CI runs the tests automatically on PRs so you'll see if anything broke
 ## Questions
 
 - General questions or ideas in progress: [GitHub Discussions](https://github.com/AThevon/TokenEater/discussions)
-- Security issues: please email me directly at [adrien.thevon@pictarine.com](mailto:adrien.thevon@pictarine.com) rather than opening a public issue
+- Security issues: please email me directly at [athevon.pro@gmail.com](mailto:athevon.pro@gmail.com) rather than opening a public issue
 
 That's it, thanks for being here 🤘
