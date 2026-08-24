@@ -45,6 +45,7 @@ targets:
     preBuildScripts:
       - script: |
           osacompile -o "$BUILT_PRODUCTS_DIR/$PRODUCT_NAME.app/Contents/Resources/TokenEaterInstaller.app" "$SRCROOT/TokenEaterApp/Resources/installer.applescript"
+          cp "$SRCROOT/TokenEaterApp/Resources/te-update.sh" "$BUILT_PRODUCTS_DIR/$PRODUCT_NAME.app/Contents/Resources/TokenEaterInstaller.app/Contents/Resources/te-update.sh"
         name: Compile installer applets
     dependencies:
       - target: TokenEaterWidgetExtension

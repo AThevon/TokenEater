@@ -136,10 +136,9 @@ final class UpdateStore: ObservableObject {
         }()
 
         let sharedDir = "\(realHome)/Library/Application Support/com.tokeneater.shared"
-        let scriptPath = "\(sharedDir)/te-update.sh"
         let dmgSharedPath = "\(sharedDir)/TokenEater.dmg"
 
-        // 1. Copy DMG from sandbox container to shared dir (root can't access containers)
+        // Copy DMG from sandbox container to shared dir (root can't access containers)
         do {
             try? FileManager.default.removeItem(atPath: dmgSharedPath)
             try FileManager.default.copyItem(atPath: dmgURL.path, toPath: dmgSharedPath)
@@ -148,47 +147,7 @@ final class UpdateStore: ObservableObject {
             return
         }
 
-        // 2. Write install script to shared dir (real path, entitlement-accessible)
-        let installScript = """
-        #!/bin/bash
-        exec > "\(sharedDir)/install.log" 2>&1
-        echo "=== TokenEater Installer ==="
-        echo "Date: $(date)"
-
-        # Wait only for THIS user's instance to quit. The script runs as root,
-        # so an unscoped pgrep would also match other logged-in users' instances
-        # (Fast User Switching) and stall the update until they quit too.
-        while pgrep -x -U \(getuid()) "TokenEater" > /dev/null 2>&1; do sleep 0.3; done
-        echo "App quit."
-
-        MOUNT=$(hdiutil attach '\(dmgSharedPath)' -nobrowse | grep '/Volumes/' | head -1 | sed 's/.*\\(\\/Volumes\\/.*\\)/\\1/')
-        echo "Mount: $MOUNT"
-        [ -z "$MOUNT" ] && { echo "Mount failed"; exit 1; }
-
-        rm -rf /Applications/TokenEater.app
-        cp -R "$MOUNT/TokenEater.app" /Applications/
-        chown -R \(NSUserName()):staff /Applications/TokenEater.app
-        # No xattr -cr: notarized + stapled DMGs pass Gatekeeper without manual
-        # unquarantine, and stripping attributes would also remove the stapled
-        # ticket on some macOS versions.
-        hdiutil detach "$MOUNT" -quiet 2>/dev/null
-
-        echo "Install OK"
-        open /Applications/TokenEater.app
-        rm -f "\(scriptPath)" "\(dmgSharedPath)"
-        """
-
-        do {
-            try installScript.write(toFile: scriptPath, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes(
-                [.posixPermissions: 0o755], ofItemAtPath: scriptPath
-            )
-        } catch {
-            updateState = .error(error.localizedDescription)
-            return
-        }
-
-        // 2. Launch pre-built installer .app from our Resources (no quarantine)
+        // Launch pre-built installer .app from our Resources (no quarantine)
         guard let installerURL = Bundle.main.url(
             forResource: "TokenEaterInstaller",
             withExtension: "app"
