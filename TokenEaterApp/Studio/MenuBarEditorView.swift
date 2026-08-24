@@ -207,7 +207,7 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
     }
 
     private var addSegmentMenu: some View {
-        Menu {
+        AddElementMenuButton(title: String(localized: "menuBar.editor.addSegment")) {
             Section(String(localized: "menuBar.editor.family.metrics")) {
                 let metricKinds: [MenuBarSegmentKind] = [.session, .weekly, .sonnet, .fable, .extraCredits]
                 ForEach(metricKinds) { addButton(for: $0) }
@@ -221,18 +221,7 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
                 addButton(for: .sessionReset)
                 addButton(for: .serviceStatus)
             }
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "plus").font(.system(size: 9, weight: .bold))
-                Text(String(localized: "menuBar.editor.addSegment")).font(.system(size: 11, weight: .semibold))
-            }
-            .foregroundStyle(.white.opacity(0.85))
-            .padding(.horizontal, 10).padding(.vertical, 5)
-            .background(Capsule().fill(Color.blue.opacity(0.18)).overlay(Capsule().stroke(Color.blue.opacity(0.45), lineWidth: 1)))
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
     }
 
     @ViewBuilder

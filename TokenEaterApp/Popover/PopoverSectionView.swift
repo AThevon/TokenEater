@@ -250,7 +250,7 @@ struct PopoverSectionView: View {
     }
 
     private var addElementMenu: some View {
-        Menu {
+        AddElementMenuButton(title: String(localized: "popover.editor.addElement")) {
             Section(String(localized: "popover.editor.family.metrics")) {
                 let metricKinds: [PopoverElementKind] = [.session, .weekly, .sonnet, .fable, .extraCredits]
                 ForEach(metricKinds) { kind in
@@ -270,25 +270,7 @@ struct PopoverSectionView: View {
                 addButton(for: .openButton)
                 addButton(for: .quitButton)
             }
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "plus")
-                    .font(.system(size: 9, weight: .bold))
-                Text(String(localized: "popover.editor.addElement"))
-                    .font(.system(size: 11, weight: .semibold))
-            }
-            .foregroundStyle(.white.opacity(0.85))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(
-                Capsule()
-                    .fill(Color.blue.opacity(0.18))
-                    .overlay(Capsule().stroke(Color.blue.opacity(0.45), lineWidth: 1))
-            )
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
     }
 
     @ViewBuilder
