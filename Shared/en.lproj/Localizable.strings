@@ -494,6 +494,7 @@
 "update.installing.hint" = "Enter your password when macOS asks";
 "update.version.current" = "Current";
 "update.version.new" = "New";
+"update.error.notInApplications" = "In-app updates require TokenEater to be installed in /Applications. Move it there, or download the latest version from GitHub Releases.";
 "update.error.signatureInvalid" = "Signature verification failed. Aborting install.";
 "update.error.signatureMissing" = "Update is missing a signature. Aborting install.";
 "update.error.sizeMismatch" = "Update file size does not match the appcast. Aborting install.";

@@ -17,6 +17,7 @@ final class UpdateStore: ObservableObject {
     private let brewMigration: BrewMigrationServiceProtocol
     private let signatureVerifier: SignatureVerifierProtocol
     private let publicKeyProvider: () -> String?
+    private let bundleURLProvider: () -> URL
 
     private var migrationDismissed: Bool {
         get { UserDefaults.standard.bool(forKey: "brewMigrationDismissed") }
@@ -31,12 +32,14 @@ final class UpdateStore: ObservableObject {
         service: UpdateServiceProtocol = UpdateService(),
         brewMigration: BrewMigrationServiceProtocol = BrewMigrationService(),
         signatureVerifier: SignatureVerifierProtocol = SignatureVerifier(),
-        publicKeyProvider: @escaping () -> String? = UpdateStore.bundledPublicKey
+        publicKeyProvider: @escaping () -> String? = UpdateStore.bundledPublicKey,
+        bundleURLProvider: @escaping () -> URL = { Bundle.main.bundleURL }
     ) {
         self.service = service
         self.brewMigration = brewMigration
         self.signatureVerifier = signatureVerifier
         self.publicKeyProvider = publicKeyProvider
+        self.bundleURLProvider = bundleURLProvider
         self.brewUninstallCommand = brewMigration.brewUninstallCommand()
     }
 
@@ -115,8 +118,31 @@ final class UpdateStore: ObservableObject {
         }
     }
 
+    /// Whether the in-app installer may run from where this bundle currently sits.
+    ///
+    /// The install script is bundled inside the installer applet, and it only
+    /// stays out of reach while the app bundle itself cannot be written to. macOS
+    /// only guarantees that for a notarized bundle at the top level of
+    /// /Applications, which is where both the installer and the Homebrew cask put
+    /// it. Anywhere else (~/Applications, a subdirectory of /Applications, a local
+    /// build, a translocated copy) a process running as the user can swap the
+    /// script before the privileged step reads it, which is exactly the race this
+    /// path was hardened against. The code signature seal does not help here:
+    /// tampering invalidates it, but macOS still launches the applet and runs the
+    /// modified script.
+    var isInAppUpdateSupported: Bool {
+        bundleURLProvider().resolvingSymlinksInPath()
+            .deletingLastPathComponent().path == "/Applications"
+    }
+
     func installUpdate() {
         guard case .downloaded(let dmgURL, let signature, let expectedLength) = updateState else { return }
+
+        // Fail closed rather than escalate from a bundle we cannot vouch for.
+        guard isInAppUpdateSupported else {
+            updateState = .error(String(localized: "update.error.notInApplications"))
+            return
+        }
 
         // Fail-closed: verify length + signature BEFORE giving the DMG to the privileged installer.
         if let verificationError = verifyDownloadedUpdate(

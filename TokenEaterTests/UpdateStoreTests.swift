@@ -12,13 +12,17 @@ struct UpdateStoreTests {
         service: UpdateServiceProtocol = MockUpdateService(),
         brewMigration: BrewMigrationServiceProtocol = MockBrewMigrationService(),
         signatureVerifier: SignatureVerifierProtocol = MockSignatureVerifier(),
-        publicKey: String? = "stub-public-key"
+        publicKey: String? = "stub-public-key",
+        // Defaults to a normally installed bundle, so the install-location guard
+        // does not short-circuit the tests that are about signature checks.
+        bundlePath: String = "/Applications/TokenEater.app"
     ) -> UpdateStore {
         UpdateStore(
             service: service,
             brewMigration: brewMigration,
             signatureVerifier: signatureVerifier,
-            publicKeyProvider: { publicKey }
+            publicKeyProvider: { publicKey },
+            bundleURLProvider: { URL(fileURLWithPath: bundlePath) }
         )
     }
 
@@ -344,5 +348,46 @@ struct UpdateStoreTests {
             Issue.record("Expected .error state, got \(store.updateState)")
         }
         #expect(verifier.verifyCallCount == 1)
+    }
+    // MARK: - Install location guard
+
+    @Test(
+        "in-app updates are only supported from the top level of /Applications",
+        arguments: [
+            ("/Applications/TokenEater.app", true),
+            ("/Applications/Utilities/TokenEater.app", false),
+            ("/Applications/SomeFolder/TokenEater.app", false),
+            ("/Users/someone/Applications/TokenEater.app", false),
+            ("/Users/someone/projects/build/Release/TokenEater.app", false),
+            ("/Volumes/TokenEater/TokenEater.app", false),
+        ]
+    )
+    func inAppUpdateSupportedOnlyFromApplications(path: String, expected: Bool) {
+        let store = makeStore(bundlePath: path)
+        #expect(store.isInAppUpdateSupported == expected)
+    }
+
+    @Test("installUpdate refuses to escalate from a bundle outside /Applications")
+    func installUpdateRejectsUnsupportedLocation() {
+        let dmgURL = writeTempDMG()
+        defer { try? FileManager.default.removeItem(at: dmgURL) }
+
+        let verifier = MockSignatureVerifier()
+        verifier.verifyResult = true
+        let store = makeStore(
+            signatureVerifier: verifier,
+            bundlePath: "/Users/someone/Applications/TokenEater.app"
+        )
+        store.updateState = .downloaded(fileURL: dmgURL, signature: "valid", expectedLength: nil)
+        store.installUpdate()
+
+        if case .error = store.updateState {
+            // OK, fail-closed before anything privileged is launched
+        } else {
+            Issue.record("Expected .error state, got \(store.updateState)")
+        }
+        // The guard must come first: a writable bundle means the bundled script
+        // could already have been swapped, so a valid DMG signature proves nothing.
+        #expect(verifier.verifyCallCount == 0)
     }
 }
