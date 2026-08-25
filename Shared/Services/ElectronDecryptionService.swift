@@ -189,7 +189,18 @@ final class ElectronDecryptionService: ElectronDecryptionServiceProtocol, @unche
         return Data(outBuffer.prefix(outLength))
     }
 
-    static func aesEncrypt(plaintext: Data, key: Data) throws -> Data {
+    /// Electron compatibility only. Do not call this for anything else.
+    ///
+    /// This encrypts under the fixed IV above, which Electron's `safeStorage`
+    /// format requires and which is harmless for the decrypt path we actually
+    /// need. Encrypting with it is not: a constant IV means identical plaintext
+    /// prefixes produce identical ciphertext blocks, so an observer learns which
+    /// values repeat without ever holding the key. Its only caller is the debug
+    /// round-trip test helper below, and it stays private so no future feature
+    /// can reach for it by accident. Anything that genuinely needs to encrypt
+    /// should use AES.GCM or ChaChaPoly from CryptoKit, with a fresh random
+    /// nonce per message.
+    private static func aesEncrypt(plaintext: Data, key: Data) throws -> Data {
         var outLength = 0
         var outBuffer = [UInt8](repeating: 0, count: plaintext.count + kCCBlockSizeAES128)
 
