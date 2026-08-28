@@ -44,10 +44,18 @@ struct PopoverSectionView: View {
 
             // Middle: the element list (scrolls). Auto-scrolls to the row
             // that matches a preview tap.
+            //
+            // The header stays outside the ScrollView on purpose: it carries
+            // this column's primary action ("add element"), and scrolling a
+            // long composition used to push both the label and that button out
+            // of sight. Only the list moves.
             ScrollViewReader { proxy in
-                ScrollView(.vertical, showsIndicators: true) {
-                    elementsSection
-                        .padding(.bottom, 8)
+                VStack(alignment: .leading, spacing: 10) {
+                    elementsHeader
+                    ScrollView(.vertical, showsIndicators: true) {
+                        elementsList
+                            .padding(.bottom, 8)
+                    }
                 }
                 .onChange(of: selectedElementID) { _, id in
                     guard let id else { return }
@@ -237,16 +245,25 @@ struct PopoverSectionView: View {
 
     // MARK: - Elements
 
+    /// Assembled form, used by the narrow layout where a single ScrollView
+    /// wraps the whole page and a pinned header would make no sense.
     private var elementsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                editorSectionLabel("popover.editor.elements")
-                Spacer()
-                addElementMenu
-            }
-
-            ElementListEditor(selectedElementID: $selectedElementID)
+            elementsHeader
+            elementsList
         }
+    }
+
+    private var elementsHeader: some View {
+        HStack {
+            editorSectionLabel("popover.editor.elements")
+            Spacer()
+            addElementMenu
+        }
+    }
+
+    private var elementsList: some View {
+        ElementListEditor(selectedElementID: $selectedElementID)
     }
 
     private var addElementMenu: some View {

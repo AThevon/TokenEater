@@ -52,10 +52,16 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
             // Left: template rail (scrolls independently).
             templatesRail
 
-            // Middle: the segment list, the only column that scrolls.
-            ScrollView(.vertical, showsIndicators: true) {
-                segmentsSection
-                    .padding(.bottom, 8)
+            // Middle: the segment list, the only column that scrolls. The
+            // header sits outside the ScrollView because it carries this
+            // column's primary action ("add segment"), which used to scroll
+            // away with the list.
+            VStack(alignment: .leading, spacing: 10) {
+                segmentsHeader
+                ScrollView(.vertical, showsIndicators: true) {
+                    segmentsList
+                        .padding(.bottom, 8)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
@@ -197,13 +203,21 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
 
     private var segmentsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                editorLabel("menuBar.editor.segments")
-                Spacer()
-                addSegmentMenu
-            }
-            MenuBarSegmentListEditor(selectedSegmentID: $selectedSegmentID)
+            segmentsHeader
+            segmentsList
         }
+    }
+
+    private var segmentsHeader: some View {
+        HStack {
+            editorLabel("menuBar.editor.segments")
+            Spacer()
+            addSegmentMenu
+        }
+    }
+
+    private var segmentsList: some View {
+        MenuBarSegmentListEditor(selectedSegmentID: $selectedSegmentID)
     }
 
     private var addSegmentMenu: some View {
