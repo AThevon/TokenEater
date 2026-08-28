@@ -20,11 +20,13 @@ import SwiftUI
 /// `.buttonStyle(.bordered)` specifically to avoid it. This view keeps the
 /// custom capsule, so it takes the modifiers-on-`Menu` route instead.
 ///
-/// Solid accent fill with inverted (near-black) text, so the label stays
-/// legible on the editor's darkest surfaces - a translucent accent fill left
-/// the text sitting on effectively raw background and was unreadable. The
-/// hover lift and `.easeOut(0.12)` timing match `DSMenu`, the sibling
-/// component in this folder.
+/// Styling follows the module-accent rule from `DesignTokens` and
+/// `docs/design/MASTER.md`: an accent used as fill stays at or below 0.15 and is
+/// "never loud". Legibility comes from the label being accent-coloured rather
+/// than white, which is what makes a translucent fill work here - the same
+/// combination the segment dropzone in `MenuBarEditorView` already uses (fill
+/// 0.10-0.16, border 0.55, accent text). The hover lift and `.easeOut(0.12)`
+/// timing match `DSMenu`, the sibling component in this folder.
 struct AddElementMenuButton<MenuContent: View>: View {
     let title: String
     @ViewBuilder var menuContent: () -> MenuContent
@@ -41,8 +43,7 @@ struct AddElementMenuButton<MenuContent: View>: View {
                 Text(title)
                     .font(.system(size: 11, weight: .bold))
             }
-            // Inverted: dark text on the light violet fill.
-            .foregroundStyle(DS.Palette.bgElevated)
+            .foregroundStyle(DS.Palette.accentStudio)
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
@@ -51,8 +52,12 @@ struct AddElementMenuButton<MenuContent: View>: View {
         .padding(.vertical, 6)
         .background(
             Capsule()
-                .fill(DS.Palette.accentStudio)
-                .overlay(Capsule().fill(.white.opacity(isHovering ? 0.18 : 0)))
+                .fill(DS.Palette.accentStudio.opacity(isHovering ? 0.22 : 0.15))
+                .overlay(
+                    Capsule().strokeBorder(
+                        DS.Palette.accentStudio.opacity(0.55), lineWidth: 1
+                    )
+                )
         )
         .onHover { isHovering = $0 }
         .animation(.easeOut(duration: 0.12), value: isHovering)
