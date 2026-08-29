@@ -44,10 +44,18 @@ struct PopoverSectionView: View {
 
             // Middle: the element list (scrolls). Auto-scrolls to the row
             // that matches a preview tap.
+            //
+            // The header stays outside the ScrollView on purpose: it carries
+            // this column's primary action ("add element"), and scrolling a
+            // long composition used to push both the label and that button out
+            // of sight. Only the list moves.
             ScrollViewReader { proxy in
-                ScrollView(.vertical, showsIndicators: true) {
-                    elementsSection
-                        .padding(.bottom, 8)
+                VStack(alignment: .leading, spacing: 10) {
+                    elementsHeader
+                    ScrollView(.vertical, showsIndicators: true) {
+                        elementsList
+                            .padding(.bottom, 8)
+                    }
                 }
                 .onChange(of: selectedElementID) { _, id in
                     guard let id else { return }
@@ -237,20 +245,29 @@ struct PopoverSectionView: View {
 
     // MARK: - Elements
 
+    /// Assembled form, used by the narrow layout where a single ScrollView
+    /// wraps the whole page and a pinned header would make no sense.
     private var elementsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                editorSectionLabel("popover.editor.elements")
-                Spacer()
-                addElementMenu
-            }
-
-            ElementListEditor(selectedElementID: $selectedElementID)
+            elementsHeader
+            elementsList
         }
     }
 
+    private var elementsHeader: some View {
+        HStack {
+            editorSectionLabel("popover.editor.elements")
+            Spacer()
+            addElementMenu
+        }
+    }
+
+    private var elementsList: some View {
+        ElementListEditor(selectedElementID: $selectedElementID)
+    }
+
     private var addElementMenu: some View {
-        Menu {
+        AddElementMenuButton(title: String(localized: "popover.editor.addElement")) {
             Section(String(localized: "popover.editor.family.metrics")) {
                 let metricKinds: [PopoverElementKind] = [.session, .weekly, .sonnet, .fable, .extraCredits]
                 ForEach(metricKinds) { kind in
@@ -270,25 +287,7 @@ struct PopoverSectionView: View {
                 addButton(for: .openButton)
                 addButton(for: .quitButton)
             }
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "plus")
-                    .font(.system(size: 9, weight: .bold))
-                Text(String(localized: "popover.editor.addElement"))
-                    .font(.system(size: 11, weight: .semibold))
-            }
-            .foregroundStyle(.white.opacity(0.85))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(
-                Capsule()
-                    .fill(Color.blue.opacity(0.18))
-                    .overlay(Capsule().stroke(Color.blue.opacity(0.45), lineWidth: 1))
-            )
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
     }
 
     @ViewBuilder

@@ -52,10 +52,16 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
             // Left: template rail (scrolls independently).
             templatesRail
 
-            // Middle: the segment list, the only column that scrolls.
-            ScrollView(.vertical, showsIndicators: true) {
-                segmentsSection
-                    .padding(.bottom, 8)
+            // Middle: the segment list, the only column that scrolls. The
+            // header sits outside the ScrollView because it carries this
+            // column's primary action ("add segment"), which used to scroll
+            // away with the list.
+            VStack(alignment: .leading, spacing: 10) {
+                segmentsHeader
+                ScrollView(.vertical, showsIndicators: true) {
+                    segmentsList
+                        .padding(.bottom, 8)
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
@@ -197,17 +203,25 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
 
     private var segmentsSection: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                editorLabel("menuBar.editor.segments")
-                Spacer()
-                addSegmentMenu
-            }
-            MenuBarSegmentListEditor(selectedSegmentID: $selectedSegmentID)
+            segmentsHeader
+            segmentsList
         }
     }
 
+    private var segmentsHeader: some View {
+        HStack {
+            editorLabel("menuBar.editor.segments")
+            Spacer()
+            addSegmentMenu
+        }
+    }
+
+    private var segmentsList: some View {
+        MenuBarSegmentListEditor(selectedSegmentID: $selectedSegmentID)
+    }
+
     private var addSegmentMenu: some View {
-        Menu {
+        AddElementMenuButton(title: String(localized: "menuBar.editor.addSegment")) {
             Section(String(localized: "menuBar.editor.family.metrics")) {
                 let metricKinds: [MenuBarSegmentKind] = [.session, .weekly, .sonnet, .fable, .extraCredits]
                 ForEach(metricKinds) { addButton(for: $0) }
@@ -221,18 +235,7 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
                 addButton(for: .sessionReset)
                 addButton(for: .serviceStatus)
             }
-        } label: {
-            HStack(spacing: 5) {
-                Image(systemName: "plus").font(.system(size: 9, weight: .bold))
-                Text(String(localized: "menuBar.editor.addSegment")).font(.system(size: 11, weight: .semibold))
-            }
-            .foregroundStyle(.white.opacity(0.85))
-            .padding(.horizontal, 10).padding(.vertical, 5)
-            .background(Capsule().fill(Color.blue.opacity(0.18)).overlay(Capsule().stroke(Color.blue.opacity(0.45), lineWidth: 1)))
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
     }
 
     @ViewBuilder
