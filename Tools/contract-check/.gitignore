@@ -1,0 +1,5 @@
+# The baseline is captured per machine/account (it reflects the buckets and
+# models YOUR account currently sees) and can contain Anthropic's internal
+# feature codenames. Keep it local: re-run `run.sh --update-baseline` on each
+# machine rather than committing it.
+contract-baseline.json
