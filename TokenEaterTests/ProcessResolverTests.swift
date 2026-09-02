@@ -77,6 +77,33 @@ struct ProcessResolverTests {
         #expect(!ProcessResolver.isClaudePath(""))
     }
 
+    // MARK: - Byte-level matching (#255)
+    // The ASCII patterns must behave identically on multi-byte UTF-8 paths,
+    // including the NFD-decomposed names macOS stores on disk.
+
+    @Test("detects an install under an NFD-decomposed unicode home dir")
+    func detectsInstallUnderDecomposedUnicodeHome() {
+        // "réné" written with U+0301 combining acute accents (the on-disk form)
+        let path = "/Users/re\u{0301}ne\u{0301}/.local/share/claude/versions/2.0.10/claude"
+        #expect(ProcessResolver.isClaudePath(path))
+    }
+
+    @Test("detects an install under a multi-byte home dir")
+    func detectsInstallUnderMultibyteHome() {
+        let path = "/Users/日本語/.local/share/claude/versions/1.2.3/claude"
+        #expect(ProcessResolver.isClaudePath(path))
+    }
+
+    @Test("rejects a multi-byte path without Claude")
+    func rejectsMultibytePath() {
+        #expect(!ProcessResolver.isClaudePath("/Users/日本語/bin/node"))
+    }
+
+    @Test("rejects a near-miss package name")
+    func rejectsNearMissPackageName() {
+        #expect(!ProcessResolver.isClaudePath("/usr/lib/node_modules/@anthropic-ai/claude-codex/cli.js"))
+    }
+
     // MARK: - TTY resolution
 
     @Test("getProcessTTY returns a valid TTY for the current process")
