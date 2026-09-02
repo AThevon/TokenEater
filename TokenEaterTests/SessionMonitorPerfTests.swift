@@ -68,9 +68,13 @@ struct SessionMonitorPerfTests {
         service.scan()
         let duration = ContinuousClock.now - start
 
+        // The fixtures now parse for real, so a cold scan legitimately does
+        // 1000 full tail parses (~0.7s on a loaded CI runner); the bound only
+        // guards against pathological blowups, the warm/cold ratio test below
+        // is what pins the caches.
         #expect(
-            duration < .milliseconds(500),
-            "scan took \(duration) on 50 dirs * 20 files (1000 JSONLs); pre-fix O(N log N) stat calls can exceed this on CI"
+            duration < .milliseconds(2000),
+            "cold scan took \(duration) on 50 dirs * 20 files (1000 parsed JSONLs)"
         )
     }
 
