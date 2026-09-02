@@ -25,6 +25,7 @@ enum ProcessResolver {
 
         // Build a pid → parentPid lookup for ancestor walking
         var parentLookup: [Int32: Int32] = [:]
+        parentLookup.reserveCapacity(allProcs.count)
         for proc in allProcs {
             parentLookup[proc.pid] = proc.parentPid
         }
@@ -66,10 +67,10 @@ enum ProcessResolver {
             if ret > 0 {
                 let path = String(cString: pathBuffer)
                 // IDE found → return immediately, always wins
-                if idePathPatterns.contains(where: { path.contains($0) }) {
+                if pathMatches(path, anyOf: idePatternBytes) {
                     return .ide
                 }
-                if terminalPathPatterns.contains(where: { path.contains($0) }) {
+                if pathMatches(path, anyOf: terminalPatternBytes) {
                     foundTerminal = true
                 }
             }
@@ -228,8 +229,44 @@ enum ProcessResolver {
     }
 
     /// Check if an executable path matches a known Claude Code installation.
+    /// Matches raw UTF-8 bytes rather than going through Foundation's
+    /// Unicode-aware `String.contains`: every scan tick classifies the path of
+    /// every process on the system, and the grapheme-aware search dominated
+    /// the tick's CPU (#255). The patterns are plain ASCII, and an ASCII byte
+    /// sequence can never appear inside a UTF-8 multi-byte character, so byte
+    /// matching never misses a path the Unicode-aware search matched; its one
+    /// divergence is more permissive (a combining mark directly after the
+    /// matched text no longer blocks the match).
     static func isClaudePath(_ path: String) -> Bool {
-        knownClaudePaths.contains { path.contains($0) }
+        pathMatches(path, anyOf: knownClaudePathBytes)
+    }
+
+    // MARK: - Byte-level path matching (#255)
+
+    private static let knownClaudePathBytes = knownClaudePaths.map { Array($0.utf8) }
+    private static let idePatternBytes = idePathPatterns.map { Array($0.utf8) }
+    private static let terminalPatternBytes = terminalPathPatterns.map { Array($0.utf8) }
+
+    private static func pathMatches(_ path: String, anyOf needles: [[UInt8]]) -> Bool {
+        let haystack = Array(path.utf8)
+        return needles.contains { bytesContain(haystack, $0) }
+    }
+
+    private static func bytesContain(_ haystack: [UInt8], _ needle: [UInt8]) -> Bool {
+        let m = needle.count
+        guard m > 0, haystack.count >= m else { return false }
+        let first = needle[0]
+        let limit = haystack.count - m
+        var i = 0
+        while i <= limit {
+            if haystack[i] == first {
+                var j = 1
+                while j < m, haystack[i + j] == needle[j] { j += 1 }
+                if j == m { return true }
+            }
+            i += 1
+        }
+        return false
     }
 
     /// Detect the installed Claude Code version by scanning known installation directories.
@@ -274,11 +311,37 @@ enum ProcessResolver {
             .last
     }
 
+    /// Classification verdicts memoized per executable path (#255): the set of
+    /// executable paths on a machine is small and stable, and keying by path
+    /// rather than pid makes the cache immune to pid reuse and in-place exec.
+    /// Locked because `findClaudeProcesses` runs both on the session monitor
+    /// queue (every tick) and on the overlay's click queue.
+    private static let verdictLock = NSLock()
+    private static var pathVerdicts: [String: Bool] = [:]
+
     private static func isClaudeProcess(pid: Int32) -> Bool {
         var pathBuffer = [CChar](repeating: 0, count: Int(MAXPATHLEN))
         let ret = proc_pidpath(pid, &pathBuffer, UInt32(MAXPATHLEN))
         guard ret > 0 else { return false }
-        return isClaudePath(String(cString: pathBuffer))
+        let path = String(cString: pathBuffer)
+
+        verdictLock.lock()
+        if let cached = pathVerdicts[path] {
+            verdictLock.unlock()
+            return cached
+        }
+        verdictLock.unlock()
+
+        let verdict = isClaudePath(path)
+
+        verdictLock.lock()
+        // Short-lived processes with unique paths could grow the cache without
+        // bound over long uptimes; a full reset is cheaper than an LRU and the
+        // steady-state population repays itself within one tick.
+        if pathVerdicts.count >= 2048 { pathVerdicts.removeAll(keepingCapacity: true) }
+        pathVerdicts[path] = verdict
+        verdictLock.unlock()
+        return verdict
     }
 
     private static func getProcessCwd(pid: Int32) -> String? {

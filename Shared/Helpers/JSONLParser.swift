@@ -102,6 +102,10 @@ enum JSONLParser {
         let lines = content.split(separator: "\n", omittingEmptySubsequences: true)
         guard !lines.isEmpty else { return nil }
 
+        // One decoder for the whole tail: allocating a JSONDecoder per line
+        // was a measurable slice of every scan tick (#255).
+        let decoder = JSONDecoder()
+
         var lastMeaningfulEvent: RawEvent?
         var latestMeta: (sessionId: String, cwd: String, gitBranch: String?)?
         var pendingPermission = false
@@ -112,7 +116,7 @@ enum JSONLParser {
 
         for line in lines.reversed() {
             guard let data = line.data(using: .utf8),
-                  let event = try? JSONDecoder().decode(RawEvent.self, from: data) else {
+                  let event = try? decoder.decode(RawEvent.self, from: data) else {
                 continue
             }
 

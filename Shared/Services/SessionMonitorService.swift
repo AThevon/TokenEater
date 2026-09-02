@@ -17,6 +17,40 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
     private let claudeSessionsDirOverride: URL?
     private let processProvider: @Sendable () -> [ClaudeProcessInfo]
 
+    // Cross-tick caches (#255). All three are touched only inside `scan()`,
+    // which runs on `queue` in production and synchronously (never
+    // concurrently) in tests, so they need no extra locking.
+
+    /// Per-project-dir file listing keyed by dir path. On APFS/HFS a dir's
+    /// mtime changes on add/remove/rename but NOT when a contained file is
+    /// appended to, so an unchanged dir mtime proves the file LIST is
+    /// unchanged and re-enumerating thousands of JSONLs every tick is pure
+    /// waste. File mtimes are deliberately NOT part of this cache: appends
+    /// move them without touching the dir, so they are re-stat'ed fresh
+    /// wherever they matter.
+    private struct DirListing {
+        let dirMtime: Date
+        let files: [(url: URL, sessionId: String)]
+    }
+    private var dirListings: [String: DirListing] = [:]
+
+    /// First-line timestamp per transcript path. Transcripts are append-only,
+    /// so a first line never changes once it exists and parses.
+    private var startedAtCache: [String: Date] = [:]
+
+    /// A file identity snapshot for cache validity: mtime plus size. Size
+    /// matters on volumes with 1-2s mtime granularity (HFS+, SMB) where two
+    /// appends can share a timestamp; an append always grows the file.
+    private struct FileStamp: Equatable {
+        let mtime: Date
+        let size: Int
+    }
+
+    /// Last tail-parse per transcript path, valid while the file's stamp is
+    /// unchanged: appends are the only mutation Claude Code performs on a
+    /// transcript.
+    private var parseCache: [String: (stamp: FileStamp, result: JSONLParseResult)] = [:]
+
     private var claudeProjectsDir: URL {
         if let override = claudeProjectsDirOverride { return override }
         let home: String
@@ -96,7 +130,10 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
         }
     }
 
-    /// Internal for perf tests. Must stay safe to call synchronously off the timer queue.
+    /// Internal for tests, which call it synchronously on a service whose
+    /// timer never runs. It mutates the cross-tick caches, so it must never
+    /// run concurrently with a live monitoring timer; production always runs
+    /// it on `queue`.
     func scan() {
         let processes = processProvider()
         guard !processes.isEmpty else {
@@ -125,36 +162,37 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
         // (`~/.claude/sessions/<pid>.json`), for the running pids only.
         let registry = readSessionRegistry(pids: Set(processes.map { $0.pid }))
 
-        // Index every transcript once (filenames + mtime, no content reads).
-        // A transcript is named "<sessionId>.jsonl", so this maps a sessionId
-        // to its file wherever it lives - which is how we resolve a `--resume`d
-        // session whose transcript sits under its ORIGINAL project dir, not the
-        // directory the process happened to be launched from (#233).
-        //
-        // Freshness note: mtime comes from each JSONL, not the dir's own mtime.
-        // On APFS/HFS a dir's mtime only changes on add/remove/rename, not when
-        // Claude appends to an existing JSONL, so dir mtime would hide every
-        // ongoing conversation. Reading cached URLResourceValues here stays
-        // cheap versus `readAndParse()` per file.
-        struct TranscriptRef { let url: URL; let mtime: Date; let dir: URL }
+        refreshDirListings(projectDirs: projectDirs, fm: fm)
+
+        // Resolve a transcript for each sessionId the registry names, and only
+        // those: the cached listings already say where a "<sessionId>.jsonl"
+        // lives, so a handful of fresh stats replaces the every-file mtime
+        // sweep the old full index paid on each tick (#255). A transcript
+        // resolves wherever it lives, which is how a `--resume`d session whose
+        // transcript sits under its ORIGINAL project dir, not the directory
+        // the process was launched from, is found (#233). When the same
+        // sessionId exists under several dirs, the newest mtime wins (dirs are
+        // walked in stable path order so equal-mtime ties cannot flap between
+        // ticks with the dictionary's hashing).
+        struct TranscriptRef { let url: URL; let stamp: FileStamp; let dir: URL }
+        var neededSids = Set<String>()
+        for proc in processes {
+            if let sid = registry[proc.pid]?.sessionId { neededSids.insert(sid) }
+        }
         var bySessionId: [String: TranscriptRef] = [:]
-        var dirFiles: [(dir: URL, files: [(url: URL, mtime: Date)])] = []
-        for dir in projectDirs where dir.hasDirectoryPath {
-            guard let urls = try? fm.contentsOfDirectory(
-                at: dir,
-                includingPropertiesForKeys: [.contentModificationDateKey],
-                options: [.skipsHiddenFiles]
-            ) else { continue }
-            var files: [(url: URL, mtime: Date)] = []
-            for url in urls where url.pathExtension == "jsonl" {
-                let mtime = (try? url.resourceValues(forKeys: [.contentModificationDateKey])
-                    .contentModificationDate) ?? .distantPast
-                files.append((url, mtime))
-                let sid = url.deletingPathExtension().lastPathComponent
-                if let existing = bySessionId[sid], existing.mtime >= mtime { continue }
-                bySessionId[sid] = TranscriptRef(url: url, mtime: mtime, dir: dir)
+        if !neededSids.isEmpty {
+            bySessionId.reserveCapacity(neededSids.count)
+            for (dirPath, listing) in dirListings.sorted(by: { $0.key < $1.key }) {
+                for entry in listing.files where neededSids.contains(entry.sessionId) {
+                    let stamp = fileStamp(atPath: entry.url.path, fm: fm)
+                    if let existing = bySessionId[entry.sessionId], existing.stamp.mtime >= stamp.mtime { continue }
+                    bySessionId[entry.sessionId] = TranscriptRef(
+                        url: entry.url,
+                        stamp: stamp,
+                        dir: URL(fileURLWithPath: dirPath, isDirectory: true)
+                    )
+                }
             }
-            if !files.isEmpty { dirFiles.append((dir, files)) }
         }
 
         var activeSessions: [ClaudeSession] = []
@@ -169,9 +207,9 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
             guard let entry = registry[proc.pid],
                   let sid = entry.sessionId,
                   let ref = bySessionId[sid],
-                  let result = readAndParse(file: ref.url) else { continue }
+                  let result = cachedReadAndParse(file: ref.url, stamp: ref.stamp) else { continue }
 
-            let startedAt = readFirstTimestamp(of: ref.url) ?? ref.mtime
+            let startedAt = cachedStartedAt(of: ref.url) ?? ref.stamp.mtime
             let resolvedState: SessionState
             if result.state == .thinking,
                let compactState = checkCompacting(sessionId: sid, projectDir: ref.dir) {
@@ -186,7 +224,7 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
                 userSessionName: userName(from: entry, sessionId: sid),
                 model: result.model,
                 state: resolvedState,
-                lastUpdate: ref.mtime,
+                lastUpdate: ref.stamp.mtime,
                 startedAt: startedAt,
                 processPid: proc.pid,
                 sourceKind: proc.sourceKind,
@@ -204,6 +242,20 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
         // over fresh dirs only.
         let remaining = processes.filter { !consumedPids.contains($0.pid) }
         if !remaining.isEmpty {
+            // The full per-file stat sweep is paid only here, when a process
+            // has no usable registry entry (older Claude Code, or a transcript
+            // the registry pass could not locate).
+            var dirFiles: [(dir: URL, files: [(url: URL, stamp: FileStamp)])] = []
+            dirFiles.reserveCapacity(dirListings.count)
+            for (dirPath, listing) in dirListings.sorted(by: { $0.key < $1.key }) where !listing.files.isEmpty {
+                var files: [(url: URL, stamp: FileStamp)] = []
+                files.reserveCapacity(listing.files.count)
+                for entry in listing.files {
+                    files.append((entry.url, fileStamp(atPath: entry.url.path, fm: fm)))
+                }
+                dirFiles.append((URL(fileURLWithPath: dirPath, isDirectory: true), files))
+            }
+
             var cwdToProcesses: [String: [ClaudeProcessInfo]] = [:]
             for proc in remaining {
                 cwdToProcesses[proc.cwd, default: []].append(proc)
@@ -218,16 +270,16 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
             let sortedDirs = dirFiles.sorted { $0.dir.lastPathComponent.count > $1.dir.lastPathComponent.count }
 
             outer: for entry in sortedDirs {
-                let sortedFiles = entry.files.sorted { $0.mtime > $1.mtime }
-                guard let newest = sortedFiles.first, newest.mtime >= freshnessCutoff else { continue }
+                let sortedFiles = entry.files.sorted { $0.stamp.mtime > $1.stamp.mtime }
+                guard let newest = sortedFiles.first, newest.stamp.mtime >= freshnessCutoff else { continue }
 
-                for (file, mtime) in sortedFiles {
+                for (file, stamp) in sortedFiles {
                     let sessionId = file.deletingPathExtension().lastPathComponent
                     if emittedSessionIds.contains(sessionId) { continue }
-                    guard let result = readAndParse(file: file) else { continue }
+                    guard let result = cachedReadAndParse(file: file, stamp: stamp) else { continue }
                     guard let process = matchProcess(projectPath: result.projectPath, in: cwdToProcesses) else { continue }
 
-                    let startedAt = readFirstTimestamp(of: file) ?? mtime
+                    let startedAt = cachedStartedAt(of: file) ?? stamp.mtime
                     let resolvedState: SessionState
                     if result.state == .thinking,
                        let compactState = checkCompacting(sessionId: sessionId, projectDir: entry.dir) {
@@ -242,7 +294,7 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
                         userSessionName: readUserSessionName(pid: process.pid, sessionId: sessionId),
                         model: result.model,
                         state: resolvedState,
-                        lastUpdate: mtime,
+                        lastUpdate: stamp.mtime,
                         startedAt: startedAt,
                         processPid: process.pid,
                         sourceKind: process.sourceKind,
@@ -271,6 +323,118 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
             return $0.id < $1.id
         }
         sessionsSubject.send(activeSessions)
+    }
+
+    /// Refresh the per-dir listing cache from a fresh top-level listing of
+    /// the projects dir. Only dirs whose mtime moved since the last tick are
+    /// re-enumerated; listings of deleted dirs are dropped, and the per-file
+    /// caches of files that left a listing are purged with them.
+    private func refreshDirListings(projectDirs: [URL], fm: FileManager) {
+        var live = Set<String>()
+        live.reserveCapacity(projectDirs.count)
+        for dir in projectDirs where dir.hasDirectoryPath {
+            let path = dir.path
+            live.insert(path)
+            let dirMtime = (try? dir.resourceValues(forKeys: [.contentModificationDateKey])
+                .contentModificationDate) ?? .distantPast
+            // Serve the cache only when the mtime is readable, matches, and is
+            // safely in the past: an unreadable mtime can hide anything, and a
+            // just-modified dir could still gain a file inside the same
+            // timestamp bucket on volumes with 1-2s mtime granularity (HFS+,
+            // SMB).
+            if dirMtime != .distantPast,
+               Date().timeIntervalSince(dirMtime) > 2,
+               let cached = dirListings[path], cached.dirMtime == dirMtime { continue }
+            // A failed enumeration must never be cached as an empty listing:
+            // recovering read permission changes ctime, not mtime, so the
+            // entry would never invalidate and the dir's sessions would stay
+            // invisible. Drop the entry and retry next tick, matching the
+            // pre-cache behavior of skipping such a dir for one tick only.
+            guard let urls = try? fm.contentsOfDirectory(
+                at: dir,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            ) else {
+                purgeFileCaches(for: dirListings.removeValue(forKey: path))
+                continue
+            }
+            var files: [(url: URL, sessionId: String)] = []
+            files.reserveCapacity(urls.count)
+            for url in urls where url.pathExtension == "jsonl" {
+                files.append((url, url.deletingPathExtension().lastPathComponent))
+            }
+            if let old = dirListings[path] {
+                let kept = Set(files.map { $0.url.path })
+                for entry in old.files where !kept.contains(entry.url.path) {
+                    parseCache.removeValue(forKey: entry.url.path)
+                    startedAtCache.removeValue(forKey: entry.url.path)
+                }
+            }
+            dirListings[path] = DirListing(dirMtime: dirMtime, files: files)
+        }
+        if dirListings.count != live.count {
+            for (path, listing) in dirListings where !live.contains(path) {
+                purgeFileCaches(for: listing)
+            }
+            dirListings = dirListings.filter { live.contains($0.key) }
+        }
+    }
+
+    /// Forget the per-file cache entries of a listing whose files left the
+    /// scan (dir deleted, or enumeration failed); a recreated file at the same
+    /// path must not inherit a dead file's parse or start timestamp.
+    private func purgeFileCaches(for listing: DirListing?) {
+        guard let listing else { return }
+        for entry in listing.files {
+            parseCache.removeValue(forKey: entry.url.path)
+            startedAtCache.removeValue(forKey: entry.url.path)
+        }
+    }
+
+    /// Fresh stat, bypassing NSURL's per-instance resource-value cache (the
+    /// listing cache reuses URL instances across ticks, whose cached values
+    /// would go stale).
+    private func fileStamp(atPath path: String, fm: FileManager) -> FileStamp {
+        guard let attrs = try? fm.attributesOfItem(atPath: path) else {
+            return FileStamp(mtime: .distantPast, size: -1)
+        }
+        return FileStamp(
+            mtime: (attrs[.modificationDate] as? Date) ?? .distantPast,
+            size: (attrs[.size] as? Int) ?? -1
+        )
+    }
+
+    /// First-line timestamp of a transcript, memoized per path: the file is
+    /// append-only, so its first line never changes. A nil parse is not
+    /// cached (the first line of a brand-new file may still be partial).
+    private func cachedStartedAt(of url: URL) -> Date? {
+        if let hit = startedAtCache[url.path] { return hit }
+        guard let ts = readFirstTimestamp(of: url) else { return nil }
+        if startedAtCache.count >= 8192 { startedAtCache.removeAll(keepingCapacity: true) }
+        startedAtCache[url.path] = ts
+        return ts
+    }
+
+    /// Tail-parse a transcript, reusing the previous tick's result while the
+    /// file's stamp (mtime + size) is unchanged: no append happened, so the
+    /// tail is identical. A failed stat (.distantPast sentinel) is never
+    /// trusted as a cache key, in either direction.
+    private func cachedReadAndParse(file: URL, stamp: FileStamp) -> JSONLParseResult? {
+        let key = file.path
+        if stamp.mtime != .distantPast,
+           let hit = parseCache[key], hit.stamp == stamp {
+            return hit.result
+        }
+        guard let result = readAndParse(file: file) else { return nil }
+        if stamp.mtime == .distantPast { return result }
+        // Real eviction happens when a file leaves its dir listing (see
+        // purgeFileCaches), so the population is bounded by the transcripts on
+        // disk; the cap is only a backstop, and it must stay above any
+        // realistic transcript count or a full fallback sweep would wipe the
+        // cache mid-scan and thrash (#255 reports ~7000 transcripts).
+        if parseCache.count >= 8192 { parseCache.removeAll(keepingCapacity: true) }
+        parseCache[key] = (stamp, result)
+        return result
     }
 
     /// Match a JSONL project path to a running Claude process.

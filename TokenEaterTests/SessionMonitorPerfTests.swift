@@ -1,12 +1,16 @@
 import Testing
 import Foundation
 
-@Suite("SessionMonitorService performance")
+// .serialized: these tests assert wall-clock budgets, so they must not share
+// the process with each other while timing (other suites still run in
+// parallel, hence the generous bounds).
+@Suite("SessionMonitorService performance", .serialized)
 struct SessionMonitorPerfTests {
 
     /// Build a synthetic projects tree with `dirCount` subdirs and `filesPerDir` JSONL files each.
-    /// Files are empty placeholders - the parser will fail on them, which matches the pre-fix
-    /// behavior on JSONLs that aren't well-formed and still exercises the full walk/sort path.
+    /// Every file holds one valid assistant line whose cwd matches no process, so a scan
+    /// walks, stats, and PARSES all of them without ever emitting a session - the full
+    /// fallback-pass workload.
     private func makeSyntheticProjects(dirCount: Int, filesPerDir: Int) throws -> URL {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("te-perf-\(UUID().uuidString)")
@@ -16,17 +20,34 @@ struct SessionMonitorPerfTests {
             let dir = root.appendingPathComponent("-project-dir-\(d)")
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             for _ in 0..<filesPerDir {
-                let file = dir.appendingPathComponent("\(UUID().uuidString).jsonl")
-                try Data().write(to: file)
+                let sid = UUID().uuidString
+                let file = dir.appendingPathComponent("\(sid).jsonl")
+                let line = """
+                {"type":"assistant","sessionId":"\(sid)","cwd":"/nonmatching/cwd","gitBranch":"main","timestamp":"2026-09-01T12:00:00.000Z","message":{"role":"assistant","model":"claude-opus-4-7","stop_reason":"end_turn","content":[]}}
+                """
+                try line.write(to: file, atomically: true, encoding: .utf8)
             }
         }
         return root
     }
 
+    /// An empty sessions dir so the scan never touches the machine's real
+    /// `~/.claude/sessions` registry inside a timed section.
+    private func makeEmptySessionsDir() throws -> URL {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("te-perf-sessions-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
     @Test("scan finishes quickly on a big tree (~1000 JSONL files)")
     func scanStaysFastWithManyDirs() async throws {
         let projectsDir = try makeSyntheticProjects(dirCount: 50, filesPerDir: 20)
-        defer { try? FileManager.default.removeItem(at: projectsDir) }
+        let sessionsDir = try makeEmptySessionsDir()
+        defer {
+            try? FileManager.default.removeItem(at: projectsDir)
+            try? FileManager.default.removeItem(at: sessionsDir)
+        }
 
         // Fake a running Claude process so scan() does not bail out early, forcing the walk.
         let fakeProcess = ClaudeProcessInfo(
@@ -39,6 +60,7 @@ struct SessionMonitorPerfTests {
             scanInterval: 999,
             projectDirFreshness: 24 * 60 * 60,
             claudeProjectsDirOverride: projectsDir,
+            claudeSessionsDirOverride: sessionsDir,
             processProvider: { [fakeProcess] }
         )
 
@@ -52,10 +74,66 @@ struct SessionMonitorPerfTests {
         )
     }
 
+    @Test("a warm scan over an unchanged tree beats the cold scan (#255)")
+    func warmScanBeatsColdScan() async throws {
+        let projectsDir = try makeSyntheticProjects(dirCount: 50, filesPerDir: 20)
+        let sessionsDir = try makeEmptySessionsDir()
+        defer {
+            try? FileManager.default.removeItem(at: projectsDir)
+            try? FileManager.default.removeItem(at: sessionsDir)
+        }
+
+        // Backdate the dir mtimes so the listings qualify for the cache: a
+        // just-modified dir is deliberately re-enumerated for 2s (coarse-mtime
+        // volumes, see refreshDirListings).
+        let past = Date().addingTimeInterval(-3600)
+        for dir in try FileManager.default.contentsOfDirectory(
+            at: projectsDir, includingPropertiesForKeys: nil
+        ) where dir.hasDirectoryPath {
+            try FileManager.default.setAttributes(
+                [.modificationDate: past], ofItemAtPath: dir.path
+            )
+        }
+
+        let fakeProcess = ClaudeProcessInfo(
+            pid: 99_998,
+            parentPid: 1,
+            cwd: "/nonexistent/project/path",
+            sourceKind: .terminal
+        )
+        let service = SessionMonitorService(
+            scanInterval: 999,
+            projectDirFreshness: 24 * 60 * 60,
+            claudeProjectsDirOverride: projectsDir,
+            claudeSessionsDirOverride: sessionsDir,
+            processProvider: { [fakeProcess] }
+        )
+
+        let coldStart = ContinuousClock.now
+        service.scan() // cold: enumerates 50 dirs, parses 1000 transcripts
+        let cold = ContinuousClock.now - coldStart
+
+        let warmStart = ContinuousClock.now
+        service.scan() // warm: cached listings + parse-cache hits, stats only
+        let warm = ContinuousClock.now - warmStart
+
+        // Ratio, not an absolute bound: the warm scan skips the 1000 parses
+        // and their up-to-4 file opens each, so it must be clearly cheaper
+        // than the cold scan on any machine, however loaded.
+        #expect(
+            warm * 2 < cold,
+            "warm scan (\(warm)) is not clearly cheaper than the cold scan (\(cold)); the cross-tick caches (#255) are not engaging"
+        )
+    }
+
     @Test("stale project dirs are skipped by the freshness filter")
     func skipsStaleProjectDirs() async throws {
         let projectsDir = try makeSyntheticProjects(dirCount: 5, filesPerDir: 1)
-        defer { try? FileManager.default.removeItem(at: projectsDir) }
+        let sessionsDir = try makeEmptySessionsDir()
+        defer {
+            try? FileManager.default.removeItem(at: projectsDir)
+            try? FileManager.default.removeItem(at: sessionsDir)
+        }
 
         // Backdate 3 of the 5 dirs to simulate stale activity.
         let dirs = try FileManager.default.contentsOfDirectory(
@@ -78,6 +156,7 @@ struct SessionMonitorPerfTests {
             scanInterval: 999,
             projectDirFreshness: 30 * 60,
             claudeProjectsDirOverride: projectsDir,
+            claudeSessionsDirOverride: sessionsDir,
             processProvider: { [fakeProcess] }
         )
 
