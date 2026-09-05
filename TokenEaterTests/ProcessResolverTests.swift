@@ -64,6 +64,37 @@ struct ProcessResolverTests {
         #expect(ProcessResolver.isClaudePath(path))
     }
 
+    // MARK: - Editor extension embedded binary (#260)
+    // The VSCode-family Claude Code extensions spawn their own bundled CLI from
+    // <editor dir>/extensions/anthropic.claude-code-<version>/resources/...,
+    // never the user's installed CLI, so the extension dir is its own pattern.
+
+    @Test("detects the VSCode extension embedded binary")
+    func detectsVSCodeExtensionBinary() {
+        let path = "/Users/simon/.vscode/extensions/anthropic.claude-code-2.1.63-darwin-arm64/resources/native-binary/claude"
+        #expect(ProcessResolver.isClaudePath(path))
+    }
+
+    @Test("detects the Cursor extension embedded binary")
+    func detectsCursorExtensionBinary() {
+        let path = "/Users/simon/.cursor/extensions/anthropic.claude-code-2.1.68-darwin-arm64/resources/native-binaries/darwin-arm64/claude"
+        #expect(ProcessResolver.isClaudePath(path))
+    }
+
+    @Test("rejects another publisher's claude-named extension")
+    func rejectsOtherPublisherExtension() {
+        let path = "/Users/simon/.vscode/extensions/someone.claude-helper-1.0.0/bin/claude"
+        #expect(!ProcessResolver.isClaudePath(path))
+    }
+
+    @Test("rejects the vendored ripgrep bundled inside Claude Code installs")
+    func rejectsVendoredRipgrep() {
+        let legacyExtension = "/Users/simon/.vscode/extensions/anthropic.claude-code-2.0.3/resources/claude-code/vendor/ripgrep/arm64-darwin/rg"
+        let npmInstall = "/usr/local/lib/node_modules/@anthropic-ai/claude-code/vendor/ripgrep/arm64-darwin/rg"
+        #expect(!ProcessResolver.isClaudePath(legacyExtension))
+        #expect(!ProcessResolver.isClaudePath(npmInstall))
+    }
+
     // MARK: - Non-Claude paths
 
     @Test("rejects unrelated process")
