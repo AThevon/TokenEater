@@ -16,6 +16,7 @@ enum ProcessResolver {
         "/Caskroom/claude-code/",                        // Homebrew Cask stable (arm64 + x86_64)
         "/Caskroom/claude-code@latest/",                 // Homebrew Cask @latest channel
         "/Library/Application Support/Claude/claude-code/", // Claude Desktop embedded CLI
+        "/extensions/anthropic.claude-code-",               // VSCode/Cursor/Windsurf extension embedded binary (#260)
     ]
 
     /// Find all running Claude Code CLI processes with their working directories.
