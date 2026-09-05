@@ -273,7 +273,13 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
                 let sortedFiles = entry.files.sorted { $0.stamp.mtime > $1.stamp.mtime }
                 guard let newest = sortedFiles.first, newest.stamp.mtime >= freshnessCutoff else { continue }
 
-                for (file, stamp) in sortedFiles {
+                // Per-file gate on top of the per-dir one: a short-lived
+                // helper process (e.g. the VSCode extension's bundled CLI
+                // doing title generation, #260) shares the live session's cwd
+                // but has no registry entry, and without this gate it would
+                // bind to whatever OLD transcript sits in the same dir and
+                // flash a ghost watcher.
+                for (file, stamp) in sortedFiles where stamp.mtime >= freshnessCutoff {
                     let sessionId = file.deletingPathExtension().lastPathComponent
                     if emittedSessionIds.contains(sessionId) { continue }
                     guard let result = cachedReadAndParse(file: file, stamp: stamp) else { continue }

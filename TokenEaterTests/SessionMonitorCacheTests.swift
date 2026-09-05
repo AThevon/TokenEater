@@ -205,6 +205,36 @@ struct SessionMonitorCacheTests {
         #expect(second.isEmpty)
     }
 
+    @Test("a stale transcript is never bound to a second process (per-file freshness gate)")
+    func staleTranscriptNotBoundToSecondProcess() throws {
+        let env = try makeEnv()
+        defer { env.cleanup() }
+
+        // A second, STALE transcript in the same project dir (backdated past
+        // the freshness window), plus a second cwd-matched process with no
+        // registry entry, like a short-lived helper spawn from the VSCode
+        // extension (#260): the helper must not resurrect the stale session
+        // as a ghost watcher.
+        let staleSid = "abababab-0000-4000-8000-000000000007"
+        let staleFile = env.projectDir.appendingPathComponent("\(staleSid).jsonl")
+        try idleLine(sessionId: staleSid, cwd: env.cwd)
+            .write(to: staleFile, atomically: true, encoding: .utf8)
+        try setMtime(Date().addingTimeInterval(-2 * 3600), at: staleFile)
+
+        let p1 = ClaudeProcessInfo(pid: 8100, parentPid: 1, cwd: env.cwd, sourceKind: .terminal)
+        let p2 = ClaudeProcessInfo(pid: 8101, parentPid: 1, cwd: env.cwd, sourceKind: .terminal)
+        let service = SessionMonitorService(
+            scanInterval: 999,
+            projectDirFreshness: 30 * 60,
+            claudeProjectsDirOverride: env.projectsDir,
+            claudeSessionsDirOverride: env.sessionsDir,
+            processProvider: { [p1, p2] }
+        )
+
+        let sessions = scanOnce(service)
+        #expect(sessions.map(\.id) == [env.sessionId])
+    }
+
     @Test("a registry entry written after the first scan is honored (#233)")
     func lateRegistryEntryHonored() throws {
         let env = try makeEnv()

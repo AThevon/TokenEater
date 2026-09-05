@@ -239,11 +239,17 @@ enum ProcessResolver {
     /// divergence is more permissive (a combining mark directly after the
     /// matched text no longer blocks the match).
     static func isClaudePath(_ path: String) -> Bool {
-        pathMatches(path, anyOf: knownClaudePathBytes)
+        // The npm package and the legacy extension layout embed a vendored
+        // ripgrep under .../claude-code/vendor/ripgrep/<arch>/rg. Those spawn
+        // as short-lived child processes whose path contains a Claude pattern,
+        // and must never classify as Claude sessions (#260).
+        if pathMatches(path, anyOf: excludedPathBytes) { return false }
+        return pathMatches(path, anyOf: knownClaudePathBytes)
     }
 
     // MARK: - Byte-level path matching (#255)
 
+    private static let excludedPathBytes = ["/vendor/ripgrep/"].map { Array($0.utf8) }
     private static let knownClaudePathBytes = knownClaudePaths.map { Array($0.utf8) }
     private static let idePatternBytes = idePathPatterns.map { Array($0.utf8) }
     private static let terminalPatternBytes = terminalPathPatterns.map { Array($0.utf8) }

@@ -87,6 +87,14 @@ struct ProcessResolverTests {
         #expect(!ProcessResolver.isClaudePath(path))
     }
 
+    @Test("rejects the vendored ripgrep bundled inside Claude Code installs")
+    func rejectsVendoredRipgrep() {
+        let legacyExtension = "/Users/simon/.vscode/extensions/anthropic.claude-code-2.0.3/resources/claude-code/vendor/ripgrep/arm64-darwin/rg"
+        let npmInstall = "/usr/local/lib/node_modules/@anthropic-ai/claude-code/vendor/ripgrep/arm64-darwin/rg"
+        #expect(!ProcessResolver.isClaudePath(legacyExtension))
+        #expect(!ProcessResolver.isClaudePath(npmInstall))
+    }
+
     // MARK: - Non-Claude paths
 
     @Test("rejects unrelated process")
