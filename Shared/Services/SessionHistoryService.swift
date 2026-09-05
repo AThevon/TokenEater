@@ -294,7 +294,7 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
     private static func loadCache() -> HistoryCache {
         guard let data = try? Data(contentsOf: cacheURL),
               let cache = try? JSONDecoder().decode(HistoryCache.self, from: data),
-              cache.version == HistoryCache.currentVersion
+              cache.isCurrentVersion
         else {
             return .empty
         }

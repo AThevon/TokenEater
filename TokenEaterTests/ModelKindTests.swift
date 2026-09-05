@@ -6,6 +6,15 @@ struct ModelKindTests {
 
     // MARK: - Opus version mapping
 
+    /// Claude 5 generation IDs carry no minor suffix ("claude-opus-5") and must
+    /// not be absorbed by the bare-opus fallback into a 4.x label (#259).
+    @Test func opus5IsRecognised() {
+        #expect(ModelKind(rawModel: "claude-opus-5") == .opus5)
+        #expect(ModelKind(rawModel: "claude-opus-5[1m]") == .opus5)
+        #expect(ModelKind(rawModel: "opus-5") == .opus5)
+        #expect(ModelKind.opus5.displayName == "Opus 5")
+    }
+
     @Test func opus48IsRecognised() {
         #expect(ModelKind(rawModel: "claude-opus-4-8") == .opus48)
         #expect(ModelKind(rawModel: "claude-opus-4-8[1m]") == .opus48)
@@ -22,10 +31,16 @@ struct ModelKindTests {
         #expect(ModelKind(rawModel: "opus-4.6") == .opus46)
     }
 
+    /// A 4.x minor without its own case stays in the 4.x generation instead of
+    /// being absorbed by the bare-opus fallback into the Opus 5 bucket.
+    @Test func unknownOpus4MinorStaysInGeneration4() {
+        #expect(ModelKind(rawModel: "claude-opus-4-5") == .opus48)
+    }
+
     /// The bare "opus" alias appears in JSONL for the default model and must not
     /// fall through to `.other`; it maps to the current shipping Opus version.
     @Test func bareOpusAliasMapsToCurrentVersion() {
-        #expect(ModelKind(rawModel: "opus") == .opus48)
+        #expect(ModelKind(rawModel: "opus") == .opus5)
     }
 
     // MARK: - Fable
@@ -47,8 +62,18 @@ struct ModelKindTests {
 
     // MARK: - Other families
 
+    /// Sonnet 5 gets a versioned label instead of collapsing into the generic
+    /// legacy "Sonnet" bucket (#261).
+    @Test func sonnet5IsRecognised() {
+        #expect(ModelKind(rawModel: "claude-sonnet-5") == .sonnet5)
+        #expect(ModelKind(rawModel: "claude-sonnet-5[1m]") == .sonnet5)
+        #expect(ModelKind.sonnet5.displayName == "Sonnet 5")
+        #expect(ModelKind.sonnet5.family == .sonnet)
+    }
+
     @Test func sonnetAndHaiku() {
         #expect(ModelKind(rawModel: "claude-sonnet-4-6") == .sonnet)
+        #expect(ModelKind(rawModel: "claude-sonnet-4-5-20250929") == .sonnet)
         #expect(ModelKind(rawModel: "claude-haiku-4-5") == .haiku)
     }
 
@@ -60,6 +85,7 @@ struct ModelKindTests {
     // MARK: - Family folding
 
     @Test func everyOpusVersionFoldsIntoOpusFamily() {
+        #expect(ModelKind.opus5.family == .opus)
         #expect(ModelKind.opus48.family == .opus)
         #expect(ModelKind.opus47.family == .opus)
         #expect(ModelKind.opus46.family == .opus)
@@ -71,5 +97,6 @@ struct ModelKindTests {
 
     @Test func stackOrderContainsEveryCase() {
         #expect(Set(ModelKind.stackOrder) == Set(ModelKind.allCases))
+        #expect(ModelKind.stackOrder.count == ModelKind.allCases.count)
     }
 }

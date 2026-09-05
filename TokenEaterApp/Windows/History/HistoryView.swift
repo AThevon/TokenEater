@@ -1275,13 +1275,15 @@ struct HistoryView: View {
     /// better readability for back-to-back stacked segments.
     private func gradient(for kind: ModelKind) -> Color {
         switch kind {
-        case .fable:  return Color(hex: "#E86FC4")
-        case .opus48: return Color(hex: "#F2B968")
-        case .opus47: return Color(hex: "#E8A24A")
-        case .opus46: return Color(hex: "#C2792B")
-        case .sonnet: return Color(hex: "#5BC489")
-        case .haiku:  return Color(hex: "#4FB7B0")
-        case .other:  return Color(hex: "#9B8BD9")
+        case .fable:   return Color(hex: "#E86FC4")
+        case .opus5:   return Color(hex: "#EF8E52")
+        case .opus48:  return Color(hex: "#F2B968")
+        case .opus47:  return Color(hex: "#E8A24A")
+        case .opus46:  return Color(hex: "#C2792B")
+        case .sonnet5: return Color(hex: "#8CCF5F")
+        case .sonnet:  return Color(hex: "#5BC489")
+        case .haiku:   return Color(hex: "#4FB7B0")
+        case .other:   return Color(hex: "#9B8BD9")
         }
     }
 
