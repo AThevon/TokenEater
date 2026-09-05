@@ -65,6 +65,10 @@ enum ModelKind: String, CaseIterable, Codable, Hashable, Sendable {
             self = .opus47
         } else if lower.contains("opus-4-6") || lower.contains("opus-4.6") {
             self = .opus46
+        } else if lower.contains("opus-4") {
+            // A 4.x minor without an explicit case above stays in its own
+            // generation instead of inflating the Opus 5 bucket.
+            self = .opus48
         } else if lower.contains("opus") {
             // Bare "opus" alias and any unversioned Opus string map to the
             // current shipping version. Future versions need their own
@@ -325,7 +329,14 @@ struct HistoryCache: Codable, Sendable {
     /// re-scanned, reclassifying Fable history immediately on update (#199).
     /// v3: same story for the Claude 5 generation: caches that bucketed
     /// `claude-opus-5` under `.opus48` and `claude-sonnet-5` under `.sonnet`
-    /// must be re-scanned to pick up the new cases (#259, #261).
+    /// must be re-scanned to pick up the new cases (#259, #261). Side effect,
+    /// accepted: legacy rows whose JSONL says just "opus" relabel from
+    /// Opus 4.8 to Opus 5 in the re-scan (the bare alias carries no era, and
+    /// the fallback tracks the current shipping version by design).
     static let currentVersion = 3
     static let empty = HistoryCache(version: currentVersion, entries: [:])
+
+    /// True when this cache was written by the current schema. The loader
+    /// discards anything else so stale classifications are re-scanned.
+    var isCurrentVersion: Bool { version == Self.currentVersion }
 }

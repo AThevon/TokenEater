@@ -31,6 +31,12 @@ struct ModelKindTests {
         #expect(ModelKind(rawModel: "opus-4.6") == .opus46)
     }
 
+    /// A 4.x minor without its own case stays in the 4.x generation instead of
+    /// being absorbed by the bare-opus fallback into the Opus 5 bucket.
+    @Test func unknownOpus4MinorStaysInGeneration4() {
+        #expect(ModelKind(rawModel: "claude-opus-4-5") == .opus48)
+    }
+
     /// The bare "opus" alias appears in JSONL for the default model and must not
     /// fall through to `.other`; it maps to the current shipping Opus version.
     @Test func bareOpusAliasMapsToCurrentVersion() {
@@ -91,5 +97,6 @@ struct ModelKindTests {
 
     @Test func stackOrderContainsEveryCase() {
         #expect(Set(ModelKind.stackOrder) == Set(ModelKind.allCases))
+        #expect(ModelKind.stackOrder.count == ModelKind.allCases.count)
     }
 }
