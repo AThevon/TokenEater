@@ -42,9 +42,11 @@ enum HistoryRange: String, CaseIterable, Codable, Sendable {
 /// collapse all minor versions, anything unrecognised lands in `.other`.
 enum ModelKind: String, CaseIterable, Codable, Hashable, Sendable {
     case fable
+    case opus5
     case opus48
     case opus47
     case opus46
+    case sonnet5
     case sonnet
     case haiku
     case other
@@ -54,17 +56,22 @@ enum ModelKind: String, CaseIterable, Codable, Hashable, Sendable {
         if lower.contains("fable") {
             // Fable 5 (and any future Fable minor) maps to the Fable family.
             self = .fable
-        } else if lower.contains("opus-4-8") || lower.contains("opus-4.8") {
-            self = .opus48
+        } else if lower.contains("opus-5") || lower.contains("opus-4-8") || lower.contains("opus-4.8") {
+            // The Claude 5 generation drops the minor suffix ("claude-opus-5"),
+            // so a plain "opus-5" check is enough and cannot collide with the
+            // 4.x checks below ("opus-4-5" does not contain "opus-5") (#259).
+            self = lower.contains("opus-5") ? .opus5 : .opus48
         } else if lower.contains("opus-4-7") || lower.contains("opus-4.7") {
             self = .opus47
         } else if lower.contains("opus-4-6") || lower.contains("opus-4.6") {
             self = .opus46
         } else if lower.contains("opus") {
             // Bare "opus" alias and any unversioned Opus string map to the
-            // current shipping version. Future minor versions need their own
+            // current shipping version. Future versions need their own
             // explicit case above to get a distinct label and color.
-            self = .opus48
+            self = .opus5
+        } else if lower.contains("sonnet-5") {
+            self = .sonnet5
         } else if lower.contains("sonnet") {
             self = .sonnet
         } else if lower.contains("haiku") {
@@ -76,26 +83,29 @@ enum ModelKind: String, CaseIterable, Codable, Hashable, Sendable {
 
     var displayName: String {
         switch self {
-        case .fable:  return "Fable 5"
-        case .opus48: return "Opus 4.8"
-        case .opus47: return "Opus 4.7"
-        case .opus46: return "Opus 4.6"
-        case .sonnet: return "Sonnet"
-        case .haiku:  return "Haiku"
-        case .other:  return "Other"
+        case .fable:   return "Fable 5"
+        case .opus5:   return "Opus 5"
+        case .opus48:  return "Opus 4.8"
+        case .opus47:  return "Opus 4.7"
+        case .opus46:  return "Opus 4.6"
+        case .sonnet5: return "Sonnet 5"
+        case .sonnet:  return "Sonnet"
+        case .haiku:   return "Haiku"
+        case .other:   return "Other"
         }
     }
 
-    /// Family used by the filter chips. Opus 4.8, 4.7 and 4.6 fold into `.opus`
-    /// since users typically think "Opus" not "Opus 4.8 vs 4.7 vs 4.6". Fable is
-    /// its own family (no minor-version split yet).
+    /// Family used by the filter chips. Opus 5, 4.8, 4.7 and 4.6 fold into
+    /// `.opus` since users typically think "Opus" not "Opus 5 vs 4.8"; Sonnet 5
+    /// folds into `.sonnet` the same way. Fable is its own family (no
+    /// minor-version split yet).
     var family: ModelFamily {
         switch self {
-        case .fable:                    return .fable
-        case .opus48, .opus47, .opus46: return .opus
-        case .sonnet:                   return .sonnet
-        case .haiku:                    return .haiku
-        case .other:                    return .other
+        case .fable:                            return .fable
+        case .opus5, .opus48, .opus47, .opus46: return .opus
+        case .sonnet5, .sonnet:                 return .sonnet
+        case .haiku:                            return .haiku
+        case .other:                            return .other
         }
     }
 
@@ -104,7 +114,7 @@ enum ModelKind: String, CaseIterable, Codable, Hashable, Sendable {
     /// `stackOrderContainsEveryCase` test guards completeness (the array is not
     /// compiler-checked for missing cases).
     static var stackOrder: [ModelKind] {
-        [.haiku, .opus46, .opus47, .opus48, .fable, .sonnet, .other]
+        [.haiku, .opus46, .opus47, .opus48, .opus5, .fable, .sonnet, .sonnet5, .other]
     }
 }
 
@@ -313,6 +323,9 @@ struct HistoryCache: Codable, Sendable {
     /// v2: bumped so existing caches that bucketed `claude-fable-5` under
     /// `.other` (before Fable had its own `ModelKind`) are discarded and
     /// re-scanned, reclassifying Fable history immediately on update (#199).
-    static let currentVersion = 2
+    /// v3: same story for the Claude 5 generation: caches that bucketed
+    /// `claude-opus-5` under `.opus48` and `claude-sonnet-5` under `.sonnet`
+    /// must be re-scanned to pick up the new cases (#259, #261).
+    static let currentVersion = 3
     static let empty = HistoryCache(version: currentVersion, entries: [:])
 }
