@@ -4,9 +4,10 @@ TokenEater is a native macOS menu bar app, plus WidgetKit widgets and a floating
 
 It complements the other docs and deliberately does not duplicate them:
 
-- [`README.md`](README.md) - what the app does (full feature list), the security and privacy model, the public API shape.
+- [`README.md`](README.md) - what the app does (full feature list), the security and privacy model, the two API calls.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) - contribution workflow, commit conventions, how to get help, the external-contributor signing caveat.
 - [`SETUP.md`](SETUP.md) - building from source as an end user.
+- [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) - common fixes and the canonical clean-reset script.
 - [`docs/design/MASTER.md`](docs/design/MASTER.md) and [`docs/design/COLORING.md`](docs/design/COLORING.md) - the window design system and the Smart Color risk model.
 
 Current version: 5.13.0 (`MARKETING_VERSION` in `project.yml`).
@@ -222,7 +223,7 @@ gh workflow run test-build.yml -f branch=<branch>
 gh run download <run-id> -n TokenEater-test -D /tmp/tokeneater-test/
 ```
 
-Installing that DMG cleanly requires a heavier reset than the local nuke (it also wipes `UserDefaults` and sandbox containers). See the clean-reset block in [`SETUP.md`](SETUP.md) / [`README.md`](README.md).
+Installing that DMG cleanly requires a heavier reset than the local nuke (it also wipes `UserDefaults` and sandbox containers). See the clean-reset block in [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md).
 
 ## Signing, notarization, and release
 
