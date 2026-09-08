@@ -45,12 +45,20 @@ final class HistoryStore: ObservableObject {
     /// (see `ProjectTotal`), so it only changes with the range, not the filter.
     @Published private(set) var projectTotals: [ProjectTotal] = []
 
+    var availableFamilies: [ModelFamily] {
+        ModelFamily.allCases + activeFamilies.filter(\.isCodex).sorted { $0.rawValue < $1.rawValue }
+    }
+
+    var sortedModelKinds: [ModelKind] {
+        ModelKind.stackOrder + totalsByKind.keys.filter(\.isCodex).sorted { $0.rawValue < $1.rawValue }
+    }
+
     // MARK: - Wiring
 
     private let service: SessionHistoryServiceProtocol
     private var loadTask: Task<Void, Never>?
 
-    init(service: SessionHistoryServiceProtocol = SessionHistoryService()) {
+    init(service: SessionHistoryServiceProtocol = CombinedSessionHistoryService()) {
         self.service = service
     }
 

@@ -101,6 +101,17 @@ final class SettingsStore: ObservableObject {
         didSet { UserDefaults.standard.set(hasSeenStudioIntro, forKey: "hasSeenStudioIntro") }
     }
 
+    // MARK: - Providers
+
+    /// Whether Codex usage is tracked at all. Auto-enabled once, on the first
+    /// launch that finds a ChatGPT login in `~/.codex/auth.json`, so existing
+    /// Codex users get the feature without hunting for a switch and everyone
+    /// else sees no change. A later login does not flip it by itself; the
+    /// Providers card offers the toggle instead.
+    @Published var codexEnabled: Bool {
+        didSet { UserDefaults.standard.set(codexEnabled, forKey: "codexEnabled") }
+    }
+
     // Proxy
     @Published var proxyEnabled: Bool {
         didSet { UserDefaults.standard.set(proxyEnabled, forKey: "proxyEnabled") }
@@ -261,6 +272,12 @@ final class SettingsStore: ObservableObject {
     var notifVendorRestored: Bool {
         get { notification.vendorRestored } set { notification.vendorRestored = newValue }
     }
+    var notifCodexEnabled: Bool {
+        get { notification.codexEnabled } set { notification.codexEnabled = newValue }
+    }
+    var notifCodexWindowReset: Bool {
+        get { notification.codexWindowReset } set { notification.codexWindowReset = newValue }
+    }
 
     var proxyConfig: ProxyConfig {
         ProxyConfig(enabled: proxyEnabled, host: proxyHost, port: proxyPort)
@@ -324,10 +341,23 @@ final class SettingsStore: ObservableObject {
     private let tokenProvider: TokenProviderProtocol
     private let sharedFileService: SharedFileServiceProtocol
 
+    /// Decides the Codex toggle on first launch and honours the user's choice
+    /// afterwards. The probe runs exactly once per install (guarded by its own
+    /// flag), so a user who turns Codex off does not get it turned back on by
+    /// the next launch, and someone who logs into Codex later is offered the
+    /// toggle in Settings rather than having it flipped under them.
+    private static func resolveCodexEnabled(authStateProvider: () -> CodexAuthState) -> Bool {
+        if let stored = UserDefaults.standard.object(forKey: "codexEnabled") as? Bool { return stored }
+        let detected = authStateProvider().isTrackable
+        UserDefaults.standard.set(detected, forKey: "codexEnabled")
+        return detected
+    }
+
     init(
         notificationService: NotificationServiceProtocol = NotificationService(),
         tokenProvider: TokenProviderProtocol = TokenProvider(),
-        sharedFileService: SharedFileServiceProtocol = SharedFileService()
+        sharedFileService: SharedFileServiceProtocol = SharedFileService(),
+        codexAuthStateProvider: @escaping () -> CodexAuthState = { CodexAuthReader().authState() }
     ) {
         self.notificationService = notificationService
         self.tokenProvider = tokenProvider
@@ -343,6 +373,7 @@ final class SettingsStore: ObservableObject {
 
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
         self.hasSeenStudioIntro = UserDefaults.standard.bool(forKey: "hasSeenStudioIntro")
+        self.codexEnabled = Self.resolveCodexEnabled(authStateProvider: codexAuthStateProvider)
         self.proxyEnabled = UserDefaults.standard.bool(forKey: "proxyEnabled")
         self.proxyHost = UserDefaults.standard.string(forKey: "proxyHost") ?? "127.0.0.1"
         self.proxyPort = {

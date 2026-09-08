@@ -34,6 +34,7 @@ struct NotificationsSectionView: View {
             resetRemindersCard
             extraCreditsCard
             healthCard
+            if settingsStore.codexEnabled { codexCard }
 
             ResetSectionButton(
                 confirmTitle: String(localized: "settings.notifications.reset.confirm"),
@@ -60,6 +61,32 @@ struct NotificationsSectionView: View {
         settingsStore.notifTokenExpired = false
         settingsStore.notifVendorDegraded = true
         settingsStore.notifVendorRestored = true
+        settingsStore.notification.codexEnabled = true
+        settingsStore.notification.codexTrackSession = true
+        settingsStore.notification.codexTrackWeekly = true
+        settingsStore.notification.codexWindowReset = true
+        settingsStore.notification.codexResetReminderSession = false
+        settingsStore.notification.codexResetReminderWeekly = false
+        settingsStore.notification.codexTokenExpired = true
+    }
+
+    private var codexCard: some View {
+        glassCard {
+            VStack(alignment: .leading, spacing: 10) {
+                cardLabel("Codex")
+                darkToggle(String(localized: "settings.codex.notifications"), isOn: $settingsStore.notification.codexEnabled)
+                darkToggle(String(localized: "settings.codex.session"), isOn: $settingsStore.notification.codexTrackSession)
+                darkToggle(String(localized: "settings.codex.weekly"), isOn: $settingsStore.notification.codexTrackWeekly)
+                darkToggle(String(localized: "settings.codex.reset"), isOn: $settingsStore.notification.codexWindowReset)
+                darkToggle(String(localized: "settings.codex.reminder.session"), isOn: $settingsStore.notification.codexResetReminderSession)
+                darkToggle(String(localized: "settings.codex.reminder.weekly"), isOn: $settingsStore.notification.codexResetReminderWeekly)
+                darkToggle(String(localized: "settings.codex.expired"), isOn: $settingsStore.notification.codexTokenExpired)
+                Text("settings.codex.sharedPreferences")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     // MARK: - Authorization

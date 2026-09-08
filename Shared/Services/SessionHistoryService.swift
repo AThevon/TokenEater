@@ -45,6 +45,29 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
     /// queue or starving the rest of the app of cores.
     private static let concurrencyCap = 4
 
+    enum Source: Sendable {
+        case claude
+        case codex
+    }
+
+    private let source: Source
+    private let roots: [URL]
+    private let persistedCacheURL: URL
+
+    init(source: Source = .claude, rootURL: URL? = nil, cacheURL: URL? = nil) {
+        self.source = source
+        switch source {
+        case .claude:
+            roots = [rootURL ?? Self.projectsURL]
+            persistedCacheURL = cacheURL ?? Self.cacheURL
+        case .codex:
+            let home = rootURL ?? CodexAuthReader().codexHomeURL
+            roots = [home.appendingPathComponent("sessions"), home.appendingPathComponent("archived_sessions")]
+            persistedCacheURL = cacheURL ?? Self.cacheURL.deletingLastPathComponent()
+                .appendingPathComponent("codex-history-cache.json")
+        }
+    }
+
     // MARK: - Public
 
     func loadHistory(range: HistoryRange) async throws -> [HistoryBucket] {
@@ -53,8 +76,12 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
 
     func loadPreviousPeriodActiveTokens(range: HistoryRange) async throws -> Int {
         let now = Date()
-        let currentStart = now.addingTimeInterval(-range.seconds)
-        let previousStart = currentStart.addingTimeInterval(-range.seconds)
+        let currentStart = range == .sevenDays
+            ? ChartDomainCalculator.domain(range: range, now: now).start
+            : now.addingTimeInterval(-range.seconds)
+        let previousStart = range == .sevenDays
+            ? Calendar.current.date(byAdding: .day, value: -7, to: currentStart) ?? currentStart.addingTimeInterval(-range.seconds)
+            : currentStart.addingTimeInterval(-range.seconds)
         let buckets = try await loadAggregates(
             rangeStart: previousStart,
             rangeEnd: currentStart,
@@ -71,12 +98,12 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
         bucketing: HistoryRange
     ) async throws -> [HistoryBucket] {
         // 1. List candidate files via FileManager + mtime filter.
-        let files = try Self.candidateFiles(rangeStart: rangeStart)
+        let files = try candidateFiles(rangeStart: rangeStart)
         try Task.checkCancellation()
 
         // 2. Load existing cache off the main queue (small JSON, cheap).
-        var cache = Self.loadCache()
-        var caughtError: Error?
+        var cache = loadCache()
+        let source = self.source
 
         // 3. Parse each candidate file in a TaskGroup, hitting the cache when
         //    mtime matches. We collect cache entries so we can persist them
@@ -88,7 +115,7 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
 
             // Prime the pump up to the concurrency cap.
             while inFlight < Self.concurrencyCap, let url = iterator.next() {
-                group.addTask { try await Self.parseOrReuse(url: url, cache: cache) }
+                group.addTask { try await Self.parseOrReuse(url: url, cache: cache, source: source) }
                 inFlight += 1
             }
 
@@ -98,23 +125,21 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
                     newEntries[entry.path] = entry
                 }
                 if let url = iterator.next() {
-                    group.addTask { try await Self.parseOrReuse(url: url, cache: cache) }
+                    group.addTask { try await Self.parseOrReuse(url: url, cache: cache, source: source) }
                     inFlight += 1
                 }
                 try Task.checkCancellation()
             }
-
-            _ = caughtError
         }
 
         // 4. Merge new entries back into the cache and persist if anything
         //    changed.
         cache.entries = newEntries
-        Self.saveCache(cache)
+        saveCache(cache)
 
         // 5. Aggregate across files into the requested bucketing.
         return Self.aggregate(
-            entries: Array(newEntries.values),
+            entries: deduplicatedEntries(Array(newEntries.values)),
             rangeStart: rangeStart,
             rangeEnd: rangeEnd,
             bucketing: bucketing
@@ -123,29 +148,30 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
 
     // MARK: - File discovery
 
-    private static func candidateFiles(rangeStart: Date) throws -> [URL] {
+    private func candidateFiles(rangeStart: Date) throws -> [URL] {
         let fm = FileManager.default
-        let root = projectsURL
         var results: [URL] = []
 
-        guard let enumerator = fm.enumerator(
-            at: root,
-            includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
-            options: [.skipsHiddenFiles]
-        ) else {
-            return []
-        }
-
-        for case let url as URL in enumerator {
-            guard url.pathExtension == "jsonl" else { continue }
-            let attrs = try? url.resourceValues(forKeys: [.contentModificationDateKey, .isRegularFileKey])
-            guard attrs?.isRegularFile == true else { continue }
-            // mtime filter: a file with mtime older than rangeStart cannot
-            // possibly contain events relevant to the requested window. Skip.
-            if let mtime = attrs?.contentModificationDate, mtime < rangeStart {
+        for root in roots {
+            guard let enumerator = fm.enumerator(
+                at: root,
+                includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            ) else {
                 continue
             }
-            results.append(url)
+
+            for case let url as URL in enumerator {
+                guard url.pathExtension == "jsonl" else { continue }
+                let attrs = try? url.resourceValues(forKeys: [.contentModificationDateKey, .isRegularFileKey])
+                guard attrs?.isRegularFile == true else { continue }
+                // mtime filter: a file with mtime older than rangeStart cannot
+                // possibly contain events relevant to the requested window. Skip.
+                if let mtime = attrs?.contentModificationDate, mtime < rangeStart {
+                    continue
+                }
+                results.append(url)
+            }
         }
         return results
     }
@@ -154,7 +180,8 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
 
     private static func parseOrReuse(
         url: URL,
-        cache: HistoryCache
+        cache: HistoryCache,
+        source: Source
     ) async throws -> HistoryFileCacheEntry? {
         try Task.checkCancellation()
 
@@ -172,6 +199,10 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
             content = try String(contentsOf: url, encoding: .utf8)
         } catch {
             return nil
+        }
+
+        if source == .codex {
+            return try CodexHistoryParser.parse(content, path: url.path, mtime: mtime)
         }
 
         var bucketsByHour: [Date: HistoryBucket] = [:]
@@ -217,7 +248,7 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
             let output = (usage["output_tokens"] as? Int) ?? 0
             let cacheRead = (usage["cache_read_input_tokens"] as? Int) ?? 0
             let cacheCreate = (usage["cache_creation_input_tokens"] as? Int) ?? 0
-            let active = input + output
+            let active = input + cacheCreate + output
 
             var bucket = bucketsByHour[bucketDate] ?? HistoryBucket(
                 date: bucketDate,
@@ -289,10 +320,19 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
         return combined.values.sorted { $0.date < $1.date }
     }
 
+    private func deduplicatedEntries(_ entries: [HistoryFileCacheEntry]) -> [HistoryFileCacheEntry] {
+        guard source == .codex else { return entries }
+        var sessions: [String: HistoryFileCacheEntry] = [:]
+        for entry in entries.sorted(by: { $0.mtime < $1.mtime }) {
+            sessions[entry.sessionIds.first ?? entry.path] = entry
+        }
+        return Array(sessions.values)
+    }
+
     // MARK: - Cache persistence
 
-    private static func loadCache() -> HistoryCache {
-        guard let data = try? Data(contentsOf: cacheURL),
+    private func loadCache() -> HistoryCache {
+        guard let data = try? Data(contentsOf: persistedCacheURL),
               let cache = try? JSONDecoder().decode(HistoryCache.self, from: data),
               cache.isCurrentVersion
         else {
@@ -301,8 +341,8 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
         return cache
     }
 
-    private static func saveCache(_ cache: HistoryCache) {
-        let url = cacheURL
+    private func saveCache(_ cache: HistoryCache) {
+        let url = persistedCacheURL
         let dir = url.deletingLastPathComponent()
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         guard let data = try? JSONEncoder().encode(cache) else { return }
@@ -337,7 +377,9 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
     }
 
     private func rangeStart(for range: HistoryRange) -> Date {
-        Date().addingTimeInterval(-range.seconds)
+        range == .sevenDays
+            ? ChartDomainCalculator.domain(range: range).start
+            : Date().addingTimeInterval(-range.seconds)
     }
 
     // MARK: - Project path decode

@@ -9,6 +9,7 @@ import SwiftUI
 /// gauge/pacing colors continue to flow from `ThemeStore` so user themes
 /// (default / neon / pastel / monochrome) stay in control of the data hue.
 struct MonitoringView: View {
+    @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var themeStore: ThemeStore
     @EnvironmentObject private var settingsStore: SettingsStore
@@ -37,6 +38,7 @@ struct MonitoringView: View {
                 header
                 heroTile
                 metricsGrid
+                if settingsStore.codexEnabled { CodexSectionView() }
                 pacingRow
                 if let extra = usageStore.extraUsage, extra.isEnabled {
                     extraUsageTile(extra)
@@ -126,6 +128,7 @@ struct MonitoringView: View {
 
             Button {
                 Task { await usageStore.refresh(force: true) }
+                Task { await codexStore.refresh(force: true) }
             } label: {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 11, weight: .semibold))

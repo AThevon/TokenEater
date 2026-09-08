@@ -27,6 +27,8 @@ enum NotificationStatus {
 
 @MainActor
 final class OnboardingViewModel: ObservableObject {
+    @Published var codexStatus: CodexAuthState
+    @Published var codexEnabled: Bool
     @Published var claudeCodeStatus: ClaudeCodeStatus = .checking
     @Published var connectionStatus: ConnectionStatus = .idle
     @Published var notificationStatus: NotificationStatus = .unknown
@@ -37,11 +39,9 @@ final class OnboardingViewModel: ObservableObject {
     /// onboarding shows the user's existing preference.
     @Published var watcherEnabled: Bool
 
-    /// Total number of cards the user can interact with. Used by the hero
-    /// progress indicator. Hard-coded at 4 (Claude Code, Notifications,
-    /// Watchers, Connect).
-    let totalSteps: Int = 4
+    let totalSteps: Int = 5
 
+    private let codexAuthStateProvider: () -> CodexAuthState
     private let tokenProvider: TokenProviderProtocol
     private let repository: UsageRepositoryProtocol
     private let notificationService: NotificationServiceProtocol
@@ -51,8 +51,11 @@ final class OnboardingViewModel: ObservableObject {
         tokenProvider: TokenProviderProtocol = TokenProvider(),
         repository: UsageRepositoryProtocol = UsageRepository(),
         notificationService: NotificationServiceProtocol = NotificationService(),
-        settingsStore: SettingsStore? = nil
+        settingsStore: SettingsStore? = nil,
+        codexAuthStateProvider: @escaping () -> CodexAuthState = { CodexAuthReader().authState() }
     ) {
+        self.codexAuthStateProvider = codexAuthStateProvider
+        self.codexStatus = codexAuthStateProvider()
         self.tokenProvider = tokenProvider
         self.repository = repository
         self.notificationService = notificationService
@@ -62,6 +65,7 @@ final class OnboardingViewModel: ObservableObject {
         )
         self.settingsStore = store
         self.watcherEnabled = store.overlayEnabled
+        self.codexEnabled = store.codexEnabled
     }
 
     /// Whether the user might see a Keychain dialog (first connection attempt)
@@ -80,7 +84,7 @@ final class OnboardingViewModel: ObservableObject {
         }
     }
 
-    /// Hero progress count - how many of the 4 cards are in their "ready"
+    /// Hero progress count - how many of the 5 cards are in their "ready"
     /// state. Both gates must be green; optional toggles count as ready
     /// when on (Watchers) or authorized (Notifications).
     var readyCount: Int {
@@ -88,6 +92,7 @@ final class OnboardingViewModel: ObservableObject {
         if claudeCodeStatus == .detected { count += 1 }
         if notificationStatus == .authorized { count += 1 }
         if watcherEnabled { count += 1 }
+        if codexEnabled && codexStatus.isTrackable && !codexStatus.isExpired() { count += 1 }
         switch connectionStatus {
         case .success, .rateLimited:
             count += 1
@@ -102,6 +107,10 @@ final class OnboardingViewModel: ObservableObject {
     func setWatcherEnabled(_ enabled: Bool) {
         watcherEnabled = enabled
         settingsStore.overlayEnabled = enabled
+    }
+
+    func checkCodex() {
+        codexStatus = codexAuthStateProvider()
     }
 
     func checkClaudeCode() {

@@ -47,6 +47,27 @@ struct DiagnosticReporterTests {
         return (store, settings)
     }
 
+    @Test("Codex diagnostics contain operational state without account identity or credentials")
+    func codexDiagnostics() async {
+        let (usage, settings) = makeStores()
+        let provider = MockCodexTokenProvider()
+        provider.credentials = CodexFixtures.credentials()
+        provider.stubbedAuthState = .chatgpt(accountId: "private-account-identity", planType: "pro", expiresAt: nil)
+        let codex = CodexUsageStore(
+            repository: MockCodexUsageRepository(), tokenProvider: provider,
+            sharedFileService: MockCodexSharedFileService(), notificationService: MockNotificationService()
+        )
+        codex.setEnabled(true)
+        await codex.refresh(force: true)
+        let report = DiagnosticReporter.makeReport(usageStore: usage, settingsStore: settings, codexStore: codex)
+        #expect(report.contains("**Codex**"))
+        #expect(report.contains("Auth state: chatgpt"))
+        #expect(report.contains("duration 604800s"))
+        #expect(!report.contains("private-account-identity"))
+        #expect(!report.contains(provider.credentials!.accessToken))
+        codex.setEnabled(false)
+    }
+
     @Test("includes app version, build, and architecture")
     func includesAppMetadata() {
         let (store, settings) = makeStores()

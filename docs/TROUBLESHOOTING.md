@@ -8,6 +8,8 @@ Common fixes first, the full clean reset after. If none of this helps, [open an 
 |---------|-------|-----|
 | "Rate limited" or "API unavailable" | Your OAuth token has hit its per-token request limit | Run `claude /login` in your terminal for a fresh token. TokenEater detects the change and recovers automatically within seconds |
 | Keychain popup asking to access "Claude Code-credentials" | First run on a new install needs to authorize `/usr/bin/security` to read your Claude Code token | Click **Always Allow** once; it sticks across future app updates |
+| Codex shows not logged in or login expired | The CLI has no usable file-backed ChatGPT access token, or it expired | Open Codex or run `codex login`, then retry in Providers. API-key and keyring-only logins are not supported; TokenEater never refreshes or rewrites the CLI token |
+| Codex widget is empty or off | Tracking is disabled, no successful sync exists, or WidgetKit has cached the old extension | Enable Codex in Settings > General > Providers and refresh Monitoring. Add **Codex Usage** from Edit Widgets > TokenEater; if still stale, use the reset below |
 | Widget stuck or not updating | macOS caches widget extensions aggressively | Remove the widget, run the clean reset below, re-add the widget |
 | A session is missing from Agent Watchers | The session runs from an old VSCode extension (2.0.x era), which executes through node and is invisible to the process scanner | Update the Claude Code extension; current versions ship a native binary the scanner detects |
 | Widget flagged as malware | You are running an ad-hoc local build without notarization | Reinstall the official notarized DMG from [Releases](https://github.com/AThevon/TokenEater/releases/latest), or approve the local build via System Settings > Privacy & Security > Open Anyway |
@@ -53,6 +55,8 @@ rm -rf /Applications/TokenEater.app
 ```
 
 > Some `Operation not permitted` errors on container metadata files are normal; macOS protects those, but the actual data is cleaned.
+
+The shared-data removal also deletes `codex.json` (Codex usage and widget state). It does not remove `~/.codex/auth.json` or sign you out of Codex.
 
 ## After the reset
 
