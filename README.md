@@ -9,11 +9,11 @@
 </p>
 
 <p align="center">
-  <a href="https://tokeneater.vercel.app">Website</a> ·
+  <a href="https://tokeneater.athevon.dev">Website</a> ·
   <a href="#install">Install</a> ·
   <a href="#what-you-get">Features</a> ·
   <a href="#privacy-two-read-only-calls">Privacy</a> ·
-  <a href="https://tokeneater.vercel.app/en/docs">Docs</a> ·
+  <a href="https://tokeneater.athevon.dev/en/docs">Docs</a> ·
   <a href="https://github.com/AThevon/TokenEater/releases">Releases</a>
 </p>
 
@@ -59,7 +59,7 @@ A native menu bar app, desktop widgets, and a floating overlay that track your C
 - **Themes.** Four presets plus full custom colors, a glow or flat look, and configurable warning thresholds.
 - **Notifications.** Per-surface and per-event toggles: escalation, recovery, pacing, scheduled reset reminders, extra credits, token expiry.
 
-Everything in detail on the [website](https://tokeneater.vercel.app).
+Everything in detail on the [website](https://tokeneater.athevon.dev).
 
 ## Install
 
@@ -155,3 +155,16 @@ If TokenEater saves you from hitting your limits blindly, consider [buying me a 
 ## License
 
 MIT
+
+---
+
+<p align="center">
+  Built by <a href="https://athevon.dev"><strong>Adrien Thevon</strong></a>, software engineer in Toulouse.
+  <br />
+  <sub>
+    Also mine:
+    <a href="https://github.com/AThevon/genjutsu">genjutsu</a>, creative coding skills for Claude
+    &nbsp;·&nbsp;
+    <a href="https://github.com/AThevon/worktigre">worktigre</a>, a git worktree manager
+  </sub>
+</p>
