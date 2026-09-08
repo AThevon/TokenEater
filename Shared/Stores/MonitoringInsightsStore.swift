@@ -18,17 +18,14 @@ final class MonitoringInsightsStore: ObservableObject {
     @Published private(set) var hasLoaded: Bool = false
 
     private let service: SessionHistoryServiceProtocol
-    private let sharedFile: SharedFileServiceProtocol
     private var loadTask: Task<Void, Never>?
     private var lastLoaded: Date?
     private static let staleAfter: TimeInterval = 60
 
     init(
-        service: SessionHistoryServiceProtocol = SessionHistoryService(),
-        sharedFile: SharedFileServiceProtocol = SharedFileService()
+        service: SessionHistoryServiceProtocol = SessionHistoryService()
     ) {
         self.service = service
-        self.sharedFile = sharedFile
     }
 
     /// Kicks a background load if no data has been loaded yet, or if the
@@ -55,20 +52,11 @@ final class MonitoringInsightsStore: ObservableObject {
                 if Task.isCancelled { return }
                 await MainActor.run {
                     let now = Date()
-                    // Trim the rolling-window result to the 7 calendar days the
-                    // widget renders so the in-app weekly total matches the
-                    // widget total (loadHistory can surface a partial 8th day).
                     let windowed = Self.bucketsInWindow(buckets, today: now)
                     self.weeklyBuckets = windowed
                     self.previousWeekTotal = previous
                     self.hasLoaded = true
                     self.lastLoaded = now
-                    // Mirror the daily totals to the shared file so the
-                    // History Sparkline widget renders without re-parsing
-                    // JSONL from the sandboxed widget process. Densify to one
-                    // slot per calendar day so empty days stay aligned (#179).
-                    let totals = Self.dailyTotalsByDay(from: windowed, today: now)
-                    self.sharedFile.updateLastWeekDailyTotals(totals, refreshedAt: now)
                 }
             } catch {
                 // Silent fail - back-of-card content just stays minimal.
@@ -118,9 +106,7 @@ final class MonitoringInsightsStore: ObservableObject {
     /// (issue #179). Returns `[]` when there is no history at all so the widget
     /// keeps showing its empty state.
     /// The buckets whose calendar day falls within the last `days` days ending
-    /// today (inclusive). `loadHistory` uses a rolling instant window that can
-    /// surface a partial 8th day; trimming here keeps the in-app weekly total
-    /// aligned with the 7 calendar days the widget renders (#179).
+    /// today (inclusive).
     nonisolated static func bucketsInWindow(
         _ buckets: [HistoryBucket],
         days: Int = 7,

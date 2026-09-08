@@ -9,11 +9,12 @@ enum DiagnosticReporter {
 
     /// Public entry point.
     @MainActor
-    static func makeReport(usageStore: UsageStore, settingsStore: SettingsStore) -> String {
+    static func makeReport(usageStore: UsageStore, settingsStore: SettingsStore, codexStore: CodexUsageStore? = nil) -> String {
         let app = appSection()
         let system = systemSection()
         let state = stateSection(usageStore: usageStore, settingsStore: settingsStore)
         let apiError = apiErrorSection(usageStore.lastAPIError)
+        let codex = codexStore.map { codexSection($0) } ?? ""
 
         return """
         ## TokenEater diagnostic
@@ -25,6 +26,8 @@ enum DiagnosticReporter {
         \(state)
 
         \(apiError)
+
+        \(codex)
         """
     }
 
@@ -88,6 +91,34 @@ enum DiagnosticReporter {
         - Rate limit tier: \(tier)
         - Token present: \(tokenPresent)
         - Proxy configured: \(proxyConfigured)
+        """
+    }
+
+    @MainActor
+    private static func codexSection(_ store: CodexUsageStore) -> String {
+        let auth: String
+        switch store.authState {
+        case .notInstalled: auth = "notInstalled"
+        case .noCredentials: auth = "noCredentials"
+        case .apiKeyOnly: auth = "apiKeyOnly"
+        case .chatgpt: auth = "chatgpt"
+        }
+        let windows = store.windows.map {
+            "- \($0.kind.rawValue): \($0.pct)%, duration \(Int($0.windowDuration))s, reset \(formatDate($0.resetDate, relative: false) ?? "-")"
+        }.joined(separator: "\n")
+        return """
+        **Codex**
+        - Enabled: \(store.isEnabled)
+        - Auth state: \(auth)
+        - Error state: \(errorStateName(store.errorState))
+        - Plan: \(store.planType.displayLabel)
+        - Refresh speed: \(speedName(store.currentSpeed))
+        - Effective interval: \(Int(store.effectiveInterval))s
+        - Last successful update: \(formatDate(store.lastUpdate, relative: true) ?? "never")
+        - Retry-after deadline: \(formatDate(store.retryAfterDate, relative: true) ?? "-")
+        - Last HTTP status: \(store.lastAPIError?.httpStatusCode.map(String.init) ?? "-")
+        - Last API error timestamp: \(formatDate(store.lastAPIError?.timestamp, relative: false) ?? "-")
+        \(windows)
         """
     }
 

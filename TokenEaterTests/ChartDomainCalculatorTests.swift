@@ -14,8 +14,6 @@ struct ChartDomainCalculatorTests {
         utcCalendar.date(from: DateComponents(year: y, month: m, day: d, hour: h, minute: min))!
     }
 
-    /// Daily range: end snaps to the start of tomorrow, start snaps to the
-    /// start of the day containing (now - range.seconds), so edge bars never clip.
     @Test("daily range rounds start and end to day boundaries")
     func dailyRangeBoundaries() {
         let cal = Self.utcCalendar
@@ -23,8 +21,8 @@ struct ChartDomainCalculatorTests {
         let domain = ChartDomainCalculator.domain(range: .sevenDays, now: now, calendar: cal)
         // end = start of 06-01 (tomorrow)
         #expect(domain.end == Self.at(2026, 6, 1, 0, 0))
-        // rawStart = now - 7d = 05-24 14:37 -> start of day 05-24
-        #expect(domain.start == Self.at(2026, 5, 24, 0, 0))
+        // Seven calendar days including today match the History widget.
+        #expect(domain.start == Self.at(2026, 5, 25, 0, 0))
     }
 
     /// Hourly range (24h): both edges round to the hour boundary, end is next hour.
@@ -37,6 +35,17 @@ struct ChartDomainCalculatorTests {
         #expect(domain.end == Self.at(2026, 5, 31, 15, 0))
         // rawStart = now - 24h = 05-30 14:37 -> start of that hour 14:00
         #expect(domain.start == Self.at(2026, 5, 30, 14, 0))
+    }
+
+    @Test("Seven-day domain stays calendar-aligned across daylight saving time")
+    func weeklyDST() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let now = calendar.date(from: DateComponents(year: 2026, month: 3, day: 10, hour: 18))!
+        let domain = ChartDomainCalculator.domain(range: .sevenDays, now: now, calendar: calendar)
+        #expect(calendar.dateComponents([.day], from: domain.start, to: domain.end).day == 7)
+        #expect(calendar.component(.hour, from: domain.start) == 0)
+        #expect(calendar.component(.day, from: domain.start) == 4)
     }
 
     @Test("end is always strictly after start")

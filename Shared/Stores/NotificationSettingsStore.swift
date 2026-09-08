@@ -70,6 +70,33 @@ final class NotificationSettingsStore: ObservableObject {
         didSet { UserDefaults.standard.set(vendorRestored, forKey: "notifVendorRestored") }
     }
 
+    // MARK: - Codex
+
+    /// Codex sub-master. Independent of `enabled`, which still gates everything.
+    @Published var codexEnabled: Bool {
+        didSet { UserDefaults.standard.set(codexEnabled, forKey: "notifCodexEnabled") }
+    }
+    @Published var codexTrackSession: Bool {
+        didSet { UserDefaults.standard.set(codexTrackSession, forKey: "notifCodexTrackSession") }
+    }
+    @Published var codexTrackWeekly: Bool {
+        didSet { UserDefaults.standard.set(codexTrackWeekly, forKey: "notifCodexTrackWeekly") }
+    }
+    /// The "quota is back" alert. On by default: it is the reason most people
+    /// track a rate-limited tool in the first place.
+    @Published var codexWindowReset: Bool {
+        didSet { UserDefaults.standard.set(codexWindowReset, forKey: "notifCodexWindowReset") }
+    }
+    @Published var codexResetReminderSession: Bool {
+        didSet { UserDefaults.standard.set(codexResetReminderSession, forKey: "notifCodexResetReminderSession") }
+    }
+    @Published var codexResetReminderWeekly: Bool {
+        didSet { UserDefaults.standard.set(codexResetReminderWeekly, forKey: "notifCodexResetReminderWeekly") }
+    }
+    @Published var codexTokenExpired: Bool {
+        didSet { UserDefaults.standard.set(codexTokenExpired, forKey: "notifCodexTokenExpired") }
+    }
+
     init() {
         // Defaults below apply only on first launch (no value yet in
         // UserDefaults) - per `SettingsDefaults.bool/int` semantics.
@@ -89,5 +116,25 @@ final class NotificationSettingsStore: ObservableObject {
         self.tokenExpired = SettingsDefaults.bool(key: "notifTokenExpired", default: false)
         self.vendorDegraded = SettingsDefaults.bool(key: "notifVendorDegraded", default: true)
         self.vendorRestored = SettingsDefaults.bool(key: "notifVendorRestored", default: true)
+        self.codexEnabled = SettingsDefaults.bool(key: "notifCodexEnabled", default: true)
+        self.codexTrackSession = SettingsDefaults.bool(key: "notifCodexTrackSession", default: true)
+        self.codexTrackWeekly = SettingsDefaults.bool(key: "notifCodexTrackWeekly", default: true)
+        self.codexWindowReset = SettingsDefaults.bool(key: "notifCodexWindowReset", default: true)
+        self.codexResetReminderSession = SettingsDefaults.bool(key: "notifCodexResetReminderSession", default: false)
+        self.codexResetReminderWeekly = SettingsDefaults.bool(key: "notifCodexResetReminderWeekly", default: false)
+        self.codexTokenExpired = SettingsDefaults.bool(key: "notifCodexTokenExpired", default: true)
+    }
+
+    /// Bundle handed to `NotificationService` on every Codex refresh.
+    var codexToggles: CodexNotificationToggles {
+        CodexNotificationToggles(
+            enabled: codexEnabled,
+            trackSession: codexTrackSession,
+            trackWeekly: codexTrackWeekly,
+            windowReset: codexWindowReset,
+            resetReminderSession: codexResetReminderSession,
+            resetReminderWeekly: codexResetReminderWeekly,
+            tokenExpired: codexTokenExpired
+        )
     }
 }

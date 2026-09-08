@@ -15,6 +15,13 @@ protocol NotificationStateStore: AnyObject {
     func setLastResetsAt(_ date: Date, forKey key: String)
     func tokenExpiredFiredAt() -> Date?
     func setTokenExpiredFiredAt(_ date: Date)
+    /// Last observed utilization per surface. Paired with `lastResetsAt` it
+    /// tells a real window rollover apart from the sliding deadline an unused
+    /// window reports on every poll (see `CodexResetDetector`).
+    func lastUtilization(forKey key: String) -> Double?
+    func setLastUtilization(_ value: Double, forKey key: String)
+    func codexTokenExpiredFiredAt() -> Date?
+    func setCodexTokenExpiredFiredAt(_ date: Date)
 }
 
 final class UserDefaultsNotificationStateStore: NotificationStateStore {
@@ -29,4 +36,8 @@ final class UserDefaultsNotificationStateStore: NotificationStateStore {
     func setLastResetsAt(_ date: Date, forKey key: String) { defaults.set(date, forKey: key) }
     func tokenExpiredFiredAt() -> Date? { defaults.object(forKey: "lastTokenExpiredFiredAt") as? Date }
     func setTokenExpiredFiredAt(_ date: Date) { defaults.set(date, forKey: "lastTokenExpiredFiredAt") }
+    func lastUtilization(forKey key: String) -> Double? { defaults.object(forKey: key) as? Double }
+    func setLastUtilization(_ value: Double, forKey key: String) { defaults.set(value, forKey: key) }
+    func codexTokenExpiredFiredAt() -> Date? { defaults.object(forKey: "lastCodexTokenExpiredFiredAt") as? Date }
+    func setCodexTokenExpiredFiredAt(_ date: Date) { defaults.set(date, forKey: "lastCodexTokenExpiredFiredAt") }
 }

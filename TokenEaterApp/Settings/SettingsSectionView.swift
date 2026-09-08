@@ -82,6 +82,8 @@ struct SettingsSectionView: View {
                 }
             }
 
+            ProvidersCard()
+
             // Update (placed right under Connection so the user spots a
             // pending version straight away).
             glassCard {

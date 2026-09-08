@@ -5,6 +5,8 @@ final class MockNotificationStateStore: NotificationStateStore {
     var pacings: [String: String] = [:]
     var resetsAts: [String: Date] = [:]
     var tokenExpiredAt: Date?
+    var utilizations: [String: Double] = [:]
+    var codexTokenExpiredAt: Date?
 
     func lastLevel(forKey key: String) -> Int { levels[key] ?? 0 }
     func setLastLevel(_ value: Int, forKey key: String) { levels[key] = value }
@@ -14,4 +16,8 @@ final class MockNotificationStateStore: NotificationStateStore {
     func setLastResetsAt(_ date: Date, forKey key: String) { resetsAts[key] = date }
     func tokenExpiredFiredAt() -> Date? { tokenExpiredAt }
     func setTokenExpiredFiredAt(_ date: Date) { tokenExpiredAt = date }
+    func lastUtilization(forKey key: String) -> Double? { utilizations[key] }
+    func setLastUtilization(_ value: Double, forKey key: String) { utilizations[key] = value }
+    func codexTokenExpiredFiredAt() -> Date? { codexTokenExpiredAt }
+    func setCodexTokenExpiredFiredAt(_ date: Date) { codexTokenExpiredAt = date }
 }

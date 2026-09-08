@@ -47,8 +47,8 @@
 "widget.title.pacingGraph" = "Pacing Graph";
 "widget.description.pacingGraph" = "See your pace versus the ideal trajectory in one glance";
 "widget.title.historySparkline" = "Tokens History";
-"widget.description.historySparkline" = "Last 7 days of token usage with daily totals and trend";
-"widget.title.usage" = "Overview";
+"widget.description.historySparkline" = "Claude + Codex token usage over the last 7 days";
+"widget.title.usage" = "Claude";
 "widget.title.pacingGlance" = "Pacing Glance";
 "widget.pacing.title" = "Weekly Pace";
 "widget.pacing.session" = "5h";
@@ -307,6 +307,51 @@
 "notif.body.status.claude.down" = "Anthropic reports a major outage";
 "notif.title.status.claude.restored" = "Claude is back";
 "notif.body.status.claude.restored" = "Service restored";
+
+/* Codex - provider */
+"provider.codex" = "Codex";
+"codex.window.weekly" = "Weekly";
+"codex.window.unknown" = "Window";
+"codex.limitReached" = "Limit reached";
+"codex.credits.balance" = "%@ credits";
+"codex.error.notLoggedIn" = "Not logged in to Codex";
+"codex.test.success" = "Connected, %@ at %d%%";
+"codex.test.noWindows" = "Connected, but this plan reports no usage window";
+
+/* Codex - notifications */
+"notif.title.codex.session.orange" = "Codex session heating up";
+"notif.title.codex.session.red" = "Codex session almost capped";
+"notif.title.codex.session.green" = "Codex session cleared";
+"notif.body.codex.session.orange" = "Past the warning level, resets in %@";
+"notif.body.codex.session.orange.fallback" = "Past the warning level";
+"notif.body.codex.session.red" = "Ease off, %@ left";
+"notif.body.codex.session.red.fallback" = "Limit almost reached";
+"notif.body.codex.session.green" = "Fresh slate at %@";
+"notif.body.codex.session.green.fallback" = "Fresh slate, you're back";
+"notif.title.codex.session.reset" = "Codex session window reset";
+"notif.body.codex.session.reset" = "Quota is back, fresh until %@";
+
+"notif.title.codex.weekly.orange" = "Codex weekly filling up";
+"notif.title.codex.weekly.red" = "Codex weekly almost capped";
+"notif.title.codex.weekly.green" = "Codex weekly reset";
+"notif.title.codex.weekly.pace" = "Ahead of Codex weekly pace";
+"notif.body.codex.weekly.pace" = "You're ahead of an even weekly burn rate, not near the cap. Fine if intentional.";
+"notif.body.codex.weekly.orange" = "Resets %@";
+"notif.body.codex.weekly.orange.fallback" = "Past the weekly warning";
+"notif.body.codex.weekly.red" = "Take it slow until %@";
+"notif.body.codex.weekly.red.fallback" = "Weekly limit almost reached";
+"notif.body.codex.weekly.green" = "New cycle, you're back at %@";
+"notif.body.codex.weekly.green.fallback" = "New cycle, you're back";
+"notif.title.codex.weekly.reset" = "Codex weekly quota reset";
+"notif.body.codex.weekly.reset" = "Back to zero, new cycle until %@";
+
+"notif.title.codex.reminder.session" = "Codex session resets in %@";
+"notif.body.codex.reminder.session" = "Save your spot or send it";
+"notif.title.codex.reminder.weekly" = "Codex weekly resets in %@";
+"notif.body.codex.reminder.weekly" = "Last lap on the Codex cycle";
+"notif.title.codex.token" = "Codex login expired";
+"notif.body.codex.token" = "Open Codex or run codex login to refresh";
+
 "settings.notifications.title" = "Notifications";
 "settings.notifications.status" = "Status";
 "settings.notifications.on" = "Enabled";
@@ -592,7 +637,7 @@
 "sidebar.history" = "History";
 "sidebar.general" = "General";
 "history.placeholder.title" = "History coming soon";
-"history.placeholder.subtitle" = "Your Claude Code session history will live here -> per-model token breakdown, daily charts, and usage patterns across your local JSONL files.";
+"history.placeholder.subtitle" = "Your Claude Code and Codex history: token totals by model, daily charts, and projects.";
 
 /* History view */
 "history.sessions.label" = "sessions";
@@ -609,7 +654,7 @@
 "history.hero.cacheHit" = "cache hit";
 "history.empty.dash" = "—";
 "history.empty.title" = "No sessions yet";
-"history.empty.subtitle" = "Run Claude Code to populate your history. Each session writes a JSONL file under ~/.claude/projects/ which TokenEater aggregates here.";
+"history.empty.subtitle" = "Use Claude Code or Codex to populate your history. TokenEater combines token usage from your local sessions.";
 "history.empty.filter.all" = "Nothing logged in the last %@";
 "history.empty.filter.model" = "No %@ usage in the last %@";
 "history.chip.cacheHit" = "Cache hit";
@@ -906,3 +951,44 @@
 "notif.body.fable.red.fallback" = "Fable pool almost out";
 "notif.body.fable.green" = "Fable refilled at %@";
 "notif.body.fable.green.fallback" = "Fable refilled, you're back";
+
+"settings.providers.title" = "Providers";
+"codex.status.notInstalled" = "Codex CLI not found";
+"codex.status.noCredentials" = "Not logged in — open Codex or run codex login";
+"codex.status.apiKey" = "API-key mode: no usage limits to track";
+"codex.status.connected" = "Logged in with ChatGPT";
+"codex.status.expired" = "Codex login expired — open Codex or run codex login";
+"codex.status.validUntil" = "Token valid until %@";
+"codex.tracking.off" = "Codex detected, tracking is off";
+"codex.test.button" = "Test connection";
+"codex.pacing.weekly" = "Codex weekly pacing";
+"codex.credits.cap" = "Overage cap reached";
+"codex.credits.unlimited" = "Unlimited credits";
+"codex.error.rateLimited" = "Codex is temporarily rate limited. Retrying automatically.";
+"settings.codex.notifications" = "Codex notifications";
+"settings.codex.session" = "Session usage thresholds";
+"settings.codex.weekly" = "Weekly usage thresholds";
+"settings.codex.reset" = "Window reset — quota is back";
+"settings.codex.reminder.session" = "Reminder before session reset";
+"settings.codex.reminder.weekly" = "Reminder before weekly reset";
+"settings.codex.expired" = "Codex login expired";
+"settings.codex.sharedPreferences" = "Uses the pacing preferences and reminder offsets above.";
+
+"widget.gallery.claude.overview" = "Claude Overview";
+"widget.gallery.claude.pacingGlance" = "Claude Pacing Glance";
+"widget.gallery.claude.sessionRing" = "Claude Session Ring";
+"widget.gallery.claude.pacingGraph" = "Claude Pacing Graph";
+"widget.gallery.claude.historySparkline" = "Claude Tokens History";
+"widget.gallery.claude.extraCredits" = "Claude Extra Credits";
+"widget.gallery.codex" = "Codex Usage";
+"widget.description.codex" = "Codex usage windows, pacing, and reset countdowns.";
+"widget.codex.disabled" = "Codex is off in TokenEater";
+"widget.codex.stale" = "Usage has not updated for over 15 minutes";
+
+"onboarding.card.codex.title" = "Codex";
+"onboarding.card.codex.description" = "Track your ChatGPT Codex limits and get notified when quota resets.";
+"onboarding.card.codex.track" = "Track Codex";
+
+"widget.codex.reset.single" = "1 reset available";
+"widget.codex.resets" = "%d resets available";
+"widget.codex.resets.accessibility" = "Available resets: %d";

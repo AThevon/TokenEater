@@ -8,7 +8,7 @@ struct UsageEntry: TimelineEntry {
     let isStale: Bool
     let lastSync: Date?
     /// 7 daily token totals (oldest first). Only populated for the
-    /// History Sparkline widget. Refreshed by the main app once a day.
+    /// History Sparkline widget. Refreshed by the main app every minute.
     let lastWeekDailyTotals: [Int]?
 
     init(

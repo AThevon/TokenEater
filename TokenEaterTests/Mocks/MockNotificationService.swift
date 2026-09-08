@@ -53,6 +53,22 @@ final class MockNotificationService: NotificationServiceProtocol {
         lastReminderSchedule = (sessionResetsAt, weeklyResetsAt, toggles)
     }
 
+    var codexEvaluations: [(windows: [CodexWindowSnapshot], toggles: NotificationToggles)] = []
+    var codexTokenExpiredFires = 0
+    var codexRemindersCancelled = 0
+
+    func evaluateCodex(windows: [CodexWindowSnapshot], toggles: NotificationToggles) {
+        codexEvaluations.append((windows, toggles))
+    }
+
+    func notifyCodexTokenExpired(toggles: NotificationToggles) {
+        codexTokenExpiredFires += 1
+    }
+
+    func cancelCodexReminders() {
+        codexRemindersCancelled += 1
+    }
+
     func checkVendorHealth(_ status: VendorStatus, toggles: NotificationToggles) {
         vendorHealthChecks.append((status, toggles))
     }

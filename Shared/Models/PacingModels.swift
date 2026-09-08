@@ -1,10 +1,19 @@
 import Foundation
 
-enum PacingZone: String {
+enum PacingZone: String, Equatable {
     case chill    // safely below the ideal pace
     case onTrack  // within ±margin of the ideal pace
     case warning  // running ahead by more than the margin but below the hot threshold
     case hot      // running ahead by more than 2x the margin
+}
+
+/// Which set of pacing quips a window draws its message from. Short windows get
+/// the sprint-flavoured copy, long ones the marathon-flavoured copy. Decoupled
+/// from `PacingBucket` so provider-neutral windows (Codex) can pick a pool
+/// without inventing a fake bucket.
+enum PacingMessagePool {
+    case session
+    case weekly
 }
 
 enum PacingBucket: String, CaseIterable {
@@ -30,7 +39,7 @@ enum PacingBucket: String, CaseIterable {
     }
 }
 
-struct PacingResult {
+struct PacingResult: Equatable {
     let delta: Double
     let expectedUsage: Double
     let actualUsage: Double

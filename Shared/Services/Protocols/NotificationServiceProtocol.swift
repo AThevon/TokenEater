@@ -19,6 +19,24 @@ struct MetricSnapshot {
     }
 }
 
+/// Codex-specific notification switches. Grouped in their own struct (with a
+/// default) so adding one never breaks the memberwise initialiser every call
+/// site of `NotificationToggles` uses.
+struct CodexNotificationToggles: Equatable {
+    /// Codex sub-master. The global `masterEnabled` still wins over it.
+    var enabled: Bool = true
+    var trackSession: Bool = true
+    var trackWeekly: Bool = true
+    /// The "your quota is back" alert, fired when a window actually rolls over
+    /// rather than when usage merely eases off.
+    var windowReset: Bool = true
+    var resetReminderSession: Bool = false
+    var resetReminderWeekly: Bool = false
+    var tokenExpired: Bool = true
+
+    static let `default` = CodexNotificationToggles()
+}
+
 /// Bundle of every per-event toggle and the global behaviour flags the service
 /// needs to decide whether (and how) to fire a notification. Built from
 /// `SettingsStore` and re-built on every refresh so toggle changes are
@@ -51,6 +69,9 @@ struct NotificationToggles {
     let vendorDegraded: Bool
     /// Fire a notification when a monitored vendor recovers to healthy.
     let vendorRestored: Bool
+    /// Codex switches. A `var` with a default so existing call sites keep
+    /// compiling unchanged.
+    var codex: CodexNotificationToggles = .default
 }
 
 protocol NotificationServiceProtocol {
@@ -75,4 +96,10 @@ protocol NotificationServiceProtocol {
         toggles: NotificationToggles
     )
     func checkVendorHealth(_ status: VendorStatus, toggles: NotificationToggles)
+    /// One call per successful Codex refresh: threshold escalations, pacing
+    /// transitions, the window-reset alert and the reset reminders.
+    func evaluateCodex(windows: [CodexWindowSnapshot], toggles: NotificationToggles)
+    func notifyCodexTokenExpired(toggles: NotificationToggles)
+    /// Drops any pending Codex reminder, for when the provider is switched off.
+    func cancelCodexReminders()
 }

@@ -87,8 +87,41 @@ enum PacingCalculator {
 
     private static func calculateForBucket(_ usageBucket: UsageBucket?, bucket: PacingBucket, margin: Double = 10, now: Date = Date(), activeDays: Set<Int> = PacingSchedule.allDays, activeHours: (start: Int, end: Int)? = nil) -> PacingResult? {
         guard let usageBucket, let resetsAt = usageBucket.resetsAtDate else { return nil }
+        return calculate(
+            utilization: usageBucket.utilization,
+            resetsAt: resetsAt,
+            windowDuration: bucket.periodDuration,
+            isIntraday: bucket == .fiveHour,
+            messagePool: bucket == .fiveHour ? .session : .weekly,
+            margin: margin,
+            now: now,
+            activeDays: activeDays,
+            activeHours: activeHours
+        )
+    }
 
-        let duration = bucket.periodDuration
+    /// Provider-neutral pacing for one rolling window. Takes the raw numbers
+    /// instead of a `PacingBucket` so non-Anthropic windows (Codex's 5h/weekly
+    /// quotas, whose duration comes from the API rather than a fixed enum) go
+    /// through the exact same maths as the Claude buckets.
+    ///
+    /// `isIntraday` marks a window short enough that a workweek schedule makes
+    /// no sense for it (the 5h session): it always measures elapsed time on the
+    /// calendar clock, never on active days/hours.
+    static func calculate(
+        utilization: Double,
+        resetsAt: Date,
+        windowDuration: TimeInterval,
+        isIntraday: Bool,
+        messagePool: PacingMessagePool,
+        margin: Double = 10,
+        now: Date = Date(),
+        activeDays: Set<Int> = PacingSchedule.allDays,
+        activeHours: (start: Int, end: Int)? = nil
+    ) -> PacingResult? {
+        guard windowDuration > 0 else { return nil }
+
+        let duration = windowDuration
         let startOfPeriod = resetsAt.addingTimeInterval(-duration)
 
         let clampedElapsed: Double
@@ -97,7 +130,7 @@ enum PacingCalculator {
         // calc - keep the cheap path for both. Otherwise measure elapsed over the
         // active days/hours only, so off time doesn't advance the expected pace.
         let isFullWindow = activeDays.count >= 7 && activeHours == nil
-        if bucket == .fiveHour || isFullWindow {
+        if isIntraday || isFullWindow {
             let elapsed = now.timeIntervalSince(startOfPeriod) / duration
             clampedElapsed = min(max(elapsed, 0), 1)
         } else {
@@ -108,7 +141,7 @@ enum PacingCalculator {
         }
 
         let expectedUsage = clampedElapsed * 100
-        let delta = usageBucket.utilization - expectedUsage
+        let delta = utilization - expectedUsage
 
         // 4-zone pacing -> chill / onTrack (within ±margin) / warning (margin..2*margin)
         // / hot (>2*margin). The pacingMargin slider drives both thresholds so a
@@ -124,21 +157,21 @@ enum PacingCalculator {
             zone = .hot
         }
 
-        let pool = (bucket == .fiveHour ? sessionMessages : weeklyMessages)[zone] ?? []
+        let pool = (messagePool == .session ? sessionMessages : weeklyMessages)[zone] ?? []
         let index = pool.isEmpty ? 0 : abs(Int(delta)) % pool.count
         let messageKey = pool.isEmpty ? "" : pool[index]
         let message = messageKey.isEmpty ? "" : String(localized: String.LocalizationValue(messageKey))
 
         let coolingDate = coolingDate(
             delta: delta, now: now, startOfPeriod: startOfPeriod, resetsAt: resetsAt,
-            duration: duration, usesCalendarTime: bucket == .fiveHour || isFullWindow,
+            duration: duration, usesCalendarTime: isIntraday || isFullWindow,
             activeDays: activeDays, activeHours: activeHours
         )
 
         return PacingResult(
             delta: delta,
             expectedUsage: expectedUsage,
-            actualUsage: usageBucket.utilization,
+            actualUsage: utilization,
             zone: zone,
             message: message,
             resetDate: resetsAt,

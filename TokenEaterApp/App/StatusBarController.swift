@@ -18,6 +18,7 @@ final class StatusBarController: NSObject {
     private var cancellables = Set<AnyCancellable>()
     private var countdownCancellable: AnyCancellable?
 
+    private let codexStore: CodexUsageStore
     private let usageStore: UsageStore
     private let themeStore: ThemeStore
     private let settingsStore: SettingsStore
@@ -28,6 +29,7 @@ final class StatusBarController: NSObject {
 
     init(
         usageStore: UsageStore,
+        codexStore: CodexUsageStore,
         themeStore: ThemeStore,
         settingsStore: SettingsStore,
         updateStore: UpdateStore,
@@ -35,6 +37,7 @@ final class StatusBarController: NSObject {
         vendorStatusStore: VendorStatusStore,
         tokenFileMonitor: TokenFileMonitorProtocol = TokenFileMonitor()
     ) {
+        self.codexStore = codexStore
         self.usageStore = usageStore
         self.themeStore = themeStore
         self.settingsStore = settingsStore
@@ -110,6 +113,7 @@ final class StatusBarController: NSObject {
     private func installPopoverContent() {
         let popoverView = MenuBarPopoverView()
             .environmentObject(usageStore)
+            .environmentObject(codexStore)
             .environmentObject(themeStore)
             .environmentObject(settingsStore)
             .environmentObject(updateStore)
@@ -133,8 +137,9 @@ final class StatusBarController: NSObject {
 
         Timer.publish(every: 60, on: .main, in: .common).autoconnect()
             .sink { [weak self] _ in
-                guard let self,
-                      self.settingsStore.menuBarComposition.visibleSegments.contains(where: { $0.kind == .sessionReset }) else { return }
+                guard let self else { return }
+                self.codexStore.refreshResetCountdown()
+                guard self.settingsStore.menuBarComposition.visibleSegments.contains(where: { $0.kind == .sessionReset }) else { return }
                 self.usageStore.refreshResetCountdown()
             }
             .store(in: &cancellables)
@@ -142,6 +147,8 @@ final class StatusBarController: NSObject {
         settingsStore.pacing.$margin
             .removeDuplicates()
             .sink { [weak self] newMargin in
+                self?.codexStore.pacingMargin = newMargin
+                self?.codexStore.recalculatePacing()
                 self?.usageStore.pacingMargin = newMargin
                 self?.usageStore.recalculatePacing()
             }
@@ -162,6 +169,8 @@ final class StatusBarController: NSObject {
         .receive(on: RunLoop.main)
         .sink { [weak self] _ in
             guard let self else { return }
+            self.codexStore.pacingSchedule = self.settingsStore.pacingSchedule
+            self.codexStore.recalculatePacing()
             self.usageStore.pacingSchedule = self.settingsStore.pacingSchedule
             self.usageStore.recalculatePacing()
             WidgetReloader.scheduleReload()
@@ -172,7 +181,36 @@ final class StatusBarController: NSObject {
             .removeDuplicates()
             .sink { [weak self] newInterval in
                 self?.usageStore.refreshIntervalSeconds = TimeInterval(newInterval)
+                self?.codexStore.refreshIntervalSeconds = TimeInterval(newInterval)
+                self?.codexStore.startAutoRefresh()
             }
+            .store(in: &cancellables)
+
+        settingsStore.$codexEnabled
+            .dropFirst()
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] enabled in
+                guard let self, self.settingsStore.hasCompletedOnboarding else { return }
+                self.codexStore.setEnabled(enabled, thresholds: self.themeStore.thresholds)
+            }
+            .store(in: &cancellables)
+
+        Publishers.MergeMany(
+            settingsStore.$proxyEnabled.map { _ in () }.eraseToAnyPublisher(),
+            settingsStore.$proxyHost.map { _ in () }.eraseToAnyPublisher(),
+            settingsStore.$proxyPort.map { _ in () }.eraseToAnyPublisher()
+        )
+        .receive(on: RunLoop.main)
+        .sink { [weak self] _ in
+            guard let self else { return }
+            self.codexStore.proxyConfig = self.settingsStore.proxyConfig
+        }
+        .store(in: &cancellables)
+
+        settingsStore.notification.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.codexStore.refreshNotificationSettings() }
             .store(in: &cancellables)
 
         settingsStore.$statusPollInterval
@@ -201,6 +239,12 @@ final class StatusBarController: NSObject {
     }
 
     private func bootstrapRefresh() {
+        codexStore.proxyConfig = settingsStore.proxyConfig
+        codexStore.pacingMargin = settingsStore.pacingMargin
+        codexStore.pacingSchedule = settingsStore.pacingSchedule
+        codexStore.refreshIntervalSeconds = TimeInterval(settingsStore.refreshInterval)
+        codexStore.notifTogglesProvider = { [weak self] in self?.makeNotificationToggles() }
+        codexStore.setEnabled(settingsStore.codexEnabled, thresholds: themeStore.thresholds)
         usageStore.proxyConfig = settingsStore.proxyConfig
         usageStore.pacingMargin = settingsStore.pacingMargin
         usageStore.pacingSchedule = settingsStore.pacingSchedule
@@ -223,6 +267,15 @@ final class StatusBarController: NSObject {
             }
             .store(in: &cancellables)
 
+        tokenFileMonitor.codexAuthChanged
+            .receive(on: RunLoop.main)
+            .sink { [weak self] in
+                guard let self else { return }
+                self.codexStore.handleAuthChange()
+                Task { await self.codexStore.refresh(force: true) }
+            }
+            .store(in: &cancellables)
+
         // Refresh after wake from sleep
         NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.screensDidWakeNotification,
@@ -231,7 +284,9 @@ final class StatusBarController: NSObject {
         ) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
-                await self.usageStore.refreshIfStale()
+                async let claude: Void = self.usageStore.refreshIfStale()
+                async let codex: Void = self.codexStore.refreshIfStale()
+                _ = await (claude, codex)
             }
         }
 
@@ -263,7 +318,8 @@ final class StatusBarController: NSObject {
             pacingMargin: Double(settingsStore.pacingMargin),
             thresholds: themeStore.thresholds,
             vendorDegraded: settingsStore.notifVendorDegraded,
-            vendorRestored: settingsStore.notifVendorRestored
+            vendorRestored: settingsStore.notifVendorRestored,
+            codex: settingsStore.notification.codexToggles
         )
     }
 
@@ -507,6 +563,7 @@ final class StatusBarController: NSObject {
 
     @objc private func contextRefresh() {
         Task { await usageStore.refresh(force: true) }
+        Task { await codexStore.refresh(force: true) }
     }
 
     @objc private func contextOpenDashboard() {
@@ -621,6 +678,7 @@ final class StatusBarController: NSObject {
 
         let appView = MainAppView()
             .environmentObject(usageStore)
+            .environmentObject(codexStore)
             .environmentObject(themeStore)
             .environmentObject(settingsStore)
             .environmentObject(updateStore)

@@ -5,14 +5,14 @@
 <h1 align="center">TokenEater</h1>
 
 <p align="center">
-  <strong>Monitor your Claude AI usage limits directly from your macOS desktop.</strong>
+  <strong>Monitor your Claude and Codex usage limits directly from your macOS desktop.</strong>
 </p>
 
 <p align="center">
   <a href="https://tokeneater.athevon.dev">Website</a> ·
   <a href="#install">Install</a> ·
   <a href="#what-you-get">Features</a> ·
-  <a href="#privacy-two-read-only-calls">Privacy</a> ·
+  <a href="#privacy-read-only-usage-calls">Privacy</a> ·
   <a href="https://tokeneater.athevon.dev/en/docs">Docs</a> ·
   <a href="https://github.com/AThevon/TokenEater/releases">Releases</a>
 </p>
@@ -47,11 +47,12 @@ Then wire them here as a centered row:
 
 ## What you get
 
-A native menu bar app, desktop widgets, and a floating overlay that track your Claude usage in real time.
+A native menu bar app, desktop widgets, and a floating overlay that track your Claude usage in real time, with optional Codex tracking on the dashboard and desktop.
 
 - **Menu bar.** Live percentages with color-coded thresholds, and a popover dashboard you compose element by element (rings, chips, arcs, pacing bars at full, half, or third width), start from built-in templates, and save as your own.
 - **Dashboard.** A three-space window (Monitoring / History / Settings) with flippable tiles, 7-day sparklines, peak day, and a pacing-vs-equilibrium graph.
-- **History.** Tokens over time from Claude Code's local logs: a stacked chart by model, project ranking, session counts, and cache hit rate, filterable by model family across 24h to 90d ranges.
+- **Codex.** Detects a Codex CLI ChatGPT login and tracks its usage windows, pacing, reset reminders, and quota-reset alerts. A separate small or medium Codex Usage widget sits alongside the Claude widgets. API-key accounts have no usage windows to track.
+- **History.** Combined Claude Code and Codex tokens from local session logs: a stacked chart by model, project ranking, session counts, and cache hit rate, filterable by Claude family or Codex model across 24h to 90d ranges. The History widget shows the combined daily totals.
 - **Widgets.** Native WidgetKit gauges, progress bars, and pacing, refreshed reactively.
 - **Agent Watchers.** A floating overlay of your live Claude Code sessions, terminals and VSCode-family extensions alike. Click a session to jump to its terminal or editor (Terminal, iTerm2, tmux, Kitty, WezTerm), right-click for quick actions.
 - **Smart Color.** Blends how much you have used with how fast you are burning, so the color warns you before the number does. Three temperaments set how cautious it is.
@@ -113,7 +114,7 @@ cd TokenEater
 
 The script checks Xcode, installs XcodeGen if needed, and assembles the app. Local builds are not notarized, so Gatekeeper blocks the first launch (right-click > Open, or System Settings > Privacy & Security > Open Anyway). The step-by-step walkthrough is in [`SETUP.md`](SETUP.md).
 
-## Privacy: two read-only calls
+## Privacy: read-only usage calls
 
 TokenEater reads the **OAuth access token** Claude Code already keeps in your macOS Keychain, the same token Claude Code itself uses. At first launch, macOS asks you to allow that access: click **Always Allow** once. The prompt is standard macOS behavior for any app reading a keychain item it did not create, and since the read goes through Apple's own `security` tool, whose signature never changes, the prompt does not come back on updates.
 
@@ -122,9 +123,23 @@ Everything the app does with the token:
 - `GET api.anthropic.com/api/oauth/usage`, your current usage stats
 - `GET api.anthropic.com/api/oauth/profile`, your plan info
 
-Both are read-only. The app cannot send messages, read conversations, or modify your account. The token never leaves your machine except for those two calls, the widget reads a local JSON file with no network or keychain access at all, and the History tab and Agent Watchers read Claude Code's local session logs without anything leaving your Mac.
+When Codex tracking is enabled, the app also reads the Codex CLI access token from `~/.codex/auth.json` (or `CODEX_HOME`) and makes one additional authenticated call:
 
-Anthropic does not offer a third-party OAuth flow or scoped tokens yet, so reading the existing token is the only way an app like this can exist. If scoped tokens become available, TokenEater will adopt them immediately. The relevant code is short and auditable: keychain access in [`SecurityCLIReader.swift`](Shared/Services/SecurityCLIReader.swift) and [`TokenProvider.swift`](Shared/Services/TokenProvider.swift), the two API calls in [`APIClient.swift`](Shared/Services/APIClient.swift).
+- `GET chatgpt.com/backend-api/wham/usage`, your Codex usage windows and credits
+
+These usage and profile calls are read-only. TokenEater does not send messages, read conversations, or modify either account. Each access token is sent only to its own provider. TokenEater never writes to Codex credentials or refreshes its OAuth token; open Codex or run `codex login` if it expires. API-key and keyring-only Codex logins are not supported in this version.
+
+Widgets read local JSON files with no network or Keychain access. The Codex widget reads `codex.json` for usage and `shared.json` for theme preferences; its cache contains no token, email, or account ID. History reads Claude Code and Codex local session logs without uploading them; Agent Watchers reads Claude Code sessions.
+
+Anthropic does not offer a third-party OAuth flow or scoped tokens yet, so reading the existing token is the only way an app like this can exist. If scoped tokens become available, TokenEater will adopt them immediately. The relevant code is short and auditable: keychain access in [`SecurityCLIReader.swift`](Shared/Services/SecurityCLIReader.swift) and [`TokenProvider.swift`](Shared/Services/TokenProvider.swift), the Claude calls in [`APIClient.swift`](Shared/Services/APIClient.swift), and Codex access in [`CodexAuthReader.swift`](Shared/Services/CodexAuthReader.swift) and [`CodexAPIClient.swift`](Shared/Services/CodexAPIClient.swift).
+
+## Codex setup and widgets
+
+Sign in to the Codex CLI with your ChatGPT account. TokenEater enables Codex tracking automatically on the first launch that detects that login. If you sign in later, enable **Codex** under **Settings > General > Providers**. This version adds Codex to Monitoring, widgets, and combined History; menu bar segments, the popover, and Agent Watchers remain Claude features. The existing Claude onboarding requirements still apply.
+
+History includes local sessions from both providers, independently of quota authentication. It reads Codex `sessions/` and `archived_sessions/` under `CODEX_HOME` (default `~/.codex`). `All` sums uncached input, cache writes, and output tokens for both providers. Only cache reads count as reused tokens in the cache breakdown. Guardian / auto-review sessions are excluded from all History statistics and the History widget. Reasoning tokens are already included in Codex output. Models are discovered from the logs and have individual filters. The History widget receives seven calendar-day totals from the app, refreshed every minute while TokenEater runs; it does not read session files itself.
+
+In **Edit Widgets > TokenEater**, choose **Codex Usage** (small or medium) alongside **Claude Overview**, **Claude Session Ring**, or the other Claude widgets. Existing Claude widgets keep their identity when upgrading; only their gallery names change. Codex windows are labelled by duration, so weekly-only plans show a weekly window rather than an invented five-hour session.
 
 ## If something breaks
 

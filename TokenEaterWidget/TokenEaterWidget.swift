@@ -8,7 +8,7 @@ struct TokenEaterWidget: Widget {
         StaticConfiguration(kind: kind, provider: StaticProvider()) { entry in
             UsageWidgetView(entry: entry)
         }
-        .configurationDisplayName("TokenEater")
+        .configurationDisplayName(String(localized: "widget.gallery.claude.overview"))
         .description(String(localized: "widget.description.usage"))
         .supportedFamilies([.systemMedium, .systemLarge])
     }
@@ -21,7 +21,7 @@ struct PacingWidget: Widget {
         StaticConfiguration(kind: kind, provider: StaticProvider()) { entry in
             PacingGlanceWidgetView(entry: entry)
         }
-        .configurationDisplayName(String(localized: "widget.title.pacingGlance"))
+        .configurationDisplayName(String(localized: "widget.gallery.claude.pacingGlance"))
         .description(String(localized: "widget.description.pacing"))
         .supportedFamilies([.systemSmall])
     }
@@ -35,7 +35,7 @@ struct SessionRingWidget: Widget {
         StaticConfiguration(kind: kind, provider: StaticProvider()) { entry in
             SessionRingWidgetView(entry: entry)
         }
-        .configurationDisplayName(String(localized: "widget.title.sessionRing"))
+        .configurationDisplayName(String(localized: "widget.gallery.claude.sessionRing"))
         .description(String(localized: "widget.description.sessionRing"))
         .supportedFamilies([.systemSmall])
     }
@@ -49,7 +49,7 @@ struct PacingGraphWidget: Widget {
         StaticConfiguration(kind: kind, provider: StaticProvider()) { entry in
             PacingGraphWidgetView(entry: entry)
         }
-        .configurationDisplayName(String(localized: "widget.title.pacingGraph"))
+        .configurationDisplayName(String(localized: "widget.gallery.claude.pacingGraph"))
         .description(String(localized: "widget.description.pacingGraph"))
         .supportedFamilies([.systemMedium])
     }
@@ -64,7 +64,7 @@ struct ExtraCreditsWidget: Widget {
         StaticConfiguration(kind: kind, provider: StaticProvider()) { entry in
             ExtraCreditsWidgetView(entry: entry)
         }
-        .configurationDisplayName(String(localized: "widget.title.extraCredits"))
+        .configurationDisplayName(String(localized: "widget.gallery.claude.extraCredits"))
         .description(String(localized: "widget.description.extraCredits"))
         .supportedFamilies([.systemSmall, .systemMedium])
     }
@@ -75,7 +75,7 @@ struct HistorySparklineWidget: Widget {
     let kind: String = "HistorySparklineWidget"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: StaticProvider()) { entry in
+        StaticConfiguration(kind: kind, provider: HistoryProvider()) { entry in
             HistorySparklineWidgetView(entry: entry)
         }
         .configurationDisplayName(String(localized: "widget.title.historySparkline"))
@@ -93,5 +93,6 @@ struct TokenEaterWidgetBundle: WidgetBundle {
         PacingGraphWidget()
         HistorySparklineWidget()
         ExtraCreditsWidget()
+        CodexUsageWidget()
     }
 }

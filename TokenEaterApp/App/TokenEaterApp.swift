@@ -3,6 +3,8 @@ import AppKit
 import Combine
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    var historyWidgetStore: HistoryWidgetStore!
+    var codexStore: CodexUsageStore!
     var usageStore: UsageStore!
     var themeStore: ThemeStore!
     var settingsStore: SettingsStore!
@@ -38,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         statusBarController = StatusBarController(
             usageStore: usageStore,
+            codexStore: codexStore,
             themeStore: themeStore,
             settingsStore: settingsStore,
             updateStore: updateStore,
@@ -54,6 +57,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             sessionStore: sessionStore,
             settingsStore: settingsStore
         )
+
+        historyWidgetStore.start()
 
         updateStore.checkBrewMigration()
         updateStore.checkForUpdates()
@@ -91,6 +96,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct TokenEaterApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
+    private let historyWidgetStore: HistoryWidgetStore
+    private let codexStore: CodexUsageStore
     private let usageStore: UsageStore
     private let themeStore: ThemeStore
     private let settingsStore: SettingsStore
@@ -116,6 +123,8 @@ struct TokenEaterApp: App {
         // missing this step would make every upgrading user land on onboarding.
         LegacyHelperCleanupService().migratePrefsIfNeeded()
 
+        self.historyWidgetStore = HistoryWidgetStore()
+        self.codexStore = CodexUsageStore()
         self.usageStore = UsageStore()
         self.themeStore = ThemeStore()
         self.settingsStore = SettingsStore()
@@ -124,6 +133,8 @@ struct TokenEaterApp: App {
         self.vendorStatusStore = VendorStatusStore()
 
         NotificationService().setupDelegate()
+        appDelegate.historyWidgetStore = historyWidgetStore
+        appDelegate.codexStore = codexStore
         appDelegate.usageStore = usageStore
         appDelegate.themeStore = themeStore
         appDelegate.settingsStore = settingsStore

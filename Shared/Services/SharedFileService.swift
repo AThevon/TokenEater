@@ -129,8 +129,8 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         var smartColorProfile: String?
         /// Last 7 days of token totals (oldest first, today last). Powers the
         /// History Sparkline widget without forcing the widget process to
-        /// re-parse JSONL files. Updated by MonitoringInsightsStore once a
-        /// day after its 7d bucketing computes.
+        /// re-parse JSONL files. Updated by HistoryWidgetStore once a
+        /// minute after its 7d bucketing computes.
         var lastWeekDailyTotals: [Int]?
         /// Date the lastWeekDailyTotals were last refreshed. Lets the widget
         /// degrade gracefully if data is older than 36h (label "stale").
@@ -278,7 +278,7 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         save(data)
     }
 
-    /// Last 7 daily token totals (oldest first). nil until first MonitoringInsightsStore refresh.
+    /// Last 7 daily token totals (oldest first). nil until the first HistoryWidgetStore refresh.
     var lastWeekDailyTotals: [Int]? {
         load().lastWeekDailyTotals
     }
