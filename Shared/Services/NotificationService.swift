@@ -71,11 +71,34 @@ private enum Surface: String {
     case weekly
     case sonnet
     case fable
+    case codexSession
+    case codexWeekly
 
     /// `weekly` and `sonnet` share the long-form body (date-based)
     /// but each gets its own title to avoid generic alerts.
     var bodyFamily: String {
-        self == .fiveHour ? "fivehour" : rawValue
+        switch self {
+        case .fiveHour: return "fivehour"
+        case .codexSession: return "codex.session"
+        case .codexWeekly: return "codex.weekly"
+        default: return rawValue
+        }
+    }
+
+    /// Windows shorter than a day render a countdown ("2h 15min left"); longer
+    /// ones render a weekday and time.
+    var usesCountdownBody: Bool {
+        self == .fiveHour || self == .codexSession
+    }
+
+    init?(codexKind: CodexWindowKind) {
+        switch codexKind {
+        case .session: self = .codexSession
+        case .weekly: self = .codexWeekly
+        // An unfamiliar window has no copy written for it, so it is tracked on
+        // the dashboard but never notified about.
+        case .other: return nil
+        }
     }
 }
 
@@ -164,11 +187,16 @@ final class NotificationService: NotificationServiceProtocol {
 
     // MARK: - Surface check
 
+    /// - Parameter allowsRecovery: false for surfaces whose "you are back"
+    ///   signal is delivered by a dedicated alert instead. Codex windows use the
+    ///   explicit window-reset notification, so letting this fire too would
+    ///   announce the same rollover twice.
     private func checkSurface(
         _ surface: Surface,
         snapshot: MetricSnapshot,
         pacing: PacingZone?,
-        toggles: NotificationToggles
+        toggles: NotificationToggles,
+        allowsRecovery: Bool = true
     ) {
         let key = "lastLevel_\(surface.rawValue)"
         let previousRaw = state.lastLevel(forKey: key)
@@ -211,7 +239,7 @@ final class NotificationService: NotificationServiceProtocol {
 
         if current > previous {
             notifyEscalation(surface: surface, level: current, snapshot: snapshot, pacing: pacing, paceDriven: paceDriven)
-        } else if current == .green && previous > .green && toggles.sendRecovery && windowDidReset {
+        } else if current == .green && previous > .green && allowsRecovery && toggles.sendRecovery && windowDidReset {
             notifyRecovery(surface: surface, snapshot: snapshot)
         }
     }
@@ -297,6 +325,137 @@ final class NotificationService: NotificationServiceProtocol {
             send(id: "recovery_extra", content: content)
         default:
             return
+        }
+    }
+
+    // MARK: - Codex
+
+    private static let codexReminderIdentifiers = ["reminder_codex_session", "reminder_codex_weekly"]
+
+    func evaluateCodex(windows: [CodexWindowSnapshot], toggles: NotificationToggles) {
+        guard toggles.masterEnabled, toggles.codex.enabled else {
+            cancelCodexReminders()
+            return
+        }
+
+        let session = windows.first { $0.kind == .session }
+        let weekly = windows.first { $0.kind == .weekly }
+
+        // The rollover alert runs before the level machine so a reset is
+        // announced as "quota is back", not as a level dip. They keep separate
+        // state keys, so the order is a readability choice, not a dependency.
+        if toggles.codex.windowReset {
+            for window in windows {
+                checkCodexWindowReset(window)
+            }
+        }
+
+        if let session, toggles.codex.trackSession {
+            checkSurface(.codexSession, snapshot: session.metricSnapshot, pacing: session.pacing?.zone, toggles: toggles, allowsRecovery: false)
+        }
+        if let weekly, toggles.codex.trackWeekly {
+            checkSurface(.codexWeekly, snapshot: weekly.metricSnapshot, pacing: weekly.pacing?.zone, toggles: toggles, allowsRecovery: false)
+        }
+
+        if let zone = session?.pacing?.zone {
+            checkPacingTransition(zone, surface: .codexSession, toggles: toggles)
+        }
+        if let zone = weekly?.pacing?.zone {
+            checkPacingTransition(zone, surface: .codexWeekly, toggles: toggles)
+        }
+
+        scheduleCodexResetReminders(session: session, weekly: weekly, toggles: toggles)
+    }
+
+    func notifyCodexTokenExpired(toggles: NotificationToggles) {
+        guard toggles.masterEnabled, toggles.codex.enabled, toggles.codex.tokenExpired else { return }
+        let now = Date()
+        // Same de-dupe budget as the Claude token alert: at most one per hour,
+        // however many refreshes fail in between.
+        if let last = state.codexTokenExpiredFiredAt(), now.timeIntervalSince(last) < 3600 { return }
+        state.setCodexTokenExpiredFiredAt(now)
+
+        let content = UNMutableNotificationContent()
+        content.sound = .default
+        content.title = String(localized: "notif.title.codex.token")
+        content.body = String(localized: "notif.body.codex.token")
+        send(id: "codex_token_expired", content: content)
+    }
+
+    func cancelCodexReminders() {
+        center.removePending(identifiers: Self.codexReminderIdentifiers)
+    }
+
+    /// Fires once when a window genuinely rolls over. The decision itself lives
+    /// in `CodexResetDetector`; this only persists the two observations it
+    /// compares. Its state keys are separate from `checkSurface`'s so the two
+    /// state machines cannot consume each other's baseline.
+    private func checkCodexWindowReset(_ window: CodexWindowSnapshot) {
+        guard let surface = Surface(codexKind: window.kind), let resetDate = window.resetDate else { return }
+
+        let resetKey = "codexResetAt_\(surface.rawValue)"
+        let utilizationKey = "codexUtilization_\(surface.rawValue)"
+
+        let previous = state.lastResetsAt(forKey: resetKey).map {
+            CodexResetDetector.Observation(usedPercent: state.lastUtilization(forKey: utilizationKey) ?? 0, resetAt: $0)
+        }
+        let current = CodexResetDetector.Observation(usedPercent: window.utilization, resetAt: resetDate)
+        let didReset = CodexResetDetector.didReset(
+            previous: previous,
+            current: current,
+            windowDuration: window.windowDuration
+        )
+
+        state.setLastResetsAt(resetDate, forKey: resetKey)
+        state.setLastUtilization(window.utilization, forKey: utilizationKey)
+
+        guard didReset else { return }
+
+        let content = UNMutableNotificationContent()
+        content.sound = .default
+        content.title = NSLocalizedString("notif.title.\(surface.bodyFamily).reset", comment: "")
+        let bodyKey = "notif.body.\(surface.bodyFamily).reset"
+        if surface.usesCountdownBody {
+            content.body = String(format: NSLocalizedString(bodyKey, comment: ""), NotificationBodyFormatter.formatTime(resetDate))
+        } else {
+            content.body = String(format: NSLocalizedString(bodyKey, comment: ""), NotificationBodyFormatter.formatDateTime(resetDate))
+        }
+        send(id: "codex_reset_\(surface.rawValue)", content: content)
+    }
+
+    /// Reminders reuse the Claude offsets so one setting drives both providers.
+    /// Idle windows are skipped: their deadline is recomputed as `now + window`
+    /// on every poll, so a reminder against it would be rescheduled forever and
+    /// never describe a real deadline.
+    private func scheduleCodexResetReminders(
+        session: CodexWindowSnapshot?,
+        weekly: CodexWindowSnapshot?,
+        toggles: NotificationToggles
+    ) {
+        cancelCodexReminders()
+
+        if toggles.codex.resetReminderSession, let session, !session.isIdle,
+           let target = session.resetDate?.addingTimeInterval(-Double(toggles.resetReminderSessionOffsetMinutes) * 60),
+           target.timeIntervalSinceNow > 0 {
+            let duration = formatReminderDuration(minutes: toggles.resetReminderSessionOffsetMinutes)
+            schedule(
+                id: "reminder_codex_session",
+                title: String(format: NSLocalizedString("notif.title.codex.reminder.session", comment: ""), duration),
+                body: NSLocalizedString("notif.body.codex.reminder.session", comment: ""),
+                fireDate: target
+            )
+        }
+
+        if toggles.codex.resetReminderWeekly, let weekly, !weekly.isIdle,
+           let target = weekly.resetDate?.addingTimeInterval(-Double(toggles.resetReminderWeeklyOffsetMinutes) * 60),
+           target.timeIntervalSinceNow > 0 {
+            let duration = formatReminderDuration(minutes: toggles.resetReminderWeeklyOffsetMinutes)
+            schedule(
+                id: "reminder_codex_weekly",
+                title: String(format: NSLocalizedString("notif.title.codex.reminder.weekly", comment: ""), duration),
+                body: NSLocalizedString("notif.body.codex.reminder.weekly", comment: ""),
+                fireDate: target
+            )
         }
     }
 
@@ -432,7 +591,7 @@ final class NotificationService: NotificationServiceProtocol {
 
         // 7-day buckets escalated by pace (not raw usage): rate-oriented title
         // instead of the absolute "almost capped" wording.
-        if paceDriven, level != .green, surface != .fiveHour {
+        if paceDriven, level != .green, !surface.usesCountdownBody {
             return NSLocalizedString("notif.title.\(surface.bodyFamily).pace", comment: "")
         }
         if surface == .fiveHour, level == .orange, let pacing {
@@ -462,7 +621,18 @@ final class NotificationService: NotificationServiceProtocol {
             return level == .red
                 ? NSLocalizedString("notif.body.fivehour.red.fallback", comment: "")
                 : NSLocalizedString("notif.body.fivehour.orange.fallback", comment: "")
-        case .weekly, .sonnet, .fable:
+        case .codexSession:
+            if let resetsAt, resetsAt.timeIntervalSinceNow > 0 {
+                let countdown = NotificationBodyFormatter.formatCountdown(from: Date(), to: resetsAt)
+                let key = level == .red
+                    ? "notif.body.codex.session.red"
+                    : "notif.body.codex.session.orange"
+                return String(format: NSLocalizedString(key, comment: ""), countdown)
+            }
+            return level == .red
+                ? NSLocalizedString("notif.body.codex.session.red.fallback", comment: "")
+                : NSLocalizedString("notif.body.codex.session.orange.fallback", comment: "")
+        case .weekly, .sonnet, .fable, .codexWeekly:
             if let resetsAt, resetsAt.timeIntervalSinceNow > 0 {
                 let dateTime = NotificationBodyFormatter.formatDateTime(resetsAt)
                 let key = level == .red
@@ -481,10 +651,10 @@ final class NotificationService: NotificationServiceProtocol {
             return NSLocalizedString("notif.body.\(surface.bodyFamily).green.fallback", comment: "")
         }
         switch surface {
-        case .fiveHour:
+        case .fiveHour, .codexSession:
             let time = NotificationBodyFormatter.formatTime(resetsAt)
-            return String(format: NSLocalizedString("notif.body.fivehour.green", comment: ""), time)
-        case .weekly, .sonnet, .fable:
+            return String(format: NSLocalizedString("notif.body.\(surface.bodyFamily).green", comment: ""), time)
+        case .weekly, .sonnet, .fable, .codexWeekly:
             let dateTime = NotificationBodyFormatter.formatDateTime(resetsAt)
             return String(format: NSLocalizedString("notif.body.\(surface.bodyFamily).green", comment: ""), dateTime)
         }

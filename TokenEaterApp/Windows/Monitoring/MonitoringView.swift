@@ -9,6 +9,7 @@ import SwiftUI
 /// gauge/pacing colors continue to flow from `ThemeStore` so user themes
 /// (default / neon / pastel / monochrome) stay in control of the data hue.
 struct MonitoringView: View {
+    @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var themeStore: ThemeStore
     @EnvironmentObject private var settingsStore: SettingsStore
@@ -42,6 +43,10 @@ struct MonitoringView: View {
                     extraUsageTile(extra)
                 }
                 footerPills
+                if settingsStore.codexEnabled {
+                    CodexSectionView()
+                        .padding(.top, DS.Spacing.md)
+                }
             }
             .padding(DS.Spacing.md)
         }
@@ -126,6 +131,7 @@ struct MonitoringView: View {
 
             Button {
                 Task { await usageStore.refresh(force: true) }
+                Task { await codexStore.refresh(force: true) }
             } label: {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 11, weight: .semibold))
@@ -782,39 +788,13 @@ struct MonitoringView: View {
     private var footerPills: some View {
         HStack(spacing: DS.Spacing.xs) {
             if let tier = usageStore.rateLimitTier {
-                statusPill(icon: "sparkles", label: String(localized: "dashboard.tier"), value: tier.formattedRateLimitTier, tint: DS.Palette.accentStats)
+                DashboardStatusPill(icon: "sparkles", label: String(localized: "dashboard.tier"), value: tier.formattedRateLimitTier, tint: DS.Palette.accentStats)
             }
             if let org = usageStore.organizationName {
-                statusPill(icon: "building.2.fill", label: String(localized: "dashboard.org"), value: org, tint: DS.Palette.accentHistory)
+                DashboardStatusPill(icon: "building.2.fill", label: String(localized: "dashboard.org"), value: org, tint: DS.Palette.accentHistory)
             }
             Spacer()
         }
-    }
-
-    private func statusPill(icon: String, label: String, value: String, tint: Color) -> some View {
-        HStack(spacing: DS.Spacing.xs) {
-            Image(systemName: icon)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(tint)
-            Text(label.uppercased())
-                .font(DS.Typography.micro)
-                .tracking(1.2)
-                .foregroundStyle(DS.Palette.textTertiary)
-            Text(value)
-                .font(DS.Typography.label)
-                .fontWeight(.semibold)
-                .foregroundStyle(DS.Palette.textPrimary)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: DS.Radius.input, style: .continuous)
-                .fill(DS.Palette.glassFill)
-                .overlay(
-                    RoundedRectangle(cornerRadius: DS.Radius.input, style: .continuous)
-                        .stroke(tint.opacity(0.25), lineWidth: 0.8)
-                )
-        )
     }
 
     // MARK: - Helpers
@@ -875,5 +855,4 @@ struct MonitoringView: View {
         }
     }
 }
-
 

@@ -1,6 +1,6 @@
 import Foundation
 
-/// Reads `~/.claude/projects/**/*.jsonl` and produces aggregated history
+/// Reads local session logs and produces aggregated history
 /// buckets. Implementations must be cancellable and persist a cache so the
 /// repeated UI-driven loads stay cheap.
 protocol SessionHistoryServiceProtocol: Sendable {

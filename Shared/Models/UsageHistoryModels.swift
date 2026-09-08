@@ -40,16 +40,36 @@ enum HistoryRange: String, CaseIterable, Codable, Sendable {
 /// Mythos-class tier above Opus and gets its own family; Opus 4.8/4.7/4.6 are
 /// kept distinct (the user might run several back-to-back), Sonnet/Haiku
 /// collapse all minor versions, anything unrecognised lands in `.other`.
-enum ModelKind: String, CaseIterable, Codable, Hashable, Sendable {
-    case fable
-    case opus5
-    case opus48
-    case opus47
-    case opus46
-    case sonnet5
-    case sonnet
-    case haiku
-    case other
+struct ModelKind: RawRepresentable, CaseIterable, Codable, Hashable, Sendable {
+    let rawValue: String
+
+    static let fable = Self(rawValue: "fable")
+    static let opus5 = Self(rawValue: "opus5")
+    static let opus48 = Self(rawValue: "opus48")
+    static let opus47 = Self(rawValue: "opus47")
+    static let opus46 = Self(rawValue: "opus46")
+    static let sonnet5 = Self(rawValue: "sonnet5")
+    static let sonnet = Self(rawValue: "sonnet")
+    static let haiku = Self(rawValue: "haiku")
+    static let other = Self(rawValue: "other")
+    static let allCases: [Self] = [.fable, .opus5, .opus48, .opus47, .opus46, .sonnet5, .sonnet, .haiku, .other]
+
+    var isCodex: Bool { rawValue.hasPrefix("codex:") }
+
+    static func codex(model: String) -> Self {
+        Self(rawValue: "codex:" + model)
+    }
+
+    init(rawValue: String) { self.rawValue = rawValue }
+
+    init(from decoder: Decoder) throws {
+        rawValue = try decoder.singleValueContainer().decode(String.self)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 
     init(rawModel: String) {
         let lower = rawModel.lowercased()
@@ -95,7 +115,7 @@ enum ModelKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .sonnet5: return "Sonnet 5"
         case .sonnet:  return "Sonnet"
         case .haiku:   return "Haiku"
-        case .other:   return "Other"
+        default:      return isCodex ? family.displayName : "Other"
         }
     }
 
@@ -109,7 +129,7 @@ enum ModelKind: String, CaseIterable, Codable, Hashable, Sendable {
         case .opus5, .opus48, .opus47, .opus46: return .opus
         case .sonnet5, .sonnet:                 return .sonnet
         case .haiku:                            return .haiku
-        case .other:                            return .other
+        default:                               return isCodex ? ModelFamily(rawValue: rawValue) : .other
         }
     }
 
@@ -122,11 +142,28 @@ enum ModelKind: String, CaseIterable, Codable, Hashable, Sendable {
     }
 }
 
-enum ModelFamily: String, CaseIterable, Codable, Hashable, Sendable {
-    // Declaration order drives the History filter-chip row (rendered right after
-    // the "All" chip). Fable leads as the top tier, then Opus / Sonnet / Haiku,
-    // with `.other` last as the catch-all.
-    case fable, opus, sonnet, haiku, other
+struct ModelFamily: RawRepresentable, CaseIterable, Codable, Hashable, Sendable {
+    let rawValue: String
+
+    static let fable = Self(rawValue: "fable")
+    static let opus = Self(rawValue: "opus")
+    static let sonnet = Self(rawValue: "sonnet")
+    static let haiku = Self(rawValue: "haiku")
+    static let other = Self(rawValue: "other")
+    static let allCases: [Self] = [.fable, .opus, .sonnet, .haiku, .other]
+
+    var isCodex: Bool { rawValue.hasPrefix("codex:") }
+
+    init(rawValue: String) { self.rawValue = rawValue }
+
+    init(from decoder: Decoder) throws {
+        rawValue = try decoder.singleValueContainer().decode(String.self)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
 
     var displayName: String {
         switch self {
@@ -134,7 +171,11 @@ enum ModelFamily: String, CaseIterable, Codable, Hashable, Sendable {
         case .opus:   return "Opus"
         case .sonnet: return "Sonnet"
         case .haiku:  return "Haiku"
-        case .other:  return "Other"
+        default:
+            guard isCodex else { return "Other" }
+            let model = String(rawValue.dropFirst("codex:".count))
+            return model.isEmpty ? "Codex" : model.replacingOccurrences(of: "gpt-", with: "GPT-")
+
         }
     }
 }
@@ -183,7 +224,7 @@ struct HistoryBucket: Identifiable, Codable, Sendable {
     /// Token totals broken down by model so the chart can stack segments and
     /// the filter chips can sum a single family.
     var tokensByModel: [ModelKind: Int]
-    /// Active tokens (input + output) per project path. Used for the "top
+    /// Active tokens (uncached input + cache writes + output) per project path. Used for the "top
     /// project" chip and any future project drill-down.
     var tokensByProject: [String: Int]
     /// Distinct session count -> drives "avg / session" stat.
@@ -205,7 +246,7 @@ struct HistoryBucket: Identifiable, Codable, Sendable {
     }
 
     var cachedTokens: Int {
-        cacheReadTokens + cacheCreateTokens
+        cacheReadTokens
     }
 
     /// Share of this bucket's traffic served from cache, 0...1. Zero when the
@@ -247,7 +288,7 @@ struct HistoryBucket: Identifiable, Codable, Sendable {
 // MARK: - Project breakdown
 
 /// One row of the ranked project list behind the "Top project" chip. Tokens
-/// are active tokens (input + output) summed over the visible range. Project
+/// are active tokens (uncached input + cache writes + output) summed over the visible range. Project
 /// attribution is model-agnostic: the JSONL cache does not break projects
 /// down per model, so the ranking always reflects all models regardless of
 /// the active family filter.
@@ -333,7 +374,7 @@ struct HistoryCache: Codable, Sendable {
     /// accepted: legacy rows whose JSONL says just "opus" relabel from
     /// Opus 4.8 to Opus 5 in the re-scan (the bare alias carries no era, and
     /// the fallback tracks the current shipping version by design).
-    static let currentVersion = 3
+    static let currentVersion = 4
     static let empty = HistoryCache(version: currentVersion, entries: [:])
 
     /// True when this cache was written by the current schema. The loader

@@ -1,7 +1,7 @@
 import SwiftUI
 import Charts
 
-/// History space -> tokens-over-time browser sourced from `~/.claude/projects/**/*.jsonl`.
+/// History space -> tokens-over-time browser sourced from local Claude Code and Codex sessions.
 /// Mirrors the Monitoring layout (header + cards) but pivots around a stacked
 /// bar chart by model with model-family filter chips. Performance-sensitive:
 /// the underlying service caches per-file aggregates so repeat opens stay fast.
@@ -224,11 +224,9 @@ struct HistoryView: View {
     // MARK: - Toolbar (range + filter chips)
 
     private var toolbar: some View {
-        HStack(spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             rangePicker
-            divider
             filterChips
-            Spacer()
         }
     }
 
@@ -278,20 +276,14 @@ struct HistoryView: View {
             )
     }
 
-    private var divider: some View {
-        Rectangle()
-            .fill(DS.Palette.glassBorderLo)
-            .frame(width: 1, height: 18)
-    }
-
     private var filterChips: some View {
-        HStack(spacing: 6) {
+        HistoryFilterLayout() {
             filterChip(filter: .all,
                        label: String(localized: "history.filter.all"),
-                       total: store.summary.totalActive,
+                       total: store.buckets.reduce(0) { $0 + $1.totalActive },
                        color: DS.Palette.accentHistory,
                        isPresent: true)
-            ForEach(ModelFamily.allCases, id: \.self) { family in
+            ForEach(store.availableFamilies, id: \.self) { family in
                 filterChip(
                     filter: .family(family),
                     label: family.displayName,
@@ -443,7 +435,7 @@ struct HistoryView: View {
     }
 
     private var chartContent: some View {
-        let visibleKinds = ModelKind.stackOrder.filter { kind in
+        let visibleKinds = store.sortedModelKinds.filter { kind in
             !filteredOut(kind) && store.totalsByKind[kind] != nil
         }
         let bucketsArray = store.filteredBuckets
@@ -540,7 +532,7 @@ struct HistoryView: View {
                     .foregroundStyle(DS.Palette.textTertiary.opacity(0.5))
             }
         }
-        .chartLegend(position: .top, alignment: .trailing, spacing: 12)
+        .chartLegend(.hidden)
         .onChange(of: store.filter) { _, _ in clearHover() }
         .onChange(of: store.range)  { _, _ in clearHover() }
     }
@@ -1283,7 +1275,7 @@ struct HistoryView: View {
         case .sonnet5: return Color(hex: "#8CCF5F")
         case .sonnet:  return Color(hex: "#5BC489")
         case .haiku:   return Color(hex: "#4FB7B0")
-        case .other:   return Color(hex: "#9B8BD9")
+        default:      return chipColor(for: kind.family)
         }
     }
 
@@ -1293,7 +1285,11 @@ struct HistoryView: View {
         case .opus:   return Color(hex: "#E8A24A")
         case .sonnet: return Color(hex: "#5BC489")
         case .haiku:  return Color(hex: "#4FB7B0")
-        case .other:  return Color(hex: "#9B8BD9")
+        default:
+            guard family.isCodex else { return Color(hex: "#9B8BD9") }
+            let palette = ["#6AAEF5", "#B695F5", "#55C8D9", "#E58FAD", "#80A8E8"]
+            let hash = family.rawValue.utf8.reduce(UInt64(5381)) { ($0 &* 33) &+ UInt64($1) }
+            return Color(hex: palette[Int(hash % UInt64(palette.count))])
         }
     }
 }

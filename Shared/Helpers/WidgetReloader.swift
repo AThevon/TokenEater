@@ -7,6 +7,7 @@ import Foundation
 @MainActor
 enum WidgetReloader {
     static let usageKind = "TokenEaterWidget"
+    static let codexUsageKind = "CodexUsageWidget"
     static let pacingKind = "PacingWidget"
 
     private static var pending: DispatchWorkItem?
@@ -18,6 +19,7 @@ enum WidgetReloader {
         let item = DispatchWorkItem {
             WidgetCenter.shared.reloadTimelines(ofKind: usageKind)
             WidgetCenter.shared.reloadTimelines(ofKind: pacingKind)
+            WidgetCenter.shared.reloadTimelines(ofKind: codexUsageKind)
         }
         pending = item
         DispatchQueue.global(qos: .utility).asyncAfter(

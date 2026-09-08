@@ -4,7 +4,7 @@ TokenEater is a native macOS menu bar app, plus WidgetKit widgets and a floating
 
 It complements the other docs and deliberately does not duplicate them:
 
-- [`README.md`](README.md) - what the app does (full feature list), the security and privacy model, the two API calls.
+- [`README.md`](README.md) - what the app does (full feature list), the security and privacy model, the Claude API calls and optional Codex usage call.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) - contribution workflow, commit conventions, how to get help, the external-contributor signing caveat.
 - [`SETUP.md`](SETUP.md) - building from source as an end user.
 - [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) - common fixes and the canonical clean-reset script.
@@ -36,9 +36,9 @@ XcodeGen strips the widget's `NSExtension` key from `Info.plist` on every genera
 `Shared/` is compiled into all three targets:
 
 - `Shared/Models/` - pure `Codable` structs and enums (UsageModels, ProfileModels, PacingModels, ThemeModels, SessionModels, MetricModels, ProxyConfig, and the various display-format enums).
-- `Shared/Services/` - protocol-backed I/O. 15 services, each with a protocol in `Shared/Services/Protocols/` and a mock in `TokenEaterTests/Mocks/`.
+- `Shared/Services/` - 20 service files, including four Codex services (`CodexAuthReader`, `CodexTokenProvider`, `CodexAPIClient`, `CodexSharedFileService`), with contracts in `Shared/Services/Protocols/` and a mock in `TokenEaterTests/Mocks/`.
 - `Shared/Repositories/` - `UsageRepository` (orchestrates `APIClient` then `SharedFileService`).
-- `Shared/Stores/` - 7 `ObservableObject` state containers.
+- `Shared/Stores/` - 13 `ObservableObject` state containers, including four settings sub-stores.
 - `Shared/Helpers/` - 12 pure enums/structs, no I/O (PacingCalculator, MenuBarRenderer, SmartColor, JSONLParser, ProcessResolver, DiagnosticReporter, CurrencyFormatter, MetricsGridLayout, NotificationBodyFormatter, OverlayHitTest, ResetCountdownFormatter, WidgetReloader).
 - `Shared/Components/` - 12 reusable SwiftUI views shared by app and widget (RingGauge, PacingBar, AnimatedGradient, GlowText, etc.).
 - `Shared/Design/DesignTokens.swift` - the `DS` design-token namespace plus a `View` extension.
@@ -69,7 +69,7 @@ The menu bar is **AppKit `NSStatusItem`** managed by `StatusBarController`, not 
 
 ### Token resolution (`TokenProvider`)
 
-All credential reading goes through `Shared/Services/TokenProvider.swift`. `currentToken()` returns an in-memory cached token; the disk/Keychain is re-read only when the cache is empty or after `invalidateToken()` (called on a 401). Source priority:
+All Claude credential reading goes through `Shared/Services/TokenProvider.swift`. `currentToken()` returns an in-memory cached token; the disk/Keychain is re-read only when the cache is empty or after `invalidateToken()` (called on a 401). Source priority:
 
 1. `SecurityCLIReader` - shells out to `/usr/bin/security find-generic-password -s "Claude Code-credentials" -w`. Primary path; the stable Apple signing identity means macOS stops prompting for ACL access after the first "Always Allow".
 2. `CredentialsFileReader` - reads `~/.claude/.credentials.json`.
@@ -86,19 +86,22 @@ All credential reading goes through `Shared/Services/TokenProvider.swift`. `curr
 - `Shared/Repositories/UsageRepository.swift` - API to shared-file pipeline.
 - `TokenEaterApp/StatusBarController.swift` - menu bar item and popover hosting.
 
-### The 7 stores
+### Stores
 
 All are `@MainActor final class ...: ObservableObject`.
 
 | Store | Responsibility |
 |-------|----------------|
 | `UsageStore` | Core usage state (5h / 7-day / Sonnet / Opus / cowork / Design percentages, resets, pacing, error/loading). Owns the repository and token provider; auto-refreshes. |
+| `CodexUsageStore` | Optional Codex usage windows, pacing, credentials state, refresh/backoff, and Codex notifications. Writes `codex.json`. |
 | `SettingsStore` | All user preferences (menu bar style, pinned metrics, smart color, refresh interval, watcher settings, workweek pacing). Persists to `UserDefaults`. |
 | `ThemeStore` | Theme preset selection, custom `ThemeColors`, warning/critical thresholds. |
 | `SessionStore` | Live Claude session list from `SessionMonitorService`; powers the Agent Watchers overlay. |
 | `UpdateStore` | In-app update state machine, brew migration state, release notes. Owns `UpdateService` / `SignatureVerifier` / `BrewMigrationService`. |
 | `HistoryStore` | Drives the History view (range + model filter, JSONL buckets via `SessionHistoryService`). |
 | `MonitoringInsightsStore` | Lightweight 7-day buckets and previous-week delta for the Monitoring homepage. |
+| `VendorStatusStore` | Claude service health and outage notifications. |
+| `DisplaySettingsStore`, `PacingSettingsStore`, `NotificationSettingsStore`, `OverlaySettingsStore` | Preference sub-stores owned by `SettingsStore`. |
 
 `@StateObject` is correct for a view that owns a child store whose state must outlive navigation: `MainAppView` owns `HistoryStore` and `MonitoringInsightsStore`, `OnboardingView` owns `OnboardingViewModel`. The `@StateObject` ban below applies only to the `App` struct.
 
@@ -117,6 +120,9 @@ All are `@MainActor final class ...: ObservableObject`.
 | In-app updater | `Services/UpdateService.swift`, `Stores/UpdateStore.swift`, `Services/SignatureVerifier.swift`, `TokenEaterApp/Resources/SparklePublicKey.txt`, `TokenEaterApp/Resources/installer.applescript` |
 | Onboarding | `OnboardingView.swift`, `OnboardingViewModel.swift`, `Onboarding/Cards/*` |
 | Settings / Themes | `SettingsRootView.swift`, `SettingsSectionView.swift`, `DisplaySectionView.swift`, `ThemesSectionView.swift` |
+| Codex usage and settings | `Stores/CodexUsageStore.swift`, `Services/CodexAPIClient.swift`, `Windows/Monitoring/CodexSectionView.swift`, `Settings/ProvidersCard.swift` |
+| Codex widget | `TokenEaterWidget/CodexEntry.swift`, `CodexProvider.swift`, `CodexUsageWidgetView.swift`, `CodexUsageWidget.swift` |
+| Codex notifications | `Services/NotificationService.swift`, `Helpers/CodexResetDetector.swift`, `Settings/NotificationsSectionView.swift` |
 | Token / auth | `Services/TokenProvider.swift`, `SecurityCLIReader.swift`, `CredentialsFileReader.swift`, `ClaudeConfigReader.swift`, `ElectronDecryptionService.swift`, `TokenFileMonitor.swift` |
 | Widget | `TokenEaterWidget/TokenEaterWidget.swift` (`@main` `WidgetBundle`: usage widget + pacing widget), `Provider.swift`, `*WidgetView.swift` |
 
@@ -143,7 +149,7 @@ Prerequisites: macOS 14+, XcodeGen (`brew install xcodegen`), and Xcode (see the
 
 ### Unit tests
 
-The suite uses [Swift Testing](https://developer.apple.com/documentation/testing) (`import Testing`, `@Test`, `#expect`), not XCTest. There are roughly 380 `@Test` cases across 32 files (recompute with `grep -rho '@Test' TokenEaterTests --include='*.swift' | wc -l`). Mocks live in `TokenEaterTests/Mocks/` (one protocol-based mock per service), fixtures in `TokenEaterTests/Fixtures/`. Stores are `@MainActor`, so their test suites are too. Suites that write to the shared `UserDefaults` are marked `.serialized` and clean up after themselves.
+The suite uses [Swift Testing](https://developer.apple.com/documentation/testing) (`import Testing`, `@Test`, `#expect`), not XCTest. The latest complete run executes 795 tests in 81 suites; test declarations live in 74 `*Tests.swift` files. Mocks live in `TokenEaterTests/Mocks/` (one protocol-based mock per service), fixtures in `TokenEaterTests/Fixtures/`. Stores are `@MainActor`, so their test suites are too. Suites that write to the shared `UserDefaults` are marked `.serialized` and clean up after themselves.
 
 Run the tests (identical to CI):
 
@@ -240,6 +246,18 @@ Two release-pipeline invariants worth protecting:
 - **Prerelease tags skip publishing.** Tags matching `*-rc*` / `*-beta*` / `*-alpha*` still produce a signed, notarized GitHub prerelease DMG, but the Sparkle EdDSA signing, the `appcast.xml` update, and the Homebrew cask bump are skipped. A beta tag does not reach users through the updater or brew.
 
 The `release-swift` skill / the maintainer's release flow wraps version bump, PR, tag, and the CI pipeline.
+
+## Codex support
+
+`CodexAuthReader` silently reads `~/.codex/auth.json` (or `CODEX_HOME`), with `CodexTokenProvider` caching the access token. Only file-backed ChatGPT logins are supported. The app calls `GET https://chatgpt.com/backend-api/wham/usage`; it never writes credentials or refreshes OAuth tokens. A 401 triggers one reread before the login-expired state. API-key and keyring-only accounts cannot be tracked in this release.
+
+`CodexUsageStore` is optional and constructor-injected through `AppDelegate` and both `StatusBarController` hosting roots. The one-time default enables it for detected ChatGPT credentials; later logins do not override a saved off preference. `TokenFileMonitor.codexAuthChanged` detects atomic replacement, deletion, and creation of the Codex credentials directory.
+
+The app writes usage and pacing margin to `codex.json` next to `shared.json`. The widget reads that cache and shared theme preferences, never `auth.json`. No email, account ID, or token belongs in this cache or diagnostic output. The clean-reset commands remove the whole shared directory, including `codex.json`, without signing out of Codex.
+
+Classify windows by `limit_window_seconds`, never by primary/secondary position: a weekly-only plan uses the primary window for its week. Idle windows slide their reset time, so reset alerts must go through `CodexResetDetector`. The dedicated quota-reset alert is Codex-only; Claude keeps its recovery notification behavior.
+
+Keep widget `kind` strings stable. The six Claude widgets have provider-prefixed gallery names, while `CodexUsageWidget` is a separate small/medium widget. Codex menu bar segments, popover metrics, History, and Agent Watchers are deferred beyond 5.14.
 
 ## Gotchas and known traps
 

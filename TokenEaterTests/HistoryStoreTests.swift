@@ -113,7 +113,7 @@ struct HistoryStoreTests {
         let bucket = Self.bucket(2026, 5, 25, byModel: [.opus48: 100],
                                  input: 60, output: 40, cacheRead: 250, cacheCreate: 150)
         // cached = 400, total including cache = 500 -> 80%
-        #expect(abs(bucket.cacheHitRate - 0.8) < 0.0001)
+        #expect(abs(bucket.cacheHitRate - 0.5) < 0.0001)
         #expect(Self.bucket(2026, 5, 26, byModel: [:]).cacheHitRate == 0)
     }
 

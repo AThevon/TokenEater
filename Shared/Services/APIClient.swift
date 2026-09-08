@@ -9,16 +9,7 @@ final class APIClient: APIClientProtocol, @unchecked Sendable {
     }()
 
     private func session(proxyConfig: ProxyConfig?) -> URLSession {
-        // Reject syntactically invalid proxy targets before they reach
-        // `connectionProxyDictionary`; fall back to the default session.
-        guard let proxy = proxyConfig, proxy.isValidForUse else { return .shared }
-        let c = URLSessionConfiguration.default
-        c.connectionProxyDictionary = [
-            kCFNetworkProxiesSOCKSEnable as String: true,
-            kCFNetworkProxiesSOCKSProxy as String: proxy.host,
-            kCFNetworkProxiesSOCKSPort as String: proxy.port,
-        ]
-        return URLSession(configuration: c)
+        .tokenEater(proxyConfig: proxyConfig)
     }
 
     private func makeRequest(token: String) -> URLRequest {
