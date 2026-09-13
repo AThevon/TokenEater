@@ -15,6 +15,11 @@ final class OverlayState: ObservableObject {
     /// expansion so the visible expand tracks the click-capture zone.
     @Published var activationZone: CGFloat = 180
 
+    /// True while the dock has the mouse: the cursor is over the indicators,
+    /// or over the cards once they have opened (#271). OverlayView expands the
+    /// cards only while this is set.
+    @Published var hoverActive: Bool = false
+
     /// Id of the session whose context menu is currently open, nil otherwise
     /// (#247). While non-nil the overlay freezes: cursor tracking stops
     /// collapsing the cards (the cursor is on the menu, outside the panel)
@@ -287,6 +292,9 @@ final class OverlayWindowController {
             if overlayState.cursorInWindow != nil {
                 overlayState.cursorInWindow = nil
             }
+            // Leaving the panel closes the dock, so coming back has to go
+            // through the indicators again rather than straight onto the cards.
+            setHoverActive(false)
             panel.ignoresMouseEvents = true
             return
         }
@@ -310,35 +318,37 @@ final class OverlayWindowController {
             return
         }
 
-        // Horizontal zone: use the wider "exit" width once the panel is
-        // already active so the cursor can drift off the tight entry strip
-        // without the overlay snapping shut mid-hover.
+        // Take the mouse only over what the dock shows (#271): the indicators
+        // while it is closed, the cards once it has opened. Open, the hover
+        // zone's wider exit width lets the cursor drift across the cards
+        // without the dock snapping shut.
         let distanceFromEdge = settingsStore.overlayLeftSide ? localX : (frame.width - localX)
-        let threshold = isPanelActive ? exitZone : enterZone
-        guard distanceFromEdge <= threshold else {
-            isPanelActive = false
-            if overlayState.activationZone != enterZone {
-                overlayState.activationZone = enterZone
-            }
-            panel.ignoresMouseEvents = true
-            return
-        }
-        isPanelActive = true
-        if overlayState.activationZone != exitZone {
-            overlayState.activationZone = exitZone
-        }
-
-        let scale = CGFloat(settingsStore.overlayScale)
-        let itemHeight: CGFloat = 40 * scale
-        let itemSpacing: CGFloat = 6 * scale
-        let count = sessionStore.overlaySessions.count
-        let totalHeight = CGFloat(count) * itemHeight + CGFloat(max(0, count - 1)) * itemSpacing
-        let startY = (overlayState.windowHeight - totalHeight) / 2 + overlayState.contentOffset
-
-        panel.ignoresMouseEvents = !OverlayHitTest.isCursorNearSessions(
+        let capture = OverlayHitTest.shouldCapture(
+            distanceFromEdge: distanceFromEdge,
             cursorY: localY,
-            sessionsMinY: startY,
-            sessionsMaxY: startY + totalHeight
+            isOpen: isPanelActive,
+            sessionCount: sessionStore.overlaySessions.count,
+            scale: CGFloat(settingsStore.overlayScale),
+            windowHeight: overlayState.windowHeight,
+            contentOffset: overlayState.contentOffset,
+            enterWidth: enterZone,
+            exitWidth: exitZone
         )
+        setHoverActive(capture)
+        panel.ignoresMouseEvents = !capture
+    }
+
+    /// Opens or closes the dock's hover state. OverlayView expands the cards
+    /// only while it is open, so they never expand outside the area that
+    /// takes the mouse.
+    private func setHoverActive(_ active: Bool) {
+        isPanelActive = active
+        let zone = active ? exitZone : enterZone
+        if overlayState.activationZone != zone {
+            overlayState.activationZone = zone
+        }
+        if overlayState.hoverActive != active {
+            overlayState.hoverActive = active
+        }
     }
 }
