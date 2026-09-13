@@ -56,8 +56,8 @@ final class OverlaySettingsStore: ObservableObject {
         self.overlayScale = UserDefaults.standard.object(forKey: "overlayScale") as? Double ?? 1.1
         self.overlayLeftSide = UserDefaults.standard.bool(forKey: "overlayLeftSide")
         self.overlayTriggerZone = OverlayTriggerZone(
-            rawValue: UserDefaults.standard.string(forKey: "overlayTriggerZone") ?? "medium"
-        ) ?? .medium
+            rawValue: UserDefaults.standard.string(forKey: "overlayTriggerZone") ?? OverlayTriggerZone.defaultZone.rawValue
+        ) ?? .defaultZone
         self.watchersDetailedMode = UserDefaults.standard.object(forKey: "watchersDetailedMode") as? Bool ?? true
         self.watcherStyle = WatcherStyle(
             rawValue: UserDefaults.standard.string(forKey: "watcherStyle") ?? "frost"

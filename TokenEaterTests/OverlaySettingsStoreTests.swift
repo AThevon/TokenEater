@@ -22,7 +22,7 @@ struct OverlaySettingsStoreTests {
         #expect(store.overlayDockEffect == true)
         #expect(store.overlayScale == 1.1)
         #expect(store.overlayLeftSide == false)
-        #expect(store.overlayTriggerZone == .medium)
+        #expect(store.overlayTriggerZone == .minimal)
         #expect(store.watchersDetailedMode == true)
         #expect(store.watcherStyle == .frost)
         #expect(store.watcherDisplayMode == .branchPriority)

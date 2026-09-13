@@ -14,6 +14,10 @@ enum OverlayTriggerZone: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// The zone a fresh install starts with, and what "reset to defaults"
+    /// restores: the indicator strip itself (#271).
+    static let defaultZone: OverlayTriggerZone = .minimal
+
     /// Width (points, before multiplying by `overlayScale`) of the zone that
     /// captures mouse clicks while the overlay is NOT already active.
     var enterWidth: CGFloat {

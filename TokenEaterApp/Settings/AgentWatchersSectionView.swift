@@ -315,7 +315,7 @@ struct AgentWatchersSectionView: View {
         settingsStore.overlayDockEffect = true
         settingsStore.overlayScale = 1.1
         settingsStore.overlayLeftSide = false
-        settingsStore.overlayTriggerZone = .medium
+        settingsStore.overlayTriggerZone = .defaultZone
         settingsStore.watchersDetailedMode = true
         settingsStore.watcherStyle = .frost
         settingsStore.watcherDisplayMode = .branchPriority
