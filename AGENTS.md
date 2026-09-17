@@ -29,18 +29,20 @@ Three targets:
 |--------|-----------|---------|
 | `TokenEaterApp` | The app host. Non-sandboxed (since v5.0) so it can read the token. `LSUIElement` (no Dock icon). | `TokenEaterApp/` + `Shared/` |
 | `TokenEaterWidgetExtension` | The WidgetKit extension. Sandboxed and read-only (WidgetKit requires `app-sandbox: true`). | `TokenEaterWidget/` + `Shared/` |
-| `TokenEaterTests` | Swift Testing bundle, unsigned. | `TokenEaterTests/` + `Shared/` + the single file `TokenEaterApp/OnboardingViewModel.swift` |
+| `TokenEaterTests` | Swift Testing bundle, unsigned. | `TokenEaterTests/` + `Shared/` + the single file `TokenEaterApp/Onboarding/OnboardingViewModel.swift` |
 
-XcodeGen strips the widget's `NSExtension` key from `Info.plist` on every generate, so a `plutil -insert NSExtension ...` step is load-bearing and present in every workflow and in `SETUP.md`. Keep it; if the widget gallery ever shows nothing, this is the first thing to check.
+`project.yml` declares the widget's `NSExtension` key under the target's `info.properties`, so XcodeGen writes it into `TokenEaterWidget/Info.plist` on every generate. That plist is tracked but fully regenerated, so never hand-edit it. The `plutil -insert NSExtension ...` step in `build.sh`, `SETUP.md` and all three workflows is therefore a no-op today: it exits 1 with "Value already exists", swallowed by `|| true`. Keep it as a guard in case the `info.properties` block is ever dropped, but it is not load-bearing. If the widget gallery shows nothing, check the cache nuke (`com.apple.chrono` plus `pluginkit -r`) and that the `.appex` still carries `com.apple.security.app-sandbox` (no `--deep` on the parent sign) instead.
+
+`TokenEaterApp/` has no Swift file at its root; every source sits in a subfolder (`App/`, `Components/`, `Onboarding/`, `Overlay/`, `Popover/`, `Resources/`, `Settings/`, `Studio/`, `Updater/`, `Windows/`). Quote full paths when editing `project.yml`; the bare filenames in the feature index below are grep targets, not paths.
 
 `Shared/` is compiled into all three targets:
 
 - `Shared/Models/` - pure `Codable` structs and enums (UsageModels, ProfileModels, PacingModels, ThemeModels, SessionModels, MetricModels, ProxyConfig, and the various display-format enums).
-- `Shared/Services/` - 20 service files, including four Codex services (`CodexAuthReader`, `CodexTokenProvider`, `CodexAPIClient`, `CodexSharedFileService`), with contracts in `Shared/Services/Protocols/` and a mock in `TokenEaterTests/Mocks/`.
+- `Shared/Services/` - protocol-backed I/O. Convention: one protocol per service in `Shared/Services/Protocols/`, one mock per protocol in `TokenEaterTests/Mocks/`. The four Codex services (`CodexAuthReader`, `CodexTokenProvider`, `CodexAPIClient`, `CodexSharedFileService`) follow it like the rest. Three live exceptions: `LegacyHelperCleanupService` is concrete with no protocol and no mock, `CombinedSessionHistoryService` is a concrete composer over other services rather than an I/O seam of its own, and `SessionHistoryServiceProtocol` has no mock yet. `Protocols/` also holds two non-service protocols (`NotificationCenterProtocol` wraps `UNUserNotificationCenter`, `NotificationStateStore` abstracts notification state).
 - `Shared/Repositories/` - `UsageRepository` (orchestrates `APIClient` then `SharedFileService`).
-- `Shared/Stores/` - 13 `ObservableObject` state containers, including four settings sub-stores.
-- `Shared/Helpers/` - 12 pure enums/structs, no I/O (PacingCalculator, MenuBarRenderer, SmartColor, JSONLParser, ProcessResolver, DiagnosticReporter, CurrencyFormatter, MetricsGridLayout, NotificationBodyFormatter, OverlayHitTest, ResetCountdownFormatter, WidgetReloader).
-- `Shared/Components/` - 12 reusable SwiftUI views shared by app and widget (RingGauge, PacingBar, AnimatedGradient, GlowText, etc.).
+- `Shared/Stores/` - `ObservableObject` state containers. Top level: UsageStore, CodexUsageStore, SettingsStore, ThemeStore, SessionStore, UpdateStore, HistoryStore, HistoryWidgetStore, MonitoringInsightsStore, VendorStatusStore. Domain slices that `SettingsStore` owns and republishes: DisplaySettingsStore, PacingSettingsStore, OverlaySettingsStore, NotificationSettingsStore.
+- `Shared/Helpers/` - stateless enums and structs, no classes (PacingCalculator, PacingSampleBuffer, MenuBarRenderer, MenuBarConfigMigrator, SmartColor, GaugeColorResolver, JSONLParser, LossyDecodableArray, ProcessResolver, DiagnosticReporter, CurrencyFormatter, TokenFormatter, ChartDomainCalculator, MetricsGridLayout, PopoverRowPacker, PopoverConfigMigrator, PopoverChromeMigrator, NotificationBodyFormatter, OverlayHitTest, RateLimitBackoff, ResetCountdownFormatter, WidgetReloader, CodexHistoryParser, CodexResetDetector, CodexWindowResolver, JWTClaims). Check this list before writing a new formatter or calculator. Four are not I/O-free: `MenuBarConfigMigrator` and `PopoverConfigMigrator` touch `UserDefaults`, `ProcessResolver` shells out, `WidgetReloader` calls `WidgetCenter`.
+- `Shared/Components/` - reusable SwiftUI views shared by app and widget (RingGauge, PacingBar, AnimatedGradient, GlowText, etc.).
 - `Shared/Design/DesignTokens.swift` - the `DS` design-token namespace plus a `View` extension.
 - `Shared/Extensions/` and `Shared/en.lproj` / `Shared/fr.lproj` - shared extensions and EN/FR localization.
 
@@ -65,7 +67,7 @@ TokenEaterWidgetExtension    sandboxed widget reads that JSON only (no network, 
 
 `TokenFileMonitor` watches the credential files with a `DispatchSource` filesystem watcher (kqueue/vnode) and triggers an immediate refresh on change. The Agent Watchers overlay scans running Claude Code processes and tail-reads their JSONL logs.
 
-The menu bar is **AppKit `NSStatusItem`** managed by `StatusBarController`, not SwiftUI `MenuBarExtra`. The `App` body is `Settings { EmptyView() }`; the real UI is wired in the `AppDelegate` (`@NSApplicationDelegateAdaptor`) and hosted through `NSHostingController` / `NSHostingView`. That hosting root is where stores get injected with `.environmentObject(...)`. To add a store: construct it as a `private let` in `TokenEaterApp.init`, hand it to the `AppDelegate`, and inject it at the hosting roots in `StatusBarController` and `OverlayWindowController`.
+The menu bar is **AppKit `NSStatusItem`** managed by `StatusBarController`, not SwiftUI `MenuBarExtra`. The `App` body is `Settings { EmptyView() }`; the real UI is wired in the `AppDelegate` (`@NSApplicationDelegateAdaptor`) and hosted through `NSHostingController` / `NSHostingView`. Stores get injected with `.environmentObject(...)` at the hosting roots, and there are three of them, injecting different store sets: the popover (`StatusBarController.installPopoverContent()`), the dashboard-and-onboarding `NSWindow` (`StatusBarController.showDashboard()`), and the overlay panel (`OverlayWindowController`). To add a store: declare it as a `private let` at `TokenEaterApp` struct level and construct it in `init()`, assign it onto the `AppDelegate`, add it to the `StatusBarController` initializer, then inject it in BOTH of that controller's `.environmentObject` chains and, if the overlay needs it, in `OverlayWindowController`. The chains are not kept in sync automatically (`sessionStore` is in the window chain only), so missing one crashes on `@EnvironmentObject` in that window alone. If the menu bar must repaint when the store changes, add its `objectWillChange` to `observeStoreChanges()` too; omitting that compiles and shows correct data everywhere except the menu bar.
 
 ### Token resolution (`TokenProvider`)
 
@@ -76,32 +78,32 @@ All Claude credential reading goes through `Shared/Services/TokenProvider.swift`
 3. `ClaudeConfigReader` + `ElectronDecryptionService` - reads and decrypts the token from Claude Desktop's `config.json` (Electron `safeStorage`, AES-128-CBC).
 4. A direct `SecItemCopyMatching` Keychain read as a last resort.
 
-`refreshTokenIfChanged()` re-polls the sources on the auto-refresh tick to catch Keychain account swaps (`claude /login`, account switch) that emit no filesystem event. `bootstrap()` is the only interactive read and is used once during onboarding. There is no `KeychainService` type; Keychain access lives in `SecurityCLIReader` and the inline reader closure in `TokenProvider`.
+`refreshTokenIfChanged()` re-polls the sources on the auto-refresh tick to catch Keychain account swaps (`claude /login`, account switch) that emit no filesystem event. `bootstrap()` is the only method capable of an interactive Keychain read, and it currently has no call sites: onboarding connects through the silent `currentToken()`. It is kept as the deliberate escape hatch for a future interactive first connect. There is no `KeychainService` type; Keychain access lives in `SecurityCLIReader` and the inline reader closure in `TokenProvider`.
 
 ### Where to start reading
 
-- `TokenEaterApp/TokenEaterApp.swift` - `@main`, the `AppDelegate`, and store wiring.
+- `TokenEaterApp/App/TokenEaterApp.swift` - `@main`, the `AppDelegate`, and store wiring.
 - `Shared/Services/TokenProvider.swift` - token resolution.
 - `Shared/Stores/UsageStore.swift` - core usage state and auto-refresh.
 - `Shared/Repositories/UsageRepository.swift` - API to shared-file pipeline.
-- `TokenEaterApp/StatusBarController.swift` - menu bar item and popover hosting.
+- `TokenEaterApp/App/StatusBarController.swift` - menu bar item, popover hosting, and the dashboard/onboarding `NSWindow` (built in `showDashboard()`).
 
-### Stores
+### The stores
 
 All are `@MainActor final class ...: ObservableObject`.
 
 | Store | Responsibility |
 |-------|----------------|
-| `UsageStore` | Core usage state (5h / 7-day / Sonnet / Opus / cowork / Design percentages, resets, pacing, error/loading). Owns the repository and token provider; auto-refreshes. |
-| `CodexUsageStore` | Optional Codex usage windows, pacing, credentials state, refresh/backoff, and Codex notifications. Writes `codex.json`. |
-| `SettingsStore` | All user preferences (menu bar style, pinned metrics, smart color, refresh interval, watcher settings, workweek pacing). Persists to `UserDefaults`. |
+| `UsageStore` | Core Claude usage state (5h / 7-day / Sonnet / Opus / cowork / Fable / OAuth-apps percentages plus the paid Extra Credits pool, resets, pacing, error/loading). Owns the repository and token provider; auto-refreshes. There is no Design bucket any more: it was merged into the shared 5h/weekly pool upstream and no `designPct` exists. |
+| `CodexUsageStore` | The same job for Codex: usage windows, pacing, credentials state, refresh and backoff, Codex notifications. Writes `codex.json`. Windows are classified by declared duration, never by their position in the payload. |
+| `SettingsStore` | The user-preferences root. Owns the composable popover and menu-bar compositions, their templates, and the active provider mode directly, and holds four domain slices as child `ObservableObject`s: `display`, `pacing`, `notification`, `overlay`. Each slice persists itself to `UserDefaults`; `display` and `pacing` also mirror to the shared file so the widget colors and paces identically. The flat properties still on `SettingsStore` are backwards-compatible computed get/set forwards, so never target one with a `$` binding (that is exactly the banned case below); bind through the slice instead. |
 | `ThemeStore` | Theme preset selection, custom `ThemeColors`, warning/critical thresholds. |
 | `SessionStore` | Live Claude session list from `SessionMonitorService`; powers the Agent Watchers overlay. |
 | `UpdateStore` | In-app update state machine, brew migration state, release notes. Owns `UpdateService` / `SignatureVerifier` / `BrewMigrationService`. |
 | `HistoryStore` | Drives the History view (range + model filter, JSONL buckets via `SessionHistoryService`). |
 | `MonitoringInsightsStore` | Lightweight 7-day buckets and previous-week delta for the Monitoring homepage. |
-| `VendorStatusStore` | Claude service health and outage notifications. |
-| `DisplaySettingsStore`, `PacingSettingsStore`, `NotificationSettingsStore`, `OverlaySettingsStore` | Preference sub-stores owned by `SettingsStore`. |
+| `HistoryWidgetStore` | Combined per-provider token history for the history widgets, over `CombinedSessionHistoryService`. |
+| `VendorStatusStore` | Vendor outage state and a self-accelerating poll loop over `StatusService`, deliberately separate from `UsageStore` so an outage that breaks the usage API is still detected and notified. |
 
 `@StateObject` is correct for a view that owns a child store whose state must outlive navigation: `MainAppView` owns `HistoryStore` and `MonitoringInsightsStore`, `OnboardingView` owns `OnboardingViewModel`. The `@StateObject` ban below applies only to the `App` struct.
 
@@ -110,21 +112,23 @@ All are `@MainActor final class ...: ObservableObject`.
 | Feature | Key files |
 |---------|-----------|
 | Menu bar item | `StatusBarController.swift`, `MenuBarView.swift`, `Helpers/MenuBarRenderer.swift` |
-| Popover dashboard (Classic / Compact / Focus) | `TokenEaterApp/Popover/*LayoutView.swift`, `PopoverSectionView.swift` |
-| Main window dashboard | `MainAppView.swift`, `MonitoringView.swift` |
+| Popover dashboard (composable, since 5.9) | `TokenEaterApp/Popover/MenuBarView.swift` (root `MenuBarPopoverView`), `ComposablePopoverView.swift`, `PopoverCells.swift`, `PopoverMetricResolver.swift`, `PopoverSectionView.swift`, `Shared/Models/PopoverCompositionModels.swift`, `Shared/Helpers/PopoverRowPacker.swift` / `PopoverConfigMigrator.swift` / `PopoverChromeMigrator.swift`. Classic / Compact / Focus are now three of six built-in `PopoverBuiltinTemplate` starting points, not layouts; `Shared/Models/PopoverLayoutModels.swift` is legacy decode-only. |
+| Main window dashboard | `MainAppView.swift`, `MonitoringView.swift`, `Shared/Models/DashboardCompositionModels.swift` (the ordered block list every mode renders), `Windows/Monitoring/ProviderHeroFace.swift`, `CodexHeroCard.swift`, `ProviderStatusNotice.swift` (the per-provider error / limit / no-window banner, which is not a block and cannot be hidden) |
 | History | `HistoryView.swift`, `Stores/HistoryStore.swift`, `Services/SessionHistoryService.swift`, `Helpers/JSONLParser.swift` |
 | Agent Watchers overlay | `OverlayWindowController.swift`, `OverlayView.swift`, `AgentWatchersSectionView.swift`, `Services/SessionMonitorService.swift`, `Helpers/ProcessResolver.swift`, `Stores/SessionStore.swift` |
 | Smart Color | `Helpers/SmartColor.swift`, `docs/design/COLORING.md` |
 | Pacing | `Helpers/PacingCalculator.swift`, `PacingSectionView.swift`, `Models/PacingModels.swift`, `Components/PacingBar.swift` |
 | Notifications | `Services/NotificationService.swift`, `Helpers/NotificationBodyFormatter.swift`, `NotificationsSectionView.swift` |
-| In-app updater | `Services/UpdateService.swift`, `Stores/UpdateStore.swift`, `Services/SignatureVerifier.swift`, `TokenEaterApp/Resources/SparklePublicKey.txt`, `TokenEaterApp/Resources/installer.applescript` |
+| In-app updater | `Services/UpdateService.swift`, `Stores/UpdateStore.swift`, `Services/SignatureVerifier.swift`, `TokenEaterApp/Resources/SparklePublicKey.txt`, `TokenEaterApp/Resources/installer.applescript`, `TokenEaterApp/Resources/te-update.sh` |
 | Onboarding | `OnboardingView.swift`, `OnboardingViewModel.swift`, `Onboarding/Cards/*` |
-| Settings / Themes | `SettingsRootView.swift`, `SettingsSectionView.swift`, `DisplaySectionView.swift`, `ThemesSectionView.swift` |
-| Codex usage and settings | `Stores/CodexUsageStore.swift`, `Services/CodexAPIClient.swift`, `Windows/Monitoring/CodexSectionView.swift`, `Settings/ProvidersCard.swift` |
+| Settings | `TokenEaterApp/Settings/SettingsRootView.swift`, `SettingsSectionView.swift`, `SettingsSubSidebar.swift`, `PacingSectionView.swift`, `NotificationsSectionView.swift`, `AgentWatchersSectionView.swift`, `ProvidersSectionView.swift`, `ProviderCard.swift` |
+| Studio (dashboard / popover / menu-bar / theme customization) | `TokenEaterApp/Studio/StudioRootView.swift`, `StudioSurfaceSwitcher.swift`, `StudioScopePicker.swift`, `DashboardEditorView.swift`, `DisplaySectionView.swift`, `ThemesSectionView.swift`, `MenuBarEditorView.swift`. Sibling top-level space to Settings, both reached from `MainAppView`. |
+| Provider modes | `Shared/Models/MenuBarCompositionModels.swift` (`MetricProvider`, `ProviderMode`), `Shared/Stores/SettingsStore.swift` (persistence and seeding), `TokenEaterApp/Components/ProviderModeSwitcher.swift`, `TokenEaterApp/Settings/ProvidersSectionView.swift` |
+| Codex usage and settings | `Stores/CodexUsageStore.swift`, `Services/CodexAPIClient.swift`, `Services/CodexAuthReader.swift`, `Services/CodexTokenProvider.swift`, `Helpers/CodexWindowResolver.swift`, `Windows/Monitoring/CodexFooterPills.swift`, `CodexHeroCard.swift` |
 | Codex widget | `TokenEaterWidget/CodexEntry.swift`, `CodexProvider.swift`, `CodexUsageWidgetView.swift`, `CodexUsageWidget.swift` |
 | Codex notifications | `Services/NotificationService.swift`, `Helpers/CodexResetDetector.swift`, `Settings/NotificationsSectionView.swift` |
 | Token / auth | `Services/TokenProvider.swift`, `SecurityCLIReader.swift`, `CredentialsFileReader.swift`, `ClaudeConfigReader.swift`, `ElectronDecryptionService.swift`, `TokenFileMonitor.swift` |
-| Widget | `TokenEaterWidget/TokenEaterWidget.swift` (`@main` `WidgetBundle`: usage widget + pacing widget), `Provider.swift`, `*WidgetView.swift` |
+| Widget | `TokenEaterWidget/TokenEaterWidget.swift` (`@main` `WidgetBundle`: TokenEaterWidget, PacingWidget, SessionRingWidget, PacingGraphWidget, HistorySparklineWidget, ExtraCreditsWidget, CodexUsageWidget), `Provider.swift`, `UsageEntry.swift`, `UsageWidgetView.swift`, `ExtraCreditsWidgetView.swift`, `WidgetV5Views.swift` (the SessionRing / PacingGraph / HistorySparkline / PacingGlance views), `CodexProvider.swift`, `CodexEntry.swift`, `CodexUsageWidgetView.swift`. Widget kinds are frozen: a kind string that ships can never change, or every widget a user has already placed goes blank. Adding a provider means adding widgets, never renaming existing ones. |
 
 ## Hard SwiftUI rules (do not break)
 
@@ -132,8 +136,8 @@ Each of these caused a production bug. They surface only in Release builds (comp
 
 - **No `@Observable`** (the Swift Observation framework). The whole codebase uses `ObservableObject` + `@Published`. `@Observable` causes a 100% CPU freeze (infinite SwiftUI re-evaluation) in Release builds compiled with the Swift 6.1.x compiler (the one Xcode 16.4 ships). It does not reproduce in Debug or with Swift 6.2+, which makes it impossible to diagnose locally without the right toolchain. This is the single most important rule. Use `class Store: ObservableObject` + `@Published`, `@EnvironmentObject` (not `@Environment(Store.self)`), `.environmentObject(store)` (not `.environment(store)`), `@ObservedObject` for receiving subviews, and `$store.property` for bindings (not `@Bindable`).
 - **No `@StateObject` in the `App` struct.** Use `private let store = Store()`. `@StateObject` would force `App.body` to re-evaluate on every store change, cascading through the whole tree. (Inside owning child views, `@StateObject` is fine - see above.)
-- **No bindings to computed properties** (`$store.computedProp`) and **no `Binding(get:set:)`.** Both produce values the AttributeGraph can never memoize, causing an infinite re-evaluation loop. Use a local `@State` plus `.onChange` to synchronize instead.
-- **Automatic token reads must be silent.** Use `TokenProvider`'s silent path (`kSecUseAuthenticationUISkip`) for every automatic read (refresh, recovery, popover open). The one interactive read is `TokenProvider.bootstrap()`, reserved for the first connect during onboarding.
+- **No `$store.computedProp` bindings.** SwiftUI cannot memoize a binding whose value is recomputed on every read, so it re-evaluates forever. This half is absolute and still holds: the surviving `$settingsStore.*` bindings all target `@Published` storage (`popoverComposition`, `menuBarComposition`), never one of the computed forwards on `SettingsStore`. Prefer a local `@State` plus `.onChange` over a hand-rolled `Binding(get:set:)`. A few hand-rolled bindings survive on purpose, all short-lived value adapters inside a view body rather than a whole store: hex-to-`Color` for `ColorPicker` (`Studio/DisplaySectionView.swift`, `Studio/ThemesSectionView.swift`), `Int`-to-`Double` for the refresh slider (`Settings/SettingsSectionView.swift`), and two onboarding toggles (`Onboarding/Cards/WatchersCard.swift`, the only way to drive a computed forward since `$` cannot reach one, and `Onboarding/Cards/NotificationsCard.swift`). Find them all with `grep -rnE '(^|[^A-Za-z])set: \{' --include='*.swift' .`; a `Binding<T>(` grep misses three, and `scripts/check-docs.py` fails if this list and that grep ever disagree.
+- **Automatic token reads must be silent.** Use `TokenProvider`'s silent path (`kSecUseAuthenticationUISkip`) for every automatic read (refresh, recovery, popover open). `TokenProvider.bootstrap()` is the only method that can read interactively and is currently uncalled; do not wire it up without deciding to accept the Keychain ACL prompt, which `kSecUseAuthenticationUISkip` does not suppress.
 
 When validating any SwiftUI or widget change, build in **Release** with the Xcode 16.4 toolchain (see below). Debug hides these bugs; `SWIFT_ENABLE_OPAQUE_TYPE_ERASURE` wraps views in `AnyView` in Debug, masking view-identity problems.
 
@@ -145,11 +149,13 @@ Prerequisites: macOS 14+, XcodeGen (`brew install xcodegen`), and Xcode (see the
 
 - **Minimum to build:** Xcode 15+ / Swift 5.9 language mode. `project.yml` sets `SWIFT_VERSION: "5.9"` (language mode) and `deploymentTarget macOS 14.0`.
 - **Recommended for anything SwiftUI or Release-related:** Xcode 16.4 (`xcodes install 16.4`), used locally via `export DEVELOPER_DIR=/Applications/Xcode-16.4.0.app/Contents/Developer`. The `@Observable` freeze is a property of the Swift 6.1.x compiler that Xcode 16.4 ships, in Release, independent of the 5.9 language mode.
-- **CI is not pinned to a specific Xcode.** All three workflows run on the `macos-15` GitHub runner with whatever Xcode that image ships by default. There is no `.xcode-version` file or `xcode-select` step. To learn the exact toolchain a given CI run used, read the "Print toolchain info" step in `test-build.yml`.
+- **CI is not pinned to a specific Xcode.** All three workflows run on the `macos-15` GitHub runner with whatever Xcode that image ships by default. There is no `.xcode-version` file or `xcode-select` step. To learn the exact toolchain a given CI run used, read the "Print toolchain info" step in `test-build.yml`; that step exists only there, so a failing `ci.yml` run's toolchain is not recoverable this way.
 
 ### Unit tests
 
-The suite uses [Swift Testing](https://developer.apple.com/documentation/testing) (`import Testing`, `@Test`, `#expect`), not XCTest. The latest complete run executes 795 tests in 81 suites; test declarations live in 74 `*Tests.swift` files. Mocks live in `TokenEaterTests/Mocks/` (one protocol-based mock per service), fixtures in `TokenEaterTests/Fixtures/`. Stores are `@MainActor`, so their test suites are too. Suites that write to the shared `UserDefaults` are marked `.serialized` and clean up after themselves.
+The suite uses [Swift Testing](https://developer.apple.com/documentation/testing) (`import Testing`, `@Test`, `#expect`), not XCTest. Recompute the suite size rather than trusting a number here: `grep -rho '@Test' TokenEaterTests --include='*.swift' | wc -l` for cases and `grep -rl '@Test' TokenEaterTests --include='*.swift' | wc -l` for files. Mocks live in `TokenEaterTests/Mocks/`, fixtures in `TokenEaterTests/Fixtures/`. Most store suites are `@MainActor` because the stores are, but `HistoryStoreTests` and `MonitoringInsightsStoreTests` are not: they exercise only `nonisolated static` helpers. The suites that write the shared `UserDefaults` are marked `.serialized` and clean **before** each test, via a `cleanDefaults()` helper called from the store factory (see `TokenEaterTests/SettingsStoreTests.swift`), never in a teardown. Follow the same pattern when adding a store suite.
+
+`python3 scripts/check-docs.py` verifies that this document still matches the tree: every path it quotes resolves, the store and helper inventories are complete, the one-protocol-one-mock convention holds, the widget list matches the `WidgetBundle`, no `@Observable` or App-struct `@StateObject` slipped in, no hardcoded per-user cache prefix came back, and no bare inventory count was reintroduced. It runs as the `docs` job in `ci.yml` and fails in seconds. If it fails, fix whichever side is wrong: the doc or the code. Adding an intentional exception (a service with no mock, say) means updating both the exception list in that script and the prose here.
 
 Run the tests (identical to CI):
 
@@ -185,11 +191,9 @@ rm -rf ~/Library/Application\ Support/com.claudeusagewidget.shared && \
 rm -rf ~/Library/Group\ Containers/S7B8M9JYF4.group.com.tokeneater && \
 rm -rf ~/Library/Group\ Containers/group.com.tokeneater && \
 rm -rf ~/Library/Group\ Containers/group.com.claudeusagewidget.shared && \
-rm -rf /private/var/folders/d6/*/0/com.apple.chrono 2>/dev/null; \
-rm -rf /private/var/folders/d6/*/T/com.apple.chrono 2>/dev/null; \
-rm -rf /private/var/folders/d6/*/C/com.apple.chrono 2>/dev/null; \
-rm -rf /private/var/folders/d6/*/C/com.tokeneater.app 2>/dev/null; \
-rm -rf /private/var/folders/d6/*/C/com.claudeusagewidget.app 2>/dev/null; \
+TMPBASE=$(getconf DARWIN_USER_TEMP_DIR); CACHEBASE=$(getconf DARWIN_USER_CACHE_DIR); USERBASE=$(getconf DARWIN_USER_DIR); \
+rm -rf "${TMPBASE}com.apple.chrono" "${CACHEBASE}com.apple.chrono" "${USERBASE}com.apple.chrono" 2>/dev/null; \
+rm -rf "${CACHEBASE}com.tokeneater.app" "${CACHEBASE}com.claudeusagewidget.app" 2>/dev/null; \
 pluginkit -r -i com.tokeneater.app.widget 2>/dev/null; \
 pluginkit -r -i com.claudeusagewidget.app.widget 2>/dev/null; \
 \
@@ -211,23 +215,27 @@ Why each nuke step is needed:
 | `rm -rf .../com.tokeneater.shared` | Removes the shared JSON (token + usage cache) to start clean. |
 | `rm -rf .../com.claudeusagewidget.shared` | Removes the old shared directory (migration leftover). |
 | `rm -rf .../Group Containers/...` | Old group container (unused now, but can linger). |
-| `rm -rf /private/var/folders/.../com.apple.chrono` | The most important step: macOS WidgetKit caches (timeline, rendering, widget binary). Without this, macOS keeps using the old widget. |
+| `rm -rf "${CACHEBASE}com.apple.chrono"` | The most important step: macOS WidgetKit caches (timeline, rendering, widget binary). Without this, macOS keeps using the old widget. |
 | `pluginkit -r` | Unregisters the widget extension so macOS does not keep the old one in memory. |
 | `lsregister -f -R` | Forces LaunchServices to re-scan the `.app` so it does not keep old version metadata. |
+
+This block deliberately leaves `UserDefaults` alone, so `hasCompletedOnboarding` and every preference survive. Any first-run, onboarding or migration test needs the heavier reset in [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) (`defaults delete com.tokeneater.app`, the preferences plist, `killall cfprefsd`, sandbox containers).
 
 After installing, remove the old widget from the desktop and add a fresh one (right-click > Edit Widgets > TokenEater).
 
 The `xattr -cr` above is only for ad-hoc local builds. Official releases are Developer ID-signed and notarized in CI, so shipped DMGs are not quarantined.
 
-### Iso-prod test (test-build.yml)
+### CI test build (test-build.yml)
 
-To test a binary identical to what the Homebrew cask ships, build it in CI and download the DMG:
+To exercise a Release build on a clean runner (same toolchain and same generate steps as a release build) and get an installable DMG:
 
 ```bash
 gh workflow run test-build.yml -f branch=<branch>
 # wait for it to finish, then:
 gh run download <run-id> -n TokenEater-test -D /tmp/tokeneater-test/
 ```
+
+That DMG is **not** what the Homebrew cask ships: `test-build.yml` passes no signing settings at all, so there is no Developer ID identity, no hardened runtime, no notarization and no stapled ticket, and the image is a plain `hdiutil` staging dir rather than `create-dmg` output. It hits Gatekeeper, and anything depending on hardened runtime or a real signing identity (Keychain ACL behaviour, widget entitlement inheritance) does not reproduce faithfully. Only `release.yml`, on a `v*` tag, produces a cask-identical DMG.
 
 Installing that DMG cleanly requires a heavier reset than the local nuke (it also wipes `UserDefaults` and sandbox containers). See the clean-reset block in [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md).
 
@@ -236,7 +244,7 @@ Installing that DMG cleanly requires a heavier reset than the local nuke (it als
 - **Local Release builds** use `CODE_SIGN_STYLE: Automatic` with the hardcoded team, so they are signed ad-hoc / with the local Apple Development identity and are not notarized. Gatekeeper blocks the first launch.
 - **CI release builds** are triggered by pushing a tag matching `v*` (manual `workflow_dispatch` also works). They sign with the Developer ID Application certificate (imported from the `APPLE_CERT_P12_BASE64` secret), enable hardened runtime, notarize via `notarytool`, and staple the ticket onto the DMG. Downloaded DMGs open with no Gatekeeper prompt on any account.
 - **Homebrew cask** (`AThevon/homebrew-tokeneater`) points at the same notarized DMG.
-- **In-app updater** fetches the appcast (`docs/appcast.xml` via `raw.githubusercontent.com`), downloads the DMG, runs a fail-closed EdDSA Sparkle signature check against the key in `TokenEaterApp/Resources/SparklePublicKey.txt`, then mounts and copies to `/Applications` via the `TokenEaterInstaller.app` applet (osacompiled from `TokenEaterApp/Resources/installer.applescript`) with a one-time admin prompt. It deliberately does not run `xattr -cr` on the installed app, since that would strip the stapled notarization ticket.
+- **In-app updater** fetches the appcast (`docs/appcast.xml` via `raw.githubusercontent.com`), downloads the DMG, runs a fail-closed EdDSA Sparkle signature check against the key in `TokenEaterApp/Resources/SparklePublicKey.txt`, then mounts and copies to `/Applications` via the `TokenEaterInstaller.app` applet with a one-time admin prompt. The applet is only a shim: `installer.applescript` resolves `te-update.sh` from its own Resources and runs it `with administrator privileges`, and the real mount / copy / relaunch logic lives in `TokenEaterApp/Resources/te-update.sh`, which the installer prebuild step copies into the applet bundle. Change install behaviour there, not in the AppleScript. It deliberately does not run `xattr -cr` on the installed app, since that would strip the stapled notarization ticket.
 
 Release secrets (documented inline in `.github/workflows/release.yml`): `APPLE_CERT_P12_BASE64`, `APPLE_CERT_PASSWORD`, `APPLE_TEAM_ID`, `APPLE_ID`, `APPLE_APP_PASSWORD`, plus `SPARKLE_PRIVATE_KEY` (the EdDSA private half of the embedded public key, used by `sign_update`) and `HOMEBREW_TAP_TOKEN` (for the cask bump).
 
@@ -261,7 +269,11 @@ Keep widget `kind` strings stable. The six Claude widgets have provider-prefixed
 
 ## Gotchas and known traps
 
-- **The App Group is not active.** `group.com.tokeneater` exists in code (`SharedFileService.appGroupID`), but `com.apple.security.application-groups` is deliberately omitted from both `.entitlements` files (with explicit comments). The live shared-state path is always the home-relative `~/Library/Application Support/com.tokeneater.shared/shared.json`: the desandboxed app writes it, and the sandboxed widget reads it via a `temporary-exception.files.home-relative-path.read-only` entitlement. `SharedFileService.init()` runs two one-shot migrations on first launch: rename from the old `com.claudeusagewidget.shared` product name, and a reverse migration that drains any data stranded in an old Group Container back to the home-relative path. App Group activation is a deferred follow-up (see `docs/v5.0.1-followup.md` and `scripts/enable-app-groups.sh`).
+- **The App Group is not active.** `group.com.tokeneater` exists in code (`SharedFileService.appGroupID`) with a single use site, but `com.apple.security.application-groups` is deliberately omitted from both `.entitlements` files (with explicit comments). The live shared-state path is always the home-relative `~/Library/Application Support/com.tokeneater.shared/shared.json`: the desandboxed app writes it, and the sandboxed widget reads it via a `temporary-exception.files.home-relative-path.read-only` entitlement whose value matches that directory byte for byte.
+- **The shared directory is scratch space, not just `shared.json`.** `SessionHistoryService` writes `history-cache.json`, `ProcessResolver` writes and then executes terminal watcher scripts plus their pidfiles and triggers, `ElectronDecryptionService` caches `decryption.key`, and `UpdateStore` stages the downloaded DMG there for the installer applet, so the nuke above can delete an in-flight update payload. The widget's read-only exception covers the whole directory, so anything placed there becomes readable by the sandboxed widget.
+- **Shared-file writes are read-modify-write.** Every store constructs its own `SharedFileService` with its own cache, so an update path must read through `loadFresh()` rather than `load()` or a usage refresh silently reverts fields another instance just wrote. Adding a field to the private `SharedData` struct needs the matching getter/updater pair. The concrete `SharedFileService` has no unit tests (the suite only ever builds `MockSharedFileService`), so migration and path changes are verifiable only through the manual build + nuke + install flow.
+- **The two shared-file migrations are not gated.** `SharedFileService.init()` runs both, and unlike `LegacyHelperCleanupService` they carry no `UserDefaults` flag: they are idempotent by file existence alone, so they re-run on every construction, several times per app launch and again in the sandboxed widget process where any write they attempt fails silently. Keep `init()` cheap and write-free. The first copies `com.claudeusagewidget.shared/shared.json` into `com.tokeneater.shared/` when nothing is there yet, then deletes the whole old directory (a one-file migration, not a rename). The second drains any data stranded in an old Group Container back to the home-relative path.
+- **Activating the App Group is not one command.** `scripts/enable-app-groups.sh` adds the entitlement to both files but also deletes the widget's `temporary-exception`, i.e. its only read path today, so the group must first be registered in the Developer Portal and added to both App IDs, then `xcodegen generate` and a clean build. The split is deliberate and can stay: the home-relative path is entitled on the widget and works, and turning the group on buys nothing until a provisioning profile exists in CI.
 - **Real home directory in the sandbox.** `FileManager.homeDirectoryForCurrentUser` returns the sandbox container path inside the widget, not the real home. Use `getpwuid(getuid())` (as `SharedFileService`, `CredentialsFileReader`, `ClaudeConfigReader`, and others do).
 - **Widget caching.** macOS caches widget extensions hard. Any widget change needs the full nuke above to take effect.
 - **`DEVELOPMENT_TEAM` is hardcoded** in `project.yml` and will not work for external contributors (see the build note above).

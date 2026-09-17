@@ -8,6 +8,9 @@ final class MockNotificationStateStore: NotificationStateStore {
     var utilizations: [String: Double] = [:]
     var codexTokenExpiredAt: Date?
 
+    func hasBaseline(forKey key: String) -> Bool {
+        levels[key] != nil || pacings[key] != nil
+    }
     func lastLevel(forKey key: String) -> Int { levels[key] ?? 0 }
     func setLastLevel(_ value: Int, forKey key: String) { levels[key] = value }
     func lastPacing(forKey key: String) -> String? { pacings[key] }

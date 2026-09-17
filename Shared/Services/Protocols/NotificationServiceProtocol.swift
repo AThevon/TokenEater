@@ -46,6 +46,10 @@ struct NotificationToggles {
     /// notification fires. Lets the user silence everything without losing
     /// their per-event configuration.
     let masterEnabled: Bool
+    /// Claude sub-master, the mirror of `codex.enabled`. Without it the only
+    /// provider that could be silenced on its own was OpenAI, which made
+    /// "mute one provider" a feature of one provider.
+    var claudeEnabled: Bool = true
     let trackFiveHour: Bool
     let trackWeekly: Bool
     let trackSonnet: Bool
@@ -78,7 +82,9 @@ protocol NotificationServiceProtocol {
     func setupDelegate()
     func requestPermission()
     func checkAuthorizationStatus() async -> UNAuthorizationStatus
-    func sendTest()
+    /// `provider` names the sender in the banner subtitle, exactly as a real
+    /// alert would, so a test verifies what the user will actually see.
+    func sendTest(for provider: MetricProvider?)
     func evaluate(
         fiveHour: MetricSnapshot,
         sevenDay: MetricSnapshot,
@@ -89,7 +95,7 @@ protocol NotificationServiceProtocol {
         extraUsage: ExtraUsage?,
         toggles: NotificationToggles
     )
-    func notifyTokenExpired(toggle: Bool)
+    func notifyTokenExpired(toggles: NotificationToggles)
     func scheduleResetReminders(
         sessionResetsAt: Date?,
         weeklyResetsAt: Date?,
@@ -102,4 +108,9 @@ protocol NotificationServiceProtocol {
     func notifyCodexTokenExpired(toggles: NotificationToggles)
     /// Drops any pending Codex reminder, for when the provider is switched off.
     func cancelCodexReminders()
+}
+
+extension NotificationServiceProtocol {
+    /// An app-level test, with no provider to name.
+    func sendTest() { sendTest(for: nil) }
 }

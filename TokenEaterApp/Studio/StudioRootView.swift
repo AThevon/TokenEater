@@ -8,12 +8,29 @@ import SwiftUI
 struct StudioRootView: View {
     @Binding var selection: StudioSection
 
+    @EnvironmentObject private var settingsStore: SettingsStore
+    /// The mode the app was reading in when Studio opened, restored on the way
+    /// out so authoring a Codex layout never strands the app in Codex mode.
+    @State private var modeOnEntry: ProviderMode?
+
     var body: some View {
         ZStack {
             StudioBackground()
 
             VStack(spacing: DS.Spacing.sm) {
                 StudioSurfaceSwitcher(selection: $selection)
+
+                // Under the surface cards, not above them: you pick the
+                // surface you are working on first, then which provider's
+                // version of it. Above, it read as a filter on the cards.
+                //
+                // Only the popover and the menu bar are stored per provider
+                // mode. Themes are one set of colours and thresholds for the
+                // whole app, so a scope control there would promise a
+                // per-provider palette that does not exist.
+                if selection != .themes {
+                    StudioScopePicker()
+                }
 
                 content
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -29,6 +46,15 @@ struct StudioRootView: View {
             }
             .padding(DS.Spacing.sm)
         }
+        .onAppear {
+            if modeOnEntry == nil { modeOnEntry = settingsStore.activeProviderMode }
+        }
+        .onDisappear {
+            if let modeOnEntry, modeOnEntry != settingsStore.activeProviderMode {
+                settingsStore.activeProviderMode = modeOnEntry
+            }
+            modeOnEntry = nil
+        }
         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.cardLg, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: DS.Radius.cardLg, style: .continuous)
@@ -39,6 +65,8 @@ struct StudioRootView: View {
     @ViewBuilder
     private var content: some View {
         switch selection {
+        case .dashboard:
+            DashboardEditorView()
         case .popover:
             // Owns its three-column layout (rail / list / pinned preview);
             // only the middle list scrolls, so it needs the full height.

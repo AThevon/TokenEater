@@ -1,16 +1,9 @@
 import SwiftUI
 
 struct SettingsSectionView: View {
-    @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var settingsStore: SettingsStore
-    @EnvironmentObject private var themeStore: ThemeStore
     @EnvironmentObject private var updateStore: UpdateStore
 
-    @State private var isTesting = false
-    @State private var testResult: ConnectionTestResult?
-    @State private var isImporting = false
-    @State private var importMessage: String?
-    @State private var importSuccess = false
     @State private var brewCopied = false
     /// Local mirror of the status poll interval for the slider (seconds).
     /// @State + .onChange instead of Binding(get:set:), per the SwiftUI rules.
@@ -27,62 +20,7 @@ struct SettingsSectionView: View {
                 subtitle: String(localized: "sidebar.settings.subtitle")
             )
 
-            // Connection
-            glassCard {
-                VStack(alignment: .leading, spacing: 10) {
-                    cardLabel(String(localized: "settings.tab.connection"))
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(usageStore.hasConfig && !usageStore.isDisconnected ? Color.green : Color.red)
-                            .frame(width: 8, height: 8)
-                        Text(usageStore.hasConfig && !usageStore.isDisconnected
-                             ? String(localized: "settings.connected")
-                             : String(localized: "settings.disconnected"))
-                            .font(.system(size: 13))
-                            .foregroundStyle(.white.opacity(0.8))
-                        Spacer()
-                        if isImporting {
-                            ProgressView().scaleEffect(0.6)
-                        }
-                        Button(String(localized: "settings.redetect")) {
-                            connectAutoDetect()
-                        }
-                        .buttonStyle(.plain)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.blue)
-                    }
-                    if let message = importMessage {
-                        Text(message)
-                            .font(.system(size: 11))
-                            .foregroundStyle(importSuccess ? .green : .orange)
-                    }
-                    if usageStore.errorState == .rateLimited {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Label {
-                                Text("error.banner.apiunavailable.settings")
-                                    .font(.system(size: 11))
-                            } icon: {
-                                Image(systemName: "icloud.slash")
-                                    .font(.system(size: 10))
-                            }
-                            .foregroundStyle(.orange.opacity(0.8))
-                            if let last = usageStore.lastUpdate {
-                                Text(String(format: String(localized: "error.banner.lastupdate"),
-                                            last.formatted(.relative(presentation: .named))))
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(.white.opacity(0.4))
-                            }
-                        }
-                    }
-                    if let result = testResult {
-                        Text(result.message)
-                            .font(.system(size: 11))
-                            .foregroundStyle(result.success ? .green : .red)
-                    }
-                }
-            }
 
-            ProvidersCard()
 
             // Update (placed right under Connection so the user spots a
             // pending version straight away).
@@ -153,6 +91,26 @@ struct SettingsSectionView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         Spacer()
+                        Button {
+                            settingsStore.lastSeenVersion = ""
+                        } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 11, weight: .semibold))
+                                Text(String(localized: "settings.general.whatsNew.action"))
+                                    .font(.system(size: 12, weight: .medium))
+                            }
+                            .foregroundStyle(.white.opacity(0.9))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule().fill(Color.white.opacity(0.08))
+                                    .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1))
+                            )
+                            .contentShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+
                         Button {
                             settingsStore.hasCompletedOnboarding = false
                         } label: {
@@ -358,30 +316,6 @@ struct SettingsSectionView: View {
         return "\(minutes) min"
     }
 
-    private func connectAutoDetect() {
-        isImporting = true
-        importMessage = nil
-        guard settingsStore.credentialsTokenExists() else {
-            isImporting = false
-            importMessage = String(localized: "connect.noclaudecode")
-            importSuccess = false
-            return
-        }
-        Task {
-            let result = await usageStore.connectAutoDetect()
-            isImporting = false
-            if result.success {
-                importMessage = String(localized: "connect.oauth.success")
-                importSuccess = true
-                usageStore.proxyConfig = settingsStore.proxyConfig
-                usageStore.reloadConfig(thresholds: themeStore.thresholds)
-                themeStore.syncToSharedFile()
-            } else {
-                importMessage = result.message
-                importSuccess = false
-            }
-        }
-    }
 }
 
 // MARK: - About link row

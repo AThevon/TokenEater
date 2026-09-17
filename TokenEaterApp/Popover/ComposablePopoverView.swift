@@ -38,9 +38,32 @@ struct ComposablePopoverView: View {
 
     static let popoverWidth: CGFloat = 300
 
+    /// True only when the switcher actually draws something: it renders
+    /// nothing below two providers, and padding around nothing is a gap.
+    private var showsSwitcher: Bool {
+        settingsStore.popoverShowsProviderSwitch && settingsStore.availableProviderModes.count > 1
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            Color.clear.frame(height: 12)
+            // The switcher sits in a band of its own, and the band was
+            // lopsided: 12 above, 10 below, and then the grid's own 10 point
+            // row spacing under that, so it read as belonging to the top of
+            // the popover rather than to nothing in particular. Snug and even
+            // now, and the 12 stays when the switcher is absent because that
+            // is the spacing the popover has always opened with.
+            Color.clear.frame(height: showsSwitcher ? 9 : 12)
+
+            // Pinned, not composable, and that is the whole point: a control
+            // that changes the scope cannot be something the scope can
+            // delete. It was an element for one release and switching into a
+            // mode whose layout lacked it left no way back out. Presence is a
+            // single global preference now, off in Studio if you want it off,
+            // and it still draws nothing below two providers.
+            if settingsStore.popoverShowsProviderSwitch {
+                ProviderModeSwitcher(size: .dots)
+                    .padding(.bottom, showsSwitcher ? 3 : 0)
+            }
 
             VendorStatusBanner()
 
@@ -64,6 +87,7 @@ struct ComposablePopoverView: View {
 /// which SwiftUI documents as undefined geometry).
 private struct PopoverGrid: View {
     @EnvironmentObject private var usageStore: UsageStore
+    @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.popoverElementTap) private var tapHandler
@@ -106,7 +130,7 @@ private struct PopoverGrid: View {
 
     private var visibleElements: [PopoverElement] {
         settingsStore.popoverComposition.visibleElements.filter {
-            PopoverMetricResolver.isAvailable($0.kind, usage: usageStore)
+            PopoverMetricResolver.isVisible($0.kind, usage: usageStore, codex: codexStore, settings: settingsStore)
         }
     }
 

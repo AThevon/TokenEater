@@ -74,15 +74,38 @@ private enum Surface: String {
     case codexSession
     case codexWeekly
 
-    /// `weekly` and `sonnet` share the long-form body (date-based)
-    /// but each gets its own title to avoid generic alerts.
+    /// Which provider the alert is about. It goes in the banner subtitle and
+    /// in the thread identifier, so macOS groups each provider's alerts
+    /// together and every banner says who it is about.
+    var provider: MetricProvider {
+        switch self {
+        case .codexSession, .codexWeekly: return .codex
+        case .fiveHour, .weekly, .sonnet, .fable: return .claude
+        }
+    }
+
+    /// Which copy family the alert reads.
+    ///
+    /// Deliberately shared between providers: a session window is a session
+    /// window whoever serves it, and the provider is named in the subtitle
+    /// rather than baked into every title. The Codex family used to duplicate
+    /// all of this with a "Codex " prefix, which meant Claude's alerts were
+    /// the anonymous ones and a third provider would have cost twenty more
+    /// strings to translate.
     var bodyFamily: String {
         switch self {
-        case .fiveHour: return "fivehour"
-        case .codexSession: return "codex.session"
-        case .codexWeekly: return "codex.weekly"
-        default: return rawValue
+        case .fiveHour, .codexSession: return "fivehour"
+        case .weekly, .codexWeekly: return "weekly"
+        case .sonnet: return "sonnet"
+        case .fable: return "fable"
         }
+    }
+
+    /// Copy family for the "your quota is back" alert. Provider-neutral on
+    /// purpose: only OpenAI fires it today, and Claude gaining the same
+    /// detector must not mean writing the strings again.
+    var resetFamily: String {
+        usesCountdownBody ? "session" : "weekly"
     }
 
     /// Windows shorter than a day render a countdown ("2h 15min left"); longer
@@ -129,12 +152,26 @@ final class NotificationService: NotificationServiceProtocol {
         await center.authorizationStatus()
     }
 
-    func sendTest() {
-        let content = UNMutableNotificationContent()
+    func sendTest(for provider: MetricProvider?) {
+        let content = content(for: provider)
         content.title = String(localized: "notif.title.test")
         content.body = String(localized: "notif.body.test")
-        content.sound = .default
         send(id: "test_\(Date().timeIntervalSince1970)", content: content)
+    }
+
+    /// Every notification the app sends is built here, so none can ship
+    /// without saying who it is about. The subtitle is the line macOS renders
+    /// under the title; the thread identifier is what makes Notification
+    /// Center stack a provider's alerts together instead of interleaving two
+    /// providers' windows in one undifferentiated pile.
+    private func content(for provider: MetricProvider?) -> UNMutableNotificationContent {
+        let content = UNMutableNotificationContent()
+        content.sound = .default
+        if let provider {
+            content.subtitle = provider.displayName
+            content.threadIdentifier = provider.rawValue
+        }
+        return content
     }
 
     // MARK: - Main evaluation
@@ -152,7 +189,7 @@ final class NotificationService: NotificationServiceProtocol {
         // Master switch. When the user flipped notifications off in Settings,
         // we skip every per-event check (and also drop any pending scheduled
         // reminders so a switch-back doesn't fire stale ones).
-        guard toggles.masterEnabled else {
+        guard toggles.masterEnabled, toggles.claudeEnabled else {
             center.removePending(identifiers: ["reminder_session", "reminder_weekly"])
             return
         }
@@ -228,6 +265,17 @@ final class NotificationService: NotificationServiceProtocol {
             state.setLastResetsAt(resetsAt, forKey: resetKey)
         }
 
+        // First observation of this surface: record where it stands and stay
+        // quiet. A notification reports a transition, and there is nothing to
+        // transition from yet. Without this an absent baseline reads as green,
+        // so a provider enabled while already past a threshold announces itself
+        // seconds later - which for an auto-detected provider is an alert the
+        // user never asked for.
+        guard state.hasBaseline(forKey: key) else {
+            state.setLastLevel(current.rawValue, forKey: key)
+            return
+        }
+
         guard current != previous else { return }
         state.setLastLevel(current.rawValue, forKey: key)
 
@@ -251,16 +299,14 @@ final class NotificationService: NotificationServiceProtocol {
         pacing: PacingZone?,
         paceDriven: Bool
     ) {
-        let content = UNMutableNotificationContent()
-        content.sound = .default
+        let content = content(for: surface.provider)
         content.title = title(for: surface, level: level, pacing: pacing, paceDriven: paceDriven)
         content.body = body(for: surface, level: level, snapshot: snapshot, pacing: pacing, paceDriven: paceDriven)
         send(id: "escalation_\(surface.rawValue)", content: content)
     }
 
     private func notifyRecovery(surface: Surface, snapshot: MetricSnapshot) {
-        let content = UNMutableNotificationContent()
-        content.sound = .default
+        let content = content(for: surface.provider)
         content.title = NSLocalizedString("notif.title.\(surface.bodyFamily).green", comment: "")
         content.body = recoveryBody(surface: surface, resetsAt: snapshot.resetsAt)
         send(id: "recovery_\(surface.rawValue)", content: content)
@@ -275,27 +321,36 @@ final class NotificationService: NotificationServiceProtocol {
         // Only fire on entry to a "loud" zone, and only if the toggle for that
         // zone is on. Recovery to chill / onTrack stays silent (the absence of
         // the alert IS the recovery signal).
+        // Same first-observation rule as the level machine above: entering a
+        // loud zone is a transition, and the first reading is not one.
+        guard state.hasBaseline(forKey: key) else {
+            state.setLastPacing(zone.rawValue, forKey: key)
+            return
+        }
+
         if zone.rawValue == previous { return }
         state.setLastPacing(zone.rawValue, forKey: key)
 
         switch zone {
         case .hot:
             guard toggles.pacingHot else { return }
-            firePacing(zone: .hot)
+            firePacing(zone: .hot, surface: surface)
         case .warning:
             guard toggles.pacingWarning else { return }
-            firePacing(zone: .warning)
+            firePacing(zone: .warning, surface: surface)
         case .chill, .onTrack:
             return
         }
     }
 
-    private func firePacing(zone: PacingZone) {
-        let content = UNMutableNotificationContent()
-        content.sound = .default
+    /// The identifier carries the provider as well as the zone. It used to be
+    /// the zone alone, so one provider going hot replaced the other provider's
+    /// banner saying the same thing about a different account.
+    private func firePacing(zone: PacingZone, surface: Surface) {
+        let content = content(for: surface.provider)
         content.title = NSLocalizedString("notif.title.pacing.\(zone.rawValue)", comment: "")
         content.body = NSLocalizedString("notif.body.pacing.\(zone.rawValue)", comment: "")
-        send(id: "pacing_\(zone.rawValue)", content: content)
+        send(id: "pacing_\(surface.provider.rawValue)_\(zone.rawValue)", content: content)
     }
 
     // MARK: - Extra credits
@@ -311,15 +366,13 @@ final class NotificationService: NotificationServiceProtocol {
 
         switch level {
         case .orange, .red:
-            let content = UNMutableNotificationContent()
-            content.sound = .default
+            let content = content(for: .claude)
             let extraKey = level == .red ? "red" : "orange"
             content.title = NSLocalizedString("notif.title.extra.\(extraKey)", comment: "")
             content.body = String(format: NSLocalizedString("notif.body.extra.\(extraKey)", comment: ""), pct)
             send(id: "escalation_extra", content: content)
         case .green where previous > .green && toggles.sendRecovery:
-            let content = UNMutableNotificationContent()
-            content.sound = .default
+            let content = content(for: .claude)
             content.title = String(localized: "notif.title.extra.green")
             content.body = String(localized: "notif.body.extra.green")
             send(id: "recovery_extra", content: content)
@@ -375,8 +428,7 @@ final class NotificationService: NotificationServiceProtocol {
         if let last = state.codexTokenExpiredFiredAt(), now.timeIntervalSince(last) < 3600 { return }
         state.setCodexTokenExpiredFiredAt(now)
 
-        let content = UNMutableNotificationContent()
-        content.sound = .default
+        let content = content(for: .codex)
         content.title = String(localized: "notif.title.codex.token")
         content.body = String(localized: "notif.body.codex.token")
         send(id: "codex_token_expired", content: content)
@@ -411,10 +463,9 @@ final class NotificationService: NotificationServiceProtocol {
 
         guard didReset else { return }
 
-        let content = UNMutableNotificationContent()
-        content.sound = .default
-        content.title = NSLocalizedString("notif.title.\(surface.bodyFamily).reset", comment: "")
-        let bodyKey = "notif.body.\(surface.bodyFamily).reset"
+        let content = content(for: surface.provider)
+        content.title = NSLocalizedString("notif.title.reset.\(surface.resetFamily)", comment: "")
+        let bodyKey = "notif.body.reset.\(surface.resetFamily)"
         if surface.usesCountdownBody {
             content.body = String(format: NSLocalizedString(bodyKey, comment: ""), NotificationBodyFormatter.formatTime(resetDate))
         } else {
@@ -440,9 +491,10 @@ final class NotificationService: NotificationServiceProtocol {
             let duration = formatReminderDuration(minutes: toggles.resetReminderSessionOffsetMinutes)
             schedule(
                 id: "reminder_codex_session",
-                title: String(format: NSLocalizedString("notif.title.codex.reminder.session", comment: ""), duration),
-                body: NSLocalizedString("notif.body.codex.reminder.session", comment: ""),
-                fireDate: target
+                title: String(format: NSLocalizedString("notif.title.reminder.session", comment: ""), duration),
+                body: NSLocalizedString("notif.body.reminder.session", comment: ""),
+                fireDate: target,
+                provider: .codex
             )
         }
 
@@ -452,9 +504,10 @@ final class NotificationService: NotificationServiceProtocol {
             let duration = formatReminderDuration(minutes: toggles.resetReminderWeeklyOffsetMinutes)
             schedule(
                 id: "reminder_codex_weekly",
-                title: String(format: NSLocalizedString("notif.title.codex.reminder.weekly", comment: ""), duration),
-                body: NSLocalizedString("notif.body.codex.reminder.weekly", comment: ""),
-                fireDate: target
+                title: String(format: NSLocalizedString("notif.title.reminder.weekly", comment: ""), duration),
+                body: NSLocalizedString("notif.body.reminder.weekly", comment: ""),
+                fireDate: target,
+                provider: .codex
             )
         }
     }
@@ -467,7 +520,9 @@ final class NotificationService: NotificationServiceProtocol {
     /// is shown in the UI but never notified, and is NOT persisted, so it can't
     /// produce a phantom "restored" alert when the window ends.
     func checkVendorHealth(_ status: VendorStatus, toggles: NotificationToggles) {
-        guard toggles.masterEnabled else { return }
+        // `Vendor` only knows Claude today, and an outage alert is about that
+        // provider, so it follows that provider's master.
+        guard toggles.masterEnabled, toggles.claudeEnabled else { return }
         let key = "lastVendorHealth_\(status.vendor.rawValue)"
         let previous = VendorHealth(rawValue: UserDefaults.standard.integer(forKey: key)) ?? .healthy
         let current = status.health
@@ -480,16 +535,14 @@ final class NotificationService: NotificationServiceProtocol {
 
         if current == .healthy {
             guard toggles.vendorRestored else { return }
-            let content = UNMutableNotificationContent()
-            content.sound = .default
+            let content = content(for: .claude)
             content.title = NSLocalizedString("notif.title.status.\(status.vendor.rawValue).restored", comment: "")
             content.body = NSLocalizedString("notif.body.status.\(status.vendor.rawValue).restored", comment: "")
             send(id: "vendor_restored_\(status.vendor.rawValue)", content: content)
         } else {
             guard toggles.vendorDegraded else { return }
             let levelKey = current == .down ? "down" : "degraded"
-            let content = UNMutableNotificationContent()
-            content.sound = .default
+            let content = content(for: .claude)
             content.title = NSLocalizedString("notif.title.status.\(status.vendor.rawValue).\(levelKey)", comment: "")
             // Prefer the live incident headline; fall back to generic copy.
             if let incident = status.activeIncidents.first {
@@ -503,8 +556,8 @@ final class NotificationService: NotificationServiceProtocol {
 
     // MARK: - Token expired
 
-    func notifyTokenExpired(toggle: Bool) {
-        guard toggle else { return }
+    func notifyTokenExpired(toggles: NotificationToggles) {
+        guard toggles.masterEnabled, toggles.claudeEnabled, toggles.tokenExpired else { return }
         let now = Date()
         // De-dupe: only one token-expired notif per hour.
         if let last = state.tokenExpiredFiredAt(),
@@ -513,8 +566,7 @@ final class NotificationService: NotificationServiceProtocol {
         }
         state.setTokenExpiredFiredAt(now)
 
-        let content = UNMutableNotificationContent()
-        content.sound = .default
+        let content = content(for: .claude)
         content.title = String(localized: "notif.title.token")
         content.body = String(localized: "notif.body.token")
         send(id: "token_expired", content: content)
@@ -527,8 +579,10 @@ final class NotificationService: NotificationServiceProtocol {
         weeklyResetsAt: Date?,
         toggles: NotificationToggles
     ) {
-        // Cancel previous schedules so a moving target doesn't pile up.
+        // Cancel previous schedules so a moving target doesn't pile up. Also
+        // the way a muted provider loses its pending reminders.
         center.removePending(identifiers: ["reminder_session", "reminder_weekly"])
+        guard toggles.masterEnabled, toggles.claudeEnabled else { return }
 
         if toggles.resetReminderSession,
            let target = sessionResetsAt?.addingTimeInterval(-Double(toggles.resetReminderSessionOffsetMinutes) * 60),
@@ -539,7 +593,8 @@ final class NotificationService: NotificationServiceProtocol {
                 id: "reminder_session",
                 title: String(format: titleTemplate, duration),
                 body: NSLocalizedString("notif.body.reminder.session", comment: ""),
-                fireDate: target
+                fireDate: target,
+                provider: .claude
             )
         }
         if toggles.resetReminderWeekly,
@@ -551,7 +606,8 @@ final class NotificationService: NotificationServiceProtocol {
                 id: "reminder_weekly",
                 title: String(format: titleTemplate, duration),
                 body: NSLocalizedString("notif.body.reminder.weekly", comment: ""),
-                fireDate: target
+                fireDate: target,
+                provider: .claude
             )
         }
     }
@@ -567,11 +623,10 @@ final class NotificationService: NotificationServiceProtocol {
         return String(format: NSLocalizedString("notif.duration.minutes", comment: ""), minutes)
     }
 
-    private func schedule(id: String, title: String, body: String, fireDate: Date) {
-        let content = UNMutableNotificationContent()
+    private func schedule(id: String, title: String, body: String, fireDate: Date, provider: MetricProvider) {
+        let content = content(for: provider)
         content.title = title
         content.body = body
-        content.sound = .default
 
         let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: fireDate)
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
@@ -594,8 +649,11 @@ final class NotificationService: NotificationServiceProtocol {
         if paceDriven, level != .green, !surface.usesCountdownBody {
             return NSLocalizedString("notif.title.\(surface.bodyFamily).pace", comment: "")
         }
-        if surface == .fiveHour, level == .orange, let pacing {
-            return NSLocalizedString("notif.title.fivehour.orange.\(pacing.rawValue.lowercased())", comment: "")
+        // Session windows get the pacing-qualified title on both providers:
+        // the nuance was written for the 5-hour window, and OpenAI's session
+        // window is the same kind of window with the same pacing data.
+        if surface.usesCountdownBody, level == .orange, let pacing {
+            return NSLocalizedString("notif.title.\(surface.bodyFamily).orange.\(pacing.rawValue.lowercased())", comment: "")
         }
         let levelKey = level == .red ? "red" : (level == .orange ? "orange" : "green")
         return NSLocalizedString("notif.title.\(surface.bodyFamily).\(levelKey)", comment: "")
@@ -604,34 +662,30 @@ final class NotificationService: NotificationServiceProtocol {
     private func body(for surface: Surface, level: UsageLevel, snapshot: MetricSnapshot, pacing: PacingZone?, paceDriven: Bool) -> String {
         // Pace-driven escalation on a 7-day bucket: a rate-oriented body that
         // doesn't imply a hard ceiling. No date arg (format ignores extras).
-        if paceDriven, level != .green, surface != .fiveHour {
+        // Must match the guard in `title(for:)` exactly. It was updated to
+        // `usesCountdownBody` and this one was left on `!= .fiveHour`, so a
+        // pace-driven `.codexSession` escalation took the pace branch here
+        // while the title took the normal one, and looked up
+        // `notif.body.codex.session.pace`, a key that exists in neither
+        // language. NSLocalizedString then returns the key, so the
+        // notification body read as the key itself.
+        if paceDriven, level != .green, !surface.usesCountdownBody {
             return NSLocalizedString("notif.body.\(surface.bodyFamily).pace", comment: "")
         }
         let resetsAt = snapshot.resetsAt
         switch surface {
-        case .fiveHour:
+        case .fiveHour, .codexSession:
             if let resetsAt, resetsAt.timeIntervalSinceNow > 0 {
                 let countdown = NotificationBodyFormatter.formatCountdown(from: Date(), to: resetsAt)
                 let pacingKey = (level == .orange) ? (pacing?.rawValue.lowercased() ?? "ontrack") : "red"
                 let key = level == .red
-                    ? "notif.body.fivehour.red"
-                    : "notif.body.fivehour.orange.\(pacingKey)"
+                    ? "notif.body.\(surface.bodyFamily).red"
+                    : "notif.body.\(surface.bodyFamily).orange.\(pacingKey)"
                 return String(format: NSLocalizedString(key, comment: ""), countdown)
             }
             return level == .red
-                ? NSLocalizedString("notif.body.fivehour.red.fallback", comment: "")
-                : NSLocalizedString("notif.body.fivehour.orange.fallback", comment: "")
-        case .codexSession:
-            if let resetsAt, resetsAt.timeIntervalSinceNow > 0 {
-                let countdown = NotificationBodyFormatter.formatCountdown(from: Date(), to: resetsAt)
-                let key = level == .red
-                    ? "notif.body.codex.session.red"
-                    : "notif.body.codex.session.orange"
-                return String(format: NSLocalizedString(key, comment: ""), countdown)
-            }
-            return level == .red
-                ? NSLocalizedString("notif.body.codex.session.red.fallback", comment: "")
-                : NSLocalizedString("notif.body.codex.session.orange.fallback", comment: "")
+                ? NSLocalizedString("notif.body.\(surface.bodyFamily).red.fallback", comment: "")
+                : NSLocalizedString("notif.body.\(surface.bodyFamily).orange.fallback", comment: "")
         case .weekly, .sonnet, .fable, .codexWeekly:
             if let resetsAt, resetsAt.timeIntervalSinceNow > 0 {
                 let dateTime = NotificationBodyFormatter.formatDateTime(resetsAt)

@@ -12,12 +12,16 @@ struct NotificationsCard: View {
 
     var body: some View {
         OnboardingCard(
-            kind: .optional,
             tilt: .left,
-            title: "onboarding.card.notifications.title",
-            statusText: statusText,
+            title: String(localized: "onboarding.card.notifications.title"),
+            statusText: String(localized: statusText),
             statusColor: statusColor,
             accent: accent,
+            // No coverage badge: both providers notify, and a badge on every
+            // card is a badge on none. Its absence is the signal, the same way
+            // it is on a settings section header.
+            mark: { EmptyView() },
+            badge: { EmptyView() },
             scene: { scene },
             control: { control }
         )

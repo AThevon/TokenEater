@@ -13,13 +13,92 @@ import Foundation
 // Codable helper and the `UserTemplate` container with the popover.
 
 /// What a menu bar segment shows.
+/// Which provider a metric reads from. Groups the Studio add menus and drives
+/// the display mode filter. Chrome, utilities and actions have no provider:
+/// they belong to every mode.
+enum MetricProvider: String, CaseIterable, Identifiable {
+    case claude
+    case codex
+
+    var id: String { rawValue }
+
+    /// The name the app puts in front of a user, and deliberately the
+    /// provider rather than the tool: the two peers are Claude and OpenAI,
+    /// not Claude and Codex. The detail sections still say "OpenAI Codex",
+    /// because by then you are looking at Codex specifically.
+    var displayName: String {
+        switch self {
+        case .claude: return "Claude"
+        case .codex: return "OpenAI"
+        }
+    }
+}
+
+/// Which slice of the app is on screen. `all` shows every provider; a provider
+/// mode hides the others' metrics while keeping chrome, utilities and actions,
+/// which belong to no provider.
+///
+/// Only meaningful with two or more active providers; below that the selector
+/// is hidden and `all` is indistinguishable from the single provider's mode.
+enum ProviderMode: String, Codable, CaseIterable, Identifiable {
+    case all
+    case claude
+    case codex
+
+    var id: String { rawValue }
+
+    var provider: MetricProvider? {
+        switch self {
+        case .all: return nil
+        case .claude: return .claude
+        case .codex: return .codex
+        }
+    }
+
+    var localizedLabel: String {
+        switch self {
+        case .all: return String(localized: "providerMode.all")
+        case .claude: return "Claude"
+        case .codex: return "Codex"
+        }
+    }
+
+    /// Suffix appended to a composition's UserDefaults key. `all` deliberately
+    /// has none: it keeps the pre-modes key, so an existing user's layout is
+    /// already the All layout with no migration and a downgrade still reads it.
+    var storageSuffix: String {
+        self == .all ? "" : ".\(rawValue)"
+    }
+
+    func shows(_ provider: MetricProvider?) -> Bool {
+        guard let wanted = self.provider, let provider else { return true }
+        return provider == wanted
+    }
+}
+
 enum MenuBarSegmentKind: String, Codable, CaseIterable, Identifiable {
     // Usage metrics (percentage)
     case session, weekly, sonnet, fable, extraCredits
+    // Codex usage. Additive raw values, same lossy-decode property as the
+    // popover kinds: an older build drops what it does not recognise.
+    case codexSession, codexWeekly
     // Pacing (delta vs linear pace)
     case sessionPacing, weeklyPacing, fablePacing
+    case codexSessionPacing, codexWeeklyPacing
     // Status / time
     case sessionReset, serviceStatus
+
+    /// Pacing segments read a rate rather than a level. The editors group by
+    /// provider first and family second, and this is the family split.
+    var isPacing: Bool {
+        switch self {
+        case .sessionPacing, .weeklyPacing, .fablePacing,
+             .codexSessionPacing, .codexWeeklyPacing:
+            return true
+        default:
+            return false
+        }
+    }
 
     var id: String { rawValue }
 
@@ -27,9 +106,11 @@ enum MenuBarSegmentKind: String, Codable, CaseIterable, Identifiable {
 
     var family: Family {
         switch self {
-        case .session, .weekly, .sonnet, .fable, .extraCredits:
+        case .session, .weekly, .sonnet, .fable, .extraCredits,
+             .codexSession, .codexWeekly:
             return .usage
-        case .sessionPacing, .weeklyPacing, .fablePacing:
+        case .sessionPacing, .weeklyPacing, .fablePacing,
+             .codexSessionPacing, .codexWeeklyPacing:
             return .pacing
         case .sessionReset, .serviceStatus:
             return .status
@@ -54,7 +135,29 @@ enum MenuBarSegmentKind: String, Codable, CaseIterable, Identifiable {
     /// Presence-gated kinds render nothing (and the editor greys them) when the
     /// account lacks the metric, matching the pre-5.10 menu bar.
     var isPresenceGated: Bool {
-        self == .fable || self == .extraCredits || self == .fablePacing
+        switch self {
+        case .fable, .extraCredits, .fablePacing,
+             .codexSession, .codexWeekly, .codexSessionPacing, .codexWeeklyPacing:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Which provider the segment reads from. The editor groups its add menu
+    /// by this, so a Claude-only user is not scrolling past Codex entries.
+    var provider: MetricProvider? {
+        switch self {
+        case .codexSession, .codexWeekly, .codexSessionPacing, .codexWeeklyPacing:
+            return .codex
+        case .session, .weekly, .sonnet, .fable, .extraCredits,
+             .sessionPacing, .weeklyPacing, .fablePacing, .sessionReset:
+            return .claude
+        // Service status is about the vendor's own health, and it is rendered
+        // for whichever vendors are being watched, so it belongs to no mode.
+        case .serviceStatus:
+            return nil
+        }
     }
 }
 
@@ -194,9 +297,38 @@ struct MenuBarComposition: Codable, Equatable {
 
 /// Built-in starting points for the menu bar look.
 enum MenuBarBuiltinTemplate: String, CaseIterable, Identifiable {
-    case classic, minimalist, pills, pacingFocus, complete
+    // Same rule as the popover templates: declaration order is presentation
+    // order with one provider, and `ordered(for:)` floats the paired ones up
+    // when both are on.
+    case classic
+    case minimalist
+    case pills
+    case pacingFocus
+    case resetClock
+    case complete
+    case duo
+    case duoPills
 
     var id: String { rawValue }
+
+    enum Scope { case universal, paired }
+
+    var scope: Scope {
+        switch self {
+        case .duo, .duoPills: return .paired
+        default: return .universal
+        }
+    }
+
+    static func ordered(for mode: ProviderMode, providerCount: Int) -> [MenuBarBuiltinTemplate] {
+        let pairedFirst = providerCount > 1 && mode == .all
+        return allCases.sorted { lhs, rhs in
+            let lk = (lhs.scope == .paired) == pairedFirst ? 0 : 1
+            let rk = (rhs.scope == .paired) == pairedFirst ? 0 : 1
+            if lk != rk { return lk < rk }
+            return (allCases.firstIndex(of: lhs) ?? 0) < (allCases.firstIndex(of: rhs) ?? 0)
+        }
+    }
 
     var localizedName: String {
         NSLocalizedString("menuBarTemplate.\(rawValue)", comment: "")
@@ -224,6 +356,25 @@ enum MenuBarBuiltinTemplate: String, CaseIterable, Identifiable {
             return MenuBarComposition(segments: [
                 MenuBarSegment(kind: .session, style: .labelValue),
                 MenuBarSegment(kind: .sessionPacing, style: .dotDelta),
+            ])
+        case .resetClock:
+            // For the people whose question is when it lifts, not how much is
+            // left: the session number and the countdown beside it.
+            return MenuBarComposition(segments: [
+                MenuBarSegment(kind: .session, style: .labelValue),
+                MenuBarSegment(kind: .sessionReset, style: .text),
+            ])
+        case .duo:
+            // Both session windows, nothing else. Two numbers is already a lot
+            // of menu bar, so this is the paired layout that still fits.
+            return MenuBarComposition(segments: [
+                MenuBarSegment(kind: .session, style: .labelValue),
+                MenuBarSegment(kind: .codexSession, style: .labelValue),
+            ])
+        case .duoPills:
+            return MenuBarComposition(segments: [
+                MenuBarSegment(kind: .session, style: .pill),
+                MenuBarSegment(kind: .codexSession, style: .pill),
             ])
         case .complete:
             return MenuBarComposition(segments: [
@@ -256,7 +407,10 @@ extension MenuBarSegmentKind {
         case .sonnet: return "quote.opening"
         case .fable: return "books.vertical.fill"
         case .extraCredits: return "creditcard.fill"
+        case .codexSession: return "bolt.horizontal.fill"
+        case .codexWeekly: return "calendar.badge.clock"
         case .sessionPacing, .weeklyPacing, .fablePacing: return "speedometer"
+        case .codexSessionPacing, .codexWeeklyPacing: return "speedometer"
         case .sessionReset: return "clock.arrow.circlepath"
         case .serviceStatus: return "dot.radiowaves.left.and.right"
         }

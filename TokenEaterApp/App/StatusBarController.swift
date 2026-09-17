@@ -78,7 +78,13 @@ final class StatusBarController: NSObject {
         // no Dock icon, suppressing it on a fresh install would strand the user
         // with no reachable UI (#198). The window stays reachable from the menu
         // bar's right-click "Open" item afterwards.
-        if !settingsStore.hasCompletedOnboarding || !settingsStore.launchInBackground {
+        // The release screen joins the same condition: an update the user
+        // never sees announced is the same as not shipping the announcement,
+        // and this window is already the one that self-opens on a fresh
+        // install. It fires once, because finishing it writes the version.
+        if !settingsStore.hasCompletedOnboarding
+            || settingsStore.needsWhatsNew
+            || !settingsStore.launchInBackground {
             DispatchQueue.main.async { [weak self] in
                 self?.showDashboard()
             }
@@ -107,6 +113,16 @@ final class StatusBarController: NSObject {
         // it matches the .transient behaviour on the desktop while no longer
         // self-dismissing over fullscreen.
         popover.behavior = .applicationDefined
+        // Whatever the popover missed gets painted however it closes,
+        // including the paths that never reach `dismissPopover` (a click
+        // outside, an app switch).
+        NotificationCenter.default.addObserver(
+            forName: NSPopover.didCloseNotification,
+            object: popover,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.resumeMenuBarUpdates() }
+        }
         popover.appearance = NSAppearance(named: .darkAqua)
     }
 
@@ -186,6 +202,22 @@ final class StatusBarController: NSObject {
             }
             .store(in: &cancellables)
 
+        settingsStore.$claudeEnabled
+            .dropFirst()
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] enabled in
+                guard let self, self.settingsStore.hasCompletedOnboarding else { return }
+                if enabled {
+                    self.usageStore.reloadConfig(thresholds: self.themeStore.thresholds)
+                    self.usageStore.startAutoRefresh(thresholds: self.themeStore.thresholds)
+                } else {
+                    self.usageStore.stopAutoRefresh()
+                }
+                self.updateMenuBarIcon()
+            }
+            .store(in: &cancellables)
+
         settingsStore.$codexEnabled
             .dropFirst()
             .removeDuplicates()
@@ -253,7 +285,9 @@ final class StatusBarController: NSObject {
         vendorStatusStore.notifTogglesProvider = { [weak self] in self?.makeNotificationToggles() }
         vendorStatusStore.healthyPollInterval = TimeInterval(settingsStore.statusPollInterval)
         usageStore.reloadConfig(thresholds: themeStore.thresholds)
-        usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
+        if settingsStore.claudeEnabled {
+            usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
+        }
         themeStore.syncToSharedFile()
 
         // Monitor token files (credentials + config.json) for changes
@@ -300,6 +334,7 @@ final class StatusBarController: NSObject {
     private func makeNotificationToggles() -> NotificationToggles {
         NotificationToggles(
             masterEnabled: settingsStore.notificationsEnabled,
+            claudeEnabled: settingsStore.notification.claudeEnabled,
             trackFiveHour: settingsStore.notifTrackFiveHour,
             trackWeekly: settingsStore.notifTrackWeekly,
             trackSonnet: settingsStore.notifTrackSonnet,
@@ -377,8 +412,14 @@ final class StatusBarController: NSObject {
     // MARK: - Menu Bar Icon
 
     private func updateMenuBarIcon() {
+        // See `menuBarRepaintDeferred`: repainting resizes the item, and the
+        // open popover is anchored to it.
+        guard !popover.isShown else {
+            menuBarRepaintDeferred = true
+            return
+        }
         let image = MenuBarRenderer.render(
-            .live(usage: usageStore, theme: themeStore, settings: settingsStore, vendor: vendorStatusStore)
+            .live(usage: usageStore, theme: themeStore, settings: settingsStore, vendor: vendorStatusStore, codex: codexStore)
         )
         statusItem.button?.image = image
     }
@@ -604,6 +645,25 @@ final class StatusBarController: NSObject {
         NSApp.terminate(nil)
     }
 
+    /// A menu bar repaint that arrived while the popover was open.
+    ///
+    /// The popover anchors to the status item button, and the button sizes
+    /// itself to its image: repaint it with different content and the item
+    /// changes width, which drags the popover sideways to stay centred on its
+    /// new anchor. Switching provider from inside the popover does exactly
+    /// that. So the repaint waits instead.
+    ///
+    /// Waiting rather than pinning `statusItem.length`: setting an explicit
+    /// length is itself a resize, so pinning made the item grow on open and
+    /// shrink again on close even when nothing had changed.
+    private var menuBarRepaintDeferred = false
+
+    private func resumeMenuBarUpdates() {
+        guard menuBarRepaintDeferred else { return }
+        menuBarRepaintDeferred = false
+        updateMenuBarIcon()
+    }
+
     private func togglePopover() {
         if popover.isShown {
             dismissPopover()
@@ -661,6 +721,18 @@ final class StatusBarController: NSObject {
     /// Opaque dark shared with the popover content (see ComposablePopoverView).
     private static let popoverBackgroundColor = NSColor(red: 0.08, green: 0.08, blue: 0.09, alpha: 1)
 
+    /// The dashboard's opening size. Wide enough for two glance cards side by
+    /// side, tall enough that History fits without scrolling, and never taller
+    /// than the screen it opens on.
+    static func defaultMainSize() -> NSSize {
+        let wanted = NSSize(width: 940, height: 784)
+        guard let visible = NSScreen.main?.visibleFrame else { return wanted }
+        return NSSize(
+            width: min(wanted.width, visible.width - 40),
+            height: min(wanted.height, visible.height - 40)
+        )
+    }
+
     func showDashboard() {
         dismissPopover()
 
@@ -690,7 +762,11 @@ final class StatusBarController: NSObject {
             width: DS.Layout.onboardingWindow.width,
             height: DS.Layout.onboardingWindow.height
         )
-        let size = isOnboarding ? onboardingSize : NSSize(width: 940, height: 700)
+        // 700 was a round number, not a measured one, and History has grown
+        // cards since: it was the one view that scrolled at the default size.
+        // Clamped to the screen so this is never worse than 700 on a small
+        // display, only better on a large one.
+        let size = isOnboarding ? onboardingSize : Self.defaultMainSize()
         var styleMask: NSWindow.StyleMask = [.titled, .closable, .fullSizeContentView]
         if !isOnboarding { styleMask.insert(.resizable) }
 
@@ -765,7 +841,7 @@ final class StatusBarController: NSObject {
         window.minSize = NSSize(width: 600, height: 440)
         window.isMovableByWindowBackground = false
         window.setFrameAutosaveName("TokenEaterMain")
-        let mainSize = NSSize(width: 940, height: 700)
+        let mainSize = Self.defaultMainSize()
         window.setContentSize(mainSize)
         window.center()
     }

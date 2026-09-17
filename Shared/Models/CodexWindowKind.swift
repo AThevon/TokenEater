@@ -40,6 +40,18 @@ enum CodexWindowKind: String, Codable, CaseIterable, Sendable {
         }
     }
 
+    /// The name the glance card uses, which has to be the same word Claude's
+    /// card uses for the same window or the two cards look like two designs.
+    /// `label(for:)` stays as it is: "5h" is the right answer in the menu bar
+    /// and the popover, where the label names a duration, not a concept.
+    func heroLabel(for duration: TimeInterval) -> String {
+        switch self {
+        case .session: return String(localized: "dashboard.hero.window.session")
+        case .weekly:  return String(localized: "dashboard.hero.window.weekly")
+        case .other:   return label(for: duration)
+        }
+    }
+
     /// Whether a workweek pacing schedule applies. Intraday windows always
     /// measure on the calendar clock, matching how the Claude 5h bucket behaves.
     var isIntraday: Bool { self == .session }

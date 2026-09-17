@@ -13,7 +13,8 @@ final class MockNotificationService: NotificationServiceProtocol {
         extraUsage: ExtraUsage?,
         toggles: NotificationToggles
     )?
-    var lastTokenExpiredFire: Bool?
+    var lastTokenExpiredFire: NotificationToggles?
+    var testedProviders: [MetricProvider?] = []
     var lastReminderSchedule: (
         sessionResetsAt: Date?,
         weeklyResetsAt: Date?,
@@ -26,7 +27,10 @@ final class MockNotificationService: NotificationServiceProtocol {
     func setupDelegate() {}
     func requestPermission() { permissionRequested = true }
     func checkAuthorizationStatus() async -> UNAuthorizationStatus { stubbedAuthStatus }
-    func sendTest() { testSent = true }
+    func sendTest(for provider: MetricProvider?) {
+        testSent = true
+        testedProviders.append(provider)
+    }
 
     func evaluate(
         fiveHour: MetricSnapshot,
@@ -41,8 +45,8 @@ final class MockNotificationService: NotificationServiceProtocol {
         lastEvaluation = (fiveHour, sevenDay, sonnet, fable, sessionPacing, weeklyPacing, extraUsage, toggles)
     }
 
-    func notifyTokenExpired(toggle: Bool) {
-        lastTokenExpiredFire = toggle
+    func notifyTokenExpired(toggles: NotificationToggles) {
+        lastTokenExpiredFire = toggles
     }
 
     func scheduleResetReminders(

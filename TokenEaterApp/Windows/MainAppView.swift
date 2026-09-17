@@ -30,10 +30,17 @@ struct MainAppView: View {
 
     var body: some View {
         Group {
-            if settingsStore.hasCompletedOnboarding {
-                mainContent
-            } else {
+            // Three states in the same window, not three windows: a fresh
+            // install gets the wizard, an upgrade gets the release screen
+            // once, everyone else gets the dashboard.
+            if !settingsStore.hasCompletedOnboarding {
                 onboardingContent
+            } else if settingsStore.needsWhatsNew {
+                WhatsNewView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(DS.Palette.bgElevated)
+            } else {
+                mainContent
             }
         }
         .environment(\.glowIntensity, settingsStore.glowIntensity)
@@ -43,11 +50,24 @@ struct MainAppView: View {
 
     private var mainContent: some View {
         VStack(spacing: DS.Spacing.sm) {
-            HStack {
+            HStack(alignment: .center) {
                 TopPillsNav(selection: $selectedSpace)
                     .padding(.leading, DS.Spacing.xs)
 
                 Spacer()
+
+                // App-level chrome, deliberately not inside a page. The mode
+                // scopes every surface at once, so putting it in the
+                // Monitoring header made it compete with that page's own
+                // filters and implied a page-level scope it does not have.
+                // One control, in the window bar, driving everything.
+                // Hidden in Studio, which has its own scope control. Two
+                // controls that look alike and do different jobs (one reads,
+                // one edits) is the confusion rather than the fix.
+                if displayedSpace != .studio {
+                    ProviderModeSwitcher(size: .regular)
+                        .padding(.trailing, DS.Spacing.xs)
+                }
 
                 Button {
                     NSApplication.shared.terminate(nil)

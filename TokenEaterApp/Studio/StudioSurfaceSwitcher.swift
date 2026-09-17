@@ -8,6 +8,13 @@ struct StudioSurfaceSwitcher: View {
     @Binding var selection: StudioSection
 
     var body: some View {
+        surfaceCards
+    }
+
+    /// No mode selector here: it lives in the window bar, above every space,
+    /// and drives the app's live mode. Studio's thumbnails and previews render
+    /// the live composition, so they follow it for free.
+    private var surfaceCards: some View {
         HStack(spacing: DS.Spacing.sm) {
             ForEach(StudioSection.allCases, id: \.rawValue) { surface in
                 StudioSurfaceCard(surface: surface, isActive: surface == selection) {
@@ -93,6 +100,7 @@ private struct StudioSurfaceCard: View {
     @ViewBuilder
     private var preview: some View {
         switch surface {
+        case .dashboard: StudioDashboardThumbnail()
         case .popover: StudioPopoverThumbnail()
         case .menuBar: StudioMenuBarThumbnail()
         case .themes:  StudioThemesThumbnail()
@@ -131,6 +139,7 @@ private struct StudioPopoverThumbnail: View {
 /// through the shared `RenderData.live` path, on a simulated dark menu bar.
 private struct StudioMenuBarThumbnail: View {
     @EnvironmentObject private var usageStore: UsageStore
+    @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var themeStore: ThemeStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var vendorStatusStore: VendorStatusStore
@@ -140,7 +149,8 @@ private struct StudioMenuBarThumbnail: View {
             usage: usageStore,
             theme: themeStore,
             settings: settingsStore,
-            vendor: vendorStatusStore
+            vendor: vendorStatusStore,
+            codex: codexStore
         )
         // Same RenderData as the real status item -> `render(_:)` is the
         // memoized path shared with StatusBarController, so this is a cache
@@ -206,5 +216,36 @@ private struct StudioThemesThumbnail: View {
         Rectangle()
             .fill(color)
             .frame(maxWidth: .infinity)
+    }
+}
+
+/// Miniature of the home page's block order, drawn from the same wireframes
+/// the editor rows use, so the strip and the list show one drawing at two
+/// sizes rather than two drawings that can disagree.
+///
+/// Not a scaled render of the real dashboard: that view owns history and
+/// insight stores and warms a scan on appear, so a live thumbnail would do
+/// real work every time Studio opened.
+private struct StudioDashboardThumbnail: View {
+    @EnvironmentObject private var settingsStore: SettingsStore
+
+    var body: some View {
+        // `Color.clear` is the sizing layer, the stack is an overlay on it, and
+        // the whole thing is clipped: five blocks at their natural heights add
+        // up to more than this card, so without it the list drove the card's
+        // height and spilled out of the top and bottom. Same shape as the
+        // popover thumbnail next to it.
+        Color.clear
+            .overlay(alignment: .top) {
+                VStack(spacing: 2.5) {
+                    ForEach(settingsStore.dashboardComposition.entries) { entry in
+                        BlockWireframe(block: entry.block)
+                            .frame(height: entry.block == .hero ? 18 : 11)
+                            .opacity(entry.isHidden ? 0.25 : 1)
+                    }
+                }
+                .padding(9)
+            }
+            .clipped()
     }
 }

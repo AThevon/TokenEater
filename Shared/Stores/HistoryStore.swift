@@ -15,6 +15,25 @@ final class HistoryStore: ObservableObject {
 
     @Published var filter: HistoryFilter = .all
 
+    /// Which providers History is showing. The mode selector in the window bar
+    /// drives the whole app, and this view was the one place it did nothing:
+    /// the buckets come from `CombinedSessionHistoryService`, so they already
+    /// hold both providers' models mixed together.
+    ///
+    /// The gate is applied where the buckets are stored rather than at each
+    /// read site, so the chart, the summary, the chips, the project ranking
+    /// and the session list all follow without knowing the mode exists.
+    @Published var providerMode: ProviderMode = .all {
+        didSet {
+            guard oldValue != providerMode else { return }
+            // A Claude family filter left over from All mode would show an
+            // empty chart in Codex mode, which reads as "no data" rather than
+            // "wrong filter".
+            filter = .all
+            applyResult(buckets: rawBuckets, previousActive: previousPeriodActive)
+        }
+    }
+
     /// Active tab of the chart card (Tokens / Projects / Sessions / Cache).
     /// Lives in the store (hoisted in `MainAppView`) so the choice survives
     /// navigating away from History and back.
@@ -46,7 +65,12 @@ final class HistoryStore: ObservableObject {
     @Published private(set) var projectTotals: [ProjectTotal] = []
 
     var availableFamilies: [ModelFamily] {
-        ModelFamily.allCases + activeFamilies.filter(\.isCodex).sorted { $0.rawValue < $1.rawValue }
+        let codex = activeFamilies.filter(\.isCodex).sorted { $0.rawValue < $1.rawValue }
+        switch providerMode.provider {
+        case .claude: return ModelFamily.allCases
+        case .codex:  return codex
+        case nil:     return ModelFamily.allCases + codex
+        }
     }
 
     var sortedModelKinds: [ModelKind] {
@@ -80,7 +104,7 @@ final class HistoryStore: ObservableObject {
                 }.value
 
                 let buckets = try await bucketsTask
-                let previousActive = (try? await previousTask) ?? 0
+                let previousActive = (try? await previousTask) ?? [:]
 
                 if Task.isCancelled { return }
                 await MainActor.run {
@@ -108,8 +132,14 @@ final class HistoryStore: ObservableObject {
 
     // MARK: - Private
 
-    private func applyResult(buckets: [HistoryBucket], previousActive: Int) {
-        self.buckets = buckets
+    /// The buckets exactly as parsed, before the provider gate. Kept so
+    /// switching mode is instant, the same reason `buckets` keeps everything
+    /// the model filter would hide.
+    private var rawBuckets: [HistoryBucket] = []
+
+    private func applyResult(buckets: [HistoryBucket], previousActive: [MetricProvider: Int]) {
+        self.rawBuckets = buckets
+        self.buckets = Self.gate(buckets, to: providerMode)
         self.previousPeriodActive = previousActive
         self.activeFamilies = Self.activeFamilies(in: buckets)
         self.familyTotals = Self.familyTotals(in: buckets)
@@ -119,8 +149,19 @@ final class HistoryStore: ObservableObject {
     }
 
     /// Cached during `applyResult` so `recomputeSummary` (called whenever the
-    /// filter flips) doesn't have to re-issue a load.
-    private var previousPeriodActive: Int = 0
+    /// filter flips) doesn't have to re-issue a load. Kept split by provider
+    /// because `buckets` is gated by `providerMode`: summing both sides here
+    /// would compare a Codex-only total against a Claude + Codex one and
+    /// render the difference as a collapse in usage.
+    private var previousPeriodActive: [MetricProvider: Int] = [:]
+
+    /// The previous-period total for the providers currently on screen.
+    private var gatedPreviousPeriodActive: Int {
+        previousPeriodActive
+            .filter { providerMode.shows($0.key) }
+            .values
+            .reduce(0, +)
+    }
 
     private func recomputeSummary() {
         let filtered = applyFilter(to: buckets, filter: filter)
@@ -153,7 +194,7 @@ final class HistoryStore: ObservableObject {
         // Filtered totals don't have an apples-to-apples previous comparison
         // (we'd have to refetch with the same filter), so we zero it out for
         // the filtered case to avoid lying with the % delta.
-        let prev = filter.isAll ? previousPeriodActive : 0
+        let prev = filter.isAll ? gatedPreviousPeriodActive : 0
 
         summary = HistorySummary(
             totalActive: totalActive,
@@ -164,6 +205,27 @@ final class HistoryStore: ObservableObject {
             topProject: topProject,
             sessionsCount: sessionsCount
         )
+    }
+
+    /// Drops the hidden provider's models from every bucket. A bucket with
+    /// nothing left is dropped entirely, so an empty range reads as empty
+    /// rather than as a row of zeroes.
+    ///
+    /// Only `tokensByModel` can be split by provider. `tokensByProject`,
+    /// `sessionsCount` and the raw input/output counters are per bucket, not
+    /// per model, so in a provider mode they still describe both. That is why
+    /// the project ranking and the session count stay honest only in All
+    /// mode; scaling them by the surviving share would invent numbers.
+    nonisolated static func gate(_ buckets: [HistoryBucket], to mode: ProviderMode) -> [HistoryBucket] {
+        guard let provider = mode.provider else { return buckets }
+        let wantsCodex = provider == .codex
+        return buckets.compactMap { bucket in
+            let kept = bucket.tokensByModel.filter { $0.key.isCodex == wantsCodex }
+            guard !kept.isEmpty else { return nil }
+            var copy = bucket
+            copy.tokensByModel = kept
+            return copy
+        }
     }
 
     private func applyFilter(to buckets: [HistoryBucket], filter: HistoryFilter) -> [HistoryBucket] {

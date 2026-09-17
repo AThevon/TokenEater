@@ -319,37 +319,13 @@
 "codex.test.noWindows" = "Connected, but this plan reports no usage window";
 
 /* Codex - notifications */
-"notif.title.codex.session.orange" = "Codex session heating up";
-"notif.title.codex.session.red" = "Codex session almost capped";
-"notif.title.codex.session.green" = "Codex session cleared";
-"notif.body.codex.session.orange" = "Past the warning level, resets in %@";
-"notif.body.codex.session.orange.fallback" = "Past the warning level";
-"notif.body.codex.session.red" = "Ease off, %@ left";
-"notif.body.codex.session.red.fallback" = "Limit almost reached";
-"notif.body.codex.session.green" = "Fresh slate at %@";
-"notif.body.codex.session.green.fallback" = "Fresh slate, you're back";
-"notif.title.codex.session.reset" = "Codex session window reset";
-"notif.body.codex.session.reset" = "Quota is back, fresh until %@";
+"notif.title.reset.session" = "Session window reset";
+"notif.body.reset.session" = "Quota is back, fresh until %@";
 
-"notif.title.codex.weekly.orange" = "Codex weekly filling up";
-"notif.title.codex.weekly.red" = "Codex weekly almost capped";
-"notif.title.codex.weekly.green" = "Codex weekly reset";
-"notif.title.codex.weekly.pace" = "Ahead of Codex weekly pace";
-"notif.body.codex.weekly.pace" = "You're ahead of an even weekly burn rate, not near the cap. Fine if intentional.";
-"notif.body.codex.weekly.orange" = "Resets %@";
-"notif.body.codex.weekly.orange.fallback" = "Past the weekly warning";
-"notif.body.codex.weekly.red" = "Take it slow until %@";
-"notif.body.codex.weekly.red.fallback" = "Weekly limit almost reached";
-"notif.body.codex.weekly.green" = "New cycle, you're back at %@";
-"notif.body.codex.weekly.green.fallback" = "New cycle, you're back";
-"notif.title.codex.weekly.reset" = "Codex weekly quota reset";
-"notif.body.codex.weekly.reset" = "Back to zero, new cycle until %@";
+"notif.title.reset.weekly" = "Weekly quota reset";
+"notif.body.reset.weekly" = "Back to zero, new cycle until %@";
 
-"notif.title.codex.reminder.session" = "Codex session resets in %@";
-"notif.body.codex.reminder.session" = "Save your spot or send it";
-"notif.title.codex.reminder.weekly" = "Codex weekly resets in %@";
-"notif.body.codex.reminder.weekly" = "Last lap on the Codex cycle";
-"notif.title.codex.token" = "Codex login expired";
+"notif.title.codex.token" = "Login expired";
 "notif.body.codex.token" = "Open Codex or run codex login to refresh";
 
 "settings.notifications.title" = "Notifications";
@@ -365,11 +341,19 @@
 "settings.notifications.master" = "Notifications enabled";
 "settings.notifications.group.usage" = "Usage thresholds";
 "settings.notifications.group.usage.hint" = "Fires when a tracked metric crosses its warning or critical level.";
-"settings.notifications.track.fivehour" = "Track 5h session";
-"settings.notifications.track.weekly" = "Track 7d weekly";
-"settings.notifications.track.sonnet" = "Track Sonnet weekly";
-"settings.notifications.recovery" = "Send recovery notifications";
-"settings.notifications.recovery.hint" = "When OFF, only escalations fire (no \"you're back\" message).";
+"settings.notifications.row.session" = "Session window";
+"settings.notifications.row.weekly" = "Weekly window";
+"settings.notifications.row.sonnet" = "Sonnet weekly";
+"settings.notifications.row.fable" = "Fable weekly";
+"settings.notifications.row.recovery" = "Quota is back";
+"settings.notifications.row.recovery.hint" = "Fires when a window actually rolls over, not when usage eases off.";
+"settings.notifications.row.credentials" = "Credentials expired";
+"settings.notifications.group.providers" = "Per provider";
+"settings.notifications.group.providers.hint" = "Silence one provider without touching the other. The master switch above still wins over both.";
+"settings.notifications.shared" = "SHARED";
+"settings.notifications.shared.hint" = "One setting, applied to every provider.";
+"settings.notifications.unsupported" = "%@ has no such event";
+"settings.notifications.test.hint" = "Sends one banner per tracked provider.";
 "settings.notifications.group.pacing" = "Pacing";
 "settings.notifications.group.pacing.hint" = "Based on the 4-zone pacing system, independent from threshold alerts.";
 "settings.notifications.pacing.hot" = "Burning hot";
@@ -386,7 +370,6 @@
 "settings.notifications.extra" = "Pool warning / critical";
 "settings.notifications.group.health" = "Health";
 "settings.notifications.group.health.hint" = "Connection issues that might block tracking.";
-"settings.notifications.token" = "Token expired";
 "settings.notifications.status.degraded" = "Service degraded";
 "settings.notifications.status.restored" = "Service restored";
 
@@ -449,10 +432,15 @@
 "theme.pastel" = "Pastel";
 
 /* Dashboard */
+"dashboard.refreshAll" = "Refresh all providers";
 "dashboard.tier" = "Tier";
 "dashboard.org" = "Organization";
 "dashboard.pacing.reset.days" = "Resets in %dd %dh";
 "dashboard.pacing.reset.hours" = "Resets in %dh";
+"dashboard.hero.window.session" = "Session";
+"dashboard.hero.window.weekly" = "Weekly";
+"dashboard.hero.window.auto" = "Automatic";
+"dashboard.hero.window.menu" = "Glance window";
 "dashboard.hero.session.label" = "Session · 5h window";
 "dashboard.hero.resetsIn" = "Resets in";
 "pacing.zone.chill" = "Chill";
@@ -769,10 +757,21 @@
 "popoverElement.sonnet" = "Sonnet";
 "popoverElement.fable" = "Fable";
 "popoverElement.extraCredits" = "Extra Credits";
+"popoverElement.codexSession" = "Session (5h)";
+"popoverElement.codexWeekly" = "Weekly";
+"popoverElement.codexSessionPacing" = "Session pacing";
+"popoverElement.codexWeeklyPacing" = "Weekly pacing";
+"menuBarSegment.codexSession" = "Session (5h)";
+"menuBarSegment.codexWeekly" = "Weekly";
+"menuBarSegment.codexSessionPacing" = "Session pacing";
+"menuBarSegment.codexWeeklyPacing" = "Weekly pacing";
+"menuBarSegment.codexSession.short" = "CX";
+"menuBarSegment.codexWeekly.short" = "CXW";
 "popoverElement.sessionPacing" = "Session pacing";
 "popoverElement.weeklyPacing" = "Weekly pacing";
 "popoverElement.fablePacing" = "Fable pacing";
 "popoverElement.watchers" = "Agent watchers";
+"popoverElement.providerSwitch" = "Provider switch";
 "popoverElement.timestamp" = "Updated timestamp";
 "popoverElement.openButton" = "Open TokenEater button";
 "popoverElement.quitButton" = "Quit button";
@@ -801,6 +800,15 @@
 "popoverTemplate.minimalist" = "Minimalist";
 "popoverTemplate.fableFirst" = "Fable First";
 "popoverTemplate.complete" = "Complete";
+"settings.providers.claude.connecting" = "Connecting";
+"codex.status.notInstalled.claude" = "No credentials found";
+"monitoring.codex.invitation" = "A Codex login is available on this Mac. Track its usage alongside Claude?";
+"monitoring.codex.invitation.enable" = "Track Codex";
+"monitoring.codex.invitation.dismiss" = "Dismiss";
+"providerMode.all" = "All";
+"settings.providers.claude.connected" = "Logged in with Claude Code";
+"settings.providers.lastOne" = "At least one provider has to stay on, otherwise there is nothing to track.";
+"codex.hero.noWindow" = "No window";
 
 /* Composable menu bar editor */
 "menuBar.editor.templates" = "Templates";
@@ -884,19 +892,14 @@
 "onboarding.progress.label %lld %lld" = "%lld / %lld ready";
 "onboarding.finish" = "Finish";
 
-"onboarding.badge.required" = "REQUIRED";
-"onboarding.badge.optional" = "OPTIONAL";
 
 /* Card 1 - Claude Code */
 "onboarding.card.claudecode.title" = "Claude Code";
-"onboarding.card.claudecode.checking" = "checking...";
 "onboarding.card.claudecode.status.checking" = "auto-detecting";
-"onboarding.card.claudecode.status.detected" = "detected on your machine";
 "onboarding.card.claudecode.status.notfound" = "not found - install + retry";
 "onboarding.card.claudecode.notfound.step1" = "install via brew install claude";
 "onboarding.card.claudecode.notfound.step2" = "sign in once: run claude";
 "onboarding.card.claudecode.notfound.step3" = "come back, hit retry";
-"onboarding.card.claudecode.retry" = "Retry";
 
 /* Card 2 - Notifications */
 "onboarding.card.notifications.title" = "Notifications";
@@ -914,16 +917,9 @@
 "onboarding.card.watchers.status.off" = "off - tiles paused";
 
 /* Card 4 - Connect */
-"onboarding.card.connect.title" = "Connect";
 "onboarding.card.connect.status.idle" = "tap to authorize";
-"onboarding.card.connect.status.connecting" = "talking to keychain...";
-"onboarding.card.connect.status.success" = "connected";
 "onboarding.card.connect.status.failed" = "access denied";
-"onboarding.card.connect.connecting" = "authorizing...";
-"onboarding.card.connect.success.scene" = "connected - finish unlocked";
-"onboarding.card.connect.failed.scene" = "access denied";
 "onboarding.card.connect.authorize" = "Authorize";
-"onboarding.card.connect.retry" = "Retry";
 "onboarding.card.connect.idle.scene" = "macOS will ask once.\nTap Always Allow when it does.";
 
 /* Vendor Status Banner */
@@ -939,7 +935,6 @@
 /* Fable (Claude Fable weekly limit) */
 "metric.fable" = "Fable";
 "widget.fable" = "Fable";
-"settings.notifications.track.fable" = "Track Claude Fable weekly";
 "notif.title.fable.pace" = "Ahead of Fable pace";
 "notif.body.fable.pace" = "You're ahead of an even Fable burn rate, not near the cap. Fine if intentional.";
 "notif.title.fable.orange" = "Fable pool heavy";
@@ -954,10 +949,10 @@
 
 "settings.providers.title" = "Providers";
 "codex.status.notInstalled" = "Codex CLI not found";
-"codex.status.noCredentials" = "Not logged in — open Codex or run codex login";
+"codex.status.noCredentials" = "No file-backed Codex login found. Keychain-stored and API key logins are not supported yet.";
 "codex.status.apiKey" = "API-key mode: no usage limits to track";
 "codex.status.connected" = "Logged in with ChatGPT";
-"codex.status.expired" = "Codex login expired — open Codex or run codex login";
+"codex.status.expired" = "Codex login expired. Open Codex or run codex login to refresh it.";
 "codex.status.validUntil" = "Token valid until %@";
 "codex.tracking.off" = "Codex detected, tracking is off";
 "codex.test.button" = "Test connection";
@@ -965,14 +960,6 @@
 "codex.credits.cap" = "Overage cap reached";
 "codex.credits.unlimited" = "Unlimited credits";
 "codex.error.rateLimited" = "Codex is temporarily rate limited. Retrying automatically.";
-"settings.codex.notifications" = "Codex notifications";
-"settings.codex.session" = "Session usage thresholds";
-"settings.codex.weekly" = "Weekly usage thresholds";
-"settings.codex.reset" = "Window reset — quota is back";
-"settings.codex.reminder.session" = "Reminder before session reset";
-"settings.codex.reminder.weekly" = "Reminder before weekly reset";
-"settings.codex.expired" = "Codex login expired";
-"settings.codex.sharedPreferences" = "Uses the pacing preferences and reminder offsets above.";
 
 "widget.gallery.claude.overview" = "Claude Overview";
 "widget.gallery.claude.pacingGlance" = "Claude Pacing Glance";
@@ -985,10 +972,85 @@
 "widget.codex.disabled" = "Codex is off in TokenEater";
 "widget.codex.stale" = "Usage has not updated for over 15 minutes";
 
-"onboarding.card.codex.title" = "Codex";
-"onboarding.card.codex.description" = "Track your ChatGPT Codex limits and get notified when quota resets.";
-"onboarding.card.codex.track" = "Track Codex";
 
 "widget.codex.reset.single" = "1 reset available";
 "widget.codex.resets" = "%d resets available";
 "widget.codex.resets.accessibility" = "Available resets: %d";
+
+// MARK: - Provider capabilities
+"capability.usageWindows" = "Usage windows and resets";
+"capability.smartColor" = "Smart Color risk model";
+"capability.pacing" = "Pacing";
+"capability.notifications" = "Reset and threshold notifications";
+"capability.surfaces" = "Menu bar and popover composition";
+"capability.history" = "Token history";
+"capability.history.partial" = "Tokens only. Sessions and projects are recorded per bucket, so they cannot be split by provider.";
+"capability.perModel" = "Per-model breakdown";
+"capability.extraCredits" = "Extra Credits pool";
+"capability.agentWatchers" = "Agent Watchers";
+"capability.outageDetection" = "Service outage detection";
+"capability.widgets" = "Desktop widgets";
+"capability.widgets.claude" = "Six widgets";
+"capability.widgets.codex" = "One widget";
+"coverage.title" = "What TokenEater watches";
+"coverage.subtitle" = "Both providers are monitored the same way. They do not carry the same features.";
+"coverage.legend.full" = "Supported";
+"coverage.legend.partial" = "Partial";
+"coverage.legend.none" = "Not available";
+"mode.caption.hiding" = "%@ only. %lld features are hidden in this mode.";
+"mode.caption.one" = "%@ only. One feature is hidden in this mode.";
+"sidebar.providers" = "Providers";
+
+// MARK: - What's new
+"whatsNew.skip" = "Skip";
+"whatsNew.next" = "Next";
+"whatsNew.back" = "Back";
+"whatsNew.done" = "Start using it";
+"whatsNew.coverage.title" = "TokenEater watches OpenAI too";
+"whatsNew.coverage.body" = "Two providers now, monitored the same way. They do not carry the same features, and this is exactly which.";
+"whatsNew.mode.title" = "One switch scopes the whole app";
+"whatsNew.mode.body" = "All shows both. A provider mode shows one, everywhere at once: the dashboard, the popover, the menu bar and History.";
+"whatsNew.mode.hint" = "It lives in the window bar, next to the power button. It only appears when both providers are on, so nothing changes if you use one.";
+"whatsNew.connect.title" = "Turn on what you use";
+"whatsNew.connect.body" = "TokenEater reads credentials already on this Mac. Nothing is sent anywhere, and a provider you switch off is never polled.";
+"settings.general.whatsNew.action" = "What's new";
+"onboarding.providers.heading" = "Which providers do you use";
+"onboarding.app.heading" = "What TokenEater does with them";
+"onboarding.providers.rule" = "at least one, either works on its own";
+"onboarding.provider.claude.source" = "CLAUDE CODE · KEYCHAIN";
+"onboarding.provider.codex.source" = "CODEX CLI";
+"onboarding.provider.checking" = "checking...";
+"onboarding.provider.claude.status.ready" = "detected and authorized";
+"onboarding.provider.trackingOff" = "connected, tracking off";
+"onboarding.provider.lastOne" = "TokenEater needs at least one provider";
+"onboarding.provider.codex.signin.scene" = "Sign in with your ChatGPT account, then re-detect.";
+"onboarding.provider.codex.notfound.step1" = "install via npm i -g @openai/codex";
+"onboarding.provider.codex.notfound.step2" = "sign in once: run codex login";
+"onboarding.provider.codex.notfound.step3" = "come back, hit re-detect";
+"onboarding.hero.rule" = "Either provider is enough on its own. Turn off the one you do not use and the whole app follows: cards, menu bar, history.";
+"whatsNew.mode.single" = "Only %@ is on, so there is nothing to switch between. TokenEater shows it directly. Turn the other provider on below and the selector appears here.";
+"studio.scope.label" = "Editing";
+"studio.scope.hint" = "Each mode keeps its own layouts";
+"popover.editor.providerSwitch" = "Provider switch";
+"popover.editor.providerSwitch.hint" = "Pinned above the layout, so a provider mode always has a way back out. Available once both providers are on.";
+"settings.connection.provider" = "%@ connection";
+"popoverTemplate.sideBySide" = "Side by side";
+"popoverTemplate.sessionsOnly" = "Sessions only";
+"popoverTemplate.weeklyOutlook" = "Weekly outlook";
+"popoverTemplate.pace" = "Pace";
+"menuBarTemplate.resetClock" = "Reset clock";
+"menuBarTemplate.duo" = "Both sessions";
+"menuBarTemplate.duoPills" = "Both, pills";
+"settings.providers.off" = "Not monitored";
+"settings.providers.check" = "Check connection";
+"dashboard.block.hero" = "Hero gauge";
+"dashboard.block.windows" = "Window tiles";
+"dashboard.block.pacing" = "Pacing";
+"dashboard.block.extraCredits" = "Extra Credits";
+"dashboard.block.footer" = "Plan badges";
+"studio.surface.dashboard" = "Dashboard";
+"studio.surface.dashboard.hint" = "Order and hide the blocks of the home page";
+"dashboard.editor.title" = "Blocks";
+"dashboard.editor.hint" = "Drag to reorder. Hidden blocks are kept, not deleted.";
+"dashboard.editor.reset" = "Reset order";
+"dashboard.editor.lastBlock" = "The last visible block has to stay visible";

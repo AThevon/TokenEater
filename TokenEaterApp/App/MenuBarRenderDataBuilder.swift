@@ -9,9 +9,24 @@ extension MenuBarRenderer.RenderData {
         usage: UsageStore,
         theme: ThemeStore,
         settings: SettingsStore,
-        vendor: VendorStatusStore
+        vendor: VendorStatusStore,
+        codex: CodexUsageStore
     ) -> MenuBarRenderer.RenderData {
-        MenuBarRenderer.RenderData(
+        /// A window the plan does not have, or a provider that is switched
+        /// off, resolves to nil and its segments disappear from the bar.
+        func codexSegment(_ wanted: CodexWindowKind) -> MenuBarRenderer.CodexSegmentData? {
+            guard codex.isEnabled, let window = codex.windows.first(where: { $0.kind == wanted }) else { return nil }
+            return MenuBarRenderer.CodexSegmentData(
+                pct: window.pct,
+                resetDate: window.resetDate,
+                windowDuration: window.windowDuration,
+                hasPacing: window.pacing != nil,
+                pacingZone: window.pacing?.zone ?? .onTrack,
+                pacingDelta: Int(window.pacing?.delta ?? 0)
+            )
+        }
+
+        return MenuBarRenderer.RenderData(
             composition: settings.menuBarComposition,
             fiveHourPct: usage.fiveHourPct,
             sevenDayPct: usage.sevenDayPct,
@@ -49,7 +64,10 @@ extension MenuBarRenderer.RenderData {
             outageHealth: vendor.worstHealth,
             nextPollSeconds: vendor.nextPollDate.map { max(0, Int(ceil($0.timeIntervalSinceNow))) },
             extraCreditsPct: usage.extraCreditsPct,
-            hasExtraCredits: usage.hasExtraCredits
+            hasExtraCredits: usage.hasExtraCredits,
+            codexSession: codexSegment(.session),
+            codexWeekly: codexSegment(.weekly),
+            visibleProviders: Set(settings.activeProviders.filter { settings.activeProviderMode.shows($0) })
         )
     }
 }

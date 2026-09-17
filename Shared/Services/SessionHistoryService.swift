@@ -48,6 +48,13 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
     enum Source: Sendable {
         case claude
         case codex
+
+        var provider: MetricProvider {
+            switch self {
+            case .claude: return .claude
+            case .codex:  return .codex
+            }
+        }
     }
 
     private let source: Source
@@ -74,20 +81,25 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
         try await loadAggregates(rangeStart: rangeStart(for: range), bucketing: range)
     }
 
-    func loadPreviousPeriodActiveTokens(range: HistoryRange) async throws -> Int {
+    func loadPreviousPeriodActiveTokens(range: HistoryRange) async throws -> [MetricProvider: Int] {
         let now = Date()
         let currentStart = range == .sevenDays
             ? ChartDomainCalculator.domain(range: range, now: now).start
             : now.addingTimeInterval(-range.seconds)
+        // Both windows must span the same duration or the delta reports a
+        // decline that is only a difference in length. The 7-day domain starts
+        // at midnight six days ago, so the current window runs 6.0 to 7.0 days
+        // depending on the time of day; a flat -7d previous window made the
+        // hero card read about -14% at 00:30 on perfectly steady usage.
         let previousStart = range == .sevenDays
-            ? Calendar.current.date(byAdding: .day, value: -7, to: currentStart) ?? currentStart.addingTimeInterval(-range.seconds)
+            ? currentStart.addingTimeInterval(-now.timeIntervalSince(currentStart))
             : currentStart.addingTimeInterval(-range.seconds)
         let buckets = try await loadAggregates(
             rangeStart: previousStart,
             rangeEnd: currentStart,
             bucketing: range
         )
-        return buckets.reduce(0) { $0 + $1.totalActive }
+        return [source.provider: buckets.reduce(0) { $0 + $1.totalActive }]
     }
 
     // MARK: - Aggregation pipeline
@@ -102,7 +114,7 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
         try Task.checkCancellation()
 
         // 2. Load existing cache off the main queue (small JSON, cheap).
-        var cache = loadCache()
+        let cache = loadCache()
         let source = self.source
 
         // 3. Parse each candidate file in a TaskGroup, hitting the cache when
@@ -132,10 +144,29 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
             }
         }
 
-        // 4. Merge new entries back into the cache and persist if anything
-        //    changed.
-        cache.entries = newEntries
-        saveCache(cache)
+        // 4. Merge new entries back into the cache and persist.
+        //
+        //    This used to be `cache.entries = newEntries`, which looked tidy
+        //    and quietly evicted every file the current range could not see.
+        //    The mtime filter in step 1 drops anything older than rangeStart,
+        //    so a 7-day scan rewrote the cache with only the last week's
+        //    files and a following 30-day scan re-parsed everything from
+        //    scratch. Since `MonitoringInsightsStore` (current window plus
+        //    previous window), `HistoryWidgetStore` and the History view all
+        //    scan with different ranges, the cache spent its life being
+        //    rebuilt and the expensive cold parse never stopped happening.
+        //
+        //    Re-read immediately before writing rather than reusing the copy
+        //    taken in step 2: several scans run concurrently, and the shared
+        //    file next door needs the same read-modify-write discipline for
+        //    the same reason. Then merge, and prune only what has actually
+        //    disappeared from disk, so the cache still cannot grow forever.
+        var persisted = loadCache()
+        persisted.entries.merge(newEntries) { _, fresh in fresh }
+        persisted.entries = persisted.entries.filter {
+            FileManager.default.fileExists(atPath: $0.key)
+        }
+        saveCache(persisted)
 
         // 5. Aggregate across files into the requested bucketing.
         return Self.aggregate(

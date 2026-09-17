@@ -10,21 +10,81 @@ struct CombinedHistoryTests {
         let day = Calendar.current.startOfDay(for: Date())
         let model = ModelKind.codex(model: "gpt-6-astra")
         let claude = Stub(buckets: [bucket(day, .opus5, 100)], previous: 20)
-        let codex = Stub(buckets: [bucket(day, model, 200)], previous: 30)
-        let service = CombinedSessionHistoryService(claude: claude, codex: codex)
+        let codex = Stub(buckets: [bucket(day, model, 200)], previous: 30, provider: .codex)
+        let service = CombinedSessionHistoryService(claude: claude, codex: codex, isCodexEnabled: { true })
         let combined = try await service.loadHistory(range: .sevenDays)
         #expect(combined.count == 1)
         #expect(combined.first?.totalActive == 300)
         #expect(combined.first?.tokensByProject["/repo"] == 300)
         #expect(combined.first?.sessionsCount == 2)
-        #expect(try await service.loadPreviousPeriodActiveTokens(range: .sevenDays) == 50)
+        // Split rather than summed: History gates the current total by
+        // provider mode, so the delta needs the same axis to compare on.
+        #expect(try await service.loadPreviousPeriodActiveTokens(range: .sevenDays)
+                == [.claude: 20, .codex: 30])
         #expect(HistoryStore.bucketsForChart(combined, filter: .family(model.family)).first?.totalActive == 200)
+    }
+
+    @Test("Codex is excluded from history when tracking is off")
+    func codexGatedOnToggle() async throws {
+        let day = Calendar.current.startOfDay(for: Date())
+        let service = CombinedSessionHistoryService(
+            claude: Stub(buckets: [bucket(day, .opus5, 100)], previous: 20),
+            codex: Stub(buckets: [bucket(day, .codex(model: "gpt-6-astra"), 200)], previous: 30, provider: .codex),
+            isCodexEnabled: { false }
+        )
+        let combined = try await service.loadHistory(range: .sevenDays)
+        #expect(combined.first?.totalActive == 100)
+        #expect(try await service.loadPreviousPeriodActiveTokens(range: .sevenDays) == [.claude: 20])
+    }
+
+    @Test("A failing Codex leg never takes Claude history down with it")
+    func codexFailureIsolated() async throws {
+        let day = Calendar.current.startOfDay(for: Date())
+        let service = CombinedSessionHistoryService(
+            claude: Stub(buckets: [bucket(day, .opus5, 100)], previous: 20),
+            codex: Stub(provider: .codex, fails: true),
+            isCodexEnabled: { true }
+        )
+        let combined = try await service.loadHistory(range: .sevenDays)
+        #expect(combined.first?.totalActive == 100)
+        #expect(try await service.loadPreviousPeriodActiveTokens(range: .sevenDays) == [.claude: 20])
+    }
+
+    @Test("The previous-period total follows the provider mode the buckets are gated to")
+    @MainActor func previousPeriodFollowsProviderMode() async throws {
+        let day = Calendar.current.startOfDay(for: Date())
+        let service = CombinedSessionHistoryService(
+            claude: Stub(buckets: [bucket(day, .opus5, 100)], previous: 20),
+            codex: Stub(buckets: [bucket(day, .codex(model: "gpt-6-astra"), 200)],
+                        previous: 30, provider: .codex),
+            isCodexEnabled: { true }
+        )
+        let store = HistoryStore(service: service)
+        store.reload()
+        for _ in 0..<200 where !store.hasLoadedOnce {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+
+        #expect(store.summary.totalActive == 300)
+        #expect(store.summary.previousPeriodActive == 50)
+
+        // 30 rather than 50: the buckets are gated to Codex, so comparing them
+        // against both providers' previous total reported a collapse in usage
+        // that never happened.
+        store.providerMode = .codex
+        #expect(store.summary.totalActive == 200)
+        #expect(store.summary.previousPeriodActive == 30)
+
+        store.providerMode = .claude
+        #expect(store.summary.totalActive == 100)
+        #expect(store.summary.previousPeriodActive == 20)
     }
 
     @Test("Missing Claude history still shows Codex")
     func codexOnly() async throws {
         let service = CombinedSessionHistoryService(
-            claude: Stub(), codex: Stub(buckets: [bucket(Date(), .codex(model: "future"), 200)])
+            claude: Stub(), codex: Stub(buckets: [bucket(Date(), .codex(model: "future"), 200)]),
+            isCodexEnabled: { true }
         )
         #expect(try await service.loadHistory(range: .sevenDays).first?.totalActive == 200)
     }
@@ -35,7 +95,8 @@ struct CombinedHistoryTests {
         let yesterday = try #require(Calendar.current.date(byAdding: .day, value: -1, to: day))
         let service = CombinedSessionHistoryService(
             claude: Stub(buckets: [bucket(day, .opus5, 100)]),
-            codex: Stub(buckets: [bucket(day, .codex(model: "future"), 200), bucket(yesterday, .codex(model: "future"), 50)])
+            codex: Stub(buckets: [bucket(day, .codex(model: "future"), 200), bucket(yesterday, .codex(model: "future"), 50)]),
+            isCodexEnabled: { true }
         )
         let shared = MockSharedFileService()
         var reloads = 0
@@ -122,6 +183,7 @@ struct CombinedHistoryTests {
     private struct Stub: SessionHistoryServiceProtocol {
         var buckets: [HistoryBucket] = []
         var previous: Int = 0
+        var provider: MetricProvider = .claude
         var fails = false
 
         func loadHistory(range: HistoryRange) async throws -> [HistoryBucket] {
@@ -129,6 +191,9 @@ struct CombinedHistoryTests {
             return buckets
         }
 
-        func loadPreviousPeriodActiveTokens(range: HistoryRange) async throws -> Int { previous }
+        func loadPreviousPeriodActiveTokens(range: HistoryRange) async throws -> [MetricProvider: Int] {
+            if fails { throw CocoaError(.fileReadUnknown) }
+            return [provider: previous]
+        }
     }
 }

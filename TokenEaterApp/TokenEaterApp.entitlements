@@ -8,7 +8,7 @@
 	     system insists on a matching provisioning profile when it's present, and
 	     CI doesn't have one yet. SharedFileService falls back to the home-relative
 	     path which is also entitled below on the widget. App Group activation is
-	     a v5.0.1 follow-up once a Developer ID provisioning profile is generated
-	     and committed as a secret. See docs/v5.0.1-followup.md. -->
+	     a follow-up once a Developer ID provisioning profile is generated and
+	     committed as a secret. See the App Group note in AGENTS.md. -->
 </dict>
 </plist>

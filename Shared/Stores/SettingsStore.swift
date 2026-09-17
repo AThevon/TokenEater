@@ -69,6 +69,67 @@ final class SettingsStore: ObservableObject {
     /// width). Persisted as JSON under `popoverComposition` in UserDefaults.
     /// The legacy `popoverConfig` blob is migrated once (see init) and left
     /// in place so a downgrade restores the pre-5.9 popover untouched.
+    /// The layout slice on screen. One live mode for the whole app, so the
+    /// Studio selector and the popover selector are the same piece of state
+    /// and an editor can never be showing a mode the app is not in.
+    ///
+    /// Switching persists the outgoing mode's layout, then loads the incoming
+    /// one, seeding it on first visit from the All layout filtered to that
+    /// provider. Seeding by plain copy is deliberately avoided: it would put
+    /// Codex cells in the Claude mode, which is the unreadable popover the
+    /// modes exist to fix.
+    /// Claude tracking. Symmetric with `codexEnabled` on purpose: a ChatGPT
+    /// subscriber with no Claude plan is a legitimate configuration, and the
+    /// app has no business polling a provider that person does not use.
+    ///
+    /// The invariant the UI must hold, not this store: never let the user turn
+    /// off the last active provider. The store allows it so the state stays
+    /// simple, and `activeProviders` reports the truth either way.
+    @Published var claudeEnabled: Bool = true {
+        didSet {
+            UserDefaults.standard.set(claudeEnabled, forKey: "claudeEnabled")
+            reconcileProviderMode()
+        }
+    }
+
+    /// Providers the user is actually tracking, in display order.
+    var activeProviders: [MetricProvider] {
+        var providers: [MetricProvider] = []
+        if claudeEnabled { providers.append(.claude) }
+        if codexEnabled { providers.append(.codex) }
+        return providers
+    }
+
+    /// Modes worth offering: All plus one per active provider, and nothing at
+    /// all below two providers, where All and the single provider describe the
+    /// same thing.
+    var availableProviderModes: [ProviderMode] {
+        let providers = activeProviders
+        guard providers.count > 1 else { return [] }
+        return [.all] + providers.compactMap { provider in
+            ProviderMode.allCases.first { $0.provider == provider }
+        }
+    }
+
+    @Published var activeProviderMode: ProviderMode = .all {
+        didSet {
+            guard oldValue != activeProviderMode else { return }
+            persistCompositions(for: oldValue)
+            loadCompositions(for: activeProviderMode)
+            UserDefaults.standard.set(activeProviderMode.rawValue, forKey: "activeProviderMode")
+        }
+    }
+
+    /// The dashboard's block order and visibility, per provider mode.
+    ///
+    /// Same key scheme as the popover and the menu bar, so All keeps the bare
+    /// key and a provider mode gets a suffix. Its default reproduces the
+    /// layout the page has always had, which is what makes turning the
+    /// dashboard composable a no-op for anyone who never opens the editor.
+    @Published var dashboardComposition: DashboardComposition {
+        didSet { saveDashboardComposition() }
+    }
+
     @Published var popoverComposition: PopoverComposition {
         didSet { savePopoverComposition() }
     }
@@ -90,7 +151,14 @@ final class SettingsStore: ObservableObject {
         didSet { saveMenuBarUserTemplates() }
     }
     @Published var hasCompletedOnboarding: Bool {
-        didSet { UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding") }
+        didSet {
+            UserDefaults.standard.set(hasCompletedOnboarding, forKey: "hasCompletedOnboarding")
+            // Someone who just finished the wizard has seen this release's
+            // features in it, so the what's-new screen would be the second
+            // full-screen takeover in a row for a release they were not here
+            // for. Replaying the wizard later does not re-arm it either.
+            if hasCompletedOnboarding, !oldValue { markWhatsNewSeen() }
+        }
     }
 
     /// One-shot discovery flag for the Studio intro (nav bubble + what's-new
@@ -109,7 +177,99 @@ final class SettingsStore: ObservableObject {
     /// else sees no change. A later login does not flip it by itself; the
     /// Providers card offers the toggle instead.
     @Published var codexEnabled: Bool {
-        didSet { UserDefaults.standard.set(codexEnabled, forKey: "codexEnabled") }
+        didSet {
+            UserDefaults.standard.set(codexEnabled, forKey: "codexEnabled")
+            reconcileProviderMode()
+        }
+    }
+
+    /// Whether the popover shows the provider switcher.
+    ///
+    /// Global on purpose, and not a composable element any more. As an element
+    /// it lived inside each mode's layout, so switching to a mode whose layout
+    /// did not contain it removed the only way back out of that mode: the
+    /// control that changes the scope cannot be something the scope can
+    /// delete. One preference, every mode, still yours to turn off.
+    @Published var popoverShowsProviderSwitch: Bool {
+        didSet { UserDefaults.standard.set(popoverShowsProviderSwitch, forKey: "popoverShowsProviderSwitch") }
+    }
+
+    /// The app version whose what's-new screen the user has already seen.
+    ///
+    /// Empty on a fresh install, which is deliberate: `needsWhatsNew` is gated
+    /// on onboarding being done, so a new user gets the wizard and never the
+    /// release notes for a release they were not here for.
+    @Published var lastSeenVersion: String {
+        didSet { UserDefaults.standard.set(lastSeenVersion, forKey: "lastSeenVersion") }
+    }
+
+    static var currentVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
+    }
+
+    /// Compared on major.minor only: a patch release has nothing to announce,
+    /// and putting a full-screen takeover in front of a bug fix is how a
+    /// what's-new screen turns into something people learn to dismiss blind.
+    var needsWhatsNew: Bool {
+        guard hasCompletedOnboarding else { return false }
+        func minorOf(_ version: String) -> String {
+            version.split(separator: ".").prefix(2).joined(separator: ".")
+        }
+        return minorOf(lastSeenVersion) != minorOf(Self.currentVersion)
+    }
+
+    func markWhatsNewSeen() {
+        lastSeenVersion = Self.currentVersion
+    }
+
+    /// Which window each provider's glance card shows, keyed by provider.
+    /// A provider absent from the map is on automatic, which means the
+    /// shortest window it actually has: the 5-hour one where it exists, the
+    /// weekly one where it does not. That rule is why the two cards used to
+    /// disagree - Claude was pinned to 5h and Codex picked whichever window
+    /// was closest to its cap, so on a Pro plan with no 5h window one card
+    /// silently answered a different question from the other.
+    ///
+    /// One map rather than a property per provider, so a third provider
+    /// stores its choice without a schema change.
+    @Published var heroWindows: [String: String] {
+        didSet {
+            guard let data = try? JSONEncoder().encode(heroWindows) else { return }
+            UserDefaults.standard.set(data, forKey: "heroWindows")
+        }
+    }
+
+
+    /// Puts the app back in All when the mode points at a provider that is no
+    /// longer on.
+    ///
+    /// Without it, turning Claude off while the app was in Claude mode left
+    /// `visibleProviders` empty and the dashboard rendered nothing at all:
+    /// the mode filtered for a provider `activeProviders` no longer contained,
+    /// and no surface had anything to draw. A mode is a view of what is on, so
+    /// it cannot outlive what it was a view of.
+    /// Deliberately not widened to `availableProviderModes`: dropping to a
+    /// single provider leaves that provider's mode describing exactly what is
+    /// on, so it stands, with its own layout, and the selector simply has
+    /// nothing left to offer. Only a mode pointing at a provider that is off
+    /// is incoherent.
+    private func reconcileProviderMode() {
+        guard let provider = activeProviderMode.provider else { return }
+        guard !activeProviders.contains(provider) else { return }
+        activeProviderMode = .all
+    }
+
+    func heroWindow(for provider: MetricProvider) -> String? {
+        heroWindows[provider.rawValue]
+    }
+
+    /// Nil puts the provider back on automatic and removes the key entirely,
+    /// so "automatic" is the absence of a choice rather than a stored value
+    /// that a later change of default would silently override.
+    func setHeroWindow(_ window: String?, for provider: MetricProvider) {
+        var next = heroWindows
+        if let window { next[provider.rawValue] = window } else { next.removeValue(forKey: provider.rawValue) }
+        heroWindows = next
     }
 
     // Proxy
@@ -346,9 +506,15 @@ final class SettingsStore: ObservableObject {
     /// flag), so a user who turns Codex off does not get it turned back on by
     /// the next launch, and someone who logs into Codex later is offered the
     /// toggle in Settings rather than having it flipped under them.
+    ///
+    /// Expiry is part of the probe on purpose. `isTrackable` only says the
+    /// credential is a ChatGPT one, not that it still works, and only the
+    /// Codex CLI refreshes it. Auto-enabling on a stale credential would poll,
+    /// fail, and notify about a login the user never asked us to watch.
     private static func resolveCodexEnabled(authStateProvider: () -> CodexAuthState) -> Bool {
         if let stored = UserDefaults.standard.object(forKey: "codexEnabled") as? Bool { return stored }
-        let detected = authStateProvider().isTrackable
+        let state = authStateProvider()
+        let detected = state.isTrackable && !state.isExpired()
         UserDefaults.standard.set(detected, forKey: "codexEnabled")
         return detected
     }
@@ -374,6 +540,14 @@ final class SettingsStore: ObservableObject {
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
         self.hasSeenStudioIntro = UserDefaults.standard.bool(forKey: "hasSeenStudioIntro")
         self.codexEnabled = Self.resolveCodexEnabled(authStateProvider: codexAuthStateProvider)
+        // Defaults to true so every existing install keeps tracking Claude.
+        self.claudeEnabled = UserDefaults.standard.object(forKey: "claudeEnabled") as? Bool ?? true
+        self.lastSeenVersion = UserDefaults.standard.string(forKey: "lastSeenVersion") ?? ""
+        self.dashboardComposition = Self.loadDashboard(for: .all)
+        self.popoverShowsProviderSwitch =
+            UserDefaults.standard.object(forKey: "popoverShowsProviderSwitch") as? Bool ?? true
+        self.heroWindows = UserDefaults.standard.data(forKey: "heroWindows")
+            .flatMap { try? JSONDecoder().decode([String: String].self, from: $0) } ?? [:]
         self.proxyEnabled = UserDefaults.standard.bool(forKey: "proxyEnabled")
         self.proxyHost = UserDefaults.standard.string(forKey: "proxyHost") ?? "127.0.0.1"
         self.proxyPort = {
@@ -504,13 +678,139 @@ final class SettingsStore: ObservableObject {
         if !hadMenuBarBlob {
             saveMenuBarComposition()
         }
+
+        // Last, and after those one-shot saves on purpose: they persist the
+        // migrated layout, and until this point the mode is still `.all`, so
+        // they land under the pre-modes keys where they belong. Restoring
+        // earlier would file a migrated All layout under a provider mode's key.
+        //
+        // The backing store is assigned directly so the didSet does not write
+        // the All layout under the restored mode's key before that mode's own
+        // layout has been read; `loadCompositions` then does the read, and its
+        // assignments persist the seeded layout on a first visit.
+        if let raw = UserDefaults.standard.string(forKey: "activeProviderMode"),
+           let restored = ProviderMode(rawValue: raw), restored != .all {
+            self._activeProviderMode = Published(initialValue: restored)
+            loadCompositions(for: restored)
+        }
     }
 
     // MARK: - Popover persistence
 
     private func savePopoverComposition() {
         guard let data = try? JSONEncoder().encode(popoverComposition) else { return }
-        UserDefaults.standard.set(data, forKey: "popoverComposition")
+        UserDefaults.standard.set(data, forKey: "popoverComposition" + activeProviderMode.storageSuffix)
+    }
+
+    // MARK: - Provider modes
+
+    /// Writes both surfaces under the given mode's keys. Called with the
+    /// OUTGOING mode on a switch, since the published values still hold its
+    /// layout at that point.
+    private func saveDashboardComposition() {
+        guard let data = try? JSONEncoder().encode(dashboardComposition) else { return }
+        UserDefaults.standard.set(data, forKey: "dashboardComposition" + activeProviderMode.storageSuffix)
+    }
+
+    static func loadDashboard(for mode: ProviderMode) -> DashboardComposition {
+        guard let data = UserDefaults.standard.data(forKey: "dashboardComposition" + mode.storageSuffix),
+              let decoded = try? JSONDecoder().decode(DashboardComposition.self, from: data),
+              !decoded.entries.isEmpty
+        else { return .default }
+        return DashboardComposition.reconciled(decoded)
+    }
+
+    private func persistCompositions(for mode: ProviderMode) {
+        if let data = try? JSONEncoder().encode(popoverComposition) {
+            UserDefaults.standard.set(data, forKey: "popoverComposition" + mode.storageSuffix)
+        }
+        if let data = try? JSONEncoder().encode(menuBarComposition) {
+            UserDefaults.standard.set(data, forKey: "menuBarComposition" + mode.storageSuffix)
+        }
+        if let data = try? JSONEncoder().encode(dashboardComposition) {
+            UserDefaults.standard.set(data, forKey: "dashboardComposition" + mode.storageSuffix)
+        }
+    }
+
+    /// Loads both surfaces for a mode, seeding from the All layout the first
+    /// time a mode is visited. A key that has never been written is the
+    /// nominal case, not an error: modes are created lazily so an install that
+    /// never leaves All keeps exactly the keys it had before modes existed.
+    private func loadCompositions(for mode: ProviderMode) {
+        // Self-healing: a layout saved by an older build, or one whose only
+        // metrics belong to the other provider, would render an empty
+        // popover. An empty surface reads as a broken app, so a mode with
+        // nothing of its own left is re-seeded rather than shown hollow.
+        //
+        // The test is "carries at least one element belonging to a provider
+        // this mode shows", not "carries a percentage": a pacing-only or
+        // watchers-only layout is a legitimate choice, and the built-in Pace
+        // template is exactly one, so requiring a usage element here would
+        // silently overwrite it on every mode switch.
+        let popoverKey = "popoverComposition" + mode.storageSuffix
+        if let data = UserDefaults.standard.data(forKey: popoverKey),
+           let decoded = try? JSONDecoder().decode(PopoverComposition.self, from: data),
+           decoded.elements.contains(where: { element in
+               guard let provider = element.kind.provider else { return false }
+               return mode.shows(provider)
+           }) {
+            popoverComposition = Self.reconcile(decoded)
+        } else {
+            popoverComposition = Self.seededPopover(for: mode)
+        }
+
+        dashboardComposition = Self.loadDashboard(for: mode)
+
+        let menuBarKey = "menuBarComposition" + mode.storageSuffix
+        if let data = UserDefaults.standard.data(forKey: menuBarKey),
+           let decoded = try? JSONDecoder().decode(MenuBarComposition.self, from: data),
+           decoded.segments.contains(where: { mode.shows($0.kind.provider) }) {
+            menuBarComposition = decoded
+        } else {
+            menuBarComposition = Self.seededMenuBar(for: mode)
+        }
+    }
+
+    /// The All layout, kept under the pre-modes key, filtered to the mode's
+    /// provider. Chrome, utilities and actions carry no provider and survive
+    /// every filter, so a seeded mode is never an empty shell.
+    private static func seededPopover(for mode: ProviderMode) -> PopoverComposition {
+        let base: PopoverComposition = {
+            guard let data = UserDefaults.standard.data(forKey: "popoverComposition"),
+                  let decoded = try? JSONDecoder().decode(PopoverComposition.self, from: data)
+            else { return .default }
+            return reconcile(decoded)
+        }()
+        var seeded = base
+        seeded.elements = base.elements.filter { mode.shows($0.kind.provider) }
+        // A provider the user has never placed leaves only chrome behind.
+        // Start from the built-in instead of handing them an empty popover.
+        // Both single-provider modes need this: an All layout built entirely
+        // out of Codex elements strands Claude mode exactly the same way.
+        let hasMetric = seeded.elements.contains { $0.kind.provider != nil }
+        if !hasMetric, mode.provider != nil {
+            seeded.elements = PopoverBuiltinTemplate.sideBySide.composition.elements
+                .filter { mode.shows($0.kind.provider) }
+        }
+        return seeded.elements.isEmpty ? .default : seeded
+    }
+
+    private static func seededMenuBar(for mode: ProviderMode) -> MenuBarComposition {
+        let base: MenuBarComposition = {
+            guard let data = UserDefaults.standard.data(forKey: "menuBarComposition"),
+                  let decoded = try? JSONDecoder().decode(MenuBarComposition.self, from: data)
+            else { return .default }
+            return decoded
+        }()
+        var seeded = base
+        seeded.segments = base.segments.filter { mode.shows($0.kind.provider) }
+        if seeded.segments.isEmpty, mode == .codex {
+            seeded.segments = [
+                MenuBarSegment(kind: .codexSession, style: .labelValue),
+                MenuBarSegment(kind: .codexWeekly, style: .labelValue),
+            ]
+        }
+        return seeded.segments.isEmpty ? .default : seeded
     }
 
     private func savePopoverUserTemplates() {
@@ -522,7 +822,7 @@ final class SettingsStore: ObservableObject {
 
     private func saveMenuBarComposition() {
         guard let data = try? JSONEncoder().encode(menuBarComposition) else { return }
-        UserDefaults.standard.set(data, forKey: "menuBarComposition")
+        UserDefaults.standard.set(data, forKey: "menuBarComposition" + activeProviderMode.storageSuffix)
     }
 
     private func saveMenuBarUserTemplates() {
@@ -555,8 +855,8 @@ final class SettingsStore: ObservableObject {
         notificationService.requestPermission()
     }
 
-    func sendTestNotification() {
-        notificationService.sendTest()
+    func sendTestNotification(for provider: MetricProvider? = nil) {
+        notificationService.sendTest(for: provider)
     }
 
     func refreshNotificationStatus() async {

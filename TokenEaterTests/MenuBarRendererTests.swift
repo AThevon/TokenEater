@@ -128,7 +128,9 @@ struct MenuBarOutageBadgeTests {
             outageHealth: outageHealth,
             nextPollSeconds: nextPollSeconds,
             extraCreditsPct: 0,
-            hasExtraCredits: false
+            hasExtraCredits: false,
+            codexSession: nil, codexWeekly: nil,
+            visibleProviders: [.claude, .codex]
         )
     }
 
@@ -298,7 +300,9 @@ struct MenuBarExtraCreditsRenderTests {
             pacingMargin: 10,
             fablePct: 0, hasFable: false, fableResetDate: nil,
             outageActive: false, outageHealth: .healthy, nextPollSeconds: nil,
-            extraCreditsPct: extraCreditsPct, hasExtraCredits: hasExtraCredits
+            extraCreditsPct: extraCreditsPct, hasExtraCredits: hasExtraCredits,
+            codexSession: nil, codexWeekly: nil,
+            visibleProviders: [.claude, .codex]
         )
     }
 
@@ -356,7 +360,9 @@ struct MenuBarFablePacingRenderTests {
             pacingMargin: 10,
             fablePct: 0, hasFable: hasFable, fableResetDate: nil,
             outageActive: false, outageHealth: .healthy, nextPollSeconds: nil,
-            extraCreditsPct: 0, hasExtraCredits: false
+            extraCreditsPct: 0, hasExtraCredits: false,
+            codexSession: nil, codexWeekly: nil,
+            visibleProviders: [.claude, .codex]
         )
     }
 

@@ -214,7 +214,7 @@ final class UsageStore: ObservableObject {
                 }
                 errorState = .tokenUnavailable
                 if let toggles = notifTogglesProvider?() {
-                    notificationService.notifyTokenExpired(toggle: toggles.tokenExpired)
+                    notificationService.notifyTokenExpired(toggles: toggles)
                 }
             case .rateLimited(let retryAfter, _, _):
                 currentSpeed = .slow
