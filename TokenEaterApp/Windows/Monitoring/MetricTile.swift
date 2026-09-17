@@ -4,7 +4,7 @@ import SwiftUI
 
 struct TileDescriptor {
     let id: String
-    let label: String
+    var label: String
     let icon: String
     let pct: Int
     let resetText: String?
@@ -14,7 +14,7 @@ struct TileDescriptor {
 
 struct MetricTile: View {
     let id: String
-    let label: String
+    var label: String
     let icon: String
     let pct: Int
     let resetText: String?

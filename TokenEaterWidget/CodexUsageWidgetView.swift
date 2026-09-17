@@ -34,7 +34,7 @@ struct CodexUsageWidgetView: View {
             Spacer(minLength: 0)
             HStack(spacing: 8) {
                 ForEach(family == .systemSmall ? Array(windows.prefix(1)) : windows) { window in
-                    ring(window, limitReached: usage.isLimitReached)
+                    ring(window)
                 }
                 if family == .systemMedium, let weekly = windows.first(where: { $0.kind == .weekly }), let pacing = weekly.pacing {
                     CircularPacingView(pacing: pacing)
@@ -93,9 +93,16 @@ struct CodexUsageWidgetView: View {
             .accessibilityLabel(String(format: String(localized: "widget.codex.resets.accessibility"), count))
     }
 
-    private func ring(_ window: CodexWindowSnapshot, limitReached: Bool) -> some View {
-        let pct = limitReached ? 100 : window.pct
-        let gradient = limitReached
+    private func ring(_ window: CodexWindowSnapshot) -> some View {
+        // The account-level "limit reached" flag is deliberately not read
+        // here: it is account-level, so one blocked window blocks the
+        // account. Painting every ring at 100% made a weekly window with 84%
+        // left read as full and red here while the dashboard showed its real
+        // value. The blocked state is already carried by the caption above, so
+        // each ring shows its own number and only a genuinely maxed window
+        // turns red.
+        let pct = window.pct
+        let gradient = pct >= 100
             ? LinearGradient(colors: [.red], startPoint: .top, endPoint: .bottom)
             : GaugeColorResolver.gradient(
                 mode: GaugeColorResolver.mode(smartColorEnabled: WidgetTheme.smartColorEnabled, windowDuration: window.windowDuration),

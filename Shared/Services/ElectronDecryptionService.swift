@@ -292,7 +292,19 @@ final class ElectronDecryptionService: ElectronDecryptionServiceProtocol, @unche
 
         var payload = Data([cacheVersionByte])
         payload.append(key)
-        try? payload.write(to: fileURL, options: [.atomic, .completeFileProtection])
+        // Complete file protection is the preference, not a requirement. It
+        // can fail outright with a permission error depending on the volume's
+        // data-protection state, and the write was previously swallowed by
+        // `try?`: the cache then never lands, every launch re-derives the key
+        // from the Keychain, and the ACL prompt this cache exists to prevent
+        // comes back. Falling back to a plain atomic write keeps the cache
+        // working; the 0600 permissions applied below are what actually keep
+        // the file owner-only.
+        do {
+            try payload.write(to: fileURL, options: [.atomic, .completeFileProtection])
+        } catch {
+            try? payload.write(to: fileURL, options: [.atomic])
+        }
 
         // Set file permissions to 0600 (owner read-write only)
         try? FileManager.default.setAttributes(

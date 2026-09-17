@@ -36,18 +36,38 @@ struct MonitoringView: View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
                 header
-                heroTile
-                metricsGrid
-                pacingRow
-                if let extra = usageStore.extraUsage, extra.isEnabled {
-                    extraUsageTile(extra)
+
+                // One ordered list drives all three modes. A provider mode
+                // renders it once; All renders it once per provider, side by
+                // side, which is what makes the columns line up row for row
+                // without anything coordinating them. The order and the
+                // visibility come from Studio.
+                if isComparing {
+                    HStack(alignment: .top, spacing: DS.Spacing.md) {
+                        ForEach(visibleProviders) { provider in
+                            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                                ProviderStatusNotice(provider: provider)
+                                blocks(for: provider)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .transition(.glanceCard)
+                        }
+                    }
+                } else if let provider = visibleProviders.first {
+                    VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                        ProviderStatusNotice(provider: provider)
+                        blocks(for: provider)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .transition(.glanceCard)
                 }
-                footerPills
-                if settingsStore.codexEnabled {
-                    CodexSectionView()
-                        .padding(.top, DS.Spacing.md)
-                }
+                CodexInvitationRow()
             }
+            // The whole block changes shape on a mode switch, not just the
+            // band it used to live on, so the animation moved up with it. One
+            // value drives it, and `glide` has no overshoot because these
+            // cards are expensive to rasterise at a new size.
+            .animation(reduceMotion ? nil : DS.Motion.glide, value: visibleProviders)
             .padding(DS.Spacing.md)
         }
         .task {
@@ -80,7 +100,268 @@ struct MonitoringView: View {
         ["weekly", "sonnet", "opus"].contains(tileId)
     }
 
+    // MARK: - Glance window
+
+    /// Which Claude window the glance card shows. Automatic means the shortest
+    /// window the provider actually has, which for Claude is always the
+    /// 5-hour one: that is the window that blocks you in the next ten minutes,
+    /// while the weekly one is a slower worry. The same rule drives the Codex
+    /// card, which is what stops the two cards from quietly answering
+    /// different questions.
+    enum ClaudeHeroWindow: String, CaseIterable {
+        case session
+        case weekly
+
+        /// Literal keys rather than an interpolated one: a dynamic key is not
+        /// a `LocalizationValue`, and it also hides the string from every tool
+        /// that extracts them.
+        var localizedLabel: String {
+            switch self {
+            case .session: return String(localized: "dashboard.hero.window.session")
+            case .weekly:  return String(localized: "dashboard.hero.window.weekly")
+            }
+        }
+        var duration: TimeInterval { self == .session ? 5 * 3600 : 7 * 86_400 }
+    }
+
+    var claudeHeroWindow: ClaudeHeroWindow {
+        settingsStore.heroWindow(for: .claude).flatMap(ClaudeHeroWindow.init(rawValue:)) ?? .session
+    }
+
+    /// The window picker lives in a context menu rather than on the card.
+    /// The card is a Button that flips on click, and a menu nested in a
+    /// Button's label does not reliably receive its own clicks; right-click is
+    /// the macOS gesture for "what else can this do" anyway.
+    @ViewBuilder
+    private func heroWindowMenu(for provider: MetricProvider, options: [(id: String, label: String)]) -> some View {
+        Section(String(localized: "dashboard.hero.window.menu")) {
+            Button {
+                settingsStore.setHeroWindow(nil, for: provider)
+            } label: {
+                Label(String(localized: "dashboard.hero.window.auto"),
+                      systemImage: settingsStore.heroWindow(for: provider) == nil ? "checkmark" : "")
+            }
+            ForEach(options, id: \.id) { option in
+                Button {
+                    settingsStore.setHeroWindow(option.id, for: provider)
+                } label: {
+                    Label(option.label,
+                          systemImage: settingsStore.heroWindow(for: provider) == option.id ? "checkmark" : "")
+                }
+            }
+        }
+    }
+
+    // MARK: - Glance band
+
+    /// The providers this page is rendering right now, in declaration order.
+    /// Everything that used to ask "Claude and/or Codex?" asks this instead,
+    /// so adding a third provider changes `activeProviders` and nothing here.
+    var visibleProviders: [MetricProvider] {
+        settingsStore.activeProviders.filter { settingsStore.activeProviderMode.shows($0) }
+    }
+
+    var showsClaude: Bool { visibleProviders.contains(.claude) }
+
+    var showsCodex: Bool { visibleProviders.contains(.codex) }
+
+    /// True when the page has two providers to put side by side. A provider
+    /// mode, or a single active provider, gets that provider's own full page
+    /// instead: there is nothing to compare, and half a comparison is worse
+    /// than none.
+    private var isComparing: Bool {
+        settingsStore.activeProviderMode == .all && visibleProviders.count > 1
+    }
+
+    /// Renders one provider's blocks, in the order Studio put them.
+    @ViewBuilder
+    private func blocks(for provider: MetricProvider) -> some View {
+        ForEach(settingsStore.dashboardComposition.visibleBlocks) { block in
+            if block.providers.contains(provider) {
+                blockContent(block, for: provider)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func blockContent(_ block: DashboardBlock, for provider: MetricProvider) -> some View {
+        switch (block, provider) {
+        case (.hero, .claude):
+            heroTile
+                .contextMenu {
+                    heroWindowMenu(for: .claude, options: ClaudeHeroWindow.allCases.map {
+                        (id: $0.rawValue, label: $0.localizedLabel)
+                    })
+                }
+        case (.hero, .codex):
+            CodexHeroCard()
+                .contextMenu {
+                    heroWindowMenu(for: .codex, options: codexStore.windows
+                        .sorted { $0.windowDuration < $1.windowDuration }
+                        .map { (id: $0.kind.rawValue, label: $0.kind.heroLabel(for: $0.windowDuration)) })
+                }
+
+        case (.windows, .claude):
+            // The hero already shows one window, so the grid never repeats it.
+            // In every mode: the duplicate showed up as soon as the hero was
+            // pinned to Weekly, which a Claude-only user can do just as well.
+            grid(of: secondaryTiles
+                .filter { $0.id != claudeHeroTileID }
+                .map { labelled($0, for: .claude) })
+        case (.windows, .codex):
+            grid(of: codexStore.windows
+                .sorted { $0.windowDuration < $1.windowDuration }
+                .filter { $0.id != codexHeroWindow?.id }
+                .map { window in
+                    labelled(TileDescriptor(
+                        id: "codex-" + window.id,
+                        label: window.kind.heroLabel(for: window.windowDuration),
+                        icon: window.kind == .session ? "timer" : "calendar",
+                        pct: window.pct,
+                        resetText: window.relativeReset,
+                        resetDate: window.resetDate,
+                        windowDuration: window.windowDuration
+                    ), for: .codex)
+                })
+
+        case (.pacing, .claude):
+            claudePacing
+        case (.pacing, .codex):
+            codexPacing
+
+        case (.extraCredits, .claude):
+            if let extra = usageStore.extraUsage, extra.isEnabled {
+                extraUsageTile(extra)
+            }
+        case (.extraCredits, .codex):
+            EmptyView()
+
+        case (.footer, .claude):
+            footerPills
+        case (.footer, .codex):
+            CodexFooterPills()
+        }
+    }
+
+    /// Stacked in a column, side by side on a single-provider page: the
+    /// pacing row has always been two cards abreast and that is the layout
+    /// Claude alone keeps.
+    @ViewBuilder
+    private var claudePacing: some View {
+        let cards = [
+            usageStore.fiveHourPacing.map {
+                (pacing: $0, label: labelled(String(localized: "pacing.session.label"), for: .claude),
+                 icon: "clock.fill", workweek: false, cooldown: false)
+            },
+            usageStore.pacingResult.map {
+                (pacing: $0, label: labelled(String(localized: "pacing.weekly.label"), for: .claude),
+                 icon: "calendar.badge.clock", workweek: true, cooldown: true)
+            },
+        ].compactMap { $0 }
+
+        if isComparing {
+            ForEach(Array(cards.enumerated()), id: \.offset) { _, card in
+                pacingCard(pacing: card.pacing, label: card.label, icon: card.icon,
+                           showWorkweekBadge: card.workweek, showCooldown: card.cooldown)
+            }
+        } else {
+            HStack(spacing: DS.Spacing.sm) {
+                ForEach(Array(cards.enumerated()), id: \.offset) { _, card in
+                    pacingCard(pacing: card.pacing, label: card.label, icon: card.icon,
+                               showWorkweekBadge: card.workweek, showCooldown: card.cooldown)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var codexPacing: some View {
+        let windows = codexStore.windows
+            .sorted { $0.windowDuration < $1.windowDuration }
+            .filter { $0.pacing != nil }
+        if isComparing {
+            ForEach(windows) { window in
+                CodexPacingCard(
+                    pacing: window.pacing!,
+                    windowLabel: labelled(window.kind.heroLabel(for: window.windowDuration), for: .codex),
+                    isSession: window.kind == .session
+                )
+            }
+        } else {
+            HStack(spacing: DS.Spacing.sm) {
+                ForEach(windows) { window in
+                    CodexPacingCard(
+                        pacing: window.pacing!,
+                        windowLabel: labelled(window.kind.heroLabel(for: window.windowDuration), for: .codex),
+                        isSession: window.kind == .session
+                    )
+                    .frame(maxWidth: .infinity)
+                }
+            }
+        }
+    }
+
+    /// Which tile the Claude hero is already showing, so the grid can skip it.
+    /// Nil when the hero shows the 5-hour window, which has no tile of its own
+    /// in the grid, so nothing is filtered out.
+    private var claudeHeroTileID: String? {
+        claudeHeroWindow == .weekly ? "weekly" : nil
+    }
+
+    private var codexHeroWindow: CodexWindowSnapshot? {
+        if let pinned = settingsStore.heroWindow(for: .codex),
+           let match = codexStore.windows.first(where: { $0.kind.rawValue == pinned }) {
+            return match
+        }
+        return codexStore.windows.min { $0.windowDuration < $1.windowDuration }
+    }
+
+    /// One rule for every card label on this page: name the provider when
+    /// there is another one on screen, never when there is not.
+    private func labelled(_ base: String, for provider: MetricProvider) -> String {
+        isComparing ? provider.displayName + " · " + base : base
+    }
+
+    private func labelled(_ tile: TileDescriptor, for provider: MetricProvider) -> TileDescriptor {
+        var copy = tile
+        copy.label = labelled(tile.label, for: provider)
+        return copy
+    }
+
     // MARK: - Header
+
+    @ViewBuilder
+    private var providerBadges: some View {
+        HStack(spacing: 5) {
+            if showsClaude, usageStore.planType != .unknown {
+                planBadge(.claude, usageStore.planType.displayLabel, DS.Palette.brandPrimary)
+            }
+            if showsCodex, codexStore.planType != .unknown {
+                planBadge(.codex, codexStore.planType.displayLabel, codexStore.planType.badgeColor)
+            }
+        }
+    }
+
+    private func planBadge(_ provider: MetricProvider, _ plan: String, _ tint: Color) -> some View {
+        HStack(spacing: 4) {
+            ProviderGlyph(provider: provider, size: 10)
+            Text(plan)
+                .font(.system(size: 9, weight: .bold))
+                .tracking(0.5)
+        }
+        .foregroundStyle(DS.Palette.textPrimary)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.input, style: .continuous)
+                .fill(tint.opacity(0.22))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DS.Radius.input, style: .continuous)
+                        .stroke(tint.opacity(0.45), lineWidth: 0.6)
+                )
+        )
+    }
 
     private var header: some View {
         HStack(alignment: .center, spacing: DS.Spacing.sm) {
@@ -94,22 +375,15 @@ struct MonitoringView: View {
                     .foregroundStyle(DS.Palette.textPrimary)
             }
 
-            if usageStore.planType != .unknown {
-                Text(usageStore.planType.displayLabel)
-                    .font(.system(size: 9, weight: .bold))
-                    .tracking(0.5)
-                    .foregroundStyle(DS.Palette.textPrimary)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .background(
-                        RoundedRectangle(cornerRadius: DS.Radius.input, style: .continuous)
-                            .fill(DS.Palette.brandPrimary.opacity(0.25))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: DS.Radius.input, style: .continuous)
-                                    .stroke(DS.Palette.brandPrimary.opacity(0.5), lineWidth: 0.6)
-                            )
-                    )
-            }
+            // The plan badge, the freshness and the refresh button used to sit
+            // here, which quietly made this Claude's header as well as the
+            // app's. They now live in each provider's section header.
+
+            // The plan badges used to live in a per-provider section bar that
+            // only existed in a provider mode, so switching modes added and
+            // removed a whole row and shifted the page. They sit here in every
+            // mode instead, and the refresh stays far right in all three.
+            providerBadges
 
             if vendorStatusStore.isDegraded, let status = vendorStatusStore.claudeStatus {
                 statusPill(status)
@@ -117,48 +391,47 @@ struct MonitoringView: View {
 
             Spacer()
 
-            if usageStore.isLoading {
-                ProgressView()
-                    .controlSize(.small)
-                    .frame(width: 14, height: 14)
-            }
-
-            if !lastUpdateText.isEmpty {
-                Text(String(format: String(localized: "menubar.updated"), lastUpdateText))
-                    .font(DS.Typography.label)
-                    .foregroundStyle(DS.Palette.textTertiary)
-            }
-
-            Button {
-                Task { await usageStore.refresh(force: true) }
-                Task { await codexStore.refresh(force: true) }
-            } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(refreshHovering ? DS.Palette.accentHistory : DS.Palette.textSecondary)
-                    .frame(width: 26, height: 26)
-                    .background(
-                        Circle()
-                            .fill(refreshHovering
-                                  ? DS.Palette.accentHistory.opacity(0.18)
-                                  : DS.Palette.glassFill)
-                            .overlay(
-                                Circle().stroke(
-                                    refreshHovering
-                                        ? DS.Palette.accentHistory.opacity(0.55)
-                                        : DS.Palette.glassBorder,
-                                    lineWidth: 1
+            // Always present now. It was gated on having two providers back
+            // when each provider's own bar carried a refresh of its own; those
+            // bars are gone, so gating it left a provider mode with no way to
+            // refresh at all. It refreshes whatever is visible, which in a
+            // provider mode is that one provider.
+            if !visibleProviders.isEmpty {
+                Button {
+                    for provider in visibleProviders {
+                        switch provider {
+                        case .claude: Task { await usageStore.refresh(force: true) }
+                        case .codex:  Task { await codexStore.refresh(force: true) }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(refreshHovering ? DS.Palette.accentHistory : DS.Palette.textSecondary)
+                        .frame(width: 26, height: 26)
+                        .background(
+                            Circle()
+                                .fill(refreshHovering
+                                      ? DS.Palette.accentHistory.opacity(0.18)
+                                      : DS.Palette.glassFill)
+                                .overlay(
+                                    Circle().stroke(
+                                        refreshHovering
+                                            ? DS.Palette.accentHistory.opacity(0.55)
+                                            : DS.Palette.glassBorder,
+                                        lineWidth: 1
+                                    )
                                 )
-                            )
-                    )
-                    .shadow(color: refreshHovering ? DS.Palette.accentHistory.opacity(0.55) : .clear,
-                            radius: refreshHovering ? 8 : 0)
-                    .scaleEffect(refreshHovering && !reduceMotion ? 1.05 : 1.0)
-            }
-            .buttonStyle(.plain)
-            .help(String(localized: "contextmenu.refresh"))
-            .onHover { hovering in
-                withAnimation(DS.Motion.springSnap) { refreshHovering = hovering }
+                        )
+                        .shadow(color: refreshHovering ? DS.Palette.accentHistory.opacity(0.55) : .clear,
+                                radius: refreshHovering ? 8 : 0)
+                        .scaleEffect(refreshHovering && !reduceMotion ? 1.05 : 1.0)
+                }
+                .buttonStyle(.plain)
+                .help(String(localized: "dashboard.refreshAll"))
+                .onHover { hovering in
+                    withAnimation(DS.Motion.springSnap) { refreshHovering = hovering }
+                }
             }
         }
         .padding(.horizontal, DS.Spacing.xs)
@@ -202,21 +475,31 @@ struct MonitoringView: View {
     // MARK: - Hero tile (Session 5H)
 
     private var heroTile: some View {
-        let pct = usageStore.fiveHourPct
-        let resetDate = usageStore.lastUsage?.fiveHour?.resetsAtDate
-        let gaugeColor = gaugeColor(pct: pct, resetDate: resetDate, windowDuration: 5 * 3600)
-        let gaugeGradient = gaugeGradient(pct: pct, resetDate: resetDate, windowDuration: 5 * 3600)
-        let zone = usageStore.fiveHourPacing?.zone
-        let pacing = usageStore.fiveHourPacing
+        let window = claudeHeroWindow
+        let isSession = window == .session
+        let pct = isSession ? usageStore.fiveHourPct : usageStore.sevenDayPct
+        let resetDate = isSession
+            ? usageStore.lastUsage?.fiveHour?.resetsAtDate
+            : usageStore.lastUsage?.sevenDay?.resetsAtDate
+        let resetText = isSession ? usageStore.fiveHourReset : usageStore.sevenDayReset
+        let gaugeColor = gaugeColor(pct: pct, resetDate: resetDate, windowDuration: window.duration)
+        let gaugeGradient = gaugeGradient(pct: pct, resetDate: resetDate, windowDuration: window.duration)
+        let zone = isSession ? usageStore.fiveHourPacing?.zone : usageStore.pacingResult?.zone
+        let pacing = isSession ? usageStore.fiveHourPacing : usageStore.pacingResult
         // Ambient tint follows the gauge color so the wash, the big
         // number, and the ring all read as a single signal.
         let accent = gaugeColor
 
+        // The back face is a session trajectory built from `sessionSamples`,
+        // which only exists for the 5-hour window. Pinning the card to weekly
+        // therefore drops the flip rather than faking a chart, the same call
+        // the Codex card already makes for the same reason.
         return Button {
+            guard isSession else { return }
             triggerHeroFlip()
         } label: {
             ZStack {
-                if heroFlipped {
+                if heroFlipped && isSession {
                     heroBackContent(
                         gaugeColor: gaugeColor,
                         zone: zone,
@@ -228,7 +511,10 @@ struct MonitoringView: View {
                         pct: pct,
                         gaugeColor: gaugeColor,
                         gaugeGradient: gaugeGradient,
-                        zone: zone
+                        zone: zone,
+                        window: window,
+                        resetText: resetText,
+                        resetDate: resetDate
                     )
                 }
             }
@@ -240,12 +526,17 @@ struct MonitoringView: View {
             .blur(radius: heroBlurProgress * 14.0)
             .background(
                 ZStack {
+                    // No `.ultraThinMaterial` here, deliberately, and it is
+                    // not an oversight to fix. The two glance cards are the
+                    // only ones in the app whose width animates, and a
+                    // material re-blurs its backdrop on every frame of that
+                    // resize, which is what made a mode switch feel like it
+                    // was stuttering. It was also buying nothing: behind it
+                    // sits `dsWindowBackground`, a two-stop linear gradient,
+                    // and a blurred linear gradient is the same gradient. The
+                    // 15% the fill lets through shows it directly now.
                     RoundedRectangle(cornerRadius: DS.Radius.cardLg)
                         .fill(DS.Palette.bgElevated.opacity(0.85))
-                        .background(
-                            .ultraThinMaterial,
-                            in: RoundedRectangle(cornerRadius: DS.Radius.cardLg)
-                        )
                     RoundedRectangle(cornerRadius: DS.Radius.cardLg)
                         .fill(
                             LinearGradient(
@@ -269,88 +560,20 @@ struct MonitoringView: View {
     }
 
     @ViewBuilder
-    private func heroFrontContent(pct: Int, gaugeColor: Color, gaugeGradient: LinearGradient, zone: PacingZone?) -> some View {
-        HStack(alignment: .center, spacing: DS.Spacing.lg) {
-            // Left -> labels + meta
-            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                HStack(spacing: DS.Spacing.xs) {
-                    Circle()
-                        .fill(gaugeColor)
-                        .frame(width: 6, height: 6)
-                        .dsGlow(gaugeColor, radius: 4, opacity: 0.6)
-                    Text(String(localized: "dashboard.hero.session.label").uppercased())
-                        .font(DS.Typography.micro)
-                        .tracking(1.5)
-                        .foregroundStyle(DS.Palette.textSecondary)
-                }
-
-                HStack(alignment: .firstTextBaseline, spacing: 2) {
-                    Text("\(pct)")
-                        .font(.system(size: 64, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(gaugeColor)
-                        .dsGlow(gaugeColor, radius: 10, opacity: 0.45)
-                        .contentTransition(.numericText(value: Double(pct)))
-                        .animation(DS.Motion.springLiquid, value: pct)
-                    Text("%")
-                        .font(.system(size: 26, weight: .heavy, design: .rounded))
-                        .foregroundStyle(gaugeColor.opacity(0.55))
-                        .baselineOffset(5)
-                }
-
-                HStack(spacing: DS.Spacing.xs) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(DS.Palette.textTertiary)
-                    Text(String(localized: "dashboard.hero.resetsIn").uppercased())
-                        .font(DS.Typography.micro)
-                        .tracking(1.2)
-                        .foregroundStyle(DS.Palette.textTertiary)
-                    Text(usageStore.fiveHourReset.isEmpty ? "-" : usageStore.fiveHourReset)
-                        .font(DS.Typography.metricInline)
-                        .foregroundStyle(DS.Palette.textPrimary)
-                    if let resetDate = usageStore.lastUsage?.fiveHour?.resetsAtDate {
-                        Text("·")
-                            .font(DS.Typography.metricInline)
-                            .foregroundStyle(DS.Palette.textTertiary.opacity(0.5))
-                        Text(resetDate.formatted(.dateTime.hour().minute()))
-                            .font(DS.Typography.metricInline)
-                            .foregroundStyle(DS.Palette.textPrimary)
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            // Right -> ring + zone glyph
-            ZStack {
-                if glowIntensity == .glow {
-                    RadialGradient(
-                        colors: [gaugeColor.opacity(0.20), gaugeColor.opacity(0.04), .clear],
-                        center: .center,
-                        startRadius: 10,
-                        endRadius: 90
-                    )
-                    .frame(width: 200, height: 200)
-                    .blur(radius: 14)
-                    .allowsHitTesting(false)
-                }
-
-                RingGauge(
-                    percentage: pct,
-                    gradient: gaugeGradient,
-                    size: 140,
-                    glowColor: gaugeColor,
-                    glowRadius: 8
-                )
-
-                Image(systemName: zoneGlyph(for: zone))
-                    .font(.system(size: 40, weight: .semibold))
-                    .foregroundStyle(zone.map { themeStore.current.pacingColor(for: $0) } ?? gaugeColor)
-                    .dsGlow(zone.map { themeStore.current.pacingColor(for: $0) } ?? gaugeColor, radius: 10, opacity: 0.55)
-                    .animation(DS.Motion.springLiquid, value: zone)
-            }
-            .frame(width: 160, height: 160)
-        }
+    private func heroFrontContent(
+        pct: Int, gaugeColor: Color, gaugeGradient: LinearGradient, zone: PacingZone?,
+        window: ClaudeHeroWindow, resetText: String, resetDate: Date?
+    ) -> some View {
+        ProviderHeroFace(
+            provider: .claude,
+            windowLabel: window.localizedLabel,
+            pct: pct,
+            gaugeColor: gaugeColor,
+            gaugeGradient: gaugeGradient,
+            zone: zone,
+            resetText: resetText,
+            resetDate: resetDate
+        )
     }
 
     /// Hero back face. Left side = pacing graph (equilibrium diagonal +
@@ -366,11 +589,10 @@ struct MonitoringView: View {
         HStack(alignment: .center, spacing: DS.Spacing.lg) {
             VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                 HStack(spacing: DS.Spacing.xs) {
-                    Circle()
-                        .fill(gaugeColor)
-                        .frame(width: 6, height: 6)
+                    ProviderGlyph(provider: .claude, size: 11)
+                        .foregroundStyle(gaugeColor)
                         .dsGlow(gaugeColor, radius: 4, opacity: 0.6)
-                    Text(String(localized: "dashboard.hero.session.label").uppercased() + " · PACING")
+                    Text(MetricProvider.claude.displayName.uppercased() + " · PACING")
                         .font(DS.Typography.micro)
                         .tracking(1.5)
                         .foregroundStyle(DS.Palette.textSecondary)
@@ -485,38 +707,42 @@ struct MonitoringView: View {
 
     // MARK: - Metrics grid
 
-    private var metricsGrid: some View {
+    private func grid(of tiles: [TileDescriptor]) -> some View {
         // Width-filling rows instead of a fixed 3-column grid: the number of
         // secondary tiles varies (Opus/Cowork are shown only when their
         // API bucket exists), so a fixed grid left an empty trailing cell when
         // the count was not a multiple of 3. Each row's tiles stretch to fill
         // the full width, so there is never a hole regardless of tile count.
-        let rows = MetricsGridLayout.rows(secondaryTiles)
+        let rows = MetricsGridLayout.rows(tiles)
         return VStack(spacing: DS.Spacing.sm) {
             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                 HStack(spacing: DS.Spacing.sm) {
                     ForEach(row, id: \.id) { tile in
-                        MetricTile(
-                            id: tile.id,
-                            label: tile.label,
-                            icon: tile.icon,
-                            pct: tile.pct,
-                            resetText: tile.resetText,
-                            resetDate: tile.resetDate,
-                            windowDuration: tile.windowDuration,
-                            smartEnabled: settingsStore.smartColorEnabled,
-                            pacingMargin: Double(settingsStore.pacingMargin),
-                            smartProfile: settingsStore.smartColorProfile,
-                            themeStore: themeStore,
-                            insights: hasRichBack(tileId: tile.id)
-                                ? insightsStore.snapshot(for: tileFamily(for: tile.id))
-                                : nil,
-                            insightsLoaded: insightsStore.hasLoaded
-                        )
+                        metricTile(tile)
                     }
                 }
             }
         }
+    }
+
+    private func metricTile(_ tile: TileDescriptor) -> some View {
+        MetricTile(
+            id: tile.id,
+            label: tile.label,
+            icon: tile.icon,
+            pct: tile.pct,
+            resetText: tile.resetText,
+            resetDate: tile.resetDate,
+            windowDuration: tile.windowDuration,
+            smartEnabled: settingsStore.smartColorEnabled,
+            pacingMargin: Double(settingsStore.pacingMargin),
+            smartProfile: settingsStore.smartColorProfile,
+            themeStore: themeStore,
+            insights: hasRichBack(tileId: tile.id)
+                ? insightsStore.snapshot(for: tileFamily(for: tile.id))
+                : nil,
+            insightsLoaded: insightsStore.hasLoaded
+        )
     }
 
     private var secondaryTiles: [TileDescriptor] {
@@ -583,19 +809,6 @@ struct MonitoringView: View {
     }
 
     // MARK: - Pacing row
-
-    private var pacingRow: some View {
-        HStack(spacing: DS.Spacing.sm) {
-            if let pacing = usageStore.fiveHourPacing {
-                pacingCard(pacing: pacing, label: String(localized: "pacing.session.label"), icon: "clock.fill")
-                    .frame(maxWidth: .infinity)
-            }
-            if let pacing = usageStore.pacingResult {
-                pacingCard(pacing: pacing, label: String(localized: "pacing.weekly.label"), icon: "calendar.badge.clock", showWorkweekBadge: true, showCooldown: true)
-                    .frame(maxWidth: .infinity)
-            }
-        }
-    }
 
     private func pacingCard(pacing: PacingResult, label: String, icon: String, showWorkweekBadge: Bool = false, showCooldown: Bool = false) -> some View {
         let tint = themeStore.current.pacingColor(for: pacing.zone)
@@ -831,13 +1044,7 @@ struct MonitoringView: View {
     }
 
     private func zoneGlyph(for zone: PacingZone?) -> String {
-        switch zone {
-        case .chill:   "leaf.fill"
-        case .onTrack: "bolt.fill"
-        case .warning: "hare.fill"
-        case .hot:     "flame.fill"
-        case nil:      "sparkles"
-        }
+        ProviderHeroFace.zoneGlyph(for: zone)
     }
 
     private func zoneLabel(_ zone: PacingZone) -> String {

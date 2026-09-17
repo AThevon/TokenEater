@@ -38,21 +38,51 @@ struct OnboardingView: View {
         }
     }
 
+    /// Two questions, one row each.
+    ///
+    /// Which providers you use, then what the app does with them. That split
+    /// only works if each provider's whole setup lives on its own card, which
+    /// is why authorizing the Keychain moved out of the second row: it is
+    /// Claude's setup, not a behaviour of the app, and having it down there
+    /// gave Claude two cards to OpenAI's one before a word had been read.
     private var cardsGrid: some View {
         VStack(spacing: 12) {
+            groupLabel("onboarding.providers.heading", aside: "onboarding.providers.rule")
+
             Grid(horizontalSpacing: 12, verticalSpacing: 12) {
                 GridRow {
-                    ClaudeCodeCard(viewModel: viewModel)
-                    ConnectCard(viewModel: viewModel)
+                    ProviderSetupCard(provider: .claude, viewModel: viewModel)
+                    ProviderSetupCard(provider: .codex, viewModel: viewModel)
                 }
+            }
+
+            groupLabel("onboarding.app.heading", aside: nil)
+                .padding(.top, 2)
+
+            Grid(horizontalSpacing: 12, verticalSpacing: 12) {
                 GridRow {
-                    WatchersCard(viewModel: viewModel)
                     NotificationsCard(viewModel: viewModel)
+                    WatchersCard(viewModel: viewModel)
                 }
             }
             .frame(maxHeight: .infinity)
-            CodexCard(viewModel: viewModel)
-                .frame(height: 118)
+        }
+    }
+
+    private func groupLabel(_ key: LocalizedStringResource, aside: LocalizedStringResource?) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(key)
+                .font(DS.Typography.micro)
+                .tracking(1.2)
+                .textCase(.uppercase)
+                .foregroundStyle(DS.Palette.textTertiary)
+            if let aside {
+                Text(aside)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.22))
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
         }
     }
 }

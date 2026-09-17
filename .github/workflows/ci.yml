@@ -11,6 +11,16 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Fails in seconds when AGENTS.md and the tree disagree (dead paths, drifted
+  # inventories, a banned @Observable, a hardcoded per-user cache prefix).
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check AGENTS.md against the tree
+        run: python3 scripts/check-docs.py
+
   build-and-test:
     runs-on: macos-15
     timeout-minutes: 15

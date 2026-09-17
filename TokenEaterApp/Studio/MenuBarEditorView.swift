@@ -16,6 +16,7 @@ import SwiftUI
 struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var usageStore: UsageStore
+    @EnvironmentObject private var codexStore: CodexUsageStore
 
     @State private var selectedSegmentID: UUID?
     @State private var showSaveDialog = false
@@ -70,7 +71,10 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
             // preview stays at the top so an edit is always visible.
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 16) {
+                    // Centred over the preview it controls. Left-aligned it
+                    // read as a stray row above an unrelated image.
                     previewHeader()
+                        .frame(maxWidth: .infinity, alignment: .center)
                     MenuBarLivePreview(selectedSegmentID: $selectedSegmentID)
                     previewFooter()
                 }
@@ -84,6 +88,7 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
         ScrollView(.vertical, showsIndicators: true) {
             VStack(alignment: .leading, spacing: 16) {
                 previewHeader()
+                    .frame(maxWidth: .infinity, alignment: .center)
                 MenuBarLivePreview(selectedSegmentID: $selectedSegmentID)
                 previewFooter()
                 templatesSection
@@ -164,7 +169,10 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
                 }
             }
         }
-        ForEach(MenuBarBuiltinTemplate.allCases) { template in
+        ForEach(MenuBarBuiltinTemplate.ordered(
+            for: settingsStore.activeProviderMode,
+            providerCount: settingsStore.activeProviders.count
+        )) { template in
             MenuBarTemplateCard(
                 name: template.localizedName,
                 composition: template.composition,
@@ -222,20 +230,44 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
 
     private var addSegmentMenu: some View {
         AddElementMenuButton(title: String(localized: "menuBar.editor.addSegment")) {
-            Section(String(localized: "menuBar.editor.family.metrics")) {
-                let metricKinds: [MenuBarSegmentKind] = [.session, .weekly, .sonnet, .fable, .extraCredits]
-                ForEach(metricKinds) { addButton(for: $0) }
-            }
-            Section(String(localized: "menuBar.editor.family.pacing")) {
-                addButton(for: .sessionPacing)
-                addButton(for: .weeklyPacing)
-                addButton(for: .fablePacing)
+            // Same rule as the popover editor: provider first, family second,
+            // derived from the kinds rather than listed by hand.
+            ForEach(scopedProviders) { provider in
+                let metrics = MenuBarSegmentKind.allCases.filter {
+                    $0.provider == provider && !$0.isPacing
+                }
+                let pacing = MenuBarSegmentKind.allCases.filter {
+                    $0.provider == provider && $0.isPacing
+                }
+                if !metrics.isEmpty {
+                    Section(pickerSectionTitle(provider, "menuBar.editor.family.metrics")) {
+                        ForEach(metrics) { addButton(for: $0) }
+                    }
+                }
+                if !pacing.isEmpty {
+                    Section(pickerSectionTitle(provider, "menuBar.editor.family.pacing")) {
+                        ForEach(pacing) { addButton(for: $0) }
+                    }
+                }
             }
             Section(String(localized: "menuBar.editor.family.status")) {
                 addButton(for: .sessionReset)
                 addButton(for: .serviceStatus)
             }
         }
+    }
+
+    /// The providers this scope can actually render, matching the renderer's
+    /// own provider gate. Offering the other one's segments produced rows the
+    /// menu bar silently dropped.
+    private var scopedProviders: [MetricProvider] {
+        settingsStore.activeProviders.filter { settingsStore.activeProviderMode.shows($0) }
+    }
+
+    private func pickerSectionTitle(_ provider: MetricProvider, _ familyKey: String.LocalizationValue) -> String {
+        let family = String(localized: familyKey)
+        guard scopedProviders.count > 1 else { return family }
+        return "\(provider.displayName) · \(family)"
     }
 
     @ViewBuilder
@@ -257,11 +289,9 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
     }
 
     private func accountHasKind(_ kind: MenuBarSegmentKind) -> Bool {
-        switch kind {
-        case .fable, .fablePacing: return usageStore.hasFable
-        case .extraCredits: return usageStore.hasExtraCredits
-        default: return true
-        }
+        MenuBarSegmentAvailability.isAvailable(
+            kind, settings: settingsStore, usage: usageStore, codex: codexStore
+        )
     }
 
     private func addSegment(_ kind: MenuBarSegmentKind) {
@@ -425,6 +455,7 @@ private struct MenuBarTemplateSchematic: View {
 
 private struct MenuBarLivePreview: View {
     @EnvironmentObject private var usageStore: UsageStore
+    @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var themeStore: ThemeStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var vendorStatusStore: VendorStatusStore
@@ -435,7 +466,8 @@ private struct MenuBarLivePreview: View {
 
     var body: some View {
         let data = MenuBarRenderer.RenderData.live(
-            usage: usageStore, theme: themeStore, settings: settingsStore, vendor: vendorStatusStore
+            usage: usageStore, theme: themeStore, settings: settingsStore, vendor: vendorStatusStore,
+            codex: codexStore
         )
         let rendered = MenuBarRenderer.renderWithHitRects(data)
         let w = rendered.image.size.width * scale
@@ -505,6 +537,7 @@ private struct MenuBarLivePreview: View {
 private struct MenuBarSegmentListEditor: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var usageStore: UsageStore
+    @EnvironmentObject private var codexStore: CodexUsageStore
 
     @Binding var selectedSegmentID: UUID?
     @State private var draggingID: UUID?
@@ -560,11 +593,9 @@ private struct MenuBarSegmentListEditor: View {
     }
 
     private func isAvailable(_ kind: MenuBarSegmentKind) -> Bool {
-        switch kind {
-        case .fable, .fablePacing: return usageStore.hasFable
-        case .extraCredits: return usageStore.hasExtraCredits
-        default: return true
-        }
+        MenuBarSegmentAvailability.isAvailable(
+            kind, settings: settingsStore, usage: usageStore, codex: codexStore
+        )
     }
 
     private func mutate(_ id: UUID, _ transform: (inout MenuBarSegment) -> Void) {
@@ -609,9 +640,11 @@ private struct MenuBarSegmentRow: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(segment.isHidden ? .white.opacity(0.3) : .white.opacity(0.7)).frame(width: 16)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(segment.kind.localizedLabel)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(segment.isHidden ? .white.opacity(0.35) : .white.opacity(0.9)).lineLimit(1)
+                    KindLabel(
+                        provider: segment.kind.provider,
+                        text: segment.kind.localizedLabel,
+                        color: segment.isHidden ? .white.opacity(0.35) : .white.opacity(0.9)
+                    )
                     if !isAvailable {
                         Text(String(localized: "menuBar.editor.unavailable"))
                             .font(.system(size: 9)).foregroundStyle(.orange.opacity(0.7))
@@ -731,5 +764,41 @@ struct EditorPickerLabel: View {
                 .opacity(0.6)
         }
         .help(Text(caption))
+    }
+}
+
+// MARK: - Availability
+
+/// Whether a segment would be drawn at all, asked by the add menu and by the
+/// segment list alike.
+///
+/// It mirrors `MenuBarRenderer.isSegmentAvailable`, which is the gate that
+/// actually decides. The two had drifted: the editor knew only Claude's cases
+/// and answered yes to every Codex one, so an OpenAI segment added while
+/// editing a Claude layout sat in the list with no marker and never appeared
+/// in the menu bar. The provider gate comes first for the same reason it does
+/// there: a segment belonging to a provider this scope does not show draws
+/// nothing, whatever the account has.
+@MainActor
+enum MenuBarSegmentAvailability {
+    static func isAvailable(
+        _ kind: MenuBarSegmentKind,
+        settings: SettingsStore,
+        usage: UsageStore,
+        codex: CodexUsageStore
+    ) -> Bool {
+        if let provider = kind.provider {
+            guard settings.activeProviders.contains(provider) else { return false }
+            guard settings.activeProviderMode.shows(provider) else { return false }
+        }
+        switch kind {
+        case .fable, .fablePacing: return usage.hasFable
+        case .extraCredits: return usage.hasExtraCredits
+        case .codexSession, .codexSessionPacing:
+            return codex.windows.contains { $0.kind == .session }
+        case .codexWeekly, .codexWeeklyPacing:
+            return codex.windows.contains { $0.kind == .weekly }
+        default: return true
+        }
     }
 }

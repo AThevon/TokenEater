@@ -27,6 +27,27 @@ struct OnboardingHero: View {
                 .lineSpacing(2)
                 .padding(.top, 6)
 
+            // Said once, here, rather than as a REQUIRED stamp on one provider
+            // card and an OPTIONAL stamp on the other. The rule is about the
+            // pair, so it belongs where the pair is summarised.
+            Text("onboarding.hero.rule")
+                .font(.system(size: 10.5))
+                .foregroundStyle(.white.opacity(0.45))
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 9)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(Color.white.opacity(0.02))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                )
+                .padding(.top, 14)
+
             Spacer(minLength: 0)
 
             HStack {

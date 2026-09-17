@@ -12,12 +12,16 @@ struct WatchersCard: View {
 
     var body: some View {
         OnboardingCard(
-            kind: .optional,
             tilt: .right,
-            title: "onboarding.card.watchers.title",
-            statusText: statusText,
+            title: String(localized: "onboarding.card.watchers.title"),
+            statusText: String(localized: statusText),
             statusColor: statusColor,
             accent: accent,
+            mark: { EmptyView() },
+            // The one card in this row whose providers disagree, so the one
+            // card that says so. It reads the same capability declaration the
+            // Coverage page and the what's-new matrix read.
+            badge: { ProviderSupportBadge(capability: .agentWatchers, size: 9) },
             scene: { scene },
             control: { control }
         )
@@ -97,19 +101,6 @@ struct WatchersCard: View {
                 processPid: 2,
                 sourceKind: .unknown,
                 contextTokens: 124_000,
-                contextMax: 200_000
-            ),
-            ClaudeSession(
-                id: "onboarding-mock-3",
-                projectPath: "/Users/dev/api-gateway",
-                gitBranch: "hotfix",
-                model: "claude-sonnet-4-6",
-                state: .idle,
-                lastUpdate: now,
-                startedAt: now.addingTimeInterval(-60),
-                processPid: 3,
-                sourceKind: .unknown,
-                contextTokens: 96_000,
                 contextMax: 200_000
             ),
         ]

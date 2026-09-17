@@ -81,7 +81,10 @@ struct CodexSettingsTests {
         #expect(store.codexTrackSession)
         #expect(store.codexTrackWeekly)
         #expect(store.codexWindowReset)
-        #expect(store.codexTokenExpired)
+        // Off by default, exactly like `notifTokenExpired` for Claude. Codex
+        // tokens are refreshed only by the Codex CLI, so an idle install can
+        // sit expired for days and this alert has no terminal state.
+        #expect(!store.codexTokenExpired)
         // Scheduled reminders stay opt-in, like the Claude ones.
         #expect(!store.codexResetReminderSession)
         #expect(!store.codexResetReminderWeekly)

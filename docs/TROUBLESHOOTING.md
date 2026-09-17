@@ -43,7 +43,8 @@ rm -rf ~/Library/Group\ Containers/group.com.claudeusagewidget.shared
 # 5. Wipe WidgetKit caches (critical: macOS keeps old widget binaries here)
 TMPBASE=$(getconf DARWIN_USER_TEMP_DIR)
 CACHEBASE=$(getconf DARWIN_USER_CACHE_DIR)
-rm -rf "${TMPBASE}com.apple.chrono" "${CACHEBASE}com.apple.chrono" 2>/dev/null
+USERBASE=$(getconf DARWIN_USER_DIR)
+rm -rf "${TMPBASE}com.apple.chrono" "${CACHEBASE}com.apple.chrono" "${USERBASE}com.apple.chrono" 2>/dev/null
 rm -rf "${CACHEBASE}com.tokeneater.app" "${CACHEBASE}com.claudeusagewidget.app" 2>/dev/null
 
 # 6. Unregister widget plugins

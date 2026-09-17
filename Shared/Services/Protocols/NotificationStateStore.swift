@@ -4,6 +4,11 @@ import Foundation
 /// Isolated behind a protocol so the level/pacing/token-expired logic is
 /// testable without touching real UserDefaults.
 protocol NotificationStateStore: AnyObject {
+    /// True once a baseline has been written for `key`. `lastLevel` cannot
+    /// answer this on its own: an absent key and a stored `.green` both read
+    /// as 0, so the escalation machine would treat a first observation as a
+    /// transition out of green and fire on it.
+    func hasBaseline(forKey key: String) -> Bool
     func lastLevel(forKey key: String) -> Int
     func setLastLevel(_ value: Int, forKey key: String)
     func lastPacing(forKey key: String) -> String?
@@ -28,6 +33,7 @@ final class UserDefaultsNotificationStateStore: NotificationStateStore {
     private let defaults: UserDefaults
     init(defaults: UserDefaults = .standard) { self.defaults = defaults }
 
+    func hasBaseline(forKey key: String) -> Bool { defaults.object(forKey: key) != nil }
     func lastLevel(forKey key: String) -> Int { defaults.integer(forKey: key) }
     func setLastLevel(_ value: Int, forKey key: String) { defaults.set(value, forKey: key) }
     func lastPacing(forKey key: String) -> String? { defaults.string(forKey: key) }

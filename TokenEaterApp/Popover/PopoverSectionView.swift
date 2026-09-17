@@ -7,6 +7,7 @@ import SwiftUI
 /// scrolling. Tapping a cell in the preview selects its row in the list.
 struct PopoverSectionView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var usageStore: UsageStore
 
     @State private var selectedElementID: UUID?
@@ -206,7 +207,10 @@ struct PopoverSectionView: View {
                 }
             }
         }
-        ForEach(PopoverBuiltinTemplate.allCases) { template in
+        ForEach(PopoverBuiltinTemplate.ordered(
+            for: settingsStore.activeProviderMode,
+            providerCount: settingsStore.activeProviders.count
+        )) { template in
             TemplateCard(
                 name: template.localizedName,
                 composition: template.composition,
@@ -267,17 +271,50 @@ struct PopoverSectionView: View {
     }
 
     private var addElementMenu: some View {
+        HStack(spacing: DS.Spacing.sm) {
+            providerSwitchToggle
+            addElementButton
+        }
+    }
+
+    /// Pinned chrome, so it is a switch rather than a draggable cell.
+    private var providerSwitchToggle: some View {
+        Toggle(isOn: $settingsStore.popoverShowsProviderSwitch) {
+            Text("popover.editor.providerSwitch")
+                .font(.system(size: 11))
+        }
+        .toggleStyle(.switch)
+        .controlSize(.mini)
+        .tint(DS.Palette.brandPrimary)
+        .disabled(settingsStore.availableProviderModes.count < 2)
+        .opacity(settingsStore.availableProviderModes.count < 2 ? 0.35 : 1)
+        .help(String(localized: "popover.editor.providerSwitch.hint"))
+    }
+
+    private var addElementButton: some View {
         AddElementMenuButton(title: String(localized: "popover.editor.addElement")) {
-            Section(String(localized: "popover.editor.family.metrics")) {
-                let metricKinds: [PopoverElementKind] = [.session, .weekly, .sonnet, .fable, .extraCredits]
-                ForEach(metricKinds) { kind in
-                    addButton(for: kind)
+            // Grouped by provider first, family second. Flat family sections
+            // with one "Codex" bucket tacked on made Claude the default and
+            // OpenAI the exception, and with a third provider it would stop
+            // scaling entirely. Derived from the kinds themselves, so a new
+            // provider brings its own sections.
+            ForEach(scopedProviders) { provider in
+                let metrics = PopoverElementKind.allCases.filter {
+                    $0.provider == provider && $0.family == .usage
                 }
-            }
-            Section(String(localized: "popover.editor.family.pacing")) {
-                addButton(for: .sessionPacing)
-                addButton(for: .weeklyPacing)
-                addButton(for: .fablePacing)
+                let pacing = PopoverElementKind.allCases.filter {
+                    $0.provider == provider && $0.family == .pacing
+                }
+                if !metrics.isEmpty {
+                    Section(pickerSectionTitle(provider, "popover.editor.family.metrics")) {
+                        ForEach(metrics) { addButton(for: $0) }
+                    }
+                }
+                if !pacing.isEmpty {
+                    Section(pickerSectionTitle(provider, "popover.editor.family.pacing")) {
+                        ForEach(pacing) { addButton(for: $0) }
+                    }
+                }
             }
             Section(String(localized: "popover.editor.family.utilities")) {
                 addButton(for: .planBadge)
@@ -288,6 +325,22 @@ struct PopoverSectionView: View {
                 addButton(for: .quitButton)
             }
         }
+    }
+
+    /// The providers this scope can actually render. Offering the other one's
+    /// metrics produced rows that sat in the editor list and drew nothing,
+    /// here or in the real popover, with no way to tell why.
+    private var scopedProviders: [MetricProvider] {
+        settingsStore.activeProviders.filter { settingsStore.activeProviderMode.shows($0) }
+    }
+
+    /// "Claude · Metrics" when there are two providers to tell apart, plain
+    /// "Metrics" when there is only one: a prefix that disambiguates nothing
+    /// is noise in a menu.
+    private func pickerSectionTitle(_ provider: MetricProvider, _ familyKey: String.LocalizationValue) -> String {
+        let family = String(localized: familyKey)
+        guard scopedProviders.count > 1 else { return family }
+        return "\(provider.displayName) · \(family)"
     }
 
     @ViewBuilder
@@ -309,16 +362,15 @@ struct PopoverSectionView: View {
         }
     }
 
-    /// Whether the metric is currently active on the account. Only labels the
-    /// add-menu entry; it does not block adding (see `addButton`). Render-time
-    /// presence gating stays live and separate.
+    /// Whether this kind would draw anything right now. Only labels the
+    /// add-menu entry; it does not block adding (see `addButton`).
+    ///
+    /// It asks the renderer rather than keeping its own list, because the two
+    /// drifted: the editor hard-coded Claude's cases and answered `true` for
+    /// every Codex one, so an OpenAI metric added from a Claude layout looked
+    /// perfectly fine and drew nothing anywhere.
     private func accountHasKind(_ kind: PopoverElementKind) -> Bool {
-        switch kind {
-        case .fable, .fablePacing: return usageStore.hasFable
-        case .extraCredits: return usageStore.hasExtraCredits
-        case .planBadge: return usageStore.planType != .unknown
-        default: return true
-        }
+        PopoverMetricResolver.isVisible(kind, usage: usageStore, codex: codexStore, settings: settingsStore)
     }
 
     private func addElement(_ kind: PopoverElementKind) {
@@ -538,6 +590,7 @@ private struct LivePopoverPreview: View {
 
 private struct ElementListEditor: View {
     @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var usageStore: UsageStore
 
     @Binding var selectedElementID: UUID?
@@ -600,19 +653,13 @@ private struct ElementListEditor: View {
         $settingsStore.popoverComposition.elements
     }
 
-    // Plan-level availability, mirroring `accountHasKind` in the add menu
-    // (data-level gates like pacing-before-first-refresh are the renderer's
-    // empty-state fallback, not the editor's job). `.planBadge` must be here:
-    // with no known plan the renderer filters it out, so the editor must not
-    // count it toward the "keep one element visible" guard, and must keep it
-    // freely removable.
+    // The same question the add menu asks, answered by the renderer itself so
+    // the two cannot disagree: an element the popover will not draw must not
+    // count toward the "keep one element visible" guard, and must stay freely
+    // removable. That covers a Fable arc after a plan downgrade, a plan badge
+    // with no known plan, and every Codex kind in a Claude-scoped layout.
     private func isAvailable(_ kind: PopoverElementKind) -> Bool {
-        switch kind {
-        case .fable, .fablePacing: return usageStore.hasFable
-        case .extraCredits: return usageStore.hasExtraCredits
-        case .planBadge: return usageStore.planType != .unknown
-        default: return true
-        }
+        PopoverMetricResolver.isVisible(kind, usage: usageStore, codex: codexStore, settings: settingsStore)
     }
 
     /// Whether hiding or deleting this element is allowed. The guard counts
@@ -703,10 +750,11 @@ private struct ElementRow: View {
                     .frame(width: 16)
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(element.kind.localizedLabel)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(element.isHidden ? .white.opacity(0.35) : .white.opacity(0.9))
-                        .lineLimit(1)
+                    KindLabel(
+                        provider: element.kind.provider,
+                        text: element.kind.localizedLabel,
+                        color: element.isHidden ? .white.opacity(0.35) : .white.opacity(0.9)
+                    )
                     if !isAvailable {
                         Text(String(localized: "popover.editor.unavailable"))
                             .font(.system(size: 9))

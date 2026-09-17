@@ -18,6 +18,26 @@ enum ConnectionStatus {
     case failed(String)
 }
 
+/// Where a provider is in its setup, whichever provider it is.
+///
+/// One vocabulary for both, so the card can be one card. The states are about
+/// the credential, never about whether the user wants to track that provider:
+/// tracking is a switch the user owns, and a provider can be perfectly ready
+/// and deliberately off.
+enum ProviderSetupState: Equatable {
+    /// Looking at the machine.
+    case checking
+    /// The CLI that produces the credential is not installed.
+    case notInstalled
+    /// Installed, but something is needed before it works: a Keychain
+    /// authorization for Claude, a ChatGPT sign-in for OpenAI.
+    case needsAction
+    /// Usable right now.
+    case ready
+    /// Tried and refused, or expired. Carries what to say about it.
+    case failed(String)
+}
+
 enum NotificationStatus {
     case unknown
     case authorized
@@ -28,7 +48,12 @@ enum NotificationStatus {
 @MainActor
 final class OnboardingViewModel: ObservableObject {
     @Published var codexStatus: CodexAuthState
+    /// Mirrors of the two tracking switches. The view model owns its own
+    /// `SettingsStore` (environment objects are not reachable from a
+    /// `@StateObject` initializer), so the cards write to the live store and
+    /// mirror back here, and progress stays accurate either way.
     @Published var codexEnabled: Bool
+    @Published var claudeEnabled: Bool
     @Published var claudeCodeStatus: ClaudeCodeStatus = .checking
     @Published var connectionStatus: ConnectionStatus = .idle
     @Published var notificationStatus: NotificationStatus = .unknown
@@ -39,7 +64,62 @@ final class OnboardingViewModel: ObservableObject {
     /// onboarding shows the user's existing preference.
     @Published var watcherEnabled: Bool
 
-    let totalSteps: Int = 5
+    /// Cards that can reach a ready state: one per provider the user is
+    /// tracking, plus the two feature cards.
+    ///
+    /// A provider switched off is not an unfinished step. Counting it was what
+    /// left the bar permanently short of full for anyone who only uses one of
+    /// the two, which reads as "you did not finish" on a wizard they did in
+    /// fact finish.
+    var totalSteps: Int { (claudeEnabled ? 1 : 0) + (codexEnabled ? 1 : 0) + 2 }
+
+    /// Where each provider stands. One vocabulary, so the two cards are the
+    /// same card: see `ProviderSetupState`.
+    func setupState(for provider: MetricProvider) -> ProviderSetupState {
+        switch provider {
+        case .claude:
+            switch claudeCodeStatus {
+            case .checking:
+                return .checking
+            case .notFound:
+                return .notInstalled
+            case .detected:
+                switch connectionStatus {
+                case .idle:                  return .needsAction
+                case .connecting:            return .checking
+                // Rate limited counts as connected: the token is fine and the
+                // server is throttling.
+                case .success, .rateLimited: return .ready
+                case .failed(let message):   return .failed(message)
+                }
+            }
+
+        case .codex:
+            // Expiry first: an expired login is still a `.chatgpt` credential,
+            // and reporting it as ready would hand the user a card that says
+            // connected above an app that cannot read anything.
+            if codexStatus.isExpired() {
+                return .failed(String(localized: "codex.status.expired"))
+            }
+            switch codexStatus {
+            case .notInstalled:              return .notInstalled
+            case .noCredentials, .apiKeyOnly: return .needsAction
+            case .chatgpt:                   return .ready
+            }
+        }
+    }
+
+    /// Claude is usable and tracked.
+    var claudeReady: Bool { claudeEnabled && setupState(for: .claude) == .ready }
+
+    /// Codex is usable and tracked.
+    var codexReady: Bool { codexEnabled && setupState(for: .codex) == .ready }
+
+    /// Pulls both switches back from the live store after a card wrote to it.
+    func syncTracking(from store: SettingsStore) {
+        claudeEnabled = store.claudeEnabled
+        codexEnabled = store.codexEnabled
+    }
 
     private let codexAuthStateProvider: () -> CodexAuthState
     private let tokenProvider: TokenProviderProtocol
@@ -66,40 +146,30 @@ final class OnboardingViewModel: ObservableObject {
         self.settingsStore = store
         self.watcherEnabled = store.overlayEnabled
         self.codexEnabled = store.codexEnabled
+        self.claudeEnabled = store.claudeEnabled
     }
 
     /// Whether the user might see a Keychain dialog (first connection attempt)
     var needsBootstrap: Bool { tokenProvider.currentToken() == nil }
 
-    /// Gating rule for the Finish button. Both required cards must succeed:
-    /// Claude Code detected AND Connect connected (rateLimited counts as
-    /// connected because the token works - server is just throttling).
-    var canFinish: Bool {
-        guard claudeCodeStatus == .detected else { return false }
-        switch connectionStatus {
-        case .success, .rateLimited:
-            return true
-        default:
-            return false
-        }
-    }
+    /// Gating rule for the Finish button: at least one provider has to work.
+    ///
+    /// It used to require Claude specifically, which locked out someone whose
+    /// only subscription is ChatGPT. The app tracks whatever the person
+    /// actually uses, so one working provider is enough to be useful.
+    var canFinish: Bool { claudeReady || codexReady }
 
-    /// Hero progress count - how many of the 5 cards are in their "ready"
-    /// state. Both gates must be green; optional toggles count as ready
-    /// when on (Watchers) or authorized (Notifications).
+    /// How many of the cards on screen are in their ready state. One per
+    /// tracked provider, since detection and authorization are one card now,
+    /// plus the feature toggles, which count when on (Watchers) or authorized
+    /// (Notifications).
     var readyCount: Int {
         var count = 0
-        if claudeCodeStatus == .detected { count += 1 }
+        if claudeReady { count += 1 }
+        if codexReady { count += 1 }
         if notificationStatus == .authorized { count += 1 }
         if watcherEnabled { count += 1 }
-        if codexEnabled && codexStatus.isTrackable && !codexStatus.isExpired() { count += 1 }
-        switch connectionStatus {
-        case .success, .rateLimited:
-            count += 1
-        default:
-            break
-        }
-        return count
+        return min(count, totalSteps)
     }
 
     /// Updates `SettingsStore.overlayEnabled` whenever the user flicks the

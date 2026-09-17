@@ -70,7 +70,14 @@ final class NotificationSettingsStore: ObservableObject {
         didSet { UserDefaults.standard.set(vendorRestored, forKey: "notifVendorRestored") }
     }
 
-    // MARK: - Codex
+    // MARK: - Per-provider masters
+
+    /// Claude sub-master, the mirror of `codexEnabled`. Both sit under
+    /// `enabled`, which still silences everything. Without this one, muting a
+    /// single provider was something only OpenAI could do.
+    @Published var claudeEnabled: Bool {
+        didSet { UserDefaults.standard.set(claudeEnabled, forKey: "notifClaudeEnabled") }
+    }
 
     /// Codex sub-master. Independent of `enabled`, which still gates everything.
     @Published var codexEnabled: Bool {
@@ -116,13 +123,14 @@ final class NotificationSettingsStore: ObservableObject {
         self.tokenExpired = SettingsDefaults.bool(key: "notifTokenExpired", default: false)
         self.vendorDegraded = SettingsDefaults.bool(key: "notifVendorDegraded", default: true)
         self.vendorRestored = SettingsDefaults.bool(key: "notifVendorRestored", default: true)
+        self.claudeEnabled = SettingsDefaults.bool(key: "notifClaudeEnabled", default: true)
         self.codexEnabled = SettingsDefaults.bool(key: "notifCodexEnabled", default: true)
         self.codexTrackSession = SettingsDefaults.bool(key: "notifCodexTrackSession", default: true)
         self.codexTrackWeekly = SettingsDefaults.bool(key: "notifCodexTrackWeekly", default: true)
         self.codexWindowReset = SettingsDefaults.bool(key: "notifCodexWindowReset", default: true)
         self.codexResetReminderSession = SettingsDefaults.bool(key: "notifCodexResetReminderSession", default: false)
         self.codexResetReminderWeekly = SettingsDefaults.bool(key: "notifCodexResetReminderWeekly", default: false)
-        self.codexTokenExpired = SettingsDefaults.bool(key: "notifCodexTokenExpired", default: true)
+        self.codexTokenExpired = SettingsDefaults.bool(key: "notifCodexTokenExpired", default: false)
     }
 
     /// Bundle handed to `NotificationService` on every Codex refresh.

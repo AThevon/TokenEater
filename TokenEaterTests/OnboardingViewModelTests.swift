@@ -1,7 +1,7 @@
 import Testing
 import Foundation
 
-private let settingsKeys = ["overlayEnabled", "hasCompletedOnboarding"]
+private let settingsKeys = ["overlayEnabled", "hasCompletedOnboarding", "claudeEnabled", "codexEnabled"]
 
 private func cleanDefaults() {
     for key in settingsKeys {
@@ -76,14 +76,88 @@ struct OnboardingViewModelTests {
         #expect(vm.canFinish == false)
     }
 
-    @Test("readyCount counts gates and optional toggles independently")
+    @Test("A provider is one step, detection and authorization together")
     func readyCountSemantics() {
         let vm = makeViewModel()
+        vm.claudeEnabled = true
+        vm.codexEnabled = false
         vm.claudeCodeStatus = .detected
         vm.connectionStatus = .idle
         vm.watcherEnabled = true
+        // Detected but not authorized is half of one card, not one of two:
+        // only the watcher toggle is ready.
+        #expect(vm.readyCount == 1)
+        vm.connectionStatus = .success(UsageResponse())
         #expect(vm.readyCount == 2)
-        #expect(vm.totalSteps == 5)
+        // One tracked provider plus the two feature cards.
+        #expect(vm.totalSteps == 3)
+    }
+
+    @Test("A provider switched off is not an unfinished step")
+    func stepCountFollowsTheToggles() {
+        let vm = makeViewModel(codexAuthStateProvider: { .chatgpt(accountId: "a", planType: "plus", expiresAt: Date().addingTimeInterval(86_400)) })
+        vm.claudeEnabled = true
+        vm.codexEnabled = true
+        #expect(vm.totalSteps == 4)
+        vm.codexEnabled = false
+        // The bar used to count a provider the user had turned off, so it
+        // could never fill for anyone who uses only one of the two.
+        #expect(vm.totalSteps == 3)
+    }
+
+    @Test("Both providers speak the same five setup states")
+    func setupStatesAreSymmetric() {
+        let vm = makeViewModel()
+
+        vm.claudeCodeStatus = .checking
+        #expect(vm.setupState(for: .claude) == .checking)
+        vm.claudeCodeStatus = .notFound
+        #expect(vm.setupState(for: .claude) == .notInstalled)
+        vm.claudeCodeStatus = .detected
+        #expect(vm.setupState(for: .claude) == .needsAction)
+        vm.connectionStatus = .success(UsageResponse())
+        #expect(vm.setupState(for: .claude) == .ready)
+        vm.connectionStatus = .failed("denied")
+        #expect(vm.setupState(for: .claude) == .failed("denied"))
+
+        vm.codexStatus = .notInstalled
+        #expect(vm.setupState(for: .codex) == .notInstalled)
+        vm.codexStatus = .noCredentials
+        #expect(vm.setupState(for: .codex) == .needsAction)
+        vm.codexStatus = .apiKeyOnly
+        #expect(vm.setupState(for: .codex) == .needsAction)
+        vm.codexStatus = .chatgpt(accountId: "a", planType: "plus", expiresAt: Date().addingTimeInterval(86_400))
+        #expect(vm.setupState(for: .codex) == .ready)
+        // An expired login is still a ChatGPT credential. Reporting it ready
+        // would put "connected" over an app that cannot read anything.
+        vm.codexStatus = .chatgpt(accountId: "a", planType: "plus", expiresAt: .distantPast)
+        if case .failed = vm.setupState(for: .codex) {} else {
+            Issue.record("an expired Codex login must report a failed state")
+        }
+    }
+
+    @Test("Turning a provider off drops it out of the finish gate")
+    func trackingGatesReadiness() {
+        let vm = makeViewModel()
+        vm.claudeCodeStatus = .detected
+        vm.connectionStatus = .success(UsageResponse())
+        #expect(vm.canFinish)
+        // The wizard forbids this on the last provider; the model still has to
+        // answer honestly, or Finish would let someone through to an app with
+        // nothing switched on.
+        vm.claudeEnabled = false
+        #expect(vm.canFinish == false)
+    }
+
+    @Test("A working Codex login alone is enough to finish")
+    func codexOnlyCanFinish() {
+        let vm = makeViewModel(codexAuthStateProvider: { .chatgpt(accountId: "a", planType: "plus", expiresAt: Date().addingTimeInterval(86_400)) })
+        vm.claudeCodeStatus = .notFound
+        vm.connectionStatus = .idle
+        vm.codexEnabled = true
+        // Someone whose only subscription is ChatGPT used to be locked out of
+        // the Finish button entirely.
+        #expect(vm.canFinish)
     }
     @Test("Codex is optional and only a usable enabled login counts toward progress")
     func codexProgress() {
@@ -93,11 +167,11 @@ struct OnboardingViewModelTests {
         vm.watcherEnabled = false
         vm.codexEnabled = true
         #expect(vm.canFinish)
-        #expect(vm.readyCount == 2)
+        #expect(vm.readyCount == 1)
         vm.codexStatus = .chatgpt(accountId: nil, planType: "prolite", expiresAt: nil)
-        #expect(vm.readyCount == 3)
-        vm.codexEnabled = false
         #expect(vm.readyCount == 2)
+        vm.codexEnabled = false
+        #expect(vm.readyCount == 1)
         #expect(vm.canFinish)
     }
 
@@ -109,10 +183,10 @@ struct OnboardingViewModelTests {
         vm.watcherEnabled = false
         vm.codexEnabled = true
         vm.codexStatus = .chatgpt(accountId: nil, planType: "plus", expiresAt: .distantPast)
-        #expect(vm.readyCount == 2)
+        #expect(vm.readyCount == 1)
         #expect(vm.canFinish)
         vm.codexStatus = .apiKeyOnly
-        #expect(vm.readyCount == 2)
+        #expect(vm.readyCount == 1)
         #expect(vm.canFinish)
     }
 

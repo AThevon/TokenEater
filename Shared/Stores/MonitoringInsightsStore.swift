@@ -48,7 +48,7 @@ final class MonitoringInsightsStore: ObservableObject {
                 }.value
 
                 let buckets = try await bucketsTask
-                let previous = (try? await previousTask) ?? 0
+                let previous = ((try? await previousTask) ?? [:]).values.reduce(0, +)
                 if Task.isCancelled { return }
                 await MainActor.run {
                     let now = Date()

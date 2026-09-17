@@ -14,6 +14,12 @@ struct AgentWatchersSectionView: View {
                         String(localized: "sidebar.agentWatchers"),
                         subtitle: String(localized: "sidebar.agentWatchers.subtitle")
                     )
+                    // Watchers read Claude Code processes and their JSONL
+                    // logs; there is no Codex equivalent. The badge says so
+                    // here rather than leaving someone in OpenAI mode to
+                    // wonder why this screen has nothing in it.
+                    ProviderSupportBadge(capability: .agentWatchers)
+                        .padding(.leading, 2)
                     Spacer()
                     ClickChip(
                         label: String(localized: "settings.overlay.toggle"),

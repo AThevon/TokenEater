@@ -4,6 +4,13 @@ struct CodexPacingCard: View {
     @EnvironmentObject private var themeStore: ThemeStore
 
     let pacing: PacingResult
+    /// Which window this pace belongs to, already localized and prefixed.
+    var windowLabel: String = ""
+    /// Passed rather than derived from `windowLabel`: the label carries a
+    /// provider prefix in All mode and a raw duration for an unfamiliar
+    /// window, so string-matching it picked the weekly icon for a session
+    /// pace exactly when both providers were on screen to compare.
+    var isSession: Bool = false
 
     var body: some View {
         let tint = themeStore.current.pacingColor(for: pacing.zone)
@@ -11,10 +18,14 @@ struct CodexPacingCard: View {
             HStack(alignment: .top, spacing: DS.Spacing.xs) {
                 VStack(alignment: .leading, spacing: DS.Spacing.xxs) {
                     HStack(spacing: DS.Spacing.xs) {
-                        Image(systemName: "calendar.badge.clock")
+                        // The icon and the label were hardcoded to weekly, so
+                        // a session pace card called itself weekly.
+                        Image(systemName: isSession ? "clock.fill" : "calendar.badge.clock")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(tint)
-                        Text(String(localized: "pacing.weekly.label").uppercased())
+                        Text((windowLabel.isEmpty
+                              ? String(localized: "pacing.weekly.label")
+                              : windowLabel).uppercased())
                             .font(DS.Typography.micro)
                             .tracking(1.4)
                             .foregroundStyle(DS.Palette.textSecondary)

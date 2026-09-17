@@ -102,7 +102,7 @@ final class CodexUsageStore: ObservableObject {
     // MARK: - Initializers
 
     init(
-        repository: CodexUsageRepositoryProtocol = CodexUsageRepository(),
+        repository: CodexUsageRepositoryProtocol = CodexUsageRepository(apiClient: CodexAPIClient()),
         tokenProvider: CodexTokenProviderProtocol = CodexTokenProvider(),
         sharedFileService: CodexSharedFileServiceProtocol = CodexSharedFileService(),
         notificationService: NotificationServiceProtocol = NotificationService()

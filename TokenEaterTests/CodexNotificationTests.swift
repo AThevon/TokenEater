@@ -281,6 +281,28 @@ struct CodexNotificationTests {
     @Test("entering the hot pacing zone fires once")
     func pacingTransition() {
         let (service, center, _) = makeSUT()
+        let onTrack = PacingResult(
+            delta: 0, expectedUsage: 20, actualUsage: 20,
+            zone: .onTrack, message: "", resetDate: Date().addingTimeInterval(3_600)
+        )
+        let hot = PacingResult(
+            delta: 40, expectedUsage: 20, actualUsage: 60,
+            zone: .hot, message: "", resetDate: Date().addingTimeInterval(3_600)
+        )
+
+        // The first reading only establishes where the window stands.
+        service.evaluateCodex(windows: [window(kind: .weekly, pct: 20, pacing: onTrack)], toggles: toggles())
+        #expect(center.addedIDs.isEmpty)
+
+        service.evaluateCodex(windows: [window(kind: .weekly, pct: 60, pacing: hot)], toggles: toggles())
+        // The identifier carries the provider: a shared "pacing_hot" meant
+        // whichever provider went hot second replaced the other's banner.
+        #expect(center.addedIDs.contains("pacing_codex_hot"))
+    }
+
+    @Test("a first reading in a loud zone stays silent")
+    func pacingFirstObservationIsSilent() {
+        let (service, center, _) = makeSUT()
         let hot = PacingResult(
             delta: 40, expectedUsage: 20, actualUsage: 60,
             zone: .hot, message: "", resetDate: Date().addingTimeInterval(3_600)
@@ -288,7 +310,7 @@ struct CodexNotificationTests {
 
         service.evaluateCodex(windows: [window(kind: .weekly, pct: 60, pacing: hot)], toggles: toggles())
 
-        #expect(center.addedIDs.contains("pacing_hot"))
+        #expect(center.addedIDs.isEmpty)
     }
 
     // MARK: - Token expiry

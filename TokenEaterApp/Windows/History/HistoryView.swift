@@ -9,6 +9,7 @@ struct HistoryView: View {
     /// Owned by `MainAppView` so the buckets survive navigation away
     /// and re-entries hit warm data.
     @ObservedObject var store: HistoryStore
+    @EnvironmentObject private var settingsStore: SettingsStore
     @State private var hoveredBucket: HistoryBucket?
     @State private var chartReveal: Double = 1.0
     @State private var topProjectHovered = false
@@ -40,12 +41,17 @@ struct HistoryView: View {
         }
         .animation(DS.Motion.easeInOut, value: isLoaderActive)
         .onAppear {
+            store.providerMode = settingsStore.activeProviderMode
             // Refresh on every entry to the tab, not just the first. The
             // store is hoisted in `MainAppView`, so it survives navigation
             // and would otherwise keep showing the last load until the user
             // changed the range. Previously loaded buckets stay visible while
             // the reload runs, so there's no flash of empty state.
             store.reload()
+        }
+        .onChange(of: settingsStore.activeProviderMode) { _, mode in
+            store.providerMode = mode
+            triggerChartReveal()
         }
         .onChange(of: store.filter) { _, _ in
             triggerChartReveal()
@@ -359,7 +365,7 @@ struct HistoryView: View {
                         .transition(tabTransition)
                 }
             }
-            .frame(height: 290)
+            .frame(height: 268)
             .frame(maxWidth: .infinity)
         }
         .padding(DS.Spacing.md)

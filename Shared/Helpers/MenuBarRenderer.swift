@@ -53,6 +53,28 @@ enum MenuBarRenderer {
         let nextPollSeconds: Int?
         let extraCreditsPct: Int
         let hasExtraCredits: Bool
+        /// Nested rather than flattened into ten more fields: `RenderData` is
+        /// the Equatable key of the render cache, and a nested Equatable value
+        /// keeps that comparison honest without widening the struct further.
+        /// nil means the plan has no such window, which is normal on Codex.
+        let codexSession: CodexSegmentData?
+        let codexWeekly: CodexSegmentData?
+        /// Providers the user tracks, intersected with the current display
+        /// mode. A segment whose provider is absent from this set draws
+        /// nothing and the bar recompacts.
+        let visibleProviders: Set<MetricProvider>
+    }
+
+    /// One Codex window, in the shape the renderer needs.
+    struct CodexSegmentData: Equatable {
+        let pct: Int
+        let resetDate: Date?
+        let windowDuration: TimeInterval
+        let hasPacing: Bool
+        /// Meaningless when `hasPacing` is false; the renderer draws its idle
+        /// placeholder in that case and never reads the zone.
+        let pacingZone: PacingZone
+        let pacingDelta: Int
     }
 
     private static var cachedImage: NSImage?
@@ -348,6 +370,7 @@ enum MenuBarRenderer {
     /// account lacks, or session/pacing segments with no data yet, draw nothing
     /// and the row recompacts (falling back to the logo if all are filtered).
     private static func isSegmentAvailable(_ kind: MenuBarSegmentKind, data: RenderData) -> Bool {
+        if let provider = kind.provider, !data.visibleProviders.contains(provider) { return false }
         switch kind {
         case .fable: return data.hasFable
         case .extraCredits: return data.hasExtraCredits
@@ -358,6 +381,8 @@ enum MenuBarRenderer {
         // check (`has*Pacing`) drives the placeholder in `pacingContent`.
         case .sessionReset, .sessionPacing: return data.hasFiveHourBucket
         case .fablePacing: return data.hasFable
+        case .codexSession, .codexSessionPacing: return data.codexSession != nil
+        case .codexWeekly, .codexWeeklyPacing: return data.codexWeekly != nil
         default: return true // weeklyPacing + non-gated kinds: present with config
         }
     }
@@ -385,8 +410,8 @@ enum MenuBarRenderer {
 
     private static func usageContent(kind: MenuBarSegmentKind, style: MenuBarSegmentStyle, data: RenderData) -> SegmentVisual.Content {
         let value = usageValue(kind, data: data)
-        let label = usageLabel(kind)
-        let color = colorForPct(value, resetDate: usageResetDate(kind, data: data), windowDuration: usageWindow(kind), data: data)
+        let label = usageLabel(kind, data: data)
+        let color = colorForPct(value, resetDate: usageResetDate(kind, data: data), windowDuration: usageWindow(kind, data: data), data: data)
 
         switch style {
         case .labelValue:
@@ -429,6 +454,14 @@ enum MenuBarRenderer {
         let zone: PacingZone
         let delta: Int
         switch kind {
+        case .codexSessionPacing:
+            hasData = data.codexSession?.hasPacing ?? false
+            zone = data.codexSession?.pacingZone ?? .onTrack
+            delta = data.codexSession?.pacingDelta ?? 0
+        case .codexWeeklyPacing:
+            hasData = data.codexWeekly?.hasPacing ?? false
+            zone = data.codexWeekly?.pacingZone ?? .onTrack
+            delta = data.codexWeekly?.pacingDelta ?? 0
         case .sessionPacing: hasData = data.hasSessionPacing; zone = data.sessionPacingZone; delta = data.sessionPacingDelta
         case .fablePacing:   hasData = data.hasFablePacing;   zone = data.fablePacingZone;   delta = data.fablePacingDelta
         default:             hasData = data.hasWeeklyPacing;  zone = data.weeklyPacingZone;  delta = data.weeklyPacingDelta
@@ -535,19 +568,40 @@ enum MenuBarRenderer {
         case .sonnet: return data.sonnetPct
         case .fable: return data.fablePct
         case .extraCredits: return data.extraCreditsPct
+        case .codexSession: return data.codexSession?.pct ?? 0
+        case .codexWeekly: return data.codexWeekly?.pct ?? 0
         default: return 0
         }
     }
 
-    private static func usageLabel(_ kind: MenuBarSegmentKind) -> String {
+    private static func usageLabel(_ kind: MenuBarSegmentKind, data: RenderData) -> String {
         switch kind {
         case .session: return MetricID.fiveHour.shortLabel
         case .weekly: return MetricID.sevenDay.shortLabel
         case .sonnet: return MetricID.sonnet.shortLabel
         case .fable: return MetricID.fable.shortLabel
         case .extraCredits: return MetricID.extraCredits.shortLabel
+        // "CX" / "CXW" named the provider, not the window, so the menu bar
+        // went from "5h 68%" to "CX 41%" for two windows of the same length.
+        // The label describes the window; it is derived from the duration the
+        // payload declares rather than assumed, so a Codex plan with a window
+        // this app has never seen still gets an honest label instead of a
+        // hardcoded one.
+        case .codexSession, .codexWeekly:
+            return durationShortLabel(usageWindow(kind, data: data))
+
         default: return ""
         }
+    }
+
+    /// "5h", "7d", and something sensible for a length this app has not met.
+    /// Matches `MetricID.shortLabel` for the two windows Claude has, which is
+    /// the whole point: the label names the window, not who it belongs to.
+    static func durationShortLabel(_ seconds: TimeInterval) -> String {
+        guard seconds > 0 else { return "" }
+        let hours = Int((seconds / 3600).rounded())
+        if hours < 48 { return "\(hours)h" }
+        return "\(Int((seconds / 86_400).rounded()))d"
     }
 
     private static func usageResetDate(_ kind: MenuBarSegmentKind, data: RenderData) -> Date? {
@@ -556,14 +610,20 @@ enum MenuBarRenderer {
         case .weekly: return data.sevenDayResetDate
         case .sonnet: return data.sonnetResetDate
         case .fable: return data.fableResetDate
+        case .codexSession: return data.codexSession?.resetDate
+        case .codexWeekly: return data.codexWeekly?.resetDate
         default: return nil  // extraCredits: no reset window -> static threshold
         }
     }
 
-    private static func usageWindow(_ kind: MenuBarSegmentKind) -> TimeInterval {
+    private static func usageWindow(_ kind: MenuBarSegmentKind, data: RenderData) -> TimeInterval {
         switch kind {
         case .session: return 5 * 3600
         case .weekly, .sonnet, .fable: return 7 * 86_400
+        // Server-declared, not assumed: a Codex plan can carry a window length
+        // this app has never seen, and Smart Color only needs the number.
+        case .codexSession: return data.codexSession?.windowDuration ?? 0
+        case .codexWeekly: return data.codexWeekly?.windowDuration ?? 0
         default: return 0  // extraCredits: windowless
         }
     }

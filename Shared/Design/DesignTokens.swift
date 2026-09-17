@@ -183,6 +183,14 @@ enum DS {
         static let springLiquid = Animation.spring(response: 0.50, dampingFraction: 0.80) // section change
         static let springSoft   = Animation.spring(response: 0.70, dampingFraction: 0.85) // modal entry
 
+        /// Resizing an expensive surface: a card with a material background, a
+        /// shadow and a ring in it. Deliberately not one of the springs above:
+        /// their overshoot means the frame settles, overruns and comes back,
+        /// and every one of those extra frames re-rasterises the material. No
+        /// bounce, and long enough that a card doubling in width reads as a
+        /// move rather than a cut.
+        static let glide = Animation.smooth(duration: 0.34)
+
         // Live metrics pulse (2s, never-ending, subtle)
         static let shimmerPulse = Animation
             .easeInOut(duration: 2.0)
@@ -271,5 +279,20 @@ extension View {
                 }
             }
         }
+    }
+}
+
+extension AnyTransition {
+    /// How a glance card joins or leaves the band.
+    ///
+    /// Asymmetric on purpose: the card arriving decelerates into place, the
+    /// one leaving only fades. A departing card that also scaled would be
+    /// competing for attention with the one growing into its space, and it is
+    /// the arrival that carries the meaning of a mode switch.
+    static var glanceCard: AnyTransition {
+        .asymmetric(
+            insertion: .opacity.combined(with: .scale(scale: 0.965, anchor: .center)),
+            removal: .opacity
+        )
     }
 }

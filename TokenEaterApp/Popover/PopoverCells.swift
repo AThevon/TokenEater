@@ -9,29 +9,30 @@ import SwiftUI
 
 struct PopoverElementCellView: View {
     @EnvironmentObject private var usageStore: UsageStore
+    @EnvironmentObject private var codexStore: CodexUsageStore
 
     let element: PopoverElement
 
     var body: some View {
         switch element.style {
         case .gaugeRing:
-            if let snapshot = PopoverMetricResolver.usageSnapshot(for: element.kind, usage: usageStore) {
+            if let snapshot = PopoverMetricResolver.usageSnapshot(for: element.kind, usage: usageStore, codex: codexStore) {
                 GaugeRingCell(snapshot: snapshot, width: element.effectiveWidth, showReset: element.options.showReset)
             }
         case .chip:
-            if let snapshot = PopoverMetricResolver.usageSnapshot(for: element.kind, usage: usageStore) {
+            if let snapshot = PopoverMetricResolver.usageSnapshot(for: element.kind, usage: usageStore, codex: codexStore) {
                 ChipCell(snapshot: snapshot, width: element.effectiveWidth, showReset: element.options.showReset)
             }
         case .arc:
-            if let snapshot = PopoverMetricResolver.usageSnapshot(for: element.kind, usage: usageStore) {
+            if let snapshot = PopoverMetricResolver.usageSnapshot(for: element.kind, usage: usageStore, codex: codexStore) {
                 ArcCell(snapshot: snapshot, content: element.options.content)
             }
         case .bigText:
-            if let snapshot = PopoverMetricResolver.usageSnapshot(for: element.kind, usage: usageStore) {
+            if let snapshot = PopoverMetricResolver.usageSnapshot(for: element.kind, usage: usageStore, codex: codexStore) {
                 BigTextCell(snapshot: snapshot, width: element.effectiveWidth, content: element.options.content)
             }
         case .paceBar:
-            if let pacing = PopoverMetricResolver.pacing(for: element.kind, usage: usageStore) {
+            if let pacing = PopoverMetricResolver.pacing(for: element.kind, usage: usageStore, codex: codexStore) {
                 PopoverPacingRow(
                     label: paceLabel,
                     pacing: pacing,
@@ -42,24 +43,32 @@ struct PopoverElementCellView: View {
             } else {
                 // Idle: the bucket exists (the cell only renders for available
                 // kinds) but has no active window yet -> muted "-" placeholder.
-                PaceIdleRow(label: paceLabel)
+                PaceIdleRow(label: paceLabel, provider: element.kind.provider)
             }
         case .paceTile:
-            if let pacing = PopoverMetricResolver.pacing(for: element.kind, usage: usageStore) {
-                PaceTileCell(label: paceShortLabel, pacing: pacing)
+            if let pacing = PopoverMetricResolver.pacing(for: element.kind, usage: usageStore, codex: codexStore) {
+                PaceTileCell(label: paceShortLabel, provider: element.kind.provider, pacing: pacing)
             } else {
-                PaceIdleCardCell(label: paceShortLabel, verticalPadding: 10)
+                PaceIdleCardCell(label: paceShortLabel, provider: element.kind.provider, verticalPadding: 10)
             }
         case .paceText:
-            if let pacing = PopoverMetricResolver.pacing(for: element.kind, usage: usageStore) {
-                PaceTextCell(label: paceShortLabel, pacing: pacing)
+            if let pacing = PopoverMetricResolver.pacing(for: element.kind, usage: usageStore, codex: codexStore) {
+                PaceTextCell(label: paceShortLabel, provider: element.kind.provider, pacing: pacing)
             } else {
-                PaceIdleCardCell(label: paceShortLabel, verticalPadding: 8)
+                PaceIdleCardCell(label: paceShortLabel, provider: element.kind.provider, verticalPadding: 8)
             }
         case .utilityRow:
             switch element.kind {
             case .watchers: PopoverWatchersToggle()
             case .timestamp: PopoverTimestamp()
+            case .providerSwitch:
+                // Wordless and centred: the popover is 300 points wide and the
+                // marks say which provider on their own.
+                HStack {
+                    Spacer(minLength: 0)
+                    ProviderModeSwitcher(size: .dots)
+                    Spacer(minLength: 0)
+                }
             default: EmptyView()
             }
         case .actionButton:
@@ -78,7 +87,9 @@ struct PopoverElementCellView: View {
 
     private var paceLabel: String {
         switch element.kind {
-        case .weeklyPacing: return String(localized: "pacing.weekly.label")
+        // `.codexWeeklyPacing` used to fall through to `default` and label
+        // itself "Session", which was simply the wrong word on the cell.
+        case .weeklyPacing, .codexWeeklyPacing: return String(localized: "pacing.weekly.label")
         case .fablePacing: return String(localized: "pacing.fable.label")
         default: return String(localized: "pacing.session.label")
         }
@@ -86,7 +97,7 @@ struct PopoverElementCellView: View {
 
     private var paceShortLabel: String {
         switch element.kind {
-        case .weeklyPacing: return String(localized: "pacing.weekly.label.short")
+        case .weeklyPacing, .codexWeeklyPacing: return String(localized: "pacing.weekly.label.short")
         case .fablePacing: return String(localized: "pacing.fable.label.short")
         default: return String(localized: "pacing.session.label.short")
         }
@@ -139,23 +150,28 @@ private struct GaugeRingCell: View {
                             color: color,
                             glowRadius: width == .full ? 4 : 3
                         )
-                        Text(snapshot.label)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.5))
+                        ProviderMetricLabel(provider: snapshot.provider, text: snapshot.label)
                     }
                 }
             }
             if width == .third {
-                Text(snapshot.label)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.5))
-                    .lineLimit(1)
+                ProviderMetricLabel(provider: snapshot.provider, text: snapshot.label, size: 9)
             }
             if showReset && !snapshot.resetText.isEmpty {
-                Text(String(format: String(localized: "metric.reset"), snapshot.resetText))
+                // Only the full-width card has room for the sentence. At half
+                // and third the countdown stands on its own: "Resets in 2h14"
+                // truncated to "Resets in…", which is the one word the reader
+                // could already infer and none of the number they could not.
+                // An abbreviation would fit and read like a licence plate.
+                Text(width == .full
+                     ? String(format: String(localized: "metric.reset"), snapshot.resetText)
+                     : snapshot.resetText)
                     .font(.system(size: width == .third ? 8 : 9, weight: .medium))
                     .foregroundStyle(.white.opacity(0.35))
                     .lineLimit(1)
+                    .allowsTightening(true)
+                    .minimumScaleFactor(0.85)
+                    .help(String(format: String(localized: "metric.reset"), snapshot.resetText))
             }
         }
         .padding(.vertical, width == .full ? 8 : 2)
@@ -216,19 +232,24 @@ private struct ChipCell: View {
                     .dsGlow(color, radius: 3, opacity: 0.4)
             }
             VStack(alignment: .leading, spacing: 1) {
-                Text(snapshot.label.uppercased())
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.45))
-                    .tracking(0.5)
-                    .lineLimit(1)
+                ProviderMetricLabel(
+                    provider: snapshot.provider, text: snapshot.label,
+                    size: 9, weight: .semibold, uppercased: true,
+                    tracking: 0.5, opacity: 0.45
+                )
                 Text("\(snapshot.pct)%")
                     .font(.system(size: 18, weight: .black, design: .rounded))
                     .foregroundStyle(color)
                 if showReset && !snapshot.resetText.isEmpty {
-                    Text(String(format: String(localized: "metric.reset"), snapshot.resetText))
+                    Text(width == .full
+                         ? String(format: String(localized: "metric.reset"), snapshot.resetText)
+                         : snapshot.resetText)
                         .font(.system(size: 9))
                         .foregroundStyle(.white.opacity(0.5))
                         .lineLimit(1)
+                        .allowsTightening(true)
+                        .minimumScaleFactor(0.85)
+                        .help(String(format: String(localized: "metric.reset"), snapshot.resetText))
                 }
             }
             Spacer(minLength: 0)
@@ -402,11 +423,11 @@ private struct BigTextCell: View {
 /// No card, matching the active paceBar row's chrome-free layout.
 private struct PaceIdleRow: View {
     let label: String
+    var provider: MetricProvider? = nil
 
     var body: some View {
         HStack(spacing: 10) {
-            Text(label)
-                .font(.system(size: 10, weight: .medium))
+            ProviderMetricLabel(provider: provider, text: label, size: 10, weight: .medium, opacity: 0.6)
                 .foregroundStyle(.white.opacity(0.4))
             Spacer(minLength: 0)
             Text("-")
@@ -421,12 +442,12 @@ private struct PaceIdleRow: View {
 /// bar / delta. Shared by both carded styles (they differ only in padding).
 private struct PaceIdleCardCell: View {
     let label: String
+    var provider: MetricProvider? = nil
     let verticalPadding: CGFloat
 
     var body: some View {
         HStack {
-            Text(label)
-                .font(.system(size: 10, weight: .medium))
+            ProviderMetricLabel(provider: provider, text: label, size: 10, weight: .medium, opacity: 0.6)
                 .foregroundStyle(.white.opacity(0.55))
             Spacer()
             Text("-")
@@ -445,6 +466,7 @@ private struct PaceTileCell: View {
     @EnvironmentObject private var themeStore: ThemeStore
 
     let label: String
+    var provider: MetricProvider? = nil
     let pacing: PacingResult
 
     var body: some View {
@@ -452,8 +474,7 @@ private struct PaceTileCell: View {
         let sign = pacing.delta >= 0 ? "+" : ""
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(label)
-                    .font(.system(size: 10, weight: .medium))
+                ProviderMetricLabel(provider: provider, text: label, size: 10, weight: .medium, opacity: 0.6)
                     .foregroundStyle(.white.opacity(0.55))
                 Spacer()
                 Text("\(sign)\(Int(pacing.delta))%")
@@ -479,14 +500,14 @@ private struct PaceTextCell: View {
     @EnvironmentObject private var themeStore: ThemeStore
 
     let label: String
+    var provider: MetricProvider? = nil
     let pacing: PacingResult
 
     var body: some View {
         let color = PopoverColors.zone(pacing.zone, theme: themeStore)
         let sign = pacing.delta >= 0 ? "+" : ""
         HStack {
-            Text(label)
-                .font(.system(size: 10, weight: .medium))
+            ProviderMetricLabel(provider: provider, text: label, size: 10, weight: .medium, opacity: 0.6)
                 .foregroundStyle(.white.opacity(0.55))
             Spacer()
             Text("\(sign)\(Int(pacing.delta))%")
@@ -537,18 +558,57 @@ private struct PopoverQuitButtonCell: View {
 // pinned to the leading edge of its cell so a badge+refresh row reproduces
 // the old header (badge far left, refresh far right).
 
+/// The plan badge, for whichever providers the current mode shows.
+///
+/// It read `usageStore` unconditionally, so the Codex popover advertised
+/// Claude's plan: the one cell on the surface that was wrong rather than
+/// merely unlabelled. It follows the mode now, and in All it shows both side
+/// by side, because with two providers on there are two plans and picking one
+/// to display would be choosing a favourite.
 private struct PlanBadgeCell: View {
     @EnvironmentObject private var usageStore: UsageStore
+    @EnvironmentObject private var codexStore: CodexUsageStore
+    @EnvironmentObject private var settingsStore: SettingsStore
+
+    private var visible: [MetricProvider] {
+        settingsStore.activeProviders.filter { settingsStore.activeProviderMode.shows($0) }
+    }
 
     var body: some View {
-        Text(usageStore.planType.displayLabel)
-            .font(.system(size: 8, weight: .bold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
-            .background(usageStore.planType.badgeColor.opacity(0.3))
-            .clipShape(Capsule())
-            .frame(maxWidth: .infinity, alignment: .leading)
+        HStack(spacing: 4) {
+            ForEach(visible) { provider in
+                switch provider {
+                case .claude:
+                    if usageStore.planType != .unknown {
+                        badge(provider, usageStore.planType.displayLabel,
+                              usageStore.planType.badgeColor)
+                    }
+                case .codex:
+                    if codexStore.planType != .unknown {
+                        badge(provider, codexStore.planType.displayLabel,
+                              codexStore.planType.badgeColor)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func badge(_ provider: MetricProvider, _ plan: String, _ tint: Color) -> some View {
+        HStack(spacing: 3) {
+            // The mark only when there are two to tell apart, same rule as
+            // every other label on this surface.
+            if visible.count > 1 {
+                ProviderGlyph(provider: provider, size: 7)
+            }
+            Text(plan)
+        }
+        .font(.system(size: 8, weight: .bold))
+        .foregroundStyle(.white)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 2)
+        .background(tint.opacity(0.3))
+        .clipShape(Capsule())
     }
 }
 
@@ -624,4 +684,44 @@ private extension View {
 enum PopoverCellPalette {
     /// Warm yellow used for reset countdown values (same as the old Focus hero).
     static let countdown = Color(red: 0.99, green: 0.90, blue: 0.54)
+}
+
+/// A metric label with its provider's mark in front of it.
+///
+/// The mark only appears when there is more than one provider on, because on
+/// a Claude-only popover it would disambiguate nothing and cost width the
+/// popover does not have. It replaces spelling the provider into the label:
+/// "Codex weekly" next to "Weekly" made the two read as different kinds of
+/// thing, when they are the same thing for two providers.
+struct ProviderMetricLabel: View {
+    @EnvironmentObject private var settingsStore: SettingsStore
+
+    let provider: MetricProvider?
+    let text: String
+    var size: CGFloat = 10
+    var weight: Font.Weight = .medium
+    var uppercased: Bool = false
+    var tracking: CGFloat = 0
+    var opacity: Double = 0.5
+
+    var body: some View {
+        // The mark costs width in a 300-point popover where a half cell is
+        // about 140, and "WEEKLY" was truncating to "WEEK…". It is drawn a
+        // point under the text rather than at its size, the gap is tight, and
+        // the label is allowed to tighten and scale a little before it ever
+        // gets to drop a character.
+        HStack(spacing: 2.5) {
+            if let provider, settingsStore.activeProviders.count > 1 {
+                ProviderGlyph(provider: provider, size: size - 1)
+            }
+            Text(uppercased ? text.uppercased() : text)
+                .tracking(tracking)
+                .allowsTightening(true)
+                .minimumScaleFactor(0.82)
+        }
+        .font(.system(size: size, weight: weight))
+        .foregroundStyle(.white.opacity(opacity))
+        .lineLimit(1)
+        .fixedSize(horizontal: false, vertical: true)
+    }
 }

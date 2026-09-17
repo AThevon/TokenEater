@@ -35,6 +35,7 @@ enum AppSpace: String, CaseIterable {
 /// the Studio space since 5.9. Order drives the sub-sidebar display.
 enum SettingsSection: String, CaseIterable {
     case general
+    case providers
     case pacing
     case agentWatchers
     case notifications
@@ -42,6 +43,7 @@ enum SettingsSection: String, CaseIterable {
     var labelKey: String {
         switch self {
         case .general:       "sidebar.general"
+        case .providers:     "sidebar.providers"
         case .pacing:        "sidebar.pacing"
         case .agentWatchers: "sidebar.agentWatchers"
         case .notifications: "sidebar.notifications"
@@ -53,6 +55,7 @@ enum SettingsSection: String, CaseIterable {
     var iconName: String {
         switch self {
         case .general:       "slider.horizontal.3"
+        case .providers:     "person.2.badge.gearshape"
         case .pacing:        "speedometer"
         case .agentWatchers: "waveform.path.ecg"
         case .notifications: "bell.fill"
@@ -63,12 +66,14 @@ enum SettingsSection: String, CaseIterable {
 /// Surfaces inside the Studio space -> one per customizable surface of the
 /// app. Order drives the switcher strip display.
 enum StudioSection: String, CaseIterable {
+    case dashboard
     case popover
     case menuBar
     case themes
 
     var labelKey: String {
         switch self {
+        case .dashboard: "studio.surface.dashboard"
         case .popover: "studio.surface.popover"
         case .menuBar: "studio.surface.menuBar"
         case .themes:  "studio.surface.themes"
@@ -82,6 +87,7 @@ enum StudioSection: String, CaseIterable {
 
     var iconName: String {
         switch self {
+        case .dashboard: "gauge.high"
         case .popover: "menubar.dock.rectangle"
         case .menuBar: "menubar.rectangle"
         case .themes:  "paintpalette.fill"

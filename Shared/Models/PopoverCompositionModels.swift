@@ -12,10 +12,15 @@ import Foundation
 enum PopoverElementKind: String, Codable, CaseIterable, Identifiable {
     // Usage metrics (percentage + reset window)
     case session, weekly, sonnet, fable, extraCredits
+    // Codex usage metrics. Additive raw values: an older build decodes a
+    // composition containing them by dropping the elements it does not know,
+    // so no schema version bump and no migrator.
+    case codexSession, codexWeekly
     // Pacing metrics (delta vs linear pace)
     case sessionPacing, weeklyPacing, fablePacing
+    case codexSessionPacing, codexWeeklyPacing
     // Utility rows
-    case watchers, timestamp, planBadge
+    case watchers, timestamp, planBadge, providerSwitch
     // Action buttons
     case openButton, quitButton, refreshButton
 
@@ -25,14 +30,31 @@ enum PopoverElementKind: String, Codable, CaseIterable, Identifiable {
 
     var family: Family {
         switch self {
-        case .session, .weekly, .sonnet, .fable, .extraCredits:
+        case .session, .weekly, .sonnet, .fable, .extraCredits,
+             .codexSession, .codexWeekly:
             return .usage
-        case .sessionPacing, .weeklyPacing, .fablePacing:
+        case .sessionPacing, .weeklyPacing, .fablePacing,
+             .codexSessionPacing, .codexWeeklyPacing:
             return .pacing
-        case .watchers, .timestamp, .planBadge:
+        case .watchers, .timestamp, .planBadge, .providerSwitch:
             return .utility
         case .openButton, .quitButton, .refreshButton:
             return .action
+        }
+    }
+
+    /// Which provider this kind reads from, or nil for chrome, utilities and
+    /// actions, which belong to every mode.
+    var provider: MetricProvider? {
+        switch self {
+        case .codexSession, .codexWeekly, .codexSessionPacing, .codexWeeklyPacing:
+            return .codex
+        case .session, .weekly, .sonnet, .fable, .extraCredits,
+             .sessionPacing, .weeklyPacing, .fablePacing:
+            return .claude
+        case .watchers, .timestamp, .planBadge, .providerSwitch,
+             .openButton, .quitButton, .refreshButton:
+            return nil
         }
     }
 
@@ -318,9 +340,54 @@ struct PopoverComposition: Codable, Equatable {
 /// Built-in starting points. Classic / Compact / Focus faithfully recreate the
 /// three pre-5.9 layouts (they double as migration reference targets).
 enum PopoverBuiltinTemplate: String, CaseIterable, Identifiable {
-    case classic, compact, focus, minimalist, fableFirst, complete
+    // Declaration order is presentation order for a single provider. With
+    // both on, `ordered(for:)` floats the paired ones to the top: All is the
+    // mode most people land in, and a layout built for two providers sitting
+    // last in the list is the one they never find.
+    case classic
+    case sessionsOnly
+    case weeklyOutlook
+    case compact
+    case pace
+    case focus
+    case minimalist
+    case fableFirst
+    case complete
+    case sideBySide
 
     var id: String { rawValue }
+
+    /// Whether a template is built around having two providers to compare.
+    enum Scope {
+        /// Reads the same whatever is on. In a provider mode the other
+        /// provider's cells gate out and the row recompacts.
+        case universal
+        /// Pairs each provider with its counterpart. Worth offering first when
+        /// both are on, worth offering last when only one is.
+        case paired
+    }
+
+    var scope: Scope {
+        switch self {
+        case .sideBySide, .sessionsOnly, .weeklyOutlook: return .paired
+        default: return .universal
+        }
+    }
+
+    /// The list a picker should show, most relevant first.
+    static func ordered(for mode: ProviderMode, providerCount: Int) -> [PopoverBuiltinTemplate] {
+        let pairedFirst = providerCount > 1 && mode == .all
+        return allCases.sorted { lhs, rhs in
+            let lk = (lhs.scope == .paired) == pairedFirst ? 0 : 1
+            let rk = (rhs.scope == .paired) == pairedFirst ? 0 : 1
+            if lk != rk { return lk < rk }
+            return lhs.declarationIndex < rhs.declarationIndex
+        }
+    }
+
+    private var declarationIndex: Int {
+        Self.allCases.firstIndex(of: self) ?? 0
+    }
 
     var localizedName: String {
         NSLocalizedString("popoverTemplate.\(rawValue)", comment: "")
@@ -328,6 +395,12 @@ enum PopoverBuiltinTemplate: String, CaseIterable, Identifiable {
 
     /// The ex-header chrome pair every template starts with -> plan badge on
     /// the left, refresh button on the right (one half+half row).
+    /// The row every built-in template opens with.
+    ///
+    /// The provider switch is deliberately absent: it is pinned chrome above
+    /// the composition now, not an element inside it. As an element it lived
+    /// inside each mode's layout, so switching into a mode whose layout did
+    /// not carry it removed the only way back out.
     private static var chromeRow: [PopoverElement] {
         [
             PopoverElement(kind: .planBadge, style: .badge, width: .half),
@@ -386,6 +459,55 @@ enum PopoverBuiltinTemplate: String, CaseIterable, Identifiable {
                 PopoverElement(kind: .weekly, style: .bigText, width: .half, options: .init(content: .percent)),
                 PopoverElement(kind: .timestamp, style: .utilityRow, width: .full),
             ])
+        case .sideBySide:
+            // Session next to session, weekly next to weekly, so the two
+            // providers read as one dashboard rather than two stacked ones.
+            // Rings default to half width, so pairing costs no vertical space
+            // over a single-provider layout. Whichever side is absent gates
+            // itself out and the row recompacts.
+            return PopoverComposition(elements: Self.chromeRow + [
+                PopoverElement(kind: .session, style: .gaugeRing, width: .half, options: .init(showReset: true)),
+                PopoverElement(kind: .codexSession, style: .gaugeRing, width: .half, options: .init(showReset: true)),
+                PopoverElement(kind: .weekly, style: .chip, width: .half, options: .init(showReset: true)),
+                PopoverElement(kind: .codexWeekly, style: .chip, width: .half, options: .init(showReset: true)),
+                PopoverElement(kind: .sessionPacing, style: .paceTile, width: .half),
+                PopoverElement(kind: .codexSessionPacing, style: .paceTile, width: .half),
+                PopoverElement(kind: .timestamp, style: .utilityRow, width: .full),
+                PopoverElement(kind: .openButton, style: .actionButton, width: .full),
+                PopoverElement(kind: .quitButton, style: .actionButton, width: .full),
+            ])
+        case .sessionsOnly:
+            // One question only: can I keep working right now. Both session
+            // windows, full width each so the number is unmissable, and
+            // nothing else on the surface to read past.
+            return PopoverComposition(elements: Self.chromeRow + [
+                PopoverElement(kind: .session, style: .gaugeRing, width: .half, options: .init(showReset: true)),
+                PopoverElement(kind: .codexSession, style: .gaugeRing, width: .half, options: .init(showReset: true)),
+                PopoverElement(kind: .openButton, style: .actionButton, width: .full),
+            ])
+        case .weeklyOutlook:
+            // The planning view: the long windows and whether you are ahead of
+            // them. Deliberately no session cell, because the thing that
+            // blocks you today is not the thing you plan a week around.
+            return PopoverComposition(elements: Self.chromeRow + [
+                PopoverElement(kind: .weekly, style: .gaugeRing, width: .half, options: .init(showReset: true)),
+                PopoverElement(kind: .codexWeekly, style: .gaugeRing, width: .half, options: .init(showReset: true)),
+                PopoverElement(kind: .weeklyPacing, style: .paceBar, width: .full),
+                PopoverElement(kind: .codexWeeklyPacing, style: .paceBar, width: .full),
+                PopoverElement(kind: .timestamp, style: .utilityRow, width: .full),
+                PopoverElement(kind: .openButton, style: .actionButton, width: .full),
+            ])
+        case .pace:
+            // Rhythm rather than level: how fast you are burning, not how much
+            // is left. Percentages are the one thing this layout leaves out.
+            return PopoverComposition(elements: Self.chromeRow + [
+                PopoverElement(kind: .sessionPacing, style: .paceBar, width: .full),
+                PopoverElement(kind: .codexSessionPacing, style: .paceBar, width: .full),
+                PopoverElement(kind: .weeklyPacing, style: .paceBar, width: .full),
+                PopoverElement(kind: .codexWeeklyPacing, style: .paceBar, width: .full),
+                PopoverElement(kind: .timestamp, style: .utilityRow, width: .full),
+                PopoverElement(kind: .openButton, style: .actionButton, width: .full),
+            ])
         case .complete:
             return PopoverComposition(elements: Self.chromeRow + [
                 PopoverElement(kind: .session, style: .gaugeRing, width: .full, options: .init(showReset: true)),
@@ -427,9 +549,13 @@ extension PopoverElementKind {
         case .sonnet: return "quote.opening"
         case .fable: return "books.vertical.fill"
         case .extraCredits: return "creditcard.fill"
+        case .codexSession: return "bolt.horizontal.fill"
+        case .codexWeekly: return "calendar.badge.clock"
         case .sessionPacing, .weeklyPacing, .fablePacing: return "speedometer"
+        case .codexSessionPacing, .codexWeeklyPacing: return "speedometer"
         case .watchers: return "eye.fill"
         case .timestamp: return "clock"
+        case .providerSwitch: return "arrow.left.arrow.right"
         case .planBadge: return "checkmark.seal.fill"
         case .openButton: return "diamond.fill"
         case .quitButton: return "power"

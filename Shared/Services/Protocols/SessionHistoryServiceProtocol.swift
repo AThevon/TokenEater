@@ -9,8 +9,13 @@ protocol SessionHistoryServiceProtocol: Sendable {
     /// CPU on an obsolete scan.
     func loadHistory(range: HistoryRange) async throws -> [HistoryBucket]
 
-    /// Loads the equivalent previous-period total active tokens (used by the
-    /// hero delta). Returns 0 if there is no data older than the current range
-    /// start.
-    func loadPreviousPeriodActiveTokens(range: HistoryRange) async throws -> Int
+    /// Loads the equivalent previous-period active tokens, split by provider
+    /// (used by the hero delta). A provider with no data older than the
+    /// current range start is absent from the dictionary rather than zero.
+    ///
+    /// The split exists because the delta is rendered next to a total the
+    /// caller may have filtered to one provider: comparing a Claude-only
+    /// total against a Claude + Codex previous total reports a collapse that
+    /// never happened.
+    func loadPreviousPeriodActiveTokens(range: HistoryRange) async throws -> [MetricProvider: Int]
 }
