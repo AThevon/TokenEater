@@ -15,6 +15,13 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     /// Only cleared on 401 (token expired) via `invalidateToken()`.
     private var cachedToken: String?
 
+    /// What the last full read found. Kept alongside the cache so a 401 can be
+    /// explained by where the token came from rather than by assuming it
+    /// expired (#273).
+    private var diagnostic: TokenDiagnostic = .unknown
+
+    var tokenDiagnostic: TokenDiagnostic { diagnostic }
+
     /// Closure type for reading from the Keychain. `silent` = use kSecUseAuthenticationUISkip.
     typealias KeychainTokenReader = (_ silent: Bool) -> String?
 
@@ -66,16 +73,28 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     /// Reads the token from all sources in priority order, bypassing the
     /// in-memory cache. Returns the freshest token currently on the system.
     private func readFromSources() -> String? {
-        if let token = securityCLIReader.readToken() {
+        var keychainFailure: KeychainReadFailure?
+
+        switch securityCLIReader.read() {
+        case .success(let token):
             logger.info("Token read via /usr/bin/security")
+            diagnostic = TokenDiagnostic(source: .keychainCLI, keychainFailure: nil)
             return token
+        case .failure(let failure):
+            // Not a log line and nothing else: carried through the fall-through
+            // so the caller can tell a machine that keeps its credentials in a
+            // file from one whose live token we were refused.
+            logger.info("security read failed: \(failure.rawValue, privacy: .public)")
+            keychainFailure = failure
         }
 
         if let token = credentialsFileReader.readToken() {
+            diagnostic = TokenDiagnostic(source: .credentialsFile, keychainFailure: keychainFailure)
             return token
         }
 
         if let token = tokenFromConfigJSON() {
+            diagnostic = TokenDiagnostic(source: .claudeDesktop, keychainFailure: keychainFailure)
             return token
         }
 
@@ -84,9 +103,11 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
         // earlier (or non-silently) would trip the "wants to access" ACL prompt.
         if let token = keychainReader(true) {
             logger.info("Token read from Keychain (silent)")
+            diagnostic = TokenDiagnostic(source: .keychainDirect, keychainFailure: keychainFailure)
             return token
         }
 
+        diagnostic = TokenDiagnostic(source: nil, keychainFailure: keychainFailure)
         return nil
     }
 

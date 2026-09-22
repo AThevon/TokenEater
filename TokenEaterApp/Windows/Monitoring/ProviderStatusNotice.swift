@@ -61,7 +61,8 @@ struct ProviderStatusNotice: View {
         case .claude:
             guard !usageStore.isAwaitingRefresh else { return nil }
             switch usageStore.errorState {
-            case .tokenUnavailable: return String(localized: "error.banner.reauth.hint")
+            case .tokenUnavailable:
+                return usageStore.authFailureHint ?? String(localized: "error.banner.reauth.hint")
             case .rateLimited:      return String(localized: "error.banner.apiunavailable")
             case .networkError:     return String(localized: "error.network.generic")
             case .none:             return nil

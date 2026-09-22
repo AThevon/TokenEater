@@ -87,4 +87,17 @@ struct SecurityCLIReaderTests {
         """
         #expect(SecurityCLIReader.extractToken(fromKeychainPassword: raw) == "mock-access-token-multifield")
     }
+
+    // MARK: - Exit codes (#273)
+
+    /// `security`'s two meaningful exit codes. They used to collapse into a
+    /// bare nil, which is how a refused read became indistinguishable from a
+    /// machine that simply has no such item.
+    @Test("exit 44 is a missing item and 45 is a refusal")
+    func exitCodesAreNamed() {
+        #expect(SecurityCLIReader.failure(forExitCode: 44) == .notFound)
+        #expect(SecurityCLIReader.failure(forExitCode: 45) == .accessDenied)
+        #expect(SecurityCLIReader.failure(forExitCode: 1) == .unknown)
+    }
+
 }

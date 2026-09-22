@@ -14,4 +14,12 @@ protocol TokenProviderProtocol: Sendable {
     func refreshTokenIfChanged() -> Bool
     var isBootstrapped: Bool { get }
     func bootstrap() throws
+    /// Where the last read got its token, and why the Keychain did not answer
+    /// when it did not. Read by the error paths so an unauthorized response
+    /// can name the real cause (#273).
+    var tokenDiagnostic: TokenDiagnostic { get }
+}
+
+extension TokenProviderProtocol {
+    var tokenDiagnostic: TokenDiagnostic { .unknown }
 }

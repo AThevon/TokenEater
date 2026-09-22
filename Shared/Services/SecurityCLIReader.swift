@@ -22,7 +22,7 @@ final class SecurityCLIReader: SecurityCLIReaderProtocol, @unchecked Sendable {
         self.service = service
     }
 
-    func readToken() -> String? {
+    func read() -> Result<String, KeychainReadFailure> {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/security")
         task.arguments = ["find-generic-password", "-s", service, "-w"]
@@ -36,7 +36,7 @@ final class SecurityCLIReader: SecurityCLIReaderProtocol, @unchecked Sendable {
             try task.run()
         } catch {
             logger.info("security launch failed: \(error.localizedDescription, privacy: .public)")
-            return nil
+            return .failure(.launchFailed)
         }
         // Guard against a hung child. On macOS 26 the spawned `security` process
         // can block indefinitely on Keychain authorization when launched by a
@@ -51,20 +51,30 @@ final class SecurityCLIReader: SecurityCLIReaderProtocol, @unchecked Sendable {
         if done.wait(timeout: .now() + 3) == .timedOut {
             task.terminate()
             logger.info("security read timed out after 3s; falling through to next source")
-            return nil
+            return .failure(.timedOut)
         }
         guard task.terminationStatus == 0 else {
-            // Common exit codes: 44 (item not found), 45 (ACL denied).
-            return nil
+            return .failure(Self.failure(forExitCode: task.terminationStatus))
         }
 
         let data = stdout.fileHandleForReading.readDataToEndOfFile()
         guard let raw = String(data: data, encoding: .utf8)?
             .trimmingCharacters(in: .whitespacesAndNewlines),
-              !raw.isEmpty else {
-            return nil
+              !raw.isEmpty,
+              let token = Self.extractToken(fromKeychainPassword: raw) else {
+            return .failure(.unusablePayload)
         }
-        return Self.extractToken(fromKeychainPassword: raw)
+        return .success(token)
+    }
+
+    /// `security`'s own exit codes. 44 and 45 are the two that say something
+    /// the user can act on, so they are the two that are named.
+    static func failure(forExitCode code: Int32) -> KeychainReadFailure {
+        switch code {
+        case 44: return .notFound
+        case 45: return .accessDenied
+        default: return .unknown
+        }
     }
 
     /// Parses the password payload `/usr/bin/security` returned for the

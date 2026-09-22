@@ -14,6 +14,7 @@ final class MockTokenProvider: TokenProviderProtocol, @unchecked Sendable {
     var tokenDidChange = false
 
     var isBootstrapped: Bool { _isBootstrapped }
+    var tokenDiagnostic: TokenDiagnostic = .unknown
 
     func currentToken() -> String? {
         currentTokenCallCount += 1

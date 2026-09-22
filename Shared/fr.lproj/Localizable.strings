@@ -160,6 +160,10 @@
 "error.unsupportedplan" = "Données d'utilisation indisponibles - un plan Claude Pro ou Team est requis";
 "error.banner.keychain" = "Keychain verrouillé";
 "error.banner.keychain.hint" = "Nouvelle tentative automatique - ou ouvrez les Réglages pour ré-autoriser";
+"error.keychain.denied.fallback" = "macOS a refusé l'accès à l'élément de trousseau de Claude Code, TokenEater a donc utilisé le token plus ancien de ~/.claude/.credentials.json. Autorisez l'accès quand macOS le demande, puis réessayez.";
+"error.keychain.denied.notoken" = "macOS a refusé l'accès à l'élément de trousseau de Claude Code, et il n'y a aucun autre token sur ce Mac. Autorisez l'accès quand macOS le demande, puis réessayez.";
+"error.keychain.timeout.fallback" = "La lecture du trousseau a expiré, TokenEater a donc utilisé le token plus ancien de ~/.claude/.credentials.json. Réessayez, et relancez TokenEater si ça se reproduit.";
+"error.keychain.timeout.notoken" = "La lecture du trousseau a expiré et il n'y a aucun autre token sur ce Mac. Réessayez, et relancez TokenEater si ça se reproduit.";
 "error.banner.reauth" = "Autorisation requise";
 "error.banner.reauth.hint" = "Token expiré et la récupération automatique a échoué";
 "error.banner.reauth.button" = "Ré-autoriser";
