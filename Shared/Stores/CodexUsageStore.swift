@@ -256,6 +256,22 @@ final class CodexUsageStore: ObservableObject {
         lastUpdate = cached.fetchDate
     }
 
+    /// The OpenAI half of the connection reset (#268). Same contract as the
+    /// Claude one: forget what the app cached about the connection, keep every
+    /// preference, read `auth.json` again and try.
+    func resetConnection(thresholds: UsageThresholds = .default) async -> ConnectionTestResult {
+        handleAuthChange()
+        errorState = .none
+        lastAPIError = nil
+        sharedFileService.invalidateCache()
+
+        let result = await testConnection()
+        if result.success {
+            await refresh(thresholds: thresholds, force: true)
+        }
+        return result
+    }
+
     func testConnection() async -> ConnectionTestResult {
         guard let credentials = tokenProvider.currentCredentials() else {
             return ConnectionTestResult(success: false, message: String(localized: "codex.error.notLoggedIn"))

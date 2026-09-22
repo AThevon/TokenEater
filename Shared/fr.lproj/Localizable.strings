@@ -1051,6 +1051,9 @@
 "menuBarTemplate.duo" = "Les deux sessions";
 "menuBarTemplate.duoPills" = "Les deux, pastilles";
 "settings.providers.off" = "Non surveillé";
+"settings.providers.reset" = "Réinitialiser la connexion";
+"settings.providers.reset.hint" = "Oublie les identifiants en cache et les relit. Vos réglages, dispositions et thèmes ne bougent pas.";
+"settings.providers.reset.done" = "Connexion réinitialisée, reconnecté";
 "settings.providers.check" = "Vérifier la connexion";
 "dashboard.block.hero" = "Jauge principale";
 "dashboard.block.windows" = "Tuiles de fenêtres";

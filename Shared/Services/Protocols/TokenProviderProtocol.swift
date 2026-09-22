@@ -18,6 +18,9 @@ protocol TokenProviderProtocol: Sendable {
     /// when it did not. Read by the error paths so an unauthorized response
     /// can name the real cause (#273).
     var tokenDiagnostic: TokenDiagnostic { get }
+    /// Drops every cache tied to the connection and re-reads the sources.
+    /// Preferences are not its business (#268).
+    func resetConnection() -> String?
 }
 
 extension TokenProviderProtocol {

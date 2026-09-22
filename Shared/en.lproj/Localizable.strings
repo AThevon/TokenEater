@@ -1051,6 +1051,9 @@
 "menuBarTemplate.duo" = "Both sessions";
 "menuBarTemplate.duoPills" = "Both, pills";
 "settings.providers.off" = "Not monitored";
+"settings.providers.reset" = "Reset connection";
+"settings.providers.reset.hint" = "Forgets the cached credentials and reads them again. Your settings, layouts and themes are untouched.";
+"settings.providers.reset.done" = "Connection reset, reconnected";
 "settings.providers.check" = "Check connection";
 "dashboard.block.hero" = "Hero gauge";
 "dashboard.block.windows" = "Window tiles";

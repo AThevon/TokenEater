@@ -161,6 +161,22 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
         logger.info("Token cache invalidated - next read will check Keychain")
     }
 
+    /// Forgets everything the app learned about the connection and reads it
+    /// again from scratch: the in-memory token and the cached Claude Desktop
+    /// decryption key, which survives a relaunch and can outlive the account
+    /// it was derived for.
+    ///
+    /// It touches nothing the user configured, which is the whole point of
+    /// the request behind it: people were reinstalling the app, and losing
+    /// every setting, to get back a connection (#268).
+    func resetConnection() -> String? {
+        cachedToken = nil
+        diagnostic = .unknown
+        decryptionService.clearCachedKey()
+        logger.info("Connection reset: caches dropped, re-reading sources")
+        return currentToken()
+    }
+
     func bootstrap() throws {
         if let token = keychainReader(false) {
             cachedToken = token

@@ -365,6 +365,30 @@ final class UsageStore: ObservableObject {
         }
     }
 
+    /// Unbinds and rebinds the Claude connection without touching a single
+    /// preference: drops the cached token and the cached decryption key,
+    /// forgets the error state the app was stuck in, re-reads every source and
+    /// tests it. Asked for by people who were reinstalling the whole app, and
+    /// losing their layouts and themes with it, to recover a connection that a
+    /// stale cache had broken (#268).
+    func resetConnection(thresholds: UsageThresholds = .default) async -> ConnectionTestResult {
+        errorState = .none
+        authFailureHint = nil
+        lastAPIError = nil
+        hasConfig = false
+        retryAfterDate = nil
+        consecutiveRateLimits = 0
+        currentSpeed = .fast
+        sharedFileService.invalidateCache()
+        _ = tokenProvider.resetConnection()
+
+        let result = await connectAutoDetect()
+        if result.success {
+            await refresh(thresholds: thresholds, force: true)
+        }
+        return result
+    }
+
     func connectAutoDetect() async -> ConnectionTestResult {
         guard let token = tokenProvider.currentToken() else {
             return ConnectionTestResult(

@@ -29,6 +29,14 @@ final class MockTokenProvider: TokenProviderProtocol, @unchecked Sendable {
         invalidateCallCount += 1
     }
 
+    var resetConnectionCallCount = 0
+
+    func resetConnection() -> String? {
+        resetConnectionCallCount += 1
+        invalidateCallCount += 1
+        return token
+    }
+
     func refreshTokenIfChanged() -> Bool {
         refreshTokenIfChangedCallCount += 1
         return tokenDidChange

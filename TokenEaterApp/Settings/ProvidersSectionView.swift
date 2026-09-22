@@ -30,6 +30,8 @@ struct ProvidersSectionView: View {
     @State private var claudeSucceeded = false
     @State private var isTestingCodex = false
     @State private var codexResult: ConnectionTestResult?
+    @State private var isResettingClaude = false
+    @State private var isResettingCodex = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
@@ -112,12 +114,44 @@ struct ProvidersSectionView: View {
     /// Two words for one idea is how a settings screen stops looking designed.
     @ViewBuilder
     private var claudeActions: some View {
-        checkButton(isRunning: isRedetecting, action: redetectClaude)
+        HStack(spacing: 6) {
+            resetButton(isRunning: isResettingClaude, action: resetClaude)
+            checkButton(isRunning: isRedetecting, action: redetectClaude)
+        }
     }
 
     @ViewBuilder
     private var codexActions: some View {
-        checkButton(isRunning: isTestingCodex, action: testCodex)
+        HStack(spacing: 6) {
+            resetButton(isRunning: isResettingCodex, action: resetCodex)
+            checkButton(isRunning: isTestingCodex, action: testCodex)
+        }
+    }
+
+    /// Unbind and rebind, for a connection a stale cache has broken. Quieter
+    /// than the check button on purpose: it is the answer when checking has
+    /// already failed, not the first thing to reach for. People were
+    /// reinstalling the app, and losing every setting with it, for want of
+    /// this button (#268).
+    @ViewBuilder
+    private func resetButton(isRunning: Bool, action: @escaping () -> Void) -> some View {
+        HStack(spacing: 6) {
+            if isRunning {
+                ProgressView().controlSize(.small).tint(DS.Palette.textSecondary)
+            }
+            Button(action: action) {
+                Text("settings.providers.reset")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(DS.Palette.textTertiary)
+                    .padding(.horizontal, DS.Spacing.sm)
+                    .padding(.vertical, 5)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(isRunning)
+            .opacity(isRunning ? 0.5 : 1)
+            .help(String(localized: "settings.providers.reset.hint"))
+        }
     }
 
     @ViewBuilder
@@ -196,6 +230,38 @@ struct ProvidersSectionView: View {
                 claudeMessage = result.message
                 claudeSucceeded = false
             }
+        }
+    }
+
+    private func resetClaude() {
+        isResettingClaude = true
+        claudeMessage = nil
+        Task {
+            let result = await usageStore.resetConnection(thresholds: themeStore.thresholds)
+            isResettingClaude = false
+            claudeSucceeded = result.success
+            claudeMessage = result.success
+                ? String(localized: "settings.providers.reset.done")
+                : result.message
+            guard result.success else { return }
+            usageStore.proxyConfig = settingsStore.proxyConfig
+            usageStore.reloadConfig(thresholds: themeStore.thresholds)
+            themeStore.syncToSharedFile()
+        }
+    }
+
+    private func resetCodex() {
+        isResettingCodex = true
+        codexResult = nil
+        Task {
+            let result = await codexStore.resetConnection(thresholds: themeStore.thresholds)
+            isResettingCodex = false
+            codexResult = result.success
+                ? ConnectionTestResult(
+                    success: true,
+                    message: String(localized: "settings.providers.reset.done")
+                )
+                : result
         }
     }
 
