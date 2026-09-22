@@ -61,10 +61,15 @@ struct MainAppView: View {
                 // Monitoring header made it compete with that page's own
                 // filters and implied a page-level scope it does not have.
                 // One control, in the window bar, driving everything.
-                // Hidden in Studio, which has its own scope control. Two
-                // controls that look alike and do different jobs (one reads,
-                // one edits) is the confusion rather than the fix.
-                if displayedSpace != .studio {
+                //
+                // Shown only where something on screen answers to it. Studio
+                // has its own scope control, and two controls that look alike
+                // and do different jobs (one reads, one edits) is the
+                // confusion rather than the fix. Settings has none: no page in
+                // there is scoped by the mode, so the control sat above four
+                // screens it changed nothing on, which reads as a broken
+                // control rather than as a global one (#267).
+                if displayedSpace == .monitoring || displayedSpace == .history {
                     ProviderModeSwitcher(size: .regular)
                         .padding(.trailing, DS.Spacing.xs)
                 }

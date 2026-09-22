@@ -114,9 +114,18 @@ struct ProviderModeSwitcher: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .help(mode.localizedLabel)
+        // The tooltip used to repeat the pill's own label, which answers the
+        // one question the control raises: what does this change? Naming the
+        // surfaces is the answer, and it is the same answer in every mode.
+        .help(helpText(for: mode))
         .accessibilityLabel(mode.localizedLabel)
+        .accessibilityHint(helpText(for: mode))
         .accessibilityAddTraits(isActive ? [.isSelected] : [])
+    }
+
+    private func helpText(for mode: ProviderMode) -> String {
+        guard let provider = mode.provider else { return String(localized: "mode.help.all") }
+        return String(format: String(localized: "mode.help.one"), provider.displayName)
     }
 
     /// Names the cost of the current mode where the choice was made.

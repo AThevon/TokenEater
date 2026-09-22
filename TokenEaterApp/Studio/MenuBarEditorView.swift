@@ -272,25 +272,27 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
 
     @ViewBuilder
     private func addButton(for kind: MenuBarSegmentKind) -> some View {
-        let available = accountHasKind(kind)
         // Not disabled when unavailable: let the user pre-place a metric the
         // account does not have yet so the layout is future-proof; the
         // renderer keeps it hidden until the data actually shows up. The label
-        // flags that it is not active yet.
+        // says why it would not draw, in the words of the actual reason.
+        let blocked = unavailability(kind)
         Button {
             addSegment(kind)
         } label: {
             Label(
-                available ? kind.localizedLabel
-                    : "\(kind.localizedLabel) (\(String(localized: "menuBar.editor.unavailable")))",
+                blocked.map { "\(kind.localizedLabel) (\($0.label))" } ?? kind.localizedLabel,
                 systemImage: kind.symbolName
             )
         }
     }
 
-    private func accountHasKind(_ kind: MenuBarSegmentKind) -> Bool {
-        MenuBarSegmentAvailability.isAvailable(
-            kind, settings: settingsStore, usage: usageStore, codex: codexStore
+    /// Why this kind would draw nothing, or nil when it draws. Asked of the
+    /// same gate the renderer uses, so the menu and the menu bar cannot
+    /// disagree about what an account has.
+    private func unavailability(_ kind: MenuBarSegmentKind) -> EditorUnavailability? {
+        EditorUnavailability.reason(
+            for: kind, settings: settingsStore, usage: usageStore, codex: codexStore
         )
     }
 
@@ -567,7 +569,7 @@ private struct MenuBarSegmentListEditor: View {
                 segment: segment,
                 isSelected: selectedSegmentID == segment.id,
                 isDragging: draggingID == segment.id,
-                isAvailable: isAvailable(segment.kind),
+                unavailable: unavailability(segment.kind),
                 onSelect: {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
                         selectedSegmentID = (selectedSegmentID == segment.id) ? nil : segment.id
@@ -592,9 +594,12 @@ private struct MenuBarSegmentListEditor: View {
         $settingsStore.menuBarComposition.segments
     }
 
-    private func isAvailable(_ kind: MenuBarSegmentKind) -> Bool {
-        MenuBarSegmentAvailability.isAvailable(
-            kind, settings: settingsStore, usage: usageStore, codex: codexStore
+    /// Why this segment would not draw, or nil when it draws. The decision
+    /// itself still belongs to `MenuBarSegmentAvailability`, which mirrors the
+    /// renderer; this only picks the sentence that explains it.
+    private func unavailability(_ kind: MenuBarSegmentKind) -> EditorUnavailability? {
+        EditorUnavailability.reason(
+            for: kind, settings: settingsStore, usage: usageStore, codex: codexStore
         )
     }
 
@@ -623,7 +628,7 @@ private struct MenuBarSegmentRow: View {
     let segment: MenuBarSegment
     let isSelected: Bool
     let isDragging: Bool
-    let isAvailable: Bool
+    let unavailable: EditorUnavailability?
     let onSelect: () -> Void
     let onToggleHidden: () -> Void
     let onDelete: () -> Void
@@ -645,8 +650,8 @@ private struct MenuBarSegmentRow: View {
                         text: segment.kind.localizedLabel,
                         color: segment.isHidden ? .white.opacity(0.35) : .white.opacity(0.9)
                     )
-                    if !isAvailable {
-                        Text(String(localized: "menuBar.editor.unavailable"))
+                    if let unavailable {
+                        Text(unavailable.label)
                             .font(.system(size: 9)).foregroundStyle(.orange.opacity(0.7))
                     }
                 }
