@@ -7,9 +7,13 @@ final class MockSecurityCLIReader: SecurityCLIReaderProtocol, @unchecked Sendabl
     var failure: KeychainReadFailure = .notFound
     var readCallCount = 0
 
-    func read() -> Result<String, KeychainReadFailure> {
+    /// How many items the enumeration saw. Tests set it to reproduce a
+    /// shadowed service name (#268).
+    var matchingItems = 1
+
+    func read() -> KeychainRead {
         readCallCount += 1
-        if let token { return .success(token) }
-        return .failure(failure)
+        if let token { return .success(token, matchingItems: matchingItems) }
+        return .failure(failure, matchingItems: matchingItems)
     }
 }

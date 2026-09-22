@@ -52,6 +52,13 @@ enum TokenSource: String, Codable, Equatable, Sendable {
 struct TokenDiagnostic: Equatable, Sendable {
     let source: TokenSource?
     let keychainFailure: KeychainReadFailure?
+    /// How many Keychain items carry Claude Code's service name. Above one is
+    /// the shadowed-item case (#268): the read works around it, and the count
+    /// is what lets a diagnostic report say so.
+    var matchingKeychainItems: Int = 0
+    /// Expiry of the Keychain token, when one was read. Past means Claude Code
+    /// has not run in a while: the app reads that item, it never refreshes it.
+    var tokenExpiresAt: Date?
 
     static let unknown = TokenDiagnostic(source: nil, keychainFailure: nil)
 
@@ -66,7 +73,14 @@ struct TokenDiagnostic: Equatable, Sendable {
     /// What to tell the user when the request came back unauthorized, or nil
     /// when the plain "token expired" answer is the true one.
     var authFailureHint: String? {
-        guard let failure = keychainFailure, failure.blockedLiveRead else { return nil }
+        guard let failure = keychainFailure else { return nil }
+        // Several items under the service name and not one of them holding a
+        // login: the read already tried them all, so this is the user's to
+        // clean up and nothing in the app can do it for them (#268).
+        if failure == .unusablePayload, matchingKeychainItems > 1 {
+            return String(localized: "error.keychain.shadowed")
+        }
+        guard failure.blockedLiveRead else { return nil }
         switch (failure, source) {
         case (.accessDenied, .some):
             return String(localized: "error.keychain.denied.fallback")

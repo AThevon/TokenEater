@@ -79,6 +79,11 @@ enum DiagnosticReporter {
         let diagnostic = usageStore.tokenDiagnostic
         let tokenSource = diagnostic.source?.reportLabel ?? "none"
         let keychainRead = diagnostic.keychainFailure?.reportLabel ?? "ok"
+        let keychainExpiry: String = {
+            guard let expiry = diagnostic.tokenExpiresAt else { return "-" }
+            let stamp = formatDate(expiry, relative: true) ?? "-"
+            return expiry < Date() ? "\(stamp) (expired)" : stamp
+        }()
         let proxyConfigured: String
         if let proxy = usageStore.proxyConfig, proxy.isValidForUse {
             proxyConfigured = "yes"
@@ -98,6 +103,8 @@ enum DiagnosticReporter {
         - Token present: \(tokenPresent)
         - Token source: \(tokenSource)
         - Keychain read: \(keychainRead)
+        - Keychain items named "Claude Code-credentials": \(diagnostic.matchingKeychainItems)
+        - Keychain token expiry: \(keychainExpiry)
         - Proxy configured: \(proxyConfigured)
         """
     }
