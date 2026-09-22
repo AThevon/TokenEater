@@ -78,18 +78,16 @@ struct OverlayView: View {
             return sessions[index].id == menuId ? 1.0 : 0.75
         }
 
-        guard let cursor = overlayState.cursorInWindow else { return 0 }
+        // Expand only while the controller has the mouse (#271). That is the
+        // same area that captures clicks, so the cards never open over a spot
+        // where clicks still go to the app underneath.
+        guard overlayState.hoverActive, let cursor = overlayState.cursorInWindow else { return 0 }
 
         let wWidth = overlayState.windowWidth
         let count = sessions.count
         let actualHeight = overlayState.windowHeight
         let totalHeight = CGFloat(count) * expandedHeight + CGFloat(max(0, count - 1)) * baseSpacing
         let startY = (actualHeight - totalHeight) / 2 + contentOffset + dragDelta
-
-        // Vertical gate: only activate when cursor is near the items
-        let groupCenterY = startY + totalHeight / 2
-        let vDistToGroup = abs(groupCenterY - cursor.y)
-        guard vDistToGroup < totalHeight / 2 + 80 else { return 0 }
 
         // Horizontal factor: visual expansion is tied to the controller's
         // active hover zone. While inactive the user needs to reach the
