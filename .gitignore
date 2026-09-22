@@ -8,6 +8,10 @@ xcuserdata/
 *.dmg
 *.app
 
+# Python (scripts/check-docs.py bytecode)
+__pycache__/
+*.pyc
+
 # Claude Code
 .claude/
 .worktrees/
