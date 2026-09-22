@@ -31,6 +31,9 @@ enum JSONLParser {
         let message: RawMessage?
         let data: RawProgressData?
         let operation: String?
+        /// Set on `user` lines Claude Code writes itself (hook feedback,
+        /// session notices) rather than anything the user typed.
+        let isMeta: Bool?
     }
 
     private struct RawMessage: Decodable {
@@ -107,6 +110,12 @@ enum JSONLParser {
         let decoder = JSONDecoder()
 
         var lastMeaningfulEvent: RawEvent?
+        // Meta `user` lines (hook feedback, session notices) are written by
+        // Claude Code itself. One landing while a tool call is still open,
+        // like a notice while an AskUserQuestion is on screen (#269), must not
+        // flip the session to thinking. One after the turn ended opens a new
+        // turn, so it still does.
+        var heldMetaEvent: RawEvent?
         var latestMeta: (sessionId: String, cwd: String, gitBranch: String?)?
         var pendingPermission = false
         var seenQueueRemove = false
@@ -162,18 +171,31 @@ enum JSONLParser {
             // sessions. Early-exit only when both buckets are filled.
 
             if lastMeaningfulEvent == nil {
+                var candidate: RawEvent?
                 if event.type == "system" {
                     if event.subtype == "turn_duration" || event.subtype == "stop_hook_summary" || event.subtype == "compact_boundary" {
-                        lastMeaningfulEvent = event
+                        candidate = event
                     }
                 } else if event.type == "assistant" || event.type == "user" {
-                    lastMeaningfulEvent = event
+                    candidate = event
                 } else if event.type == "progress" {
                     // Progress events are a soft fallback - any later definitive
                     // event (system turn-end, assistant, user) would replace it,
                     // but since we gate this branch on `lastMeaningfulEvent ==
                     // nil` we simply accept it as the best we've got so far.
-                    lastMeaningfulEvent = event
+                    candidate = event
+                }
+
+                if let candidate {
+                    if candidate.type == "user" && candidate.isMeta == true {
+                        // Hold the latest meta message and decide once the
+                        // event it follows is known.
+                        if heldMetaEvent == nil { heldMetaEvent = candidate }
+                    } else if let held = heldMetaEvent, !isToolCallInFlight(candidate) {
+                        lastMeaningfulEvent = held
+                    } else {
+                        lastMeaningfulEvent = candidate
+                    }
                 }
             }
 
@@ -181,6 +203,10 @@ enum JSONLParser {
                 break
             }
         }
+
+        // Nothing older than the held meta message made it into the tail:
+        // read the message itself as the latest event, as before.
+        if lastMeaningfulEvent == nil { lastMeaningfulEvent = heldMetaEvent }
 
         guard let meta = latestMeta else { return nil }
 
@@ -215,6 +241,15 @@ enum JSONLParser {
             contextTokens: lastAssistantContext,
             contextMax: detectedMax
         )
+    }
+
+    /// True when `event` leaves a tool call open: a tool_use still waiting on
+    /// its result, or progress from a running tool or subagent.
+    private static func isToolCallInFlight(_ event: RawEvent) -> Bool {
+        switch determineState(event, pendingPermission: false) {
+        case .toolExec, .waiting, .subagent: return true
+        case .idle, .thinking, .compacting: return false
+        }
     }
 
     private static func determineState(_ event: RawEvent, pendingPermission: Bool) -> SessionState {

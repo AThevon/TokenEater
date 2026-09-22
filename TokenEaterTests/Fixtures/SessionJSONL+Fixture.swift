@@ -75,6 +75,41 @@ enum SessionJSONLFixture {
     {"type":"assistant","sessionId":"abc-123","cwd":"/Users/test/projects/MyApp","gitBranch":"main","version":"2.1.59","timestamp":"2026-03-03T10:01:00.000Z","message":{"role":"assistant","model":"claude-opus-4-6","stop_reason":"tool_use","content":[{"type":"tool_use","id":"toolu_01","name":"AskUserQuestion","input":{"questions":[{"question":"Which approach?"}]}}]}}
     """
 
+    /// Meta user message (`isMeta: true`): hook feedback, session notices.
+    /// Claude Code writes these as `user` lines, but nobody typed them.
+    static let metaUserMessage = """
+    {"type":"user","isMeta":true,"sessionId":"abc-123","cwd":"/Users/test/projects/MyApp","gitBranch":"main","version":"2.1.59","timestamp":"2026-03-03T10:07:00.000Z","message":{"role":"user","content":"A session-scoped Stop hook is now active."}}
+    """
+
+    /// AskUserQuestion still on screen when an attachment and a meta user
+    /// message land before the answer (#269) → .waiting
+    static let assistantAskUserQuestionThenMetaMessage: String = [
+        assistantAskUserQuestion,
+        """
+        {"type":"attachment","sessionId":"abc-123","cwd":"/Users/test/projects/MyApp","gitBranch":"main","version":"2.1.59","timestamp":"2026-03-03T10:06:59.000Z","attachment":{"type":"goal_status"}}
+        """,
+        metaUserMessage
+    ].joined(separator: "\n")
+
+    /// Same question, now answered: the tool_result lands last → .thinking
+    static let assistantAskUserQuestionAnswered: String = [
+        assistantAskUserQuestionThenMetaMessage,
+        """
+        {"type":"user","sessionId":"abc-123","cwd":"/Users/test/projects/MyApp","gitBranch":"main","version":"2.1.59","timestamp":"2026-03-03T10:08:00.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_01","content":"User answered"}]}}
+        """
+    ].joined(separator: "\n")
+
+    /// Meta user message while a Bash tool is still running → .toolExec
+    static let assistantToolUseThenMetaMessage: String = [
+        assistantToolUse, metaUserMessage
+    ].joined(separator: "\n")
+
+    /// Meta user message after the turn ended (another session messaging this
+    /// one): it opens a new turn → .thinking
+    static let assistantEndTurnThenMetaMessage: String = [
+        assistantEndTurn, metaUserMessage
+    ].joined(separator: "\n")
+
     /// system compact_boundary → .idle
     static let systemCompactBoundary = """
     {"type":"system","subtype":"compact_boundary","sessionId":"abc-123","cwd":"/Users/test/projects/MyApp","gitBranch":"main","version":"2.1.59","timestamp":"2026-03-03T10:06:00.000Z"}

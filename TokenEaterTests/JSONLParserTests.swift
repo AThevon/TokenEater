@@ -121,4 +121,35 @@ struct JSONLParserTests {
         let result = JSONLParser.parseLastState(from: SessionJSONLFixture.assistantAskUserQuestion)
         #expect(result?.state == .waiting)
     }
+
+    @Test("AskUserQuestion + meta user message before the answer → waiting (#269)")
+    func parsesAskUserQuestionThenMetaMessage() {
+        let result = JSONLParser.parseLastState(from: SessionJSONLFixture.assistantAskUserQuestionThenMetaMessage)
+        #expect(result?.state == .waiting)
+        #expect(result?.model == "claude-opus-4-6")
+    }
+
+    @Test("AskUserQuestion answered → thinking")
+    func parsesAnsweredAskUserQuestion() {
+        let result = JSONLParser.parseLastState(from: SessionJSONLFixture.assistantAskUserQuestionAnswered)
+        #expect(result?.state == .thinking)
+    }
+
+    @Test("tool_use + meta user message mid-call → toolExec")
+    func parsesToolUseThenMetaMessage() {
+        let result = JSONLParser.parseLastState(from: SessionJSONLFixture.assistantToolUseThenMetaMessage)
+        #expect(result?.state == .toolExec)
+    }
+
+    @Test("end_turn + meta user message → thinking (the message opens a new turn)")
+    func parsesEndTurnThenMetaMessage() {
+        let result = JSONLParser.parseLastState(from: SessionJSONLFixture.assistantEndTurnThenMetaMessage)
+        #expect(result?.state == .thinking)
+    }
+
+    @Test("meta user message alone in the tail → thinking")
+    func parsesLoneMetaMessage() {
+        let result = JSONLParser.parseLastState(from: SessionJSONLFixture.metaUserMessage)
+        #expect(result?.state == .thinking)
+    }
 }
