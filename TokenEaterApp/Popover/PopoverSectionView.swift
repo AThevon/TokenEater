@@ -345,32 +345,29 @@ struct PopoverSectionView: View {
 
     @ViewBuilder
     private func addButton(for kind: PopoverElementKind) -> some View {
-        let available = accountHasKind(kind)
         // Not disabled when unavailable: a user can pre-place a metric the
         // account does not have yet (Extra Credits, Fable) so their
         // layout is future-proof - the render-time gate keeps it hidden until
         // the account actually gains the data, at which point it appears on
-        // its own. The label just flags that it is not active yet.
+        // its own. The label says why it would not draw yet.
+        let blocked = unavailability(kind)
         Button {
             addElement(kind)
         } label: {
             Label(
-                available ? kind.localizedLabel
-                    : "\(kind.localizedLabel) (\(String(localized: "popover.editor.unavailable")))",
+                blocked.map { "\(kind.localizedLabel) (\($0.label))" } ?? kind.localizedLabel,
                 systemImage: kind.symbolName
             )
         }
     }
 
-    /// Whether this kind would draw anything right now. Only labels the
-    /// add-menu entry; it does not block adding (see `addButton`).
-    ///
-    /// It asks the renderer rather than keeping its own list, because the two
-    /// drifted: the editor hard-coded Claude's cases and answered `true` for
-    /// every Codex one, so an OpenAI metric added from a Claude layout looked
-    /// perfectly fine and drew nothing anywhere.
-    private func accountHasKind(_ kind: PopoverElementKind) -> Bool {
-        PopoverMetricResolver.isVisible(kind, usage: usageStore, codex: codexStore, settings: settingsStore)
+    /// Why this kind would draw nothing, or nil when it draws. Asked of the
+    /// renderer's own gate, so the menu and the popover cannot disagree about
+    /// what an account has.
+    private func unavailability(_ kind: PopoverElementKind) -> EditorUnavailability? {
+        EditorUnavailability.reason(
+            for: kind, settings: settingsStore, usage: usageStore, codex: codexStore
+        )
     }
 
     private func addElement(_ kind: PopoverElementKind) {
@@ -616,7 +613,7 @@ private struct ElementListEditor: View {
                 element: element,
                 isSelected: selectedElementID == element.id,
                 isDragging: draggingID == element.id,
-                isAvailable: isAvailable(element.kind),
+                unavailable: unavailability(element.kind),
                 canDisable: canDisable(element),
                 onSelect: {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
@@ -653,13 +650,24 @@ private struct ElementListEditor: View {
         $settingsStore.popoverComposition.elements
     }
 
-    // The same question the add menu asks, answered by the renderer itself so
-    // the two cannot disagree: an element the popover will not draw must not
-    // count toward the "keep one element visible" guard, and must stay freely
-    // removable. That covers a Fable arc after a plan downgrade, a plan badge
-    // with no known plan, and every Codex kind in a Claude-scoped layout.
+    // Answered by the renderer itself so the editor and the popover cannot
+    // disagree: an element the popover will not draw must not count toward
+    // the "keep one element visible" guard, and must stay freely removable.
+    // That covers a Fable arc after a plan downgrade, a plan badge with no
+    // known plan, and every Codex kind in a Claude-scoped layout.
     private func isAvailable(_ kind: PopoverElementKind) -> Bool {
         PopoverMetricResolver.isVisible(kind, usage: usageStore, codex: codexStore, settings: settingsStore)
+    }
+
+    /// The same answer as `isAvailable`, with the reason attached, for the
+    /// places that show it to the user. One line saying "not active on this
+    /// account" covered a plan that has no such window, a provider switched
+    /// off and a fetch that has not happened, which are three different
+    /// things to do about it.
+    private func unavailability(_ kind: PopoverElementKind) -> EditorUnavailability? {
+        EditorUnavailability.reason(
+            for: kind, settings: settingsStore, usage: usageStore, codex: codexStore
+        )
     }
 
     /// Whether hiding or deleting this element is allowed. The guard counts
@@ -726,7 +734,7 @@ private struct ElementRow: View {
     let element: PopoverElement
     let isSelected: Bool
     let isDragging: Bool
-    let isAvailable: Bool
+    let unavailable: EditorUnavailability?
     let canDisable: Bool
     let onSelect: () -> Void
     let onToggleHidden: () -> Void
@@ -755,8 +763,8 @@ private struct ElementRow: View {
                         text: element.kind.localizedLabel,
                         color: element.isHidden ? .white.opacity(0.35) : .white.opacity(0.9)
                     )
-                    if !isAvailable {
-                        Text(String(localized: "popover.editor.unavailable"))
+                    if let unavailable {
+                        Text(unavailable.label)
                             .font(.system(size: 9))
                             .foregroundStyle(.orange.opacity(0.7))
                     }

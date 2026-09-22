@@ -736,7 +736,10 @@
 "popover.editor.family.metrics" = "Métriques";
 "popover.editor.family.pacing" = "Pacing";
 "popover.editor.family.utilities" = "Utilitaires";
-"popover.editor.unavailable" = "pas actif sur ce compte";
+"editor.unavailable.providerOff" = "suivi %@ désactivé";
+"editor.unavailable.scope" = "absent de la disposition %@";
+"editor.unavailable.plan" = "pas inclus dans votre offre %@";
+"editor.unavailable.noData" = "aucune donnée pour l'instant";
 "popover.editor.saveTemplate" = "Enregistrer comme template";
 "popover.editor.saveTemplate.short" = "Enregistrer";
 "popover.editor.saveTemplate.message" = "Enregistre la composition actuelle pour la réappliquer plus tard.";
@@ -817,7 +820,6 @@
 "menuBar.editor.family.metrics" = "Métriques";
 "menuBar.editor.family.pacing" = "Pacing";
 "menuBar.editor.family.status" = "Statut";
-"menuBar.editor.unavailable" = "pas actif sur ce compte";
 "menuBar.editor.saveTemplate" = "Enregistrer comme template";
 "menuBar.editor.saveTemplate.short" = "Enregistrer";
 "menuBar.editor.saveTemplate.message" = "Enregistre la disposition actuelle du menu bar pour la réappliquer plus tard.";
@@ -1029,6 +1031,8 @@
 "onboarding.provider.codex.notfound.step3" = "reviens, clique sur re-détecter";
 "onboarding.hero.rule" = "Chaque provider suffit à lui seul. Coupe celui que tu n'utilises pas et toute l'app suit : cartes, barre de menu, historique.";
 "whatsNew.mode.single" = "Seul %@ est actif, donc il n'y a rien entre quoi basculer. TokenEater l'affiche directement. Active l'autre provider ci-dessous et le sélecteur apparaît ici.";
+"mode.help.all" = "Afficher tous les providers : tableau de bord, popover et barre de menu";
+"mode.help.one" = "N'afficher que %@ : tableau de bord, popover et barre de menu";
 "studio.scope.label" = "Édition";
 "studio.scope.hint" = "Chaque mode garde ses propres dispositions";
 "popover.editor.providerSwitch" = "Sélecteur de provider";

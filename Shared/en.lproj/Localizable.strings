@@ -736,7 +736,10 @@
 "popover.editor.family.metrics" = "Metrics";
 "popover.editor.family.pacing" = "Pacing";
 "popover.editor.family.utilities" = "Utilities";
-"popover.editor.unavailable" = "not active on this account";
+"editor.unavailable.providerOff" = "%@ tracking is off";
+"editor.unavailable.scope" = "not part of the %@ layout";
+"editor.unavailable.plan" = "not on your %@ plan";
+"editor.unavailable.noData" = "no data yet";
 "popover.editor.saveTemplate" = "Save as template";
 "popover.editor.saveTemplate.short" = "Save current";
 "popover.editor.saveTemplate.message" = "Saves the current composition so you can reapply it later.";
@@ -817,7 +820,6 @@
 "menuBar.editor.family.metrics" = "Metrics";
 "menuBar.editor.family.pacing" = "Pacing";
 "menuBar.editor.family.status" = "Status";
-"menuBar.editor.unavailable" = "not active on this account";
 "menuBar.editor.saveTemplate" = "Save as template";
 "menuBar.editor.saveTemplate.short" = "Save current";
 "menuBar.editor.saveTemplate.message" = "Saves the current menu bar layout so you can reapply it later.";
@@ -1029,6 +1031,8 @@
 "onboarding.provider.codex.notfound.step3" = "come back, hit re-detect";
 "onboarding.hero.rule" = "Either provider is enough on its own. Turn off the one you do not use and the whole app follows: cards, menu bar, history.";
 "whatsNew.mode.single" = "Only %@ is on, so there is nothing to switch between. TokenEater shows it directly. Turn the other provider on below and the selector appears here.";
+"mode.help.all" = "Show every provider: dashboard, popover and menu bar";
+"mode.help.one" = "Show only %@: dashboard, popover and menu bar";
 "studio.scope.label" = "Editing";
 "studio.scope.hint" = "Each mode keeps its own layouts";
 "popover.editor.providerSwitch" = "Provider switch";
