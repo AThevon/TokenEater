@@ -278,17 +278,24 @@ struct PopoverSectionView: View {
     }
 
     /// Pinned chrome, so it is a switch rather than a draggable cell.
+    ///
+    /// Absent below two providers rather than greyed out. The rule everywhere
+    /// else is that someone tracking one provider sees no trace of the second,
+    /// and a dimmed switch named "Provider switch" is exactly that trace. The
+    /// popover it governs already hides the control in that case, so the
+    /// setting has nothing to govern either.
+    @ViewBuilder
     private var providerSwitchToggle: some View {
-        Toggle(isOn: $settingsStore.popoverShowsProviderSwitch) {
-            Text("popover.editor.providerSwitch")
-                .font(.system(size: 11))
+        if settingsStore.availableProviderModes.count > 1 {
+            Toggle(isOn: $settingsStore.popoverShowsProviderSwitch) {
+                Text("popover.editor.providerSwitch")
+                    .font(.system(size: 11))
+            }
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .tint(DS.Palette.brandPrimary)
+            .help(String(localized: "popover.editor.providerSwitch.hint"))
         }
-        .toggleStyle(.switch)
-        .controlSize(.mini)
-        .tint(DS.Palette.brandPrimary)
-        .disabled(settingsStore.availableProviderModes.count < 2)
-        .opacity(settingsStore.availableProviderModes.count < 2 ? 0.35 : 1)
-        .help(String(localized: "popover.editor.providerSwitch.hint"))
     }
 
     private var addElementButton: some View {

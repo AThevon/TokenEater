@@ -1036,7 +1036,7 @@
 "studio.scope.label" = "Édition";
 "studio.scope.hint" = "Chaque mode garde ses propres dispositions";
 "popover.editor.providerSwitch" = "Sélecteur de provider";
-"popover.editor.providerSwitch.hint" = "Épinglé au-dessus de la disposition, pour qu'un mode provider ait toujours une sortie. Disponible dès que les deux providers sont actifs.";
+"popover.editor.providerSwitch.hint" = "Épinglé au-dessus de la disposition, pour qu'un mode provider ait toujours une sortie.";
 "settings.connection.provider" = "Connexion %@";
 "popoverTemplate.sideBySide" = "Côte à côte";
 "popoverTemplate.sessionsOnly" = "Sessions seules";
