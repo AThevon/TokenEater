@@ -1036,7 +1036,7 @@
 "studio.scope.label" = "Editing";
 "studio.scope.hint" = "Each mode keeps its own layouts";
 "popover.editor.providerSwitch" = "Provider switch";
-"popover.editor.providerSwitch.hint" = "Pinned above the layout, so a provider mode always has a way back out. Available once both providers are on.";
+"popover.editor.providerSwitch.hint" = "Pinned above the layout, so a provider mode always has a way back out.";
 "settings.connection.provider" = "%@ connection";
 "popoverTemplate.sideBySide" = "Side by side";
 "popoverTemplate.sessionsOnly" = "Sessions only";
