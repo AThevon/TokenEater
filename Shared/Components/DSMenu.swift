@@ -35,27 +35,35 @@ struct DSMenu<Value: Hashable>: View {
                             : .white.opacity(0.25)
                     )
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(
-                Capsule()
-                    .fill(enabled
-                          ? (isHovering ? DS.Palette.glassFillHi : DS.Palette.glassFill)
-                          : DS.Palette.glassFill.opacity(0.5))
-                    .overlay(
-                        Capsule().stroke(
-                            enabled
-                                ? (isHovering ? DS.Palette.accentSettings.opacity(0.45) : DS.Palette.glassBorderHi)
-                                : DS.Palette.glassBorderLo,
-                            lineWidth: 0.8
-                        )
-                    )
-            )
-            .contentShape(Capsule())
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
+        // IMPORTANT: the capsule AND its padding sit on the `Menu`, never
+        // inside the `label:` closure. Under `.menuStyle(.borderlessButton)`
+        // AppKit re-renders the label through its own button cell, which paints
+        // the text and silently drops a `.background()` and a `.padding()`
+        // applied in there. That is why this control shipped as bare text and
+        // a chevron, with no chip and no hover state, and why the fix for #167
+        // had no visible effect (#251, diagnosed in an isolated harness by
+        // @tarekrached). `AddElementMenuButton`, the sibling in this folder,
+        // documents the same root cause and already takes this route.
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(
+            Capsule()
+                .fill(enabled
+                      ? (isHovering ? DS.Palette.glassFillHi : DS.Palette.glassFill)
+                      : DS.Palette.glassFill.opacity(0.5))
+                .overlay(
+                    Capsule().stroke(
+                        enabled
+                            ? (isHovering ? DS.Palette.accentSettings.opacity(0.45) : DS.Palette.glassBorderHi)
+                            : DS.Palette.glassBorderLo,
+                        lineWidth: 0.8
+                    )
+                )
+        )
         .disabled(!enabled)
         .onHover { isHovering = $0 }
         .animation(.easeOut(duration: 0.12), value: isHovering)
