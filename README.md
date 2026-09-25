@@ -25,6 +25,7 @@
   <img src="https://img.shields.io/github/downloads/AThevon/TokenEater/total?color=F97316" alt="Downloads">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License">
   <img src="https://img.shields.io/github/v/release/AThevon/TokenEater?color=F97316" alt="Release">
+  <a href="https://github.com/sponsors/AThevon"><img src="https://img.shields.io/badge/Sponsor-EA4AAA?logo=githubsponsors&logoColor=white" alt="Sponsor on GitHub"></a>
 </p>
 
 ---
@@ -162,6 +163,10 @@ Anything deeper, including the full clean reset that wipes caches, preferences, 
 ## Contributing
 
 Contributions are welcome: bug reports, feature ideas, and code PRs all help. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md); it covers the workflow and a few SwiftUI rules worth knowing before touching the code.
+
+## Support
+
+TokenEater is free and open source. If it saves you from hitting your limits blindly, you can [sponsor its development on GitHub](https://github.com/sponsors/AThevon).
 
 ## License
 
