@@ -10,7 +10,7 @@ It complements the other docs and deliberately does not duplicate them:
 - [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) - common fixes and the canonical clean-reset script.
 - [`docs/design/MASTER.md`](docs/design/MASTER.md) and [`docs/design/COLORING.md`](docs/design/COLORING.md) - the window design system and the Smart Color risk model.
 
-Current version: 5.13.0 (`MARKETING_VERSION` in `project.yml`).
+Current version: 6.0.0 (`MARKETING_VERSION` in `project.yml`).
 
 ## Language
 
