@@ -1,6 +1,6 @@
 # AGENTS.md
 
-TokenEater is a native macOS menu bar app, plus WidgetKit widgets and a floating overlay, that tracks Claude AI usage limits in real time. This file is the guide for contributors and AI coding agents: how the repo is laid out, how data flows, the rules that are easy to break, and the commands that build, test, and ship it.
+TokenEater is a native macOS menu bar app, plus WidgetKit widgets and a floating overlay, that tracks Claude and OpenAI Codex usage limits in real time, as two equal providers. This file is the guide for contributors and AI coding agents: how the repo is laid out, how data flows, the rules that are easy to break, and the commands that build, test, and ship it.
 
 It complements the other docs and deliberately does not duplicate them:
 
@@ -73,10 +73,14 @@ The menu bar is **AppKit `NSStatusItem`** managed by `StatusBarController`, not 
 
 All Claude credential reading goes through `Shared/Services/TokenProvider.swift`. `currentToken()` returns an in-memory cached token; the disk/Keychain is re-read only when the cache is empty or after `invalidateToken()` (called on a 401). Source priority:
 
-1. `SecurityCLIReader` - shells out to `/usr/bin/security find-generic-password -s "Claude Code-credentials" -w`. Primary path; the stable Apple signing identity means macOS stops prompting for ACL access after the first "Always Allow".
+1. `SecurityCLIReader` - shells out to `/usr/bin/security find-generic-password -s "Claude Code-credentials" -w`. Primary path; the stable Apple signing identity means macOS stops prompting for ACL access after the first "Always Allow". Several Keychain items can share that service name, and one holding only MCP OAuth state can shadow the real login (#268), so the reader first lists the accounts under the service with an attributes-only `SecItemCopyMatching` (no data, so no ACL prompt), reads each one with `-a`, and keeps the one that carries a `claudeAiOauth` login, preferring the latest `expiresAt`. It returns a `KeychainRead`, never a bare optional: exit 44 (`notFound`), exit 45 (`accessDenied`), the 3s watchdog (`timedOut`) and a payload with no login (`unusablePayload`) are different failures, and collapsing them is what used to turn a refused read into a misleading "token expired" (#273).
 2. `CredentialsFileReader` - reads `~/.claude/.credentials.json`.
 3. `ClaudeConfigReader` + `ElectronDecryptionService` - reads and decrypts the token from Claude Desktop's `config.json` (Electron `safeStorage`, AES-128-CBC).
 4. A direct `SecItemCopyMatching` Keychain read as a last resort.
+
+Whatever answers, `TokenProvider` records it in `tokenDiagnostic` (`Shared/Models/TokenDiagnostics.swift`): the source used, why the Keychain did not answer, how many items share the service name, and the token's expiry. The unauthorized paths read it to say what actually happened (`authFailureHint`), and `DiagnosticReporter` puts it in the report. `resetConnection()` drops the cached token and the cached Claude Desktop decryption key and reads again from scratch, touching no preference; it backs the Reset connection action in Settings > Providers.
+
+TokenEater only reads credentials. It never writes to Claude Code's Keychain item and never refreshes a token, for either provider: an expired token is reported, and the user reopens Claude Code or Codex. This is a product decision (#268), not a missing feature, so do not add a refresh path without revisiting it.
 
 `refreshTokenIfChanged()` re-polls the sources on the auto-refresh tick to catch Keychain account swaps (`claude /login`, account switch) that emit no filesystem event. `bootstrap()` is the only method capable of an interactive Keychain read, and it currently has no call sites: onboarding connects through the silent `currentToken()`. It is kept as the deliberate escape hatch for a future interactive first connect. There is no `KeychainService` type; Keychain access lives in `SecurityCLIReader` and the inline reader closure in `TokenProvider`.
 
@@ -127,7 +131,7 @@ All are `@MainActor final class ...: ObservableObject`.
 | Codex usage and settings | `Stores/CodexUsageStore.swift`, `Services/CodexAPIClient.swift`, `Services/CodexAuthReader.swift`, `Services/CodexTokenProvider.swift`, `Helpers/CodexWindowResolver.swift`, `Windows/Monitoring/CodexFooterPills.swift`, `CodexHeroCard.swift` |
 | Codex widget | `TokenEaterWidget/CodexEntry.swift`, `CodexProvider.swift`, `CodexUsageWidgetView.swift`, `CodexUsageWidget.swift` |
 | Codex notifications | `Services/NotificationService.swift`, `Helpers/CodexResetDetector.swift`, `Settings/NotificationsSectionView.swift` |
-| Token / auth | `Services/TokenProvider.swift`, `SecurityCLIReader.swift`, `CredentialsFileReader.swift`, `ClaudeConfigReader.swift`, `ElectronDecryptionService.swift`, `TokenFileMonitor.swift` |
+| Token / auth | `Services/TokenProvider.swift`, `SecurityCLIReader.swift`, `CredentialsFileReader.swift`, `ClaudeConfigReader.swift`, `ElectronDecryptionService.swift`, `TokenFileMonitor.swift`, `Shared/Models/TokenDiagnostics.swift`, `Settings/ProvidersSectionView.swift` (Check and Reset connection) |
 | Widget | `TokenEaterWidget/TokenEaterWidget.swift` (`@main` `WidgetBundle`: TokenEaterWidget, PacingWidget, SessionRingWidget, PacingGraphWidget, HistorySparklineWidget, ExtraCreditsWidget, CodexUsageWidget), `Provider.swift`, `UsageEntry.swift`, `UsageWidgetView.swift`, `ExtraCreditsWidgetView.swift`, `WidgetV5Views.swift` (the SessionRing / PacingGraph / HistorySparkline / PacingGlance views), `CodexProvider.swift`, `CodexEntry.swift`, `CodexUsageWidgetView.swift`. Widget kinds are frozen: a kind string that ships can never change, or every widget a user has already placed goes blank. Adding a provider means adding widgets, never renaming existing ones. |
 
 ## Hard SwiftUI rules (do not break)
@@ -265,7 +269,7 @@ The app writes usage and pacing margin to `codex.json` next to `shared.json`. Th
 
 Classify windows by `limit_window_seconds`, never by primary/secondary position: a weekly-only plan uses the primary window for its week. Idle windows slide their reset time, so reset alerts must go through `CodexResetDetector`. The dedicated quota-reset alert is Codex-only; Claude keeps its recovery notification behavior.
 
-Keep widget `kind` strings stable. The six Claude widgets have provider-prefixed gallery names, while `CodexUsageWidget` is a separate small/medium widget. Codex menu bar segments, popover metrics, History, and Agent Watchers are deferred beyond 5.14.
+Keep widget `kind` strings stable. The six Claude widgets have provider-prefixed gallery names, while `CodexUsageWidget` is a separate small/medium widget. Since 6.0 Codex has menu bar segments, popover metrics, dashboard blocks, notifications and History like Claude; Agent Watchers stay Claude-only, since they read Claude Code's own processes and Codex has no equivalent. `ProviderCapability` is the one declaration of what each feature does on each provider: change it there, and the badges, the Coverage page and the what's-new matrix follow.
 
 ## Gotchas and known traps
 
