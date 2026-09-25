@@ -31,6 +31,40 @@ struct UsageStoreTests {
         return (store, repo, tokenProvider, notif, sharedFile)
     }
 
+    // MARK: - Connection reset (#268)
+
+    /// The ask behind the issue: rebind the account without losing anything
+    /// the user set up. So the reset drops the caches the app owns, and the
+    /// preferences are not its business.
+    @Test("resetting the connection drops the caches and re-reads the sources")
+    func resetConnectionRereadsSources() async {
+        let sut = makeSUT()
+        await sut.store.refresh()
+
+        let result = await sut.store.resetConnection()
+
+        #expect(result.success)
+        #expect(sut.tokenProvider.resetConnectionCallCount == 1)
+        #expect(sut.sharedFile.invalidateCacheCallCount >= 1)
+        #expect(sut.store.errorState == .none)
+    }
+
+    /// A machine stuck on "authorization needed" is exactly who presses this,
+    /// so the stuck state has to go before the retry, not after it succeeds.
+    @Test("resetting clears the error the app was stuck in")
+    func resetConnectionClearsStuckError() async {
+        let sut = makeSUT(shouldFail: true, failWith: .tokenExpired(endpoint: "/api/oauth/usage", statusCode: 401))
+        await sut.store.refresh()
+        #expect(sut.store.errorState == .tokenUnavailable)
+
+        sut.repo.stubbedError = nil
+        let result = await sut.store.resetConnection()
+
+        #expect(result.success)
+        #expect(sut.store.errorState == .none)
+        #expect(sut.store.authFailureHint == nil)
+    }
+
     private func fixtureToggles() -> NotificationToggles {
         NotificationToggles(
             masterEnabled: true,

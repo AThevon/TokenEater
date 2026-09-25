@@ -64,7 +64,9 @@ final class MockSharedFileService: SharedFileServiceProtocol, @unchecked Sendabl
         _lastWeekTotalsRefreshedAt = refreshedAt
     }
 
-    func invalidateCache() {}
+    var invalidateCacheCallCount = 0
+
+    func invalidateCache() { invalidateCacheCallCount += 1 }
 
     func clear() {
         _cachedUsage = nil

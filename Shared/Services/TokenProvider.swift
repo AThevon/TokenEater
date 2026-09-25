@@ -15,6 +15,13 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     /// Only cleared on 401 (token expired) via `invalidateToken()`.
     private var cachedToken: String?
 
+    /// What the last full read found. Kept alongside the cache so a 401 can be
+    /// explained by where the token came from rather than by assuming it
+    /// expired (#273).
+    private var diagnostic: TokenDiagnostic = .unknown
+
+    var tokenDiagnostic: TokenDiagnostic { diagnostic }
+
     /// Closure type for reading from the Keychain. `silent` = use kSecUseAuthenticationUISkip.
     typealias KeychainTokenReader = (_ silent: Bool) -> String?
 
@@ -66,16 +73,32 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     /// Reads the token from all sources in priority order, bypassing the
     /// in-memory cache. Returns the freshest token currently on the system.
     private func readFromSources() -> String? {
-        if let token = securityCLIReader.readToken() {
+        let keychain = securityCLIReader.read()
+        let items = keychain.matchingItems
+
+        if let token = keychain.token {
             logger.info("Token read via /usr/bin/security")
+            diagnostic = TokenDiagnostic(
+                source: .keychainCLI,
+                keychainFailure: nil,
+                matchingKeychainItems: items,
+                tokenExpiresAt: keychain.expiresAt
+            )
             return token
         }
+        // The failure is carried through the fall-through rather than logged
+        // and dropped, so the caller can tell a machine that keeps its
+        // credentials in a file from one whose live token we were refused.
+        let keychainFailure = keychain.failure
+        logger.info("security read failed: \(keychainFailure?.rawValue ?? "unknown", privacy: .public)")
 
         if let token = credentialsFileReader.readToken() {
+            diagnostic = TokenDiagnostic(source: .credentialsFile, keychainFailure: keychainFailure, matchingKeychainItems: items)
             return token
         }
 
         if let token = tokenFromConfigJSON() {
+            diagnostic = TokenDiagnostic(source: .claudeDesktop, keychainFailure: keychainFailure, matchingKeychainItems: items)
             return token
         }
 
@@ -84,9 +107,11 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
         // earlier (or non-silently) would trip the "wants to access" ACL prompt.
         if let token = keychainReader(true) {
             logger.info("Token read from Keychain (silent)")
+            diagnostic = TokenDiagnostic(source: .keychainDirect, keychainFailure: keychainFailure, matchingKeychainItems: items)
             return token
         }
 
+        diagnostic = TokenDiagnostic(source: nil, keychainFailure: keychainFailure, matchingKeychainItems: items)
         return nil
     }
 
@@ -134,6 +159,22 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     func invalidateToken() {
         cachedToken = nil
         logger.info("Token cache invalidated - next read will check Keychain")
+    }
+
+    /// Forgets everything the app learned about the connection and reads it
+    /// again from scratch: the in-memory token and the cached Claude Desktop
+    /// decryption key, which survives a relaunch and can outlive the account
+    /// it was derived for.
+    ///
+    /// It touches nothing the user configured, which is the whole point of
+    /// the request behind it: people were reinstalling the app, and losing
+    /// every setting, to get back a connection (#268).
+    func resetConnection() -> String? {
+        cachedToken = nil
+        diagnostic = .unknown
+        decryptionService.clearCachedKey()
+        logger.info("Connection reset: caches dropped, re-reading sources")
+        return currentToken()
     }
 
     func bootstrap() throws {

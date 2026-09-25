@@ -43,6 +43,61 @@ struct TokenProviderTests {
         return (provider, securityCLI, credentials, configReader, decryption)
     }
 
+    // MARK: - Source diagnostic (#273)
+
+    /// The case the bug report is made of: the live token sits in the Keychain
+    /// and macOS refuses it, so the app runs on whatever the file still holds,
+    /// which the API rejects. "Relaunch Claude Code" is the one piece of advice
+    /// that cannot help there, so the diagnostic has to say what happened.
+    @Test("a refused Keychain read plus a file token is flagged as a stale fallback")
+    func refusedKeychainFallsBackAndSaysSo() {
+        let (provider, securityCLI, _, _, _) = makeSUT(credentialsToken: "file-token")
+        securityCLI.failure = .accessDenied
+
+        #expect(provider.currentToken() == "file-token")
+        #expect(provider.tokenDiagnostic.source == .credentialsFile)
+        #expect(provider.tokenDiagnostic.keychainFailure == .accessDenied)
+        #expect(provider.tokenDiagnostic.isStaleFallback)
+        #expect(provider.tokenDiagnostic.authFailureHint != nil)
+    }
+
+    /// A machine that keeps its credentials in a file is not broken: the
+    /// Keychain has nothing to give and the file is the real source, so no
+    /// warning and the ordinary expired-token message stands.
+    @Test("no Keychain item at all is not a stale fallback")
+    func missingKeychainItemIsNormal() {
+        let (provider, securityCLI, _, _, _) = makeSUT(credentialsToken: "file-token")
+        securityCLI.failure = .notFound
+
+        #expect(provider.currentToken() == "file-token")
+        #expect(provider.tokenDiagnostic.keychainFailure == .notFound)
+        #expect(provider.tokenDiagnostic.isStaleFallback == false)
+        #expect(provider.tokenDiagnostic.authFailureHint == nil)
+    }
+
+    @Test("a token read from the Keychain reports the Keychain as its source")
+    func keychainSourceIsReported() {
+        let (provider, _, _, _, _) = makeSUT(securityCLIToken: "keychain-token", credentialsToken: "file-token")
+
+        #expect(provider.currentToken() == "keychain-token")
+        #expect(provider.tokenDiagnostic.source == .keychainCLI)
+        #expect(provider.tokenDiagnostic.keychainFailure == nil)
+        #expect(provider.tokenDiagnostic.isStaleFallback == false)
+    }
+
+    /// Nothing anywhere, and the Keychain timed out rather than being empty:
+    /// the hint still has something to say, because the user has an action.
+    @Test("a timed-out Keychain read with no token anywhere still explains itself")
+    func timedOutWithNoTokenExplainsItself() {
+        let (provider, securityCLI, _, _, _) = makeSUT()
+        securityCLI.failure = .timedOut
+
+        #expect(provider.currentToken() == nil)
+        #expect(provider.tokenDiagnostic.source == nil)
+        #expect(provider.tokenDiagnostic.keychainFailure == .timedOut)
+        #expect(provider.tokenDiagnostic.authFailureHint != nil)
+    }
+
     // MARK: - Tests
 
     @Test("security CLI is the primary source")

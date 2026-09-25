@@ -160,6 +160,11 @@
 "error.unsupportedplan" = "Usage data not available - Claude Pro or Team plan required";
 "error.banner.keychain" = "Keychain locked";
 "error.banner.keychain.hint" = "Will retry automatically - or open Settings to re-authorize";
+"error.keychain.shadowed" = "Several Keychain items are named Claude Code-credentials and none of them holds a Claude Code login, so TokenEater has no live token to read. Sign in to Claude Code again, or delete the extra item.";
+"error.keychain.denied.fallback" = "macOS refused access to Claude Code's Keychain item, so TokenEater used the older token in ~/.claude/.credentials.json. Allow access when macOS asks, then try again.";
+"error.keychain.denied.notoken" = "macOS refused access to Claude Code's Keychain item, and there is no other token on this Mac. Allow access when macOS asks, then try again.";
+"error.keychain.timeout.fallback" = "Reading the Keychain timed out, so TokenEater used the older token in ~/.claude/.credentials.json. Try again, and restart TokenEater if it keeps timing out.";
+"error.keychain.timeout.notoken" = "Reading the Keychain timed out and there is no other token on this Mac. Try again, and restart TokenEater if it keeps timing out.";
 "error.banner.reauth" = "Authorization needed";
 "error.banner.reauth.hint" = "Token expired and automatic recovery failed";
 "error.banner.reauth.button" = "Re-authorize";
@@ -1046,6 +1051,9 @@
 "menuBarTemplate.duo" = "Both sessions";
 "menuBarTemplate.duoPills" = "Both, pills";
 "settings.providers.off" = "Not monitored";
+"settings.providers.reset" = "Reset connection";
+"settings.providers.reset.hint" = "Forgets the cached credentials and reads them again. Your settings, layouts and themes are untouched.";
+"settings.providers.reset.done" = "Connection reset, reconnected";
 "settings.providers.check" = "Check connection";
 "dashboard.block.hero" = "Hero gauge";
 "dashboard.block.windows" = "Window tiles";

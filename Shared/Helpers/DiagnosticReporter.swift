@@ -73,6 +73,17 @@ enum DiagnosticReporter {
         let plan = String(describing: usageStore.planType)
         let tier = usageStore.rateLimitTier ?? "-"
         let tokenPresent = usageStore.hasConfig ? "yes" : "no"
+        // Which source answered, and why the Keychain did not when it did not.
+        // Without it an unauthorized report cannot be told apart from a
+        // machine whose live token we were simply refused (#273).
+        let diagnostic = usageStore.tokenDiagnostic
+        let tokenSource = diagnostic.source?.reportLabel ?? "none"
+        let keychainRead = diagnostic.keychainFailure?.reportLabel ?? "ok"
+        let keychainExpiry: String = {
+            guard let expiry = diagnostic.tokenExpiresAt else { return "-" }
+            let stamp = formatDate(expiry, relative: true) ?? "-"
+            return expiry < Date() ? "\(stamp) (expired)" : stamp
+        }()
         let proxyConfigured: String
         if let proxy = usageStore.proxyConfig, proxy.isValidForUse {
             proxyConfigured = "yes"
@@ -90,6 +101,10 @@ enum DiagnosticReporter {
         - Plan: \(plan)
         - Rate limit tier: \(tier)
         - Token present: \(tokenPresent)
+        - Token source: \(tokenSource)
+        - Keychain read: \(keychainRead)
+        - Keychain items named "Claude Code-credentials": \(diagnostic.matchingKeychainItems)
+        - Keychain token expiry: \(keychainExpiry)
         - Proxy configured: \(proxyConfigured)
         """
     }

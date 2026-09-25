@@ -23,6 +23,14 @@ final class UsageStore: ObservableObject {
     @Published var isLoading = false
     @Published var errorState: AppErrorState = .none
     @Published var hasConfig = false
+
+    /// Set when an unauthorized response is explained by something other than
+    /// an expired token, so the surfaces can say what actually happened
+    /// instead of sending the user to relaunch Claude Code for nothing (#273).
+    @Published private(set) var authFailureHint: String?
+
+    /// Where the token in use came from, for the diagnostic report.
+    var tokenDiagnostic: TokenDiagnostic { tokenProvider.tokenDiagnostic }
     @Published var opusPct: Int = 0
     @Published var coworkPct: Int = 0
     @Published var fablePct: Int = 0
@@ -213,6 +221,9 @@ final class UsageStore: ObservableObject {
                     }
                 }
                 errorState = .tokenUnavailable
+                // The retry above already re-read the sources, so the
+                // diagnostic describes the token that just failed.
+                authFailureHint = tokenProvider.tokenDiagnostic.authFailureHint
                 if let toggles = notifTogglesProvider?() {
                     notificationService.notifyTokenExpired(toggles: toggles)
                 }
@@ -354,16 +365,52 @@ final class UsageStore: ObservableObject {
         }
     }
 
+    /// Unbinds and rebinds the Claude connection without touching a single
+    /// preference: drops the cached token and the cached decryption key,
+    /// forgets the error state the app was stuck in, re-reads every source and
+    /// tests it. Asked for by people who were reinstalling the whole app, and
+    /// losing their layouts and themes with it, to recover a connection that a
+    /// stale cache had broken (#268).
+    func resetConnection(thresholds: UsageThresholds = .default) async -> ConnectionTestResult {
+        errorState = .none
+        authFailureHint = nil
+        lastAPIError = nil
+        hasConfig = false
+        retryAfterDate = nil
+        consecutiveRateLimits = 0
+        currentSpeed = .fast
+        sharedFileService.invalidateCache()
+        _ = tokenProvider.resetConnection()
+
+        let result = await connectAutoDetect()
+        if result.success {
+            await refresh(thresholds: thresholds, force: true)
+        }
+        return result
+    }
+
     func connectAutoDetect() async -> ConnectionTestResult {
         guard let token = tokenProvider.currentToken() else {
-            return ConnectionTestResult(success: false, message: String(localized: "error.notoken"))
+            return ConnectionTestResult(
+                success: false,
+                message: tokenProvider.tokenDiagnostic.authFailureHint
+                    ?? String(localized: "error.notoken")
+            )
         }
         do {
             _ = try await repository.testConnection(token: token, proxyConfig: proxyConfig)
             hasConfig = true
+            authFailureHint = nil
             return ConnectionTestResult(success: true, message: "OK")
         } catch {
-            return ConnectionTestResult(success: false, message: error.localizedDescription)
+            // "Your token expired, relaunch Claude Code" is only the truth when
+            // the token we sent is the one Claude Code refreshes. When the
+            // Keychain refused us and this came from a file, that advice sends
+            // the user somewhere nothing will change (#273).
+            return ConnectionTestResult(
+                success: false,
+                message: tokenProvider.tokenDiagnostic.authFailureHint ?? error.localizedDescription
+            )
         }
     }
 
@@ -393,6 +440,7 @@ final class UsageStore: ObservableObject {
         appendSessionSample(from: usage)
         errorState = .none
         lastAPIError = nil
+        authFailureHint = nil
         lastUpdate = Date()
         if currentSpeed == .slow {
             currentSpeed = .normal
