@@ -47,11 +47,11 @@ Then wire them here as a centered row:
 
 ## What you get
 
-A native menu bar app, desktop widgets, and a floating overlay that track your Claude usage in real time, with optional Codex tracking on the dashboard and desktop.
+A native menu bar app, desktop widgets, and a floating overlay that track your Claude and OpenAI Codex usage in real time, side by side or one at a time.
 
 - **Menu bar.** Live percentages with color-coded thresholds, and a popover dashboard you compose element by element (rings, chips, arcs, pacing bars at full, half, or third width), start from built-in templates, and save as your own.
-- **Dashboard.** A three-space window (Monitoring / History / Settings) with flippable tiles, 7-day sparklines, peak day, and a pacing-vs-equilibrium graph.
-- **Codex.** Detects a Codex CLI ChatGPT login and tracks its usage windows, pacing, reset reminders, and quota-reset alerts. A separate small or medium Codex Usage widget sits alongside the Claude widgets. API-key accounts have no usage windows to track.
+- **Dashboard.** A four-space window (Monitoring / History / Studio / Settings) with flippable tiles, 7-day sparklines, peak day, and a pacing-vs-equilibrium graph. Its blocks reorder and hide from Studio, like the popover and the menu bar.
+- **Two providers, one app.** Claude and OpenAI Codex are equals: the menu bar, the popover, the dashboard, widgets, notifications and History cover both. An All / Claude / OpenAI mode scopes every surface at once, All puts the two side by side, and each mode keeps its own layouts. Track only one and you never see a trace of the other.
 - **History.** Combined Claude Code and Codex tokens from local session logs: a stacked chart by model, project ranking, session counts, and cache hit rate, filterable by Claude family or Codex model across 24h to 90d ranges. The History widget shows the combined daily totals.
 - **Widgets.** Native WidgetKit gauges, progress bars, and pacing, refreshed reactively.
 - **Agent Watchers.** A floating overlay of your live Claude Code sessions, terminals and VSCode-family extensions alike. Click a session to jump to its terminal or editor (Terminal, iTerm2, tmux, Kitty, WezTerm), right-click for quick actions.
@@ -127,7 +127,7 @@ When Codex tracking is enabled, the app also reads the Codex CLI access token fr
 
 - `GET chatgpt.com/backend-api/wham/usage`, your Codex usage windows and credits
 
-These usage and profile calls are read-only. TokenEater does not send messages, read conversations, or modify either account. Each access token is sent only to its own provider. TokenEater never writes to Codex credentials or refreshes its OAuth token; open Codex or run `codex login` if it expires. API-key and keyring-only Codex logins are not supported in this version.
+These usage and profile calls are read-only. TokenEater does not send messages, read conversations, or modify either account. Each access token is sent only to its own provider. TokenEater never writes to either provider's credentials and never refreshes their tokens: if one expires, open Claude Code or Codex (or run `codex login`) and it picks the new one up. API-key and keyring-only Codex logins are not supported in this version.
 
 Widgets read local JSON files with no network or Keychain access. The Codex widget reads `codex.json` for usage and `shared.json` for theme preferences; its cache contains no token, email, or account ID. History reads Claude Code and Codex local session logs without uploading them; Agent Watchers reads Claude Code sessions.
 
@@ -135,7 +135,7 @@ Anthropic does not offer a third-party OAuth flow or scoped tokens yet, so readi
 
 ## Codex setup and widgets
 
-Sign in to the Codex CLI with your ChatGPT account. TokenEater enables Codex tracking automatically on the first launch that detects that login. If you sign in later, enable **Codex** under **Settings > General > Providers**. This version adds Codex to Monitoring, widgets, and combined History; menu bar segments, the popover, and Agent Watchers remain Claude features. The existing Claude onboarding requirements still apply.
+Sign in to the Codex CLI with your ChatGPT account. TokenEater enables Codex tracking automatically on the first launch that detects that login. If you sign in later, turn it on under **Settings > Providers**, where each provider has its own tracking switch and the coverage matrix shows what each feature does on each one. Agent Watchers stay a Claude Code feature: they read Claude Code's own session processes, which Codex has no equivalent of. The onboarding wizard sets up either provider or both, and you can finish it with OpenAI alone.
 
 History includes local sessions from both providers, independently of quota authentication. It reads Codex `sessions/` and `archived_sessions/` under `CODEX_HOME` (default `~/.codex`). `All` sums uncached input, cache writes, and output tokens for both providers. Only cache reads count as reused tokens in the cache breakdown. Guardian / auto-review sessions are excluded from all History statistics and the History widget. Reasoning tokens are already included in Codex output. Models are discovered from the logs and have individual filters. The History widget receives seven calendar-day totals from the app, refreshed every minute while TokenEater runs; it does not read session files itself.
 
@@ -147,6 +147,7 @@ In **Edit Widgets > TokenEater**, choose **Codex Usage** (small or medium) along
 |---------|-------|-----|
 | "Rate limited" or "API unavailable" | Your OAuth token has hit its per-token request limit | Run `claude /login` for a fresh token; TokenEater detects the change and recovers within seconds |
 | Keychain popup on first run | A new install needs authorization to read your Claude Code token | Click **Always Allow** once; it sticks across updates |
+| "Authorization needed" that will not go away | A cached credential went stale, or a second Keychain item shadows your login | **Settings > Providers > Reset connection**: it rereads everything from scratch and keeps all your settings. **Copy diagnostic** says which case you are in |
 | Widget stuck or not updating | macOS caches widget extensions aggressively | Remove the widget, run the clean reset, re-add the widget |
 
 Anything deeper, including the full clean reset that wipes caches, preferences, and widget state, lives in the [troubleshooting guide](docs/TROUBLESHOOTING.md).
