@@ -22,14 +22,16 @@
   <img src="https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white" alt="Swift 5.9">
   <img src="https://img.shields.io/badge/WidgetKit-native-007AFF?logo=apple&logoColor=white" alt="WidgetKit">
   <img src="https://img.shields.io/badge/Claude-Pro%20%2F%20Max%20%2F%20Team-D97706" alt="Claude Pro / Max / Team">
+  <img src="https://img.shields.io/badge/Codex-ChatGPT%20sign--in-10A37F" alt="OpenAI Codex with ChatGPT sign-in">
   <img src="https://img.shields.io/github/downloads/AThevon/TokenEater/total?color=F97316" alt="Downloads">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License">
   <img src="https://img.shields.io/github/v/release/AThevon/TokenEater?color=F97316" alt="Release">
+  <a href="https://github.com/sponsors/AThevon"><img src="https://img.shields.io/badge/Sponsor-EA4AAA?logo=githubsponsors&logoColor=white" alt="Sponsor on GitHub"></a>
 </p>
 
 ---
 
-> **Requires a Claude Pro, Max, or Team plan.** The free plan does not expose usage data.
+> **Requires a Claude Pro, Max, or Team plan, or the Codex CLI signed in with ChatGPT.** Either one is enough. Claude's free plan does not expose usage data, and Codex API-key accounts have no usage windows to track.
 
 <!--
 Screenshots slot. Four shots, ~200px wide each, dropped into docs/assets/readme/:
@@ -52,12 +54,12 @@ A native menu bar app, desktop widgets, and a floating overlay that track your C
 - **Dashboard.** A four-space window (Monitoring / History / Studio / Settings) with flippable tiles, 7-day sparklines, peak day, and a pacing-vs-equilibrium graph. Its blocks reorder and hide from Studio, like the popover and the menu bar.
 - **Two providers, one app.** Claude and OpenAI Codex are equals: the menu bar, the popover, the dashboard, widgets, notifications and History cover both. An All / Claude / OpenAI mode scopes every surface at once, All puts the two side by side, and each mode keeps its own layouts. Track only one and you never see a trace of the other.
 - **History.** Combined Claude Code and Codex tokens from local session logs: a stacked chart by model, project ranking, session counts, and cache hit rate, filterable by Claude family or Codex model across 24h to 90d ranges. The History widget shows the combined daily totals.
-- **Widgets.** Native WidgetKit gauges, progress bars, and pacing, refreshed reactively.
+- **Widgets.** Native WidgetKit gauges, progress bars, and pacing, refreshed reactively, with a Codex Usage widget alongside the Claude ones.
 - **Agent Watchers.** A floating overlay of your live Claude Code sessions, terminals and VSCode-family extensions alike. Click a session to jump to its terminal or editor (Terminal, iTerm2, tmux, Kitty, WezTerm), right-click for quick actions.
 - **Smart Color.** Blends how much you have used with how fast you are burning, so the color warns you before the number does. Three temperaments set how cautious it is.
 - **Smart pacing.** Are you burning through tokens or cruising? Four zones: chill, on track, warning, hot.
 - **Themes.** Four presets plus full custom colors, a glow or flat look, and configurable warning thresholds.
-- **Notifications.** Per-surface and per-event toggles: escalation, recovery, pacing, scheduled reset reminders, extra credits, token expiry.
+- **Notifications.** Per-event toggles for each provider: escalation, recovery, pacing, scheduled reset reminders, extra credits, token expiry. Every alert names the provider it is about.
 
 Everything in detail on the [website](https://tokeneater.athevon.dev).
 
@@ -81,9 +83,9 @@ brew install --cask tokeneater
 
 ### First setup
 
-**Prerequisites:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated (`claude` then `/login`), on a **Pro, Max, or Team plan**.
+**Prerequisites:** at least one of [Claude Code](https://docs.anthropic.com/en/docs/claude-code) signed in on a **Pro, Max, or Team plan** (`claude` then `/login`), or the [Codex CLI](https://github.com/openai/codex) signed in with your **ChatGPT account** (`codex login`).
 
-1. Open TokenEater: a guided setup walks you through connecting your account
+1. Open TokenEater: a guided setup detects the providers on your Mac and walks you through connecting the ones you use
 2. Right-click on the desktop > **Edit Widgets** > search "TokenEater"
 
 ## Update
@@ -162,6 +164,10 @@ Anything deeper, including the full clean reset that wipes caches, preferences, 
 ## Contributing
 
 Contributions are welcome: bug reports, feature ideas, and code PRs all help. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md); it covers the workflow and a few SwiftUI rules worth knowing before touching the code.
+
+## Support
+
+TokenEater is free and open source. If it saves you from hitting your limits blindly, you can [sponsor its development on GitHub](https://github.com/sponsors/AThevon).
 
 ## License
 
