@@ -157,7 +157,7 @@
 "error.network.generic" = "Network error - couldn't reach the usage API. Check your connection.";
 "error.invalidresponse.short" = "Invalid response";
 "error.keychainlocked" = "Keychain locked - will retry automatically";
-"error.unsupportedplan" = "Usage data not available - Claude Pro or Team plan required";
+"error.unsupportedplan" = "Usage data not available: a Claude Pro, Max or Team plan is required";
 "error.banner.keychain" = "Keychain locked";
 "error.banner.keychain.hint" = "Will retry automatically - or open Settings to re-authorize";
 "error.keychain.shadowed" = "Several Keychain items are named Claude Code-credentials and none of them holds a Claude Code login, so TokenEater has no live token to read. Sign in to Claude Code again, or delete the extra item.";
@@ -758,7 +758,7 @@
 "popover.editor.preview.hint" = "Click an element to select it in the list";
 "popover.cell.resetLabel" = "%@ reset";
 "popover.empty" = "Nothing to show right now";
-"popover.empty.hint" = "Add elements in Settings > Popover";
+"popover.empty.hint" = "Add elements in Studio > Popover";
 
 "popoverElement.session" = "Session (5h)";
 "popoverElement.weekly" = "Weekly";

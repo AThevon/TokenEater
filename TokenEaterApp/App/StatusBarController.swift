@@ -252,8 +252,13 @@ final class StatusBarController: NSObject {
             }
             .store(in: &cancellables)
 
-        settingsStore.$outageMonitoringEnabled
+        // Outage detection is a Claude-only capability, so the status page is
+        // polled only while Claude is tracked. Polling it for someone who
+        // switched Claude off contradicted the promise that a provider you
+        // switch off is never contacted, and fed a pill nobody could act on.
+        Publishers.CombineLatest(settingsStore.$outageMonitoringEnabled, settingsStore.$claudeEnabled)
             .dropFirst()
+            .map { $0 && $1 }
             .removeDuplicates()
             .sink { [weak self] enabled in
                 guard let self else { return }
@@ -324,7 +329,7 @@ final class StatusBarController: NSObject {
             }
         }
 
-        if settingsStore.outageMonitoringEnabled {
+        if settingsStore.outageMonitoringEnabled && settingsStore.claudeEnabled {
             vendorStatusStore.start()
         }
     }
