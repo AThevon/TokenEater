@@ -157,7 +157,7 @@
 "error.network.generic" = "Erreur réseau - impossible de joindre l'API usage. Vérifiez votre connexion.";
 "error.invalidresponse.short" = "Réponse invalide";
 "error.keychainlocked" = "Keychain verrouillé - nouvelle tentative automatique";
-"error.unsupportedplan" = "Données d'utilisation indisponibles - un plan Claude Pro ou Team est requis";
+"error.unsupportedplan" = "Données d'utilisation indisponibles : un plan Claude Pro, Max ou Team est requis";
 "error.banner.keychain" = "Keychain verrouillé";
 "error.banner.keychain.hint" = "Nouvelle tentative automatique - ou ouvrez les Réglages pour ré-autoriser";
 "error.keychain.shadowed" = "Plusieurs éléments du trousseau s'appellent Claude Code-credentials et aucun ne contient de connexion Claude Code, TokenEater n'a donc aucun token vivant à lire. Reconnectez-vous à Claude Code, ou supprimez l'élément en trop.";
@@ -758,7 +758,7 @@
 "popover.editor.preview.hint" = "Cliquez sur un élément pour le sélectionner dans la liste";
 "popover.cell.resetLabel" = "Reset %@";
 "popover.empty" = "Rien à afficher pour le moment";
-"popover.empty.hint" = "Ajoutez des éléments dans Réglages > Popover";
+"popover.empty.hint" = "Ajoutez des éléments dans Studio > Popover";
 
 "popoverElement.session" = "Session (5h)";
 "popoverElement.weekly" = "Hebdomadaire";

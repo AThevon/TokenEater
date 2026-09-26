@@ -123,9 +123,12 @@ struct ProviderModeSwitcher: View {
         .accessibilityAddTraits(isActive ? [.isSelected] : [])
     }
 
+    /// Named after the pill it sits on. The provider's display name reads
+    /// "OpenAI" while the pill reads "Codex", and a tooltip that disagrees with
+    /// its own control is exactly the confusion it is there to clear up.
     private func helpText(for mode: ProviderMode) -> String {
-        guard let provider = mode.provider else { return String(localized: "mode.help.all") }
-        return String(format: String(localized: "mode.help.one"), provider.displayName)
+        guard mode.provider != nil else { return String(localized: "mode.help.all") }
+        return String(format: String(localized: "mode.help.one"), mode.localizedLabel)
     }
 
     /// Names the cost of the current mode where the choice was made.
