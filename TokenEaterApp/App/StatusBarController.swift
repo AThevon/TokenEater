@@ -25,6 +25,7 @@ final class StatusBarController: NSObject {
     private let updateStore: UpdateStore
     private let sessionStore: SessionStore
     private let vendorStatusStore: VendorStatusStore
+    private let extraAccountsStore: ExtraAccountsStore
     private let tokenFileMonitor: TokenFileMonitorProtocol
 
     init(
@@ -35,6 +36,7 @@ final class StatusBarController: NSObject {
         updateStore: UpdateStore,
         sessionStore: SessionStore,
         vendorStatusStore: VendorStatusStore,
+        extraAccountsStore: ExtraAccountsStore,
         tokenFileMonitor: TokenFileMonitorProtocol = TokenFileMonitor()
     ) {
         self.codexStore = codexStore
@@ -44,6 +46,7 @@ final class StatusBarController: NSObject {
         self.updateStore = updateStore
         self.sessionStore = sessionStore
         self.vendorStatusStore = vendorStatusStore
+        self.extraAccountsStore = extraAccountsStore
         self.tokenFileMonitor = tokenFileMonitor
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         // Track the item under a stable, app-specific identity rather than the
@@ -134,6 +137,7 @@ final class StatusBarController: NSObject {
             .environmentObject(settingsStore)
             .environmentObject(updateStore)
             .environmentObject(vendorStatusStore)
+            .environmentObject(extraAccountsStore)
         popover.contentViewController = NSHostingController(rootView: popoverView)
     }
 
@@ -142,7 +146,8 @@ final class StatusBarController: NSObject {
             usageStore.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             themeStore.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             settingsStore.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
-            vendorStatusStore.objectWillChange.map { _ in () }.eraseToAnyPublisher()
+            vendorStatusStore.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            extraAccountsStore.objectWillChange.map { _ in () }.eraseToAnyPublisher()
         )
         .debounce(for: .milliseconds(100), scheduler: RunLoop.main)
         .sink { [weak self] _ in
@@ -295,6 +300,31 @@ final class StatusBarController: NSObject {
         }
         themeStore.syncToSharedFile()
 
+        extraAccountsStore.proxyConfig = settingsStore.proxyConfig
+        extraAccountsStore.configureWorkStore = { [weak self] store in
+            guard let self else { return }
+            // Same settings as the main account, minus notifications: with no
+            // toggles provider the store never notifies, so the work account
+            // cannot send alerts that read as if they were the main one's.
+            store.proxyConfig = self.settingsStore.proxyConfig
+            store.pacingMargin = self.settingsStore.pacingMargin
+            store.pacingSchedule = self.settingsStore.pacingSchedule
+            store.refreshIntervalSeconds = TimeInterval(self.settingsStore.refreshInterval)
+            store.reloadConfig(thresholds: self.themeStore.thresholds)
+            store.startAutoRefresh(thresholds: self.themeStore.thresholds)
+        }
+        extraAccountsStore.$accounts.combineLatest(extraAccountsStore.$workUsageStore)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] accounts, work in
+                guard let self else { return }
+                let label = work == nil ? nil : accounts.first(where: \.enabled)?.label
+                if self.settingsStore.workAccountLabel != label {
+                    self.settingsStore.workAccountLabel = label
+                }
+            }
+            .store(in: &cancellables)
+        extraAccountsStore.start(interval: TimeInterval(settingsStore.refreshInterval))
+
         // Monitor token files (credentials + config.json) for changes
         tokenFileMonitor.startMonitoring()
         tokenFileMonitor.tokenChanged
@@ -424,7 +454,8 @@ final class StatusBarController: NSObject {
             return
         }
         let image = MenuBarRenderer.render(
-            .live(usage: usageStore, theme: themeStore, settings: settingsStore, vendor: vendorStatusStore, codex: codexStore)
+            .live(usage: usageStore, theme: themeStore, settings: settingsStore, vendor: vendorStatusStore, codex: codexStore,
+                  work: extraAccountsStore.workUsageStore)
         )
         statusItem.button?.image = image
     }
@@ -761,6 +792,7 @@ final class StatusBarController: NSObject {
             .environmentObject(updateStore)
             .environmentObject(sessionStore)
             .environmentObject(vendorStatusStore)
+            .environmentObject(extraAccountsStore)
 
         let isOnboarding = !settingsStore.hasCompletedOnboarding
         let onboardingSize = NSSize(

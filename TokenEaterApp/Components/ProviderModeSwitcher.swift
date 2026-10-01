@@ -87,6 +87,12 @@ struct ProviderModeSwitcher: View {
             HStack(spacing: 4) {
                 if let provider = mode.provider {
                     ProviderGlyph(provider: provider, size: size.font + 2)
+                    // Same mark as Claude, so the second account carries its
+                    // short label to tell the two apart.
+                    if mode == .claudeWork, !size.showsLabel, let label = settingsStore.workAccountLabel {
+                        Text(label.uppercased())
+                            .font(.system(size: size.font - 2, weight: .heavy))
+                    }
                 } else if !size.showsLabel {
                     // "All" has no mark of its own, so in the wordless variant
                     // it becomes the one thing that is not a provider mark:
@@ -96,7 +102,7 @@ struct ProviderModeSwitcher: View {
                         .frame(width: size.font - 1, height: size.font - 1)
                 }
                 if size.showsLabel {
-                    Text(mode.localizedLabel)
+                    Text(mode == .claudeWork ? settingsStore.workAccountLabel.map { "Claude \($0)" } ?? mode.localizedLabel : mode.localizedLabel)
                 }
             }
             .font(.system(size: size.font, weight: isActive ? .semibold : .medium))

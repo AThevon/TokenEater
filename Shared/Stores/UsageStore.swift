@@ -130,21 +130,23 @@ final class UsageStore: ObservableObject {
         repository: UsageRepositoryProtocol = UsageRepository(),
         tokenProvider: TokenProviderProtocol = TokenProvider(),
         sharedFileService: SharedFileServiceProtocol = SharedFileService(),
-        notificationService: NotificationServiceProtocol = NotificationService()
+        notificationService: NotificationServiceProtocol = NotificationService(),
+        sessionSamplesKey: String = "sessionPacingSamples"
     ) {
+        self.sessionSamplesKey = sessionSamplesKey
         self.repository = repository
         self.tokenProvider = tokenProvider
         self.sharedFileService = sharedFileService
         self.notificationService = notificationService
-        self.sessionSamples = Self.loadSessionSamples()
+        self.sessionSamples = Self.loadSessionSamples(key: sessionSamplesKey)
     }
 
     // MARK: - Session pacing samples (#240)
 
-    private static let sessionSamplesKey = "sessionPacingSamples"
+    private let sessionSamplesKey: String
 
-    private static func loadSessionSamples() -> [PacingSample] {
-        guard let data = UserDefaults.standard.data(forKey: sessionSamplesKey),
+    private static func loadSessionSamples(key: String) -> [PacingSample] {
+        guard let data = UserDefaults.standard.data(forKey: key),
               let decoded = try? JSONDecoder().decode([PacingSample].self, from: data) else {
             return []
         }
@@ -164,7 +166,7 @@ final class UsageStore: ObservableObject {
             now: Date()
         )
         if let data = try? JSONEncoder().encode(sessionSamples) {
-            UserDefaults.standard.set(data, forKey: Self.sessionSamplesKey)
+            UserDefaults.standard.set(data, forKey: sessionSamplesKey)
         }
     }
 

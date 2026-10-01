@@ -63,6 +63,14 @@ enum MenuBarRenderer {
         /// mode. A segment whose provider is absent from this set draws
         /// nothing and the bar recompacts.
         let visibleProviders: Set<MetricProvider>
+        /// The second Claude account, in the same windowed shape as Codex
+        /// (the struct is provider-neutral despite its name). nil when there
+        /// is no such account or it has no data yet.
+        var workSession: CodexSegmentData? = nil
+        var workWeekly: CodexSegmentData? = nil
+        /// Its short label ("C2"), drawn in front of its values so the two
+        /// Claude accounts can be told apart in the bar.
+        var workLabel: String = ""
     }
 
     /// One Codex window, in the shape the renderer needs.
@@ -383,6 +391,8 @@ enum MenuBarRenderer {
         case .fablePacing: return data.hasFable
         case .codexSession, .codexSessionPacing: return data.codexSession != nil
         case .codexWeekly, .codexWeeklyPacing: return data.codexWeekly != nil
+        case .workSession, .workSessionPacing: return data.workSession != nil
+        case .workWeekly, .workWeeklyPacing: return data.workWeekly != nil
         default: return true // weeklyPacing + non-gated kinds: present with config
         }
     }
@@ -437,7 +447,7 @@ enum MenuBarRenderer {
             ]))
             return .run(s)
         case .pill:
-            return .pill(text: "\(value)%", tint: color)
+            return .pill(text: workPrefix(kind, data) + "\(value)%", tint: color)
         default:
             return .run(NSAttributedString(string: "\(value)%", attributes: [
                 .font: systemFont(12, .bold, monoDigits: true), .foregroundColor: color,
@@ -462,6 +472,14 @@ enum MenuBarRenderer {
             hasData = data.codexWeekly?.hasPacing ?? false
             zone = data.codexWeekly?.pacingZone ?? .onTrack
             delta = data.codexWeekly?.pacingDelta ?? 0
+        case .workSessionPacing:
+            hasData = data.workSession?.hasPacing ?? false
+            zone = data.workSession?.pacingZone ?? .onTrack
+            delta = data.workSession?.pacingDelta ?? 0
+        case .workWeeklyPacing:
+            hasData = data.workWeekly?.hasPacing ?? false
+            zone = data.workWeekly?.pacingZone ?? .onTrack
+            delta = data.workWeekly?.pacingDelta ?? 0
         case .sessionPacing: hasData = data.hasSessionPacing; zone = data.sessionPacingZone; delta = data.sessionPacingDelta
         case .fablePacing:   hasData = data.hasFablePacing;   zone = data.fablePacingZone;   delta = data.fablePacingDelta
         default:             hasData = data.hasWeeklyPacing;  zone = data.weeklyPacingZone;  delta = data.weeklyPacingDelta
@@ -489,7 +507,8 @@ enum MenuBarRenderer {
                 .font: systemFont(10, .bold, monoDigits: true), .foregroundColor: tint,
             ]))
         case .pill:
-            return .pill(text: hasData ? "\(glyph) \(sign)\(delta)%" : "\(glyph) -", tint: tint)
+            let prefix = workPrefix(kind, data)
+            return .pill(text: prefix + (hasData ? "\(glyph) \(sign)\(delta)%" : "\(glyph) -"), tint: tint)
         default:
             return .run(NSAttributedString(string: hasData ? "\(sign)\(delta)%" : "-", attributes: [
                 .font: systemFont(10, .bold, monoDigits: true), .foregroundColor: tint,
@@ -570,8 +589,16 @@ enum MenuBarRenderer {
         case .extraCredits: return data.extraCreditsPct
         case .codexSession: return data.codexSession?.pct ?? 0
         case .codexWeekly: return data.codexWeekly?.pct ?? 0
+        case .workSession: return data.workSession?.pct ?? 0
+        case .workWeekly: return data.workWeekly?.pct ?? 0
         default: return 0
         }
+    }
+
+    /// "C2 " in front of a second-account value in a pill, which has no label
+    /// of its own; empty for everything else.
+    private static func workPrefix(_ kind: MenuBarSegmentKind, _ data: RenderData) -> String {
+        kind.provider == .claudeWork && !data.workLabel.isEmpty ? "\(data.workLabel) " : ""
     }
 
     private static func usageLabel(_ kind: MenuBarSegmentKind, data: RenderData) -> String {
@@ -589,6 +616,9 @@ enum MenuBarRenderer {
         // hardcoded one.
         case .codexSession, .codexWeekly:
             return durationShortLabel(usageWindow(kind, data: data))
+        case .workSession, .workWeekly:
+            return [data.workLabel, durationShortLabel(usageWindow(kind, data: data))]
+                .filter { !$0.isEmpty }.joined(separator: " ")
 
         default: return ""
         }
@@ -612,6 +642,8 @@ enum MenuBarRenderer {
         case .fable: return data.fableResetDate
         case .codexSession: return data.codexSession?.resetDate
         case .codexWeekly: return data.codexWeekly?.resetDate
+        case .workSession: return data.workSession?.resetDate
+        case .workWeekly: return data.workWeekly?.resetDate
         default: return nil  // extraCredits: no reset window -> static threshold
         }
     }
@@ -624,6 +656,8 @@ enum MenuBarRenderer {
         // this app has never seen, and Smart Color only needs the number.
         case .codexSession: return data.codexSession?.windowDuration ?? 0
         case .codexWeekly: return data.codexWeekly?.windowDuration ?? 0
+        case .workSession: return data.workSession?.windowDuration ?? 0
+        case .workWeekly: return data.workWeekly?.windowDuration ?? 0
         default: return 0  // extraCredits: windowless
         }
     }
@@ -721,3 +755,4 @@ enum MenuBarRenderer {
         return img
     }
 }
+

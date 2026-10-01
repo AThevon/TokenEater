@@ -16,9 +16,12 @@ enum PopoverElementKind: String, Codable, CaseIterable, Identifiable {
     // composition containing them by dropping the elements it does not know,
     // so no schema version bump and no migrator.
     case codexSession, codexWeekly
+    // Second Claude account, same additive property.
+    case workSession, workWeekly
     // Pacing metrics (delta vs linear pace)
     case sessionPacing, weeklyPacing, fablePacing
     case codexSessionPacing, codexWeeklyPacing
+    case workSessionPacing, workWeeklyPacing
     // Utility rows
     case watchers, timestamp, planBadge, providerSwitch
     // Action buttons
@@ -31,10 +34,11 @@ enum PopoverElementKind: String, Codable, CaseIterable, Identifiable {
     var family: Family {
         switch self {
         case .session, .weekly, .sonnet, .fable, .extraCredits,
-             .codexSession, .codexWeekly:
+             .codexSession, .codexWeekly, .workSession, .workWeekly:
             return .usage
         case .sessionPacing, .weeklyPacing, .fablePacing,
-             .codexSessionPacing, .codexWeeklyPacing:
+             .codexSessionPacing, .codexWeeklyPacing,
+             .workSessionPacing, .workWeeklyPacing:
             return .pacing
         case .watchers, .timestamp, .planBadge, .providerSwitch:
             return .utility
@@ -49,6 +53,8 @@ enum PopoverElementKind: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .codexSession, .codexWeekly, .codexSessionPacing, .codexWeeklyPacing:
             return .codex
+        case .workSession, .workWeekly, .workSessionPacing, .workWeeklyPacing:
+            return .claudeWork
         case .session, .weekly, .sonnet, .fable, .extraCredits,
              .sessionPacing, .weeklyPacing, .fablePacing:
             return .claude
@@ -56,6 +62,23 @@ enum PopoverElementKind: String, Codable, CaseIterable, Identifiable {
              .openButton, .quitButton, .refreshButton:
             return nil
         }
+    }
+
+    /// The Claude kind a second-account kind mirrors; it renders exactly like
+    /// that kind, from the second account's `UsageStore`.
+    var claudeEquivalent: PopoverElementKind? {
+        switch self {
+        case .workSession: return .session
+        case .workWeekly: return .weekly
+        case .workSessionPacing: return .sessionPacing
+        case .workWeeklyPacing: return .weeklyPacing
+        default: return nil
+        }
+    }
+
+    /// The reverse: the second-account kind for a Claude kind, if it has one.
+    var workEquivalent: PopoverElementKind? {
+        Self.allCases.first { $0.claudeEquivalent == self }
     }
 
     /// The ex-header chrome (plan badge + refresh button). These pack into
@@ -553,6 +576,9 @@ extension PopoverElementKind {
         case .codexWeekly: return "calendar.badge.clock"
         case .sessionPacing, .weeklyPacing, .fablePacing: return "speedometer"
         case .codexSessionPacing, .codexWeeklyPacing: return "speedometer"
+        case .workSession: return "bolt.fill"
+        case .workWeekly: return "calendar"
+        case .workSessionPacing, .workWeeklyPacing: return "speedometer"
         case .watchers: return "eye.fill"
         case .timestamp: return "clock"
         case .providerSwitch: return "arrow.left.arrow.right"

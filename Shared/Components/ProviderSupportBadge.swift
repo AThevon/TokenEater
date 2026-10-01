@@ -30,7 +30,7 @@ struct ProviderSupportBadge: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            ForEach(MetricProvider.allCases) { provider in
+            ForEach(MetricProvider.vendors) { provider in
                 ProviderGlyph(provider: provider, size: size)
                     .foregroundStyle(tint(for: provider))
             }
@@ -61,7 +61,7 @@ struct ProviderSupportBadge: View {
     /// glyphs, and a tooltip that opens with "Claude: full" leaves the reader
     /// to work out full what.
     private var tooltip: String {
-        let lines = MetricProvider.allCases.map { provider in
+        let lines = MetricProvider.vendors.map { provider in
             let state: String
             switch support(provider) {
             case .full:              state = String(localized: "coverage.legend.full")

@@ -77,7 +77,7 @@ final class OnboardingViewModel: ObservableObject {
     /// same card: see `ProviderSetupState`.
     func setupState(for provider: MetricProvider) -> ProviderSetupState {
         switch provider {
-        case .claude:
+        case .claude, .claudeWork:
             switch claudeCodeStatus {
             case .checking:
                 return .checking

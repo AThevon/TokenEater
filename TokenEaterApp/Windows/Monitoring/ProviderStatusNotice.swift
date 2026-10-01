@@ -58,7 +58,7 @@ struct ProviderStatusNotice: View {
     /// cannot act on is worse than no alarm.
     private var errorMessage: String? {
         switch provider {
-        case .claude:
+        case .claude, .claudeWork:
             guard !usageStore.isAwaitingRefresh else { return nil }
             switch usageStore.errorState {
             case .tokenUnavailable:

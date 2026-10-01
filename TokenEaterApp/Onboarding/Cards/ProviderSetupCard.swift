@@ -97,14 +97,14 @@ struct ProviderSetupCard: View {
 
         case .needsAction:
             switch provider {
-            case .claude: keyScene
+            case .claude, .claudeWork: keyScene
             case .codex:  commandScene(command: "codex login",
                                        caption: "onboarding.provider.codex.signin.scene")
             }
 
         case .ready:
             switch provider {
-            case .claude: terminalPreview.padding(10)
+            case .claude, .claudeWork: terminalPreview.padding(10)
             case .codex:  loginScene.padding(10)
             }
 
@@ -294,7 +294,7 @@ struct ProviderSetupCard: View {
 
     private var installSteps: [LocalizedStringResource] {
         switch provider {
-        case .claude:
+        case .claude, .claudeWork:
             return ["onboarding.card.claudecode.notfound.step1",
                     "onboarding.card.claudecode.notfound.step2",
                     "onboarding.card.claudecode.notfound.step3"]
@@ -338,7 +338,7 @@ struct ProviderSetupCard: View {
             // The only state where the app can do the work itself: the button
             // raises the real Keychain prompt. OpenAI's equivalent happens in
             // a terminal, so its card shows the command and re-reads after.
-            case .claude:
+            case .claude, .claudeWork:
                 OnboardingActionButton(
                     label: String(localized: "onboarding.card.connect.authorize"),
                     isProminent: true
@@ -368,7 +368,7 @@ struct ProviderSetupCard: View {
                 : String(localized: "codex.status.notInstalled")
         case .needsAction:
             switch provider {
-            case .claude:
+            case .claude, .claudeWork:
                 return String(localized: "onboarding.card.connect.status.idle")
             case .codex:
                 return viewModel.codexStatus == .apiKeyOnly
@@ -401,7 +401,7 @@ struct ProviderSetupCard: View {
 
     private func refresh() {
         switch provider {
-        case .claude: viewModel.checkClaudeCode()
+        case .claude, .claudeWork: viewModel.checkClaudeCode()
         case .codex:  viewModel.checkCodex()
         }
         viewModel.syncTracking(from: settingsStore)

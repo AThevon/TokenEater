@@ -58,7 +58,7 @@ enum DashboardBlock: String, Codable, CaseIterable, Identifiable, Sendable {
     /// current mode can draw is skipped rather than rendered empty.
     var providers: Set<MetricProvider> {
         switch self {
-        case .extraCredits: return [.claude]
+        case .extraCredits: return [.claude, .claudeWork]
         default:            return Set(MetricProvider.allCases)
         }
     }

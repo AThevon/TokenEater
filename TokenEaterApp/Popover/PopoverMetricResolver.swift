@@ -32,7 +32,20 @@ enum PopoverMetricResolver {
         codex.isEnabled ? codex.windows.first { $0.kind == wanted } : nil
     }
 
-    static func usageSnapshot(for kind: PopoverElementKind, usage: UsageStore, codex: CodexUsageStore) -> UsageSnapshot? {
+    /// `work` is the second Claude account's store. Its kinds resolve exactly
+    /// like their Claude twins, from that store, tagged with its provider.
+    static func usageSnapshot(for kind: PopoverElementKind, usage: UsageStore, codex: CodexUsageStore, work: UsageStore? = nil) -> UsageSnapshot? {
+        if let claude = kind.claudeEquivalent {
+            guard let work, let snapshot = usageSnapshot(for: claude, usage: work, codex: codex) else { return nil }
+            return UsageSnapshot(
+                label: snapshot.label,
+                pct: snapshot.pct,
+                resetDate: snapshot.resetDate,
+                resetText: snapshot.resetText,
+                windowDuration: snapshot.windowDuration,
+                provider: .claudeWork
+            )
+        }
         switch kind {
         case .codexSession, .codexWeekly:
             guard let window = codexWindow(kind == .codexSession ? .session : .weekly, codex) else { return nil }
@@ -92,7 +105,11 @@ enum PopoverMetricResolver {
         }
     }
 
-    static func pacing(for kind: PopoverElementKind, usage: UsageStore, codex: CodexUsageStore) -> PacingResult? {
+    static func pacing(for kind: PopoverElementKind, usage: UsageStore, codex: CodexUsageStore, work: UsageStore? = nil) -> PacingResult? {
+        if let claude = kind.claudeEquivalent {
+            guard let work else { return nil }
+            return pacing(for: claude, usage: work, codex: codex)
+        }
         switch kind {
         case .codexSessionPacing: return codexWindow(.session, codex)?.pacing
         case .codexWeeklyPacing: return codexWindow(.weekly, codex)?.pacing
@@ -113,7 +130,8 @@ enum PopoverMetricResolver {
         _ kind: PopoverElementKind,
         usage: UsageStore,
         codex: CodexUsageStore,
-        settings: SettingsStore
+        settings: SettingsStore,
+        work: UsageStore? = nil
     ) -> Bool {
         if let provider = kind.provider {
             guard settings.activeProviders.contains(provider) else { return false }
@@ -128,12 +146,22 @@ enum PopoverMetricResolver {
         if kind == .planBadge {
             return settings.activeProviders
                 .filter { settings.activeProviderMode.shows($0) }
-                .contains { $0 == .claude ? usage.planType != .unknown : codex.planType != .unknown }
+                .contains { provider in
+                    switch provider {
+                    case .claude: return usage.planType != .unknown
+                    case .codex: return codex.planType != .unknown
+                    case .claudeWork: return (work?.planType ?? .unknown) != .unknown
+                    }
+                }
         }
-        return isAvailable(kind, usage: usage, codex: codex)
+        return isAvailable(kind, usage: usage, codex: codex, work: work)
     }
 
-    static func isAvailable(_ kind: PopoverElementKind, usage: UsageStore, codex: CodexUsageStore) -> Bool {
+    static func isAvailable(_ kind: PopoverElementKind, usage: UsageStore, codex: CodexUsageStore, work: UsageStore? = nil) -> Bool {
+        if let claude = kind.claudeEquivalent {
+            guard let work else { return false }
+            return isAvailable(claude, usage: work, codex: codex)
+        }
         switch kind {
         // Same three-state model as the Claude pacing cells: a window that
         // exists but is idle keeps its placeholder, a window this plan does
