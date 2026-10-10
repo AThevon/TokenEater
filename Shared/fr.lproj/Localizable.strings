@@ -15,6 +15,7 @@
 "dashboard.extra.separator" = "/";
 "dashboard.extra.monthly" = "ce mois-ci";
 "dashboard.extra.noLimit" = "Limite mensuelle non définie";
+"dashboard.extra.uncapped" = "Dépensé ce mois-ci · aucune limite mensuelle";
 "metric.extraCredits" = "Crédits sup.";
 "metric.sessionReset" = "Compte à rebours de session";
 "settings.pacing.style" = "Style du pacing";

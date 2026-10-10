@@ -944,7 +944,13 @@ struct MonitoringView: View {
         // Same threshold ladder + theme palette as the menu bar / popover /
         // widgets. Extra Credits has no reset window, so it never uses Smart
         // Color; the static gauge thresholds keep every surface in agreement.
-        let tint = themeStore.current.gaugeColor(for: Double(pct), thresholds: themeStore.thresholds)
+        // No monthly limit: a percentage of nothing would read as a reassuring
+        // 0 %. Show the amount actually spent, in the warning colour, instead.
+        let uncapped = extra.isUncapped
+        let spent = CurrencyFormatter.formatMinorUnits(used, currencyCode: currency, locale: Locale(identifier: "en_US"))
+        let tint = uncapped
+            ? themeStore.current.gaugeColor(for: Double(themeStore.thresholds.warningPercent), thresholds: themeStore.thresholds)
+            : themeStore.current.gaugeColor(for: Double(pct), thresholds: themeStore.thresholds)
 
         return VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             HStack {
@@ -952,7 +958,7 @@ struct MonitoringView: View {
                     .font(DS.Typography.title2)
                     .foregroundStyle(DS.Palette.textPrimary)
                 Spacer()
-                Text("\(pct)%")
+                Text(uncapped ? spent : "\(pct)%")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(tint)
@@ -984,6 +990,10 @@ struct MonitoringView: View {
                         .font(DS.Typography.label)
                         .foregroundStyle(DS.Palette.textTertiary)
                 }
+            } else if uncapped {
+                Text(String(localized: "dashboard.extra.uncapped"))
+                    .font(DS.Typography.label)
+                    .foregroundStyle(tint)
             } else {
                 Text(String(localized: "dashboard.extra.noLimit"))
                     .font(DS.Typography.label)

@@ -15,6 +15,7 @@
 "dashboard.extra.separator" = "/";
 "dashboard.extra.monthly" = "this month";
 "dashboard.extra.noLimit" = "Monthly limit not set";
+"dashboard.extra.uncapped" = "Spent this month · no monthly limit set";
 "metric.extraCredits" = "Extra Credits";
 "metric.sessionReset" = "Session reset countdown";
 "settings.pacing.style" = "Pacing style";
