@@ -85,6 +85,77 @@ struct CodexUsageResponseDecodingTests {
         #expect(usage.resetCreditsAvailable == 1)
     }
 
+    // MARK: - Spend control
+
+    @Test("a member's monthly cap decodes from the string amounts the backend sends")
+    func spendControlStringAmounts() {
+        let usage = CodexFixtures.decode(CodexFixtures.enterpriseSpendControlJSON)
+        let limit = usage.spendControl?.individualLimit
+
+        #expect(usage.spendControl?.reached == false)
+        #expect(limit?.source == "workspace_default")
+        #expect(limit?.limit == 25_000)
+        #expect(limit?.used == 8_000)
+        #expect(limit?.remaining == 17_000)
+        #expect(limit?.usedPercent == 32)
+        #expect(limit?.remainingPercent == 68)
+        #expect(limit?.resetAfterSeconds == 86_400)
+        #expect(limit?.resetDate == Date(timeIntervalSince1970: 1_778_137_680))
+        // The rest of the payload is unaffected by the new block.
+        #expect(usage.rateLimit?.windows.count == 1)
+    }
+
+    @Test("the cap also decodes when amounts arrive as numbers and percentages as strings")
+    func spendControlSwappedShapes() {
+        let usage = CodexFixtures.decode("""
+        { "spend_control": { "reached": true, "individual_limit": {
+            "limit": 25000, "used": 25000.5, "remaining": 0,
+            "used_percent": "100", "remaining_percent": "0", "reset_at": "1778137680" } } }
+        """)
+        let limit = usage.spendControl?.individualLimit
+
+        #expect(usage.spendControl?.reached == true)
+        #expect(limit?.limit == 25_000)
+        #expect(limit?.used == 25_000.5)
+        #expect(limit?.usedPercent == 100)
+        #expect(limit?.resetAt == 1_778_137_680)
+        #expect(limit?.source == nil)
+    }
+
+    @Test("a bare scalar cap, as an earlier codex.json stored it, still reads as the cap")
+    func spendControlLegacyScalar() {
+        let number = CodexFixtures.decode("""
+        { "spend_control": { "reached": false, "individual_limit": 500 } }
+        """)
+        #expect(number.spendControl?.individualLimit == CodexSpendLimit(limit: 500))
+
+        let string = CodexFixtures.decode("""
+        { "spend_control": { "reached": false, "individual_limit": "500" } }
+        """)
+        #expect(string.spendControl?.individualLimit?.limit == 500)
+    }
+
+    @Test("an absent, null or empty cap degrades to nil without losing the reached flag")
+    func spendControlMissingCap() {
+        #expect(CodexFixtures.decode(CodexFixtures.plusJSON).spendControl?.individualLimit == nil)
+
+        let empty = CodexFixtures.decode("""
+        { "spend_control": { "reached": true, "individual_limit": { "source": "x", "limit": "n/a" } } }
+        """)
+        #expect(empty.spendControl?.reached == true)
+        #expect(empty.spendControl?.individualLimit == nil)
+    }
+
+    @Test("an out-of-range reset time is dropped rather than trapping")
+    func spendControlOversizedReset() {
+        let usage = CodexFixtures.decode("""
+        { "spend_control": { "individual_limit": { "limit": "10", "reset_at": 1e300, "reset_after_seconds": "nan" } } }
+        """)
+        #expect(usage.spendControl?.individualLimit?.limit == 10)
+        #expect(usage.spendControl?.individualLimit?.resetAt == nil)
+        #expect(usage.spendControl?.individualLimit?.resetAfterSeconds == nil)
+    }
+
     // MARK: - Round trip
 
     @Test("re-decoding what we encode preserves every field the widget renders")
@@ -94,6 +165,16 @@ struct CodexUsageResponseDecodingTests {
         let decoded = try JSONDecoder().decode(CodexUsageResponse.self, from: encoded)
 
         #expect(decoded == original)
+    }
+
+    @Test("the monthly cap survives the codex.json round trip")
+    func spendControlRoundTrip() throws {
+        let original = CodexFixtures.decode(CodexFixtures.enterpriseSpendControlJSON)
+        let encoded = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(CodexUsageResponse.self, from: encoded)
+
+        #expect(decoded.spendControl == original.spendControl)
+        #expect(decoded.spendControl?.individualLimit?.limit == 25_000)
     }
 
     @Test("identity fields are never carried into the persisted payload")
