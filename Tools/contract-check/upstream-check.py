@@ -196,7 +196,10 @@ def main() -> int:
     Path(args.body).write_text("\n".join(lines) + "\n")
 
     lock["commit"] = head
-    lock["files"] = current
+    # A missing file keeps its last SHA, so it stays "changed" and the run keeps
+    # failing every week until the path is fixed by hand. Writing null would
+    # make it match next week and silently stop watching it.
+    lock["files"] = {path: sha if sha is not None else lock["files"][path] for path, sha in current.items()}
     LOCK.write_text(json.dumps(lock, indent=2, sort_keys=True) + "\n")
 
     print(f"{len(changed)} watched file(s) changed, {len(missing)} missing.")

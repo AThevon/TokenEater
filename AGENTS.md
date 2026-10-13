@@ -161,7 +161,7 @@ Prerequisites: macOS 14+, XcodeGen (`brew install xcodegen`), and Xcode (see the
 
 The suite uses [Swift Testing](https://developer.apple.com/documentation/testing) (`import Testing`, `@Test`, `#expect`), not XCTest. Recompute the suite size rather than trusting a number here: `grep -rho '@Test' TokenEaterTests --include='*.swift' | wc -l` for cases and `grep -rl '@Test' TokenEaterTests --include='*.swift' | wc -l` for files. Mocks live in `TokenEaterTests/Mocks/`, fixtures in `TokenEaterTests/Fixtures/`. Most store suites are `@MainActor` because the stores are, but `HistoryStoreTests` and `MonitoringInsightsStoreTests` are not: they exercise only `nonisolated static` helpers. The suites that write the shared `UserDefaults` are marked `.serialized` and clean **before** each test, via a `cleanDefaults()` helper called from the store factory (see `TokenEaterTests/SettingsStoreTests.swift`), never in a teardown. Follow the same pattern when adding a store suite.
 
-`python3 scripts/check-docs.py` verifies that this document still matches the tree: every path it quotes resolves, the store and helper inventories are complete, the one-protocol-one-mock convention holds, the widget list matches the `WidgetBundle`, no `@Observable` or App-struct `@StateObject` slipped in, no hardcoded per-user cache prefix came back, no bare inventory count was reintroduced, and every usage `CodingKey` has a path in the contract canary's `read-set.json`. It runs as the `docs` job in `ci.yml` and fails in seconds. If it fails, fix whichever side is wrong: the doc or the code. Adding an intentional exception (a service with no mock, say) means updating both the exception list in that script and the prose here.
+`python3 scripts/check-docs.py` verifies that this document still matches the tree: every path it quotes resolves, the store and helper inventories are complete, the one-protocol-one-mock convention holds, the widget list matches the `WidgetBundle`, no `@Observable` or App-struct `@StateObject` slipped in, no hardcoded per-user cache prefix came back, no bare inventory count was reintroduced, and every usage `CodingKey` name ends a path in the contract canary's `read-set.json` (matched by name, not by parent). It runs as the `docs` job in `ci.yml` and fails in seconds. If it fails, fix whichever side is wrong: the doc or the code. Adding an intentional exception (a service with no mock, say) means updating both the exception list in that script and the prose here.
 
 Run the tests (identical to CI):
 
@@ -174,7 +174,7 @@ xcodebuild -project TokenEater.xcodeproj -scheme TokenEaterTests \
   test
 ```
 
-Run the tests before any commit that touches `Shared/` (stores, services, repository, helpers, models). CI (`ci.yml`) runs build + tests on every PR and every push to `main`.
+Run the tests before any commit that touches `Shared/` (stores, services, repository, helpers, models). CI (`ci.yml`) runs build + tests on every PR and every push to `main`, except a push that only touches the contract canary's bot-written data (its baselines, reports and upstream lock under `Tools/contract-check/`).
 
 For SwiftUI or widget changes, manual testing matters more than unit tests. Build a Release version and try it. Widget rendering in particular cannot be unit-tested; use the build + nuke + install flow below.
 
