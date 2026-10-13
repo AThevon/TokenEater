@@ -162,6 +162,22 @@ enum CodexFixtures {
     }
     """
 
+    /// Not observed live yet: a 5h window next to a 30-day one. The long window
+    /// must not be called weekly just because it is longer than a few days.
+    static let monthlyWindowJSON = """
+    {
+      "plan_type": "go",
+      "rate_limit": {
+        "allowed": true,
+        "limit_reached": false,
+        "primary_window": { "used_percent": 20, "limit_window_seconds": 18000, "reset_after_seconds": 9000, "reset_at": 1789000000 },
+        "secondary_window": { "used_percent": 35, "limit_window_seconds": 2592000, "reset_after_seconds": 1000000, "reset_at": 1790000000 }
+      },
+      "additional_rate_limits": [],
+      "rate_limit_reached_type": null
+    }
+    """
+
     static func decode(_ json: String) -> CodexUsageResponse {
         try! JSONDecoder().decode(CodexUsageResponse.self, from: Data(json.utf8))
     }

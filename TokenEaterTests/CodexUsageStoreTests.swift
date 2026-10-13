@@ -199,6 +199,18 @@ struct CodexUsageStoreTests {
         #expect(sut.store.planType == .proMax)
     }
 
+    @Test("a 30-day window is published but never takes the weekly slot")
+    func monthlyWindowIsNotWeekly() async {
+        let sut = makeSUT(usage: CodexFixtures.decode(CodexFixtures.monthlyWindowJSON))
+
+        await sut.store.refresh(force: true)
+
+        #expect(sut.store.windows.count == 2)
+        #expect(sut.store.session?.pct == 20)
+        #expect(sut.store.weekly == nil)
+        #expect(sut.store.planType == .go)
+    }
+
     @Test("the server's limit verdict is published for the UI to trust over percentages")
     func limitReached() async {
         let sut = makeSUT(usage: CodexFixtures.decode(CodexFixtures.limitReachedJSON))
