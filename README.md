@@ -117,7 +117,7 @@ The script checks Xcode, installs XcodeGen if needed, and assembles the app. Loc
 
 ## Privacy: read-only usage calls
 
-TokenEater reads the **OAuth access token** Claude Code already keeps in your macOS Keychain, the same token Claude Code itself uses. At first launch, macOS asks you to allow that access: click **Always Allow** once. The prompt is standard macOS behavior for any app reading a keychain item it did not create, and since the read goes through Apple's own `security` tool, whose signature never changes, the prompt does not come back on updates.
+TokenEater reads the **OAuth access token** Claude Code already keeps in your macOS Keychain, the same token Claude Code itself uses. The read goes through Apple's own `security` tool, so if macOS asks you to allow that access, the dialog names `security`: click **Always Allow**. TokenEater never asks for that item in its own name. A dialog that names TokenEater and keeps coming back came from older versions, so update TokenEater.
 
 Everything the app does with the token:
 
@@ -147,7 +147,7 @@ In **Edit Widgets > TokenEater**, choose **Codex Usage** (small or medium) along
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | "Rate limited" or "API unavailable" | Your OAuth token has hit its per-token request limit | Run `claude /login` for a fresh token; TokenEater detects the change and recovers within seconds |
-| Keychain popup on first run | A new install needs authorization to read your Claude Code token | Click **Always Allow** once; it sticks across updates |
+| Keychain popup asking to access "Claude Code-credentials" | macOS asks before Apple's `security` tool hands TokenEater your Claude Code token | Click **Always Allow** in the dialog that names `security`. If the dialog names TokenEater and keeps coming back, update TokenEater |
 | "Authorization needed" that will not go away | A cached credential went stale, or a second Keychain item shadows your login | **Settings > Providers > Reset connection**: it rereads everything from scratch and keeps all your settings. **Copy diagnostic** says which case you are in |
 | Widget stuck or not updating | macOS caches widget extensions aggressively | Remove the widget, run the clean reset, re-add the widget |
 
