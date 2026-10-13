@@ -120,7 +120,7 @@ final class NotificationSettingsStore: ObservableObject {
         self.resetReminderSessionOffset = SettingsDefaults.int(key: "notifResetReminderSessionOffset", default: 15)
         self.resetReminderWeeklyOffset = SettingsDefaults.int(key: "notifResetReminderWeeklyOffset", default: 60)
         self.extraCredits = SettingsDefaults.bool(key: "notifExtraCredits", default: true)
-        self.tokenExpired = SettingsDefaults.bool(key: "notifTokenExpired", default: false)
+        self.tokenExpired = Self.seededTokenExpired()
         self.vendorDegraded = SettingsDefaults.bool(key: "notifVendorDegraded", default: true)
         self.vendorRestored = SettingsDefaults.bool(key: "notifVendorRestored", default: true)
         self.claudeEnabled = SettingsDefaults.bool(key: "notifClaudeEnabled", default: true)
@@ -132,6 +132,29 @@ final class NotificationSettingsStore: ObservableObject {
         self.codexResetReminderWeekly = SettingsDefaults.bool(key: "notifCodexResetReminderWeekly", default: false)
         self.codexTokenExpired = SettingsDefaults.bool(key: "notifCodexTokenExpired", default: false)
     }
+
+    /// The Claude login-expired alert is on for new installs and stays off
+    /// for anyone who had the app before, whether or not they ever touched
+    /// the toggle. It used to default to off, which suited an alert repeated
+    /// every hour for as long as the token failed. Both of its forms now fire
+    /// once: the expired-login alert once per expiry, an hour after the login
+    /// expired, and the generic one once per run of failures, until a refresh
+    /// succeeds. It is also the only way someone who lives in the Claude
+    /// desktop app learns that the numbers stopped moving (#268), which is
+    /// what tips the default to on. The resolved value is written back
+    /// on first read so the decision is taken once, not on every launch: an
+    /// unsaved default would otherwise flip to "existing install" the moment
+    /// onboarding completes.
+    private static func seededTokenExpired(defaults: UserDefaults = .standard) -> Bool {
+        if let saved = defaults.object(forKey: "notifTokenExpired") as? Bool { return saved }
+        let value = tokenExpiredDefault(
+            isExistingInstall: defaults.object(forKey: "hasCompletedOnboarding") != nil
+        )
+        defaults.set(value, forKey: "notifTokenExpired")
+        return value
+    }
+
+    static func tokenExpiredDefault(isExistingInstall: Bool) -> Bool { !isExistingInstall }
 
     /// Bundle handed to `NotificationService` on every Codex refresh.
     var codexToggles: CodexNotificationToggles {
