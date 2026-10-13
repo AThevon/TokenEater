@@ -12,7 +12,7 @@ struct NotificationSettingsStoreTests {
         "notifPacingHot", "notifPacingWarning",
         "notifResetReminderSession", "notifResetReminderWeekly",
         "notifResetReminderSessionOffset", "notifResetReminderWeeklyOffset",
-        "notifExtraCredits", "notifTokenExpired",
+        "notifExtraCredits", "notifTokenExpired", "hasCompletedOnboarding",
     ]
     private func clean() { keys.forEach { UserDefaults.standard.removeObject(forKey: $0) } }
 
@@ -32,7 +32,41 @@ struct NotificationSettingsStoreTests {
         #expect(store.resetReminderSessionOffset == 15)
         #expect(store.resetReminderWeeklyOffset == 60)
         #expect(store.extraCredits == true)
+        #expect(store.tokenExpired == true)
+    }
+
+    /// The login-expired alert is on for new installs only (#268). Someone
+    /// who already had the app keeps the "off" they were running with, even
+    /// though they never saved it, and the decision is written so it holds
+    /// once onboarding completes.
+    @Test("the token-expired alert stays off for an existing install that never touched it")
+    func tokenExpiredOffForExistingInstall() {
+        clean(); defer { clean() }
+        UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+
+        let store = NotificationSettingsStore()
+
         #expect(store.tokenExpired == false)
+        #expect(UserDefaults.standard.object(forKey: "notifTokenExpired") as? Bool == false)
+    }
+
+    @Test("a fresh install's token-expired default survives onboarding")
+    func tokenExpiredSeededForFreshInstall() {
+        clean(); defer { clean() }
+
+        _ = NotificationSettingsStore()
+        UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+        let relaunched = NotificationSettingsStore()
+
+        #expect(relaunched.tokenExpired == true)
+    }
+
+    @Test("a saved token-expired choice is never overridden")
+    func tokenExpiredSavedChoiceWins() {
+        clean(); defer { clean() }
+        UserDefaults.standard.set(false, forKey: "notifTokenExpired")
+
+        #expect(NotificationSettingsStore().tokenExpired == false)
     }
 
     @Test("changing a toggle persists to UserDefaults")

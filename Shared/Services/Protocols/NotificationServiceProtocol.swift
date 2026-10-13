@@ -95,7 +95,14 @@ protocol NotificationServiceProtocol {
         extraUsage: ExtraUsage?,
         toggles: NotificationToggles
     )
+    /// Fires once per run of failures, until `endTokenAlertEpisode()`.
     func notifyTokenExpired(toggles: NotificationToggles)
+    /// Called on every successful Claude refresh: the failure run is over,
+    /// so the next one may alert again.
+    func endTokenAlertEpisode()
+    /// The escalated form: the login in use has been expired for over an
+    /// hour (`TokenExpiryPolicy`). Fires once per expiry episode.
+    func notifyLoginExpired(since expiredAt: Date, toggles: NotificationToggles)
     func scheduleResetReminders(
         sessionResetsAt: Date?,
         weeklyResetsAt: Date?,

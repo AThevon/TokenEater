@@ -49,6 +49,18 @@ final class MockNotificationService: NotificationServiceProtocol {
         lastTokenExpiredFire = toggles
     }
 
+    var tokenAlertEpisodesEnded = 0
+
+    func endTokenAlertEpisode() {
+        tokenAlertEpisodesEnded += 1
+    }
+
+    var loginExpiredFires: [Date] = []
+
+    func notifyLoginExpired(since expiredAt: Date, toggles: NotificationToggles) {
+        loginExpiredFires.append(expiredAt)
+    }
+
     func scheduleResetReminders(
         sessionResetsAt: Date?,
         weeklyResetsAt: Date?,
