@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "about": "The JSON paths TokenEater decodes from each usage endpoint, with the JSON types its decoder turns into something useful. Hand-derived from the models listed in decodedBy; scripts/check-docs.py fails when a CodingKey there has no path here. Types: object, array, string, number, bool, null, absent (key missing from an object that is present). 'displayed: false' marks paths that are decoded but feed no visible feature, so a violation there is reported as active, not breaking.",
+  "about": "The JSON paths TokenEater decodes from each usage endpoint, with the JSON types its decoder turns into something useful. Hand-derived from the models listed in decodedBy; scripts/check-docs.py fails when a CodingKey name there ends no path here; it matches names, not parents, so a known key decoded under a new parent needs its path added by hand. Types: object, array, string, number, bool, null, absent (key missing from an object that is present). 'number' does not tell integers from floats: a non-integral value in a field the app decodes as Int (Codex limit_window_seconds, reset_at, reset_after_seconds, available_count) fails silently in the app and is not reported. 'displayed: false' marks paths that are decoded but feed no visible feature, so a violation there is reported as active, not breaking.",
   "providers": {
     "claude-usage": {
       "endpoint": "GET https://api.anthropic.com/api/oauth/usage",
@@ -93,6 +93,18 @@
         "additional_rate_limits[].limit_name": { "types": ["string", "null", "absent"], "use": "Decoded, not displayed", "displayed": false },
         "additional_rate_limits[].metered_feature": { "types": ["string", "null", "absent"], "use": "Decoded, not displayed", "displayed": false },
         "additional_rate_limits[].rate_limit": { "types": ["object"], "use": "Required: entries without it are dropped", "displayed": false },
+        "additional_rate_limits[].rate_limit.allowed": { "types": ["bool", "null", "absent"], "use": "Decoded through CodexRateLimit, not displayed", "displayed": false },
+        "additional_rate_limits[].rate_limit.limit_reached": { "types": ["bool", "null", "absent"], "use": "Decoded through CodexRateLimit, not displayed", "displayed": false },
+        "additional_rate_limits[].rate_limit.primary_window": { "types": ["object", "null", "absent"], "use": "Decoded through CodexRateLimit, not displayed", "displayed": false },
+        "additional_rate_limits[].rate_limit.secondary_window": { "types": ["object", "null", "absent"], "use": "Decoded through CodexRateLimit, not displayed", "displayed": false },
+        "additional_rate_limits[].rate_limit.primary_window.used_percent": { "types": ["number"], "use": "Decoded through CodexRateLimit, not displayed", "displayed": false },
+        "additional_rate_limits[].rate_limit.primary_window.limit_window_seconds": { "types": ["number"], "use": "Decoded through CodexRateLimit, not displayed", "displayed": false },
+        "additional_rate_limits[].rate_limit.primary_window.reset_after_seconds": { "types": ["number", "null", "absent"], "use": "Decoded through CodexRateLimit, not displayed", "displayed": false },
+        "additional_rate_limits[].rate_limit.primary_window.reset_at": { "types": ["number", "null"], "use": "Decoded through CodexRateLimit, not displayed", "displayed": false },
+        "additional_rate_limits[].rate_limit.secondary_window.used_percent": { "types": ["number"], "use": "Decoded through CodexRateLimit, not displayed", "displayed": false },
+        "additional_rate_limits[].rate_limit.secondary_window.limit_window_seconds": { "types": ["number"], "use": "Decoded through CodexRateLimit, not displayed", "displayed": false },
+        "additional_rate_limits[].rate_limit.secondary_window.reset_after_seconds": { "types": ["number", "null", "absent"], "use": "Decoded through CodexRateLimit, not displayed", "displayed": false },
+        "additional_rate_limits[].rate_limit.secondary_window.reset_at": { "types": ["number", "null"], "use": "Decoded through CodexRateLimit, not displayed", "displayed": false },
         "additional_rate_limits[].normal_model_slug": { "types": ["string", "null", "absent"], "use": "Decoded, not displayed", "displayed": false },
 
         "credits": { "types": ["object", "null", "absent"], "use": "Credits footer pills and medium widget" },

@@ -85,17 +85,16 @@ struct ContractCheckTests {
         }
     }
 
-    @Test("the committed Claude baseline is a v2 signature that fits the read set")
-    func committedBaselineFitsReadSet() throws {
+    /// Only the format is checked. Whether the baseline's states fit the read
+    /// set is deliberately not: merging a drift PR is how an acknowledged
+    /// violation lands in the baseline, and that must not turn main red.
+    @Test("the committed Claude baseline is a stable v2 signature for the Claude endpoint")
+    func committedBaselineIsV2() throws {
         let url = Self.toolDirectory.appendingPathComponent("baselines/claude-usage.json")
         let baseline = try ContractCheck.decodeSignature(Data(contentsOf: url))
         let provider = try Self.provider("claude-usage")
         #expect(baseline.schema == 2)
         #expect(baseline.endpoint == provider.endpoint)
-        for (path, states) in baseline.paths {
-            guard let read = provider.paths[path] else { continue }
-            #expect(Set(states).isSubset(of: read.types), "\(path) holds \(states), the app decodes \(read.types)")
-        }
         // Encoding is stable, so a merge with nothing new rewrites nothing.
         #expect(ContractCheck.encode(baseline) == (try String(contentsOf: url, encoding: .utf8)))
     }
@@ -160,6 +159,21 @@ struct ContractCheckTests {
         let live = Self.signature(changed, provider, baseline: baseline)
         let changes = ContractCheck.diff(baseline: baseline, live: live, provider: provider)
         #expect(Self.severity(of: "spend_control.individual_limit.limit", in: changes) == .active)
+    }
+
+    @Test("a per-model pool window is graded through the nested read paths")
+    func nestedAdditionalWindowIsRead() throws {
+        let provider = try Self.provider("codex-usage")
+        let baseline = Self.signature(CodexFixtures.proliteJSON, provider)
+        let changed = CodexFixtures.proliteJSON.replacingOccurrences(
+            of: #""limit_window_seconds": 18000"#,
+            with: #""limit_window_seconds": "18000""#)
+        #expect(changed != CodexFixtures.proliteJSON, "the replacement did not apply")
+        let live = Self.signature(changed, provider, baseline: baseline)
+        let changes = ContractCheck.diff(baseline: baseline, live: live, provider: provider)
+        let path = "additional_rate_limits[].rate_limit.primary_window.limit_window_seconds"
+        #expect(provider.paths[path] != nil)
+        #expect(Self.severity(of: path, in: changes) == .active)
     }
 
     // MARK: - Active

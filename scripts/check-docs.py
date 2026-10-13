@@ -356,7 +356,9 @@ def coding_keys(path: Path) -> set[str]:
 def check_read_set() -> None:
     """Tools/contract-check grades usage API drift against read-set.json. A key
     added to a decoder but not to the read set would be graded as unread, so a
-    break in it would never be reported as breaking."""
+    break in it would never be reported as breaking. Keys are matched by name
+    against path leaves, not per parent, so this catches a new name, not a
+    known name decoded under a new parent."""
     if not READ_SET.exists():
         fail("read-set", "Tools/contract-check/read-set.json not found")
         return

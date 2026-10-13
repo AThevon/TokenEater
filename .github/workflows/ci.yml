@@ -5,10 +5,13 @@ on:
     branches: [main]
   push:
     branches: [main]
-    # Merging a contract-check bot PR only moves a baseline or a lock file;
-    # it must not cost a macOS build.
+    # Merging a contract-check bot PR only moves a baseline, a report or a
+    # lock file; it must not cost a macOS build. The rest of the tool stays
+    # covered: ContractCore.swift and read-set.json feed the tests and docs.
     paths-ignore:
-      - "Tools/contract-check/**"
+      - "Tools/contract-check/baselines/**"
+      - "Tools/contract-check/reports/**"
+      - "Tools/contract-check/upstream/**"
 
 concurrency:
   group: ci-${{ github.ref }}
