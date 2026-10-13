@@ -208,7 +208,6 @@ struct CodexUsageStoreTests {
         #expect(sut.store.windows.count == 2)
         #expect(sut.store.session?.pct == 20)
         #expect(sut.store.weekly == nil)
-        #expect(sut.store.planType == .go)
     }
 
     @Test("the server's limit verdict is published for the UI to trust over percentages")

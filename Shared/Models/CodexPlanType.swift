@@ -41,7 +41,7 @@ enum CodexPlanType: Equatable {
         case "promax": self = .proMax
         case "team", "free_workspace": self = .team
         case "business", "self_serve_business_prolite", "self_serve_business_usage_based": self = .business
-        // `hc` is an older enterprise spelling the token claim can still carry.
+        // `hc` is an alias upstream maps to Enterprise (protocol/src/auth.rs).
         case "enterprise", "hc", "ent26", "enterprise_cbp_automation", "enterprise_cbp_usage_based": self = .enterprise
         case "edu", "education", "edu_plus", "edu_pro", "k12": self = .edu
         default: self = .other(raw)

@@ -166,7 +166,7 @@ enum CodexFixtures {
     /// must not be called weekly just because it is longer than a few days.
     static let monthlyWindowJSON = """
     {
-      "plan_type": "go",
+      "plan_type": "plus",
       "rate_limit": {
         "allowed": true,
         "limit_reached": false,
