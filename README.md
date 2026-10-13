@@ -117,7 +117,7 @@ The script checks Xcode, installs XcodeGen if needed, and assembles the app. Loc
 
 ## Privacy: read-only usage calls
 
-TokenEater reads the **OAuth access token** Claude Code already keeps in your macOS Keychain, the same token Claude Code itself uses. The read goes through Apple's own `security` tool, so if macOS asks you to allow that access, the dialog names `security`: click **Always Allow**. TokenEater never asks for that item in its own name. A dialog that names TokenEater and keeps coming back came from older versions, so update TokenEater.
+TokenEater reads the **OAuth access token** Claude Code already keeps in your macOS Keychain, the same token Claude Code itself uses. The read goes through Apple's own `security` tool, so if macOS asks you to allow that access, the dialog names `security`: click **Always Allow**. TokenEater never asks for that item in its own name.
 
 Everything the app does with the token:
 
