@@ -155,14 +155,9 @@ final class SecurityCLIReader: SecurityCLIReaderProtocol, @unchecked Sendable {
 
     // MARK: - Payload parsing
 
-    /// One Claude Code login as the Keychain stores it.
-    struct KeychainCredential: Equatable {
-        let token: String
-        /// When the access token stops working. Claude Code refreshes it when
-        /// it runs; TokenEater only reads it, so this is the honest answer to
-        /// "why did the API say no" rather than a thing it can act on.
-        let expiresAt: Date?
-    }
+    /// One Claude Code login as the Keychain stores it. The same JSON lives
+    /// in `~/.claude/.credentials.json`, so the parsing is shared.
+    typealias KeychainCredential = ClaudeCredential
 
     /// Parses the password payload `/usr/bin/security` returned for the
     /// "Claude Code-credentials" item and pulls out
@@ -175,31 +170,8 @@ final class SecurityCLIReader: SecurityCLIReaderProtocol, @unchecked Sendable {
     }
 
     static func credential(fromKeychainPassword raw: String) -> KeychainCredential? {
-        guard let jsonData = raw.data(using: .utf8),
-              let obj = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-              let oauth = obj["claudeAiOauth"] as? [String: Any],
-              let token = oauth["accessToken"] as? String,
-              !token.isEmpty else {
-            return nil
-        }
-        return KeychainCredential(token: token, expiresAt: expiry(from: oauth["expiresAt"]))
-    }
-
-    /// Claude Code writes `expiresAt` in milliseconds. Seconds are accepted
-    /// too rather than guessed at: a value small enough to be seconds is
-    /// read as seconds, so a format change does not silently land the expiry
-    /// in 1970.
-    private static func expiry(from value: Any?) -> Date? {
-        let raw: Double
-        switch value {
-        case let number as Double: raw = number
-        case let number as Int: raw = Double(number)
-        case let string as String: guard let parsed = Double(string) else { return nil }; raw = parsed
-        default: return nil
-        }
-        guard raw > 0 else { return nil }
-        let seconds = raw > 1_000_000_000_000 ? raw / 1000 : raw
-        return Date(timeIntervalSince1970: seconds)
+        guard let jsonData = raw.data(using: .utf8) else { return nil }
+        return ClaudeCredential.parse(jsonData)
     }
 
     /// The item that actually holds a Claude Code login, preferring the one
