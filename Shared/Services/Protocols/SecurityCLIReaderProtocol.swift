@@ -35,6 +35,10 @@ struct KeychainRead: Equatable, Sendable {
 /// so once the user grants access once it sticks across app updates.
 protocol SecurityCLIReaderProtocol: Sendable {
     func read() -> KeychainRead
+    /// Whether at least one Keychain item carries the service name, asked of
+    /// its attributes alone. No ACL guards those, so this never prompts and
+    /// never spawns `security`.
+    func hasCredentialItem() -> Bool
 }
 
 extension SecurityCLIReaderProtocol {

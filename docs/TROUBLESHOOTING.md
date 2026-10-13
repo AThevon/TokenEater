@@ -7,7 +7,7 @@ Common fixes first, the full clean reset after. If none of this helps, [open an 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | "Rate limited" or "API unavailable" | Your OAuth token has hit its per-token request limit | Run `claude /login` in your terminal for a fresh token. TokenEater detects the change and recovers automatically within seconds |
-| Keychain popup asking to access "Claude Code-credentials" | First run on a new install needs to authorize `/usr/bin/security` to read your Claude Code token | Click **Always Allow** once; it sticks across future app updates |
+| Keychain popup asking to access "Claude Code-credentials" | TokenEater reads your Claude Code token through Apple's `/usr/bin/security`, and macOS asks before allowing it | Click **Always Allow** in the dialog that names `security`. TokenEater never asks for that item in its own name: a dialog that names TokenEater and keeps coming back came from older versions, so update TokenEater |
 | Codex shows not logged in or login expired | The CLI has no usable file-backed ChatGPT access token, or it expired | Open Codex or run `codex login`, then retry in Providers. API-key and keyring-only logins are not supported; TokenEater never refreshes or rewrites the CLI token |
 | Codex widget is empty or off | Tracking is disabled, no successful sync exists, or WidgetKit has cached the old extension | Enable it in Settings > Providers and refresh Monitoring. Add **Codex Usage** from Edit Widgets > TokenEater; if still stale, use the reset below |
 | Widget stuck or not updating | macOS caches widget extensions aggressively | Remove the widget, run the clean reset below, re-add the widget |

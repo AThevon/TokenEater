@@ -232,8 +232,9 @@ final class OnboardingViewModel: ObservableObject {
         Task {
             // Resolve the token OFF the main thread - currentToken() may shell
             // out to /usr/bin/security, which can block on macOS 26 (see #217).
-            // Only silent sources are used, so this never surfaces a Keychain
-            // prompt.
+            // It never reads Claude Code's Keychain item in TokenEater's name,
+            // but macOS may show the dialog that names `security` the first
+            // time, which the connect card tells the user to allow.
             let token = await Self.tokenOffMain(provider)
 
             guard let token else {

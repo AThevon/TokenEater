@@ -2,7 +2,9 @@ import Foundation
 
 protocol TokenProviderProtocol: Sendable {
     func currentToken() -> String?
-    /// Whether a token source exists (config.json or credentials file), even if not yet decryptable
+    /// Whether a token source exists (a Keychain item, config.json or the
+    /// credentials file), even if not yet readable. Never reads the Keychain
+    /// item's data with TokenEater's own identity.
     func hasTokenSource() -> Bool
     /// Clear cached token - call after 401 so next read re-checks Keychain
     func invalidateToken()

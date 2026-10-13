@@ -39,10 +39,11 @@ enum TokenSource: String, Codable, Equatable, Sendable {
     case keychainCLI
     case credentialsFile
     case claudeDesktop
-    case keychainDirect
 
-    /// True for the two sources that read the live Keychain item.
-    var isKeychain: Bool { self == .keychainCLI || self == .keychainDirect }
+    /// True for the one source that reads the live Keychain item. A direct
+    /// native read used to be a second one; it prompted in TokenEater's name
+    /// on every refresh tick and is gone (#225).
+    var isKeychain: Bool { self == .keychainCLI }
 
     var reportLabel: String { rawValue }
 }

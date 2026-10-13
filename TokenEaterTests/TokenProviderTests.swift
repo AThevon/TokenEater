@@ -6,8 +6,22 @@ struct TokenProviderTests {
 
     // MARK: - Helpers
 
-    /// keychainReader that always returns nil (no Keychain in tests)
-    private static let noKeychain: TokenProvider.KeychainTokenReader = { _ in nil }
+    /// Stands in for TokenEater's own native read of the Keychain item and
+    /// counts every call, because that read is the one that puts a
+    /// TokenEater-named prompt on screen (#225).
+    final class NativeReaderSpy {
+        var token: String?
+        private(set) var calls = 0
+
+        init(token: String? = nil) { self.token = token }
+
+        var reader: TokenProvider.KeychainTokenReader {
+            { [self] in
+                calls += 1
+                return token
+            }
+        }
+    }
 
     private func makeSUT(
         securityCLIToken: String? = nil,
@@ -30,7 +44,7 @@ struct TokenProviderTests {
         decryption._hasEncryptionKey = hasEncryptionKey
         decryption.decryptedData = decryptedData
 
-        let keychainReader: TokenProvider.KeychainTokenReader = { _ in keychainToken }
+        let keychainReader: TokenProvider.KeychainTokenReader = { keychainToken }
 
         let provider = TokenProvider(
             securityCLIReader: securityCLI,
@@ -131,8 +145,8 @@ struct TokenProviderTests {
         #expect(decryption.decryptCallCount == 0)
     }
 
-    @Test("falls back to keychain when security CLI and credentials file miss")
-    func fallbackToKeychain() {
+    @Test("no native Keychain fallback when security CLI and credentials file miss")
+    func noNativeFallbackWhenEarlierSourcesMiss() {
         let (provider, _, _, _, decryption) = makeSUT(
             securityCLIToken: nil,
             credentialsToken: nil,
@@ -141,7 +155,8 @@ struct TokenProviderTests {
 
         let token = provider.currentToken()
 
-        #expect(token == "keychain-token")
+        #expect(token == nil)
+        #expect(provider.tokenDiagnostic.source == nil)
         #expect(decryption.decryptCallCount == 0)
     }
 
@@ -205,10 +220,46 @@ struct TokenProviderTests {
         #expect(provider.hasTokenSource() == true)
     }
 
-    @Test("hasTokenSource returns true when keychain has token")
-    func hasTokenSourceViaKeychain() {
-        let (provider, _, _, _, _) = makeSUT(keychainToken: "some-token")
+    /// Detection answers from the item's attributes and leaves the token to
+    /// the connect step, so an install with a Claude Code item reads the
+    /// payload once rather than twice.
+    @Test("hasTokenSource detects a listed Keychain item without reading its data")
+    func hasTokenSourceViaListedItem() {
+        let (provider, securityCLI, _, _, _) = makeSUT()
+        securityCLI.itemListed = true
+
         #expect(provider.hasTokenSource() == true)
+        #expect(securityCLI.hasItemCallCount == 1)
+        #expect(securityCLI.readCallCount == 0)
+    }
+
+    /// The trade-off of answering from attributes: an item with no login in
+    /// it, like the MCP-only shadow of #268, still counts as Claude Code being
+    /// here. The missing login surfaces at Connect, which reads the payload.
+    @Test("hasTokenSource counts a listed item even when it holds no usable login")
+    func hasTokenSourceCountsShadowItem() {
+        let (provider, securityCLI, _, _, _) = makeSUT()
+        securityCLI.itemListed = true
+        securityCLI.failure = .unusablePayload
+
+        #expect(provider.hasTokenSource() == true)
+        #expect(provider.currentToken() == nil)
+        #expect(provider.tokenDiagnostic.keychainFailure == .unusablePayload)
+    }
+
+    @Test("hasTokenSource never falls back to TokenEater's own Keychain read")
+    func hasTokenSourceIgnoresNativeRead() {
+        let spy = NativeReaderSpy(token: "some-token")
+        let provider = TokenProvider(
+            securityCLIReader: MockSecurityCLIReader(),
+            credentialsFileReader: MockCredentialsFileReader(),
+            configReader: MockClaudeConfigReader(),
+            decryptionService: MockElectronDecryptionService(),
+            keychainReader: spy.reader
+        )
+
+        #expect(provider.hasTokenSource() == false)
+        #expect(spy.calls == 0)
     }
 
     @Test("hasTokenSource returns false when nothing available")
@@ -217,8 +268,8 @@ struct TokenProviderTests {
         #expect(provider.hasTokenSource() == false)
     }
 
-    @Test("config.json decryption is tried before direct Keychain")
-    func configJsonBeforeKeychain() {
+    @Test("a config.json token never reaches the native Keychain read")
+    func configJsonWithoutNativeRead() {
         let oauthJSON: [String: Any] = [
             "claudeAiOauth": ["accessToken": "config-token"]
         ]
@@ -236,7 +287,7 @@ struct TokenProviderTests {
         decryption._hasEncryptionKey = true
         decryption.decryptedData = jsonData
 
-        let keychainReader: TokenProvider.KeychainTokenReader = { _ in
+        let keychainReader: TokenProvider.KeychainTokenReader = {
             keychainWasCalled = true
             return "keychain-token"
         }
@@ -255,7 +306,7 @@ struct TokenProviderTests {
         #expect(keychainWasCalled == false)
     }
 
-    @Test("silent re-bootstrap recovers when decryption key is stale")
+    @Test("re-deriving the decryption key recovers a config.json token")
     func silentRebootstrapRecovery() {
         let oauthJSON: [String: Any] = [
             "claudeAiOauth": ["accessToken": "recovered-token"]
@@ -277,7 +328,7 @@ struct TokenProviderTests {
             credentialsFileReader: credentials,
             configReader: configReader,
             decryptionService: decryption,
-            keychainReader: { _ in nil }
+            keychainReader: { nil }
         )
 
         let token = provider.currentToken()
@@ -287,8 +338,8 @@ struct TokenProviderTests {
         #expect(decryption.decryptCallCount == 1)
     }
 
-    @Test("falls back to Keychain when config.json unavailable and re-bootstrap fails")
-    func fallbackToKeychainWhenConfigUnavailable() {
+    @Test("no native Keychain read when config.json is unavailable")
+    func noNativeReadWhenConfigUnavailable() {
         let securityCLI = MockSecurityCLIReader()
         let credentials = MockCredentialsFileReader()
         let configReader = MockClaudeConfigReader()
@@ -297,17 +348,150 @@ struct TokenProviderTests {
         let decryption = MockElectronDecryptionService()
         decryption._hasEncryptionKey = false
 
+        let spy = NativeReaderSpy(token: "keychain-fallback")
         let provider = TokenProvider(
             securityCLIReader: securityCLI,
             credentialsFileReader: credentials,
             configReader: configReader,
             decryptionService: decryption,
-            keychainReader: { _ in "keychain-fallback" }
+            keychainReader: spy.reader
         )
 
-        let token = provider.currentToken()
+        #expect(provider.currentToken() == nil)
+        #expect(spy.calls == 0)
+    }
 
-        #expect(token == "keychain-fallback")
+    // MARK: - No native Keychain read on automatic paths (#225)
+
+    /// The exact shape of the report: `security` fails, there is no file or
+    /// Desktop token behind it, and the app keeps reading on launch, wake and
+    /// every refresh tick. None of those may reach TokenEater's own read,
+    /// whatever the reason the `security` read failed.
+    @Test(
+        "a failing security read never reaches the native Keychain read",
+        arguments: [KeychainReadFailure.timedOut, .accessDenied, .unusablePayload, .notFound, .launchFailed, .unknown]
+    )
+    func failingSecurityReadNeverReachesNativeRead(failure: KeychainReadFailure) {
+        let securityCLI = MockSecurityCLIReader()
+        securityCLI.failure = failure
+        securityCLI.itemListed = true
+        let spy = NativeReaderSpy(token: "native-token")
+        let provider = TokenProvider(
+            securityCLIReader: securityCLI,
+            credentialsFileReader: MockCredentialsFileReader(),
+            configReader: MockClaudeConfigReader(),
+            decryptionService: MockElectronDecryptionService(),
+            keychainReader: spy.reader
+        )
+
+        // Launch / wake / retry: an empty cache read.
+        #expect(provider.currentToken() == nil)
+        // Several auto-refresh ticks.
+        for _ in 0..<5 {
+            #expect(provider.refreshTokenIfChanged() == false)
+            #expect(provider.currentToken() == nil)
+        }
+        // A 401, then the read that follows it.
+        provider.invalidateToken()
+        #expect(provider.currentToken() == nil)
+        // Onboarding detection and Check / Reset connection.
+        _ = provider.hasTokenSource()
+        #expect(provider.resetConnection() == nil)
+
+        #expect(spy.calls == 0)
+        #expect(provider.tokenDiagnostic.source == nil)
+        #expect(provider.tokenDiagnostic.keychainFailure == failure)
+    }
+
+    /// A token already cached, then `security` starts failing (the macOS 26
+    /// timeout, say): the tick keeps the working token and still never falls
+    /// through to the native read.
+    @Test("refresh ticks keep the cached token without a native read when security starts failing")
+    func refreshTickKeepsCacheWithoutNativeRead() {
+        let securityCLI = MockSecurityCLIReader()
+        securityCLI.token = "tok-A"
+        let spy = NativeReaderSpy(token: "native-token")
+        let provider = TokenProvider(
+            securityCLIReader: securityCLI,
+            credentialsFileReader: MockCredentialsFileReader(),
+            configReader: MockClaudeConfigReader(),
+            decryptionService: MockElectronDecryptionService(),
+            keychainReader: spy.reader
+        )
+
+        #expect(provider.currentToken() == "tok-A")
+        securityCLI.token = nil
+        securityCLI.failure = .timedOut
+
+        #expect(provider.refreshTokenIfChanged() == false)
+        #expect(provider.currentToken() == "tok-A")
+        #expect(spy.calls == 0)
+    }
+
+    /// The interactive read survives only behind `bootstrap()`, which nothing
+    /// calls today; wiring it up is a decision about accepting the prompt.
+    @Test("bootstrap still reaches the native Keychain read")
+    func bootstrapReachesNativeRead() throws {
+        let spy = NativeReaderSpy(token: "native-token")
+        let provider = TokenProvider(
+            securityCLIReader: MockSecurityCLIReader(),
+            credentialsFileReader: MockCredentialsFileReader(),
+            configReader: MockClaudeConfigReader(),
+            decryptionService: MockElectronDecryptionService(),
+            keychainReader: spy.reader
+        )
+
+        try provider.bootstrap()
+
+        #expect(spy.calls == 1)
+        #expect(provider.currentToken() == "native-token")
+    }
+
+    // MARK: - Claude Desktop key re-derivation stays off the tick
+
+    /// The same bug through the Claude Desktop path: `security` fails, the
+    /// only token is in config.json, and no decryption key is cached. The
+    /// "Claude Safe Storage" read behind the re-derivation can prompt in
+    /// TokenEater's name, so the ticks must not retry it.
+    @Test("a failing key re-derivation is tried once, not on every refresh tick")
+    func keyRederivationIsNotRetriedPerTick() {
+        let (provider, securityCLI, _, _, decryption) = makeSUT(encryptedToken: "encrypted-blob")
+        securityCLI.failure = .accessDenied
+        decryption.silentRebootstrapResult = false
+
+        #expect(provider.currentToken() == nil)
+        for _ in 0..<5 {
+            #expect(provider.refreshTokenIfChanged() == false)
+            #expect(provider.currentToken() == nil)
+        }
+        provider.invalidateToken()
+        #expect(provider.currentToken() == nil)
+
+        #expect(decryption.silentRebootstrapCallCount == 1)
+    }
+
+    /// Reset connection is a click, not a timer, so it earns one more try.
+    @Test("Reset connection re-arms the key re-derivation once")
+    func resetConnectionRearmsKeyRederivation() {
+        let oauthJSON: [String: Any] = ["claudeAiOauth": ["accessToken": "desktop-token"]]
+        let (provider, securityCLI, _, _, decryption) = makeSUT(
+            encryptedToken: "encrypted-blob",
+            decryptedData: try! JSONSerialization.data(withJSONObject: oauthJSON)
+        )
+        securityCLI.failure = .accessDenied
+
+        #expect(provider.currentToken() == nil)
+        #expect(provider.refreshTokenIfChanged() == false)
+        #expect(decryption.silentRebootstrapCallCount == 1)
+
+        decryption.silentRebootstrapResult = true
+        #expect(provider.resetConnection() == "desktop-token")
+        #expect(decryption.silentRebootstrapCallCount == 2)
+        #expect(provider.tokenDiagnostic.source == .claudeDesktop)
+
+        // With the key cached again, later ticks decrypt without re-deriving.
+        #expect(provider.refreshTokenIfChanged() == false)
+        #expect(decryption.silentRebootstrapCallCount == 2)
     }
 
     // MARK: - refreshTokenIfChanged (account swap detection)
