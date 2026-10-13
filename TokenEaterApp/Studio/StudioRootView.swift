@@ -5,13 +5,13 @@ import SwiftUI
 /// customizable surfaces; the matching editor fills the stage below. The
 /// whole space sits on its own aurora ambient (`StudioBackground`) so it
 /// reads as a distinct room while the window chrome stays untouched.
+///
+/// Leaving Studio does not restore the mode the app was in on entry: it stays
+/// in the last mode you edited, so the layout you just built is the one on
+/// screen once the window closes. Restoring hid it behind another mode's
+/// layout, which read as the edit being lost (#285).
 struct StudioRootView: View {
     @Binding var selection: StudioSection
-
-    @EnvironmentObject private var settingsStore: SettingsStore
-    /// The mode the app was reading in when Studio opened, restored on the way
-    /// out so authoring a Codex layout never strands the app in Codex mode.
-    @State private var modeOnEntry: ProviderMode?
 
     var body: some View {
         ZStack {
@@ -45,15 +45,6 @@ struct StudioRootView: View {
                     )
             }
             .padding(DS.Spacing.sm)
-        }
-        .onAppear {
-            if modeOnEntry == nil { modeOnEntry = settingsStore.activeProviderMode }
-        }
-        .onDisappear {
-            if let modeOnEntry, modeOnEntry != settingsStore.activeProviderMode {
-                settingsStore.activeProviderMode = modeOnEntry
-            }
-            modeOnEntry = nil
         }
         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.cardLg, style: .continuous))
         .overlay(
