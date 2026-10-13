@@ -58,6 +58,10 @@ final class SecurityCLIReader: SecurityCLIReaderProtocol, @unchecked Sendable {
         return .success(best.credential.token, matchingItems: accounts.count, expiresAt: best.credential.expiresAt)
     }
 
+    func hasCredentialItem() -> Bool {
+        !accountLister(service).isEmpty
+    }
+
     // MARK: - One item
 
     private func single(account: String?, matchingItems: Int) -> KeychainRead {

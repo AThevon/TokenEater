@@ -11,6 +11,16 @@ final class MockSecurityCLIReader: SecurityCLIReaderProtocol, @unchecked Sendabl
     /// shadowed service name (#268).
     var matchingItems = 1
 
+    /// What the attributes-only listing reports. Off by default so a test
+    /// that only sets `token` still reaches the data read.
+    var itemListed = false
+    var hasItemCallCount = 0
+
+    func hasCredentialItem() -> Bool {
+        hasItemCallCount += 1
+        return itemListed
+    }
+
     func read() -> KeychainRead {
         readCallCount += 1
         if let token { return .success(token, matchingItems: matchingItems) }

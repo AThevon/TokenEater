@@ -22,8 +22,14 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
 
     var tokenDiagnostic: TokenDiagnostic { diagnostic }
 
-    /// Closure type for reading from the Keychain. `silent` = use kSecUseAuthenticationUISkip.
-    typealias KeychainTokenReader = (_ silent: Bool) -> String?
+    /// Reads Claude Code's Keychain item with TokenEater's own identity, the
+    /// one read that makes macOS name TokenEater in its "wants to access"
+    /// dialog. There is no silent form of it: `kSecUseAuthenticationUISkip`
+    /// does not suppress that ACL prompt, and Claude Code resets the item's
+    /// ACL on every token rotation, so an "Always Allow" given to TokenEater
+    /// lasts only until the next one. Only `bootstrap()` calls it, never an
+    /// automatic path (#225).
+    typealias KeychainTokenReader = () -> String?
 
     init(
         securityCLIReader: SecurityCLIReaderProtocol = SecurityCLIReader(),
@@ -41,12 +47,19 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
 
     var isBootstrapped: Bool { true }
 
+    /// Onboarding's "is Claude Code here" check. It answers from the
+    /// Keychain item's attributes, which no ACL guards, rather than from its
+    /// data: reading the token is `currentToken()`'s job a step later, and
+    /// reading it here too doubled the reads a fresh install makes. The
+    /// `security` read at the end only runs when the listing saw no item, so
+    /// a listing that comes back empty on some setup cannot hide a working
+    /// login behind a "not installed" card.
     func hasTokenSource() -> Bool {
         if cachedToken != nil { return true }
-        if securityCLIReader.readToken() != nil { return true }
+        if securityCLIReader.hasCredentialItem() { return true }
         if credentialsFileReader.readToken() != nil { return true }
         if configReader.readEncryptedToken() != nil { return true }
-        if keychainReader(true) != nil { return true }
+        if securityCLIReader.readToken() != nil { return true }
         return false
     }
 
@@ -60,9 +73,12 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     /// 2. `.credentials.json` (legacy Claude Code fallback - still present on Linux/Windows and
     ///    on very old macOS Claude Code installs)
     /// 3. Claude Desktop `config.json` decryption (for users without Claude Code CLI at all)
-    /// 4. Direct `SecItemCopyMatching` (last resort - the Claude Code Keychain ACL doesn't
-    ///    whitelist us directly, so trying it earlier would trip the ACL access prompt; kept
-    ///    for defence-in-depth as a silent read)
+    ///
+    /// There is no fourth source. A direct `SecItemCopyMatching` read used to
+    /// close the list "as a silent read", but it was never silent, and with
+    /// `refreshTokenIfChanged()` running the list on every auto-refresh tick
+    /// it put a TokenEater-named Keychain prompt on a timer whenever the
+    /// `security` read failed (#225).
     func currentToken() -> String? {
         if let token = cachedToken { return token }
         let token = readFromSources()
@@ -102,15 +118,10 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
             return token
         }
 
-        // Direct native read last, and only as a silent read: the Claude Code
-        // Keychain ACL whitelists /usr/bin/security, not us, so reaching this
-        // earlier (or non-silently) would trip the "wants to access" ACL prompt.
-        if let token = keychainReader(true) {
-            logger.info("Token read from Keychain (silent)")
-            diagnostic = TokenDiagnostic(source: .keychainDirect, keychainFailure: keychainFailure, matchingKeychainItems: items)
-            return token
-        }
-
+        // No direct native read of the Keychain item here, on purpose: this
+        // runs on launch, wake and every refresh tick, and that read prompts
+        // in TokenEater's name (#225). A failed `security` read is reported
+        // through the diagnostic instead.
         diagnostic = TokenDiagnostic(source: nil, keychainFailure: keychainFailure, matchingKeychainItems: items)
         return nil
     }
@@ -178,7 +189,7 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     }
 
     func bootstrap() throws {
-        if let token = keychainReader(false) {
+        if let token = keychainReader() {
             cachedToken = token
             logger.info("Bootstrap succeeded via interactive Keychain read")
         }
@@ -192,16 +203,13 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
 
     // MARK: - Keychain (static, no instance state)
 
-    private static func defaultKeychainReader(silent: Bool) -> String? {
-        var query: [String: Any] = [
+    private static func defaultKeychainReader() -> String? {
+        let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "Claude Code-credentials",
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
-        if silent {
-            query[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUISkip
-        }
 
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
