@@ -33,8 +33,9 @@ struct UsageResponse: Codable {
     /// Keys with no backing stored property, read in `init(from:)` only. Kept
     /// out of `CodingKeys` so the synthesized `Encodable` stays property-aligned.
     private enum FallbackKeys: String, CodingKey {
-        /// Array of per-scope limit entries. The new home of per-model weekly
-        /// quotas (`weekly_scoped`) as Anthropic retires the `seven_day_*` keys.
+        /// Array of per-scope limit entries: the session and weekly pools plus
+        /// the per-model weekly quotas (`weekly_scoped`) that replaced the
+        /// retired `seven_day_*` keys.
         case limits
     }
 
@@ -63,25 +64,27 @@ struct UsageResponse: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let fallback = try? decoder.container(keyedBy: FallbackKeys.self)
 
-        // Per-model weekly quotas are migrating out of the flat `seven_day_*`
-        // keys into the `limits` array, where each model appears as a
-        // `weekly_scoped` entry tagged with its display name (e.g. "Fable"). On
-        // migrated accounts the old keys return null, so we read `limits` and
-        // use it to backfill any per-model bucket the top-level key left empty.
-        // The top-level value always wins, so old-shape accounts (populated
-        // `seven_day_*`, no `limits`) keep decoding exactly as before.
-        let limits = fallback.flatMap { try? $0.decode([UsageLimit].self, forKey: .limits) } ?? []
-        func scoped(_ modelName: String) -> UsageBucket? {
-            UsageLimit.weeklyScopedBucket(in: limits, modelNamed: modelName)
+        // The `limits` array mirrors every pool the flat keys carry: `session`
+        // is the 5h window, `weekly_all` the global week, and each model quota
+        // is a `weekly_scoped` entry tagged with its display name (e.g.
+        // "Fable"). Anthropic already nulled `seven_day_sonnet` / `_opus` in
+        // favour of it, so it backfills any bucket the flat key left empty.
+        // A flat key that carries a utilization always wins, so old-shape
+        // accounts (populated keys, no `limits`) decode exactly as before. Decoded
+        // lossily: one malformed entry must not take its siblings with it.
+        let limits = fallback?.decodeLossyArray(UsageLimit.self, forKey: .limits) ?? []
+        func bucket(_ key: CodingKeys, orLimit limit: UsageBucket? = nil) -> UsageBucket? {
+            let raw = try? container.decodeIfPresent(RawUsageBucket.self, forKey: key)
+            return UsageBucket.resolve(raw, fallback: limit)
         }
 
-        fiveHour = try? container.decode(UsageBucket.self, forKey: .fiveHour)
-        sevenDay = try? container.decode(UsageBucket.self, forKey: .sevenDay)
-        sevenDaySonnet = (try? container.decode(UsageBucket.self, forKey: .sevenDaySonnet)) ?? scoped("Sonnet")
-        sevenDayOauthApps = try? container.decode(UsageBucket.self, forKey: .sevenDayOauthApps)
-        sevenDayOpus = (try? container.decode(UsageBucket.self, forKey: .sevenDayOpus)) ?? scoped("Opus")
-        sevenDayCowork = try? container.decode(UsageBucket.self, forKey: .sevenDayCowork)
-        sevenDayFable = (try? container.decode(UsageBucket.self, forKey: .sevenDayFable)) ?? scoped("Fable")
+        fiveHour = bucket(.fiveHour, orLimit: UsageLimit.unscopedBucket(in: limits, kind: "session"))
+        sevenDay = bucket(.sevenDay, orLimit: UsageLimit.unscopedBucket(in: limits, kind: "weekly_all"))
+        sevenDaySonnet = bucket(.sevenDaySonnet, orLimit: UsageLimit.weeklyScopedBucket(in: limits, modelNamed: "Sonnet"))
+        sevenDayOauthApps = bucket(.sevenDayOauthApps)
+        sevenDayOpus = bucket(.sevenDayOpus, orLimit: UsageLimit.weeklyScopedBucket(in: limits, modelNamed: "Opus"))
+        sevenDayCowork = bucket(.sevenDayCowork)
+        sevenDayFable = bucket(.sevenDayFable, orLimit: UsageLimit.weeklyScopedBucket(in: limits, modelNamed: "Fable"))
         extraUsage = try? container.decode(ExtraUsage.self, forKey: .extraUsage)
     }
 }
@@ -95,13 +98,13 @@ struct UsageBucket: Codable {
         case resetsAt = "resets_at"
     }
 
-    private static let iso8601WithFractional: ISO8601DateFormatter = {
+    fileprivate static let iso8601WithFractional: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
     }()
 
-    private static let iso8601WithoutFractional: ISO8601DateFormatter = {
+    fileprivate static let iso8601WithoutFractional: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime]
         return f
@@ -112,21 +115,72 @@ struct UsageBucket: Codable {
         return Self.iso8601WithFractional.date(from: resetsAt)
             ?? Self.iso8601WithoutFractional.date(from: resetsAt)
     }
+
+    /// Picks between a flat-key bucket and its `limits` counterpart. A flat key
+    /// with a utilization wins whole, `resets_at` included: a null reset there
+    /// means no window is open, and borrowing a date from `limits` would invent
+    /// a countdown. Only when its utilization is missing does the `limits`
+    /// entry take over, keeping the flat reset if the entry has none. A bucket
+    /// only exists when some source carries a utilization: a null one is
+    /// unknown, not 0%, so the absent-vs-0% distinction survives.
+    fileprivate static func resolve(_ raw: RawUsageBucket?, fallback: UsageBucket?) -> UsageBucket? {
+        if let raw, let utilization = raw.utilization {
+            return UsageBucket(utilization: utilization, resetsAt: raw.resetsAt)
+        }
+        guard let fallback else { return nil }
+        return UsageBucket(utilization: fallback.utilization, resetsAt: fallback.resetsAt ?? raw?.resetsAt)
+    }
 }
 
-/// One entry in the `usage` response's `limits` array. Anthropic is moving
-/// per-model weekly quotas here (as `weekly_scoped` entries carrying the
-/// model's display name) from the flat `seven_day_*` keys. Every field is
-/// optional so an unfamiliar entry never breaks the whole decode.
+extension UsageBucket {
+    // In an extension so the memberwise initializer survives. Same leniency as
+    // `RawUsageBucket`, except a missing or null utilization still throws:
+    // there is no bucket to build without one.
+    init(from decoder: Decoder) throws {
+        let raw = try RawUsageBucket(from: decoder)
+        guard let utilization = raw.utilization else {
+            throw DecodingError.valueNotFound(Double.self, DecodingError.Context(
+                codingPath: decoder.codingPath + [CodingKeys.utilization as CodingKey],
+                debugDescription: "utilization is null or not a number"
+            ))
+        }
+        self.init(utilization: utilization, resetsAt: raw.resetsAt)
+    }
+}
+
+/// A usage bucket as the API sends it, read field by field so one odd field
+/// never discards the other: a null `utilization` keeps `resets_at`, and a
+/// numeric `resets_at` (epoch seconds) is normalized to an ISO 8601 string.
+private struct RawUsageBucket: Decodable {
+    let utilization: Double?
+    let resetsAt: String?
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: UsageBucket.CodingKeys.self)
+        utilization = container.lenientDouble(forKey: .utilization)
+        resetsAt = container.lenientTimestamp(forKey: .resetsAt)
+    }
+}
+
+/// One entry in the `usage` response's `limits` array: the session and weekly
+/// pools, plus per-model weekly quotas (as `weekly_scoped` entries carrying
+/// the model's display name) that replaced the flat `seven_day_*` keys. Every
+/// field is optional and read leniently so an unfamiliar entry never breaks
+/// the decode.
 struct UsageLimit: Codable {
     /// e.g. `session`, `weekly_all`, `weekly_scoped`.
     let kind: String?
     /// e.g. `session`, `weekly`.
     let group: String?
     /// Utilization as a whole-number percentage (the array uses `percent`,
-    /// unlike the `seven_day_*` buckets which use `utilization`).
+    /// unlike the `seven_day_*` buckets which use `utilization`). Sent as an
+    /// integer today; decoded into a Double like the buckets.
     let percent: Double?
     let resetsAt: String?
+    /// Nil only when the API sent no scope at all (absent or null), i.e. the
+    /// account-wide pool. Any other scope, including a malformed one or one
+    /// limited to a surface rather than a model, decodes to a non-nil value so
+    /// it can never pass for the account-wide pool.
     let scope: Scope?
 
     enum CodingKeys: String, CodingKey {
@@ -149,18 +203,94 @@ struct UsageLimit: Codable {
         }
     }
 
+    /// Adapts this entry into a `UsageBucket`, or nil when it carries no
+    /// percentage (unknown is not 0%).
+    var bucket: UsageBucket? {
+        percent.map { UsageBucket(utilization: $0, resetsAt: resetsAt) }
+    }
+
+    /// Finds the first entry of `kind` that carries no scope at all (the
+    /// account-wide `session` or `weekly_all` pool) and a percentage, and
+    /// adapts it into a `UsageBucket`. Backs `five_hour` / `seven_day` when
+    /// the flat key is null, missing or has no utilization.
+    static func unscopedBucket(in limits: [UsageLimit], kind: String) -> UsageBucket? {
+        limits.lazy.filter { $0.kind == kind && $0.scope == nil }.compactMap(\.bucket).first
+    }
+
     /// Finds the `weekly_scoped` entry whose model display name matches `name`
     /// (case-insensitive) and adapts it into a `UsageBucket`, so callers can
     /// treat it identically to a `seven_day_*` bucket. Returns nil when there
-    /// is no such entry — an old-shape account, or a model the user has not
-    /// touched this week. Exact match keeps it conservative: it only ever adds
+    /// is no such entry (an old-shape account, or a model the user has not
+    /// touched this week). Exact match keeps it conservative: it only ever adds
     /// a bucket, and never mistakes one model's quota for another's.
     static func weeklyScopedBucket(in limits: [UsageLimit], modelNamed name: String) -> UsageBucket? {
         let needle = name.lowercased()
-        guard let match = limits.first(where: {
+        return limits.lazy.filter {
             $0.kind == "weekly_scoped" && $0.scope?.model?.displayName?.lowercased() == needle
-        }) else { return nil }
-        return UsageBucket(utilization: match.percent ?? 0, resetsAt: match.resetsAt)
+        }.compactMap(\.bucket).first
+    }
+}
+
+// Lenient decoders, in extensions so the memberwise initializers survive. A
+// field of an unexpected type reads as nil instead of failing its whole entry.
+extension UsageLimit {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            kind: try? container.decodeIfPresent(String.self, forKey: .kind),
+            group: try? container.decodeIfPresent(String.self, forKey: .group),
+            percent: container.lenientDouble(forKey: .percent),
+            resetsAt: container.lenientTimestamp(forKey: .resetsAt),
+            scope: container.lenientScope()
+        )
+    }
+}
+
+private extension KeyedDecodingContainer where Key == UsageLimit.CodingKeys {
+    /// Nil when `scope` is absent or null; otherwise the decoded scope, or an
+    /// empty one when it is malformed, so it still reads as scoped.
+    func lenientScope() -> UsageLimit.Scope? {
+        guard contains(.scope), (try? decodeNil(forKey: .scope)) == false else { return nil }
+        return (try? decode(UsageLimit.Scope.self, forKey: .scope)) ?? UsageLimit.Scope(model: nil)
+    }
+}
+
+extension UsageLimit.Scope {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(model: try? container.decodeIfPresent(Model.self, forKey: .model))
+    }
+}
+
+extension UsageLimit.Scope.Model {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            id: try? container.decodeIfPresent(String.self, forKey: .id),
+            displayName: try? container.decodeIfPresent(String.self, forKey: .displayName)
+        )
+    }
+}
+
+private extension KeyedDecodingContainer {
+    /// A finite JSON number (an integer lands here too). Null, absent, a
+    /// string or anything else -> nil, so a bad value drops one field, never
+    /// the entry, and never reaches an `Int(...)` conversion as NaN or inf.
+    func lenientDouble(forKey key: Key) -> Double? {
+        guard let value = try? decodeIfPresent(Double.self, forKey: key), value.isFinite else { return nil }
+        return value
+    }
+
+    /// An ISO 8601 string as-is, or a Unix timestamp (seconds, or
+    /// milliseconds when implausibly large for seconds) normalized to ISO
+    /// 8601 so `resetsAtDate` parses it. Null, absent or anything else -> nil.
+    func lenientTimestamp(forKey key: Key) -> String? {
+        if let text = try? decodeIfPresent(String.self, forKey: key) { return text }
+        if let epoch = try? decodeIfPresent(Double.self, forKey: key), epoch.isFinite {
+            let seconds = epoch > 100_000_000_000 ? epoch / 1000 : epoch
+            return UsageBucket.iso8601WithoutFractional.string(from: Date(timeIntervalSince1970: seconds))
+        }
+        return nil
     }
 }
 
