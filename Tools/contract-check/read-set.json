@@ -1,0 +1,117 @@
+{
+  "schema": 1,
+  "about": "The JSON paths TokenEater decodes from each usage endpoint, with the JSON types its decoder turns into something useful. Hand-derived from the models listed in decodedBy; scripts/check-docs.py fails when a CodingKey there has no path here. Types: object, array, string, number, bool, null, absent (key missing from an object that is present). 'displayed: false' marks paths that are decoded but feed no visible feature, so a violation there is reported as active, not breaking.",
+  "providers": {
+    "claude-usage": {
+      "endpoint": "GET https://api.anthropic.com/api/oauth/usage",
+      "decodedBy": ["Shared/Models/UsageModels.swift"],
+      "valueFields": ["limits[].kind", "limits[].group", "limits[].scope.model.display_name"],
+      "dynamicKeys": [],
+      "ignoredCodingKeys": {},
+      "paths": {
+        "five_hour": { "types": ["object"], "use": "Session (5h) usage: menu bar, popover, dashboard hero, widgets, pacing, notifications" },
+        "five_hour.utilization": { "types": ["number"], "use": "Session percentage; any other type drops the whole bucket and shows 0%" },
+        "five_hour.resets_at": { "types": ["string", "null"], "use": "Session countdown, pacing and reset reminder (ISO 8601)" },
+
+        "seven_day": { "types": ["object"], "use": "Weekly usage: menu bar, popover, dashboard, widgets, weekly pacing, notifications" },
+        "seven_day.utilization": { "types": ["number"], "use": "Weekly percentage; any other type drops the whole bucket and shows 0%" },
+        "seven_day.resets_at": { "types": ["string", "null"], "use": "Weekly countdown, pacing and reset reminder (ISO 8601)" },
+
+        "seven_day_sonnet": { "types": ["object", "null", "absent"], "use": "Sonnet tile, pacing, notifications; falls back to limits[] weekly_scoped 'Sonnet'" },
+        "seven_day_sonnet.utilization": { "types": ["number"], "use": "Sonnet percentage" },
+        "seven_day_sonnet.resets_at": { "types": ["string", "null"], "use": "Sonnet countdown" },
+
+        "seven_day_opus": { "types": ["object", "null", "absent"], "use": "Opus dashboard tile; falls back to limits[] weekly_scoped 'Opus'" },
+        "seven_day_opus.utilization": { "types": ["number"], "use": "Opus percentage" },
+        "seven_day_opus.resets_at": { "types": ["string", "null"], "use": "Opus countdown" },
+
+        "seven_day_fable": { "types": ["object", "null", "absent"], "use": "Fable tile, pacing, notifications, menu bar, widget; falls back to limits[] weekly_scoped 'Fable'" },
+        "seven_day_fable.utilization": { "types": ["number"], "use": "Fable percentage" },
+        "seven_day_fable.resets_at": { "types": ["string", "null"], "use": "Fable countdown" },
+
+        "seven_day_cowork": { "types": ["object", "null", "absent"], "use": "Cowork dashboard tile (no limits[] fallback)" },
+        "seven_day_cowork.utilization": { "types": ["number"], "use": "Cowork percentage" },
+        "seven_day_cowork.resets_at": { "types": ["string", "null"], "use": "Cowork countdown" },
+
+        "seven_day_oauth_apps": { "types": ["object", "null", "absent"], "use": "Decoded into UsageStore.oauthAppsPct, which nothing reads", "displayed": false },
+        "seven_day_oauth_apps.utilization": { "types": ["number"], "use": "Decoded, never displayed", "displayed": false },
+        "seven_day_oauth_apps.resets_at": { "types": ["string", "null"], "use": "Decoded, never displayed", "displayed": false },
+
+        "extra_usage": { "types": ["object", "null"], "use": "Extra Credits card, its widget, menu bar EC%, extra-credits notification" },
+        "extra_usage.is_enabled": { "types": ["bool"], "use": "Required: missing or mistyped drops the whole Extra Credits pool" },
+        "extra_usage.monthly_limit": { "types": ["number", "null", "absent"], "use": "Extra Credits limit (minor units); a type change drops the pool" },
+        "extra_usage.used_credits": { "types": ["number", "null", "absent"], "use": "Extra Credits spent (minor units); a type change drops the pool" },
+        "extra_usage.utilization": { "types": ["number", "null", "absent"], "use": "Extra Credits percentage; a type change drops the pool" },
+        "extra_usage.currency": { "types": ["string", "null", "absent"], "use": "Currency formatting (USD fallback); a type change drops the pool" },
+        "extra_usage.disabled_reason": { "types": ["string", "null", "absent"], "use": "Decoded, read by tests only; a type change still drops the pool" },
+
+        "limits": { "types": ["array"], "use": "Per-model weekly quotas (Fable, Sonnet, Opus fallbacks). Decoded all or nothing" },
+        "limits[]": { "types": ["object"], "use": "One malformed entry wipes the whole array, and Fable with it" },
+        "limits[].kind": { "types": ["string"], "use": "Matched against 'weekly_scoped'" },
+        "limits[].group": { "types": ["string", "null", "absent"], "use": "Decoded, unused; a type change wipes the array" },
+        "limits[].percent": { "types": ["number"], "use": "Per-model percentage; null shows a silent 0%" },
+        "limits[].resets_at": { "types": ["string", "null", "absent"], "use": "Per-model countdown (ISO 8601)" },
+        "limits[].scope": { "types": ["object", "null", "absent"], "use": "Holds the model of a weekly_scoped entry" },
+        "limits[].scope.model": { "types": ["object", "null", "absent"], "use": "Holds the model display name" },
+        "limits[].scope.model.id": { "types": ["string", "null", "absent"], "use": "Decoded, unused; a type change wipes the array" },
+        "limits[].scope.model.display_name": { "types": ["string"], "use": "Matched case-insensitively against Fable, Sonnet, Opus" }
+      }
+    },
+    "codex-usage": {
+      "endpoint": "GET https://chatgpt.com/backend-api/wham/usage",
+      "decodedBy": ["Shared/Models/CodexUsageModels.swift"],
+      "valueFields": [
+        "plan_type",
+        "rate_limit.primary_window.limit_window_seconds",
+        "rate_limit.secondary_window.limit_window_seconds",
+        "additional_rate_limits[].limit_name",
+        "additional_rate_limits[].metered_feature"
+      ],
+      "dynamicKeys": ["model_usage"],
+      "ignoredCodingKeys": {
+        "resetCreditsAvailable": "TokenEater's own flat key in codex.json, never sent by the API"
+      },
+      "paths": {
+        "plan_type": { "types": ["string", "null"], "use": "Plan badge (popover, Settings > Providers, diagnostic); falls back to the JWT claim" },
+
+        "rate_limit": { "types": ["object", "null"], "use": "Account windows; null on API-key accounts" },
+        "rate_limit.allowed": { "types": ["bool", "null", "absent"], "use": "Limit-reached banner and widget text" },
+        "rate_limit.limit_reached": { "types": ["bool", "null", "absent"], "use": "Limit-reached banner and widget text" },
+        "rate_limit.primary_window": { "types": ["object", "null", "absent"], "use": "A usage window, classified by duration, never by position" },
+        "rate_limit.secondary_window": { "types": ["object", "null", "absent"], "use": "A usage window, classified by duration, never by position" },
+        "rate_limit.primary_window.used_percent": { "types": ["number"], "use": "Gauges, menu bar, popover, dashboard, widget, pacing, notifications; defaults to a silent 0" },
+        "rate_limit.primary_window.limit_window_seconds": { "types": ["number"], "use": "Window classification (session, weekly, other); defaults to 0, i.e. 'other'" },
+        "rate_limit.primary_window.reset_after_seconds": { "types": ["number", "null", "absent"], "use": "Idle detection for reset reminders" },
+        "rate_limit.primary_window.reset_at": { "types": ["number", "null"], "use": "Countdown, pacing, reset reminders and reset detection (Unix seconds)" },
+        "rate_limit.secondary_window.used_percent": { "types": ["number"], "use": "Gauges, menu bar, popover, dashboard, widget, pacing, notifications; defaults to a silent 0" },
+        "rate_limit.secondary_window.limit_window_seconds": { "types": ["number"], "use": "Window classification (session, weekly, other); defaults to 0, i.e. 'other'" },
+        "rate_limit.secondary_window.reset_after_seconds": { "types": ["number", "null", "absent"], "use": "Idle detection for reset reminders" },
+        "rate_limit.secondary_window.reset_at": { "types": ["number", "null"], "use": "Countdown, pacing, reset reminders and reset detection (Unix seconds)" },
+
+        "additional_rate_limits": { "types": ["array", "null", "absent"], "use": "Per-model pools, decoded lossily, not displayed", "displayed": false },
+        "additional_rate_limits[]": { "types": ["object"], "use": "Decoded, not displayed", "displayed": false },
+        "additional_rate_limits[].limit_name": { "types": ["string", "null", "absent"], "use": "Decoded, not displayed", "displayed": false },
+        "additional_rate_limits[].metered_feature": { "types": ["string", "null", "absent"], "use": "Decoded, not displayed", "displayed": false },
+        "additional_rate_limits[].rate_limit": { "types": ["object"], "use": "Required: entries without it are dropped", "displayed": false },
+        "additional_rate_limits[].normal_model_slug": { "types": ["string", "null", "absent"], "use": "Decoded, not displayed", "displayed": false },
+
+        "credits": { "types": ["object", "null", "absent"], "use": "Credits footer pills and medium widget" },
+        "credits.has_credits": { "types": ["bool", "null", "absent"], "use": "Credits pill" },
+        "credits.unlimited": { "types": ["bool", "null", "absent"], "use": "Credits pill" },
+        "credits.overage_limit_reached": { "types": ["bool", "null", "absent"], "use": "Credits pill and widget" },
+        "credits.balance": { "types": ["string", "null", "absent"], "use": "Credits balance (a decimal string; a number shows '-')" },
+
+        "spend_control": { "types": ["object", "null", "absent"], "use": "Workspace spending cap, decoded, not displayed", "displayed": false },
+        "spend_control.reached": { "types": ["bool", "null", "absent"], "use": "Decoded, not displayed", "displayed": false },
+        "spend_control.individual_limit": { "types": ["number", "object", "null", "absent"], "use": "Decoded, not displayed", "displayed": false },
+        "spend_control.individual_limit.limit": { "types": ["number"], "use": "Decoded as a number, not displayed (upstream declares a string)", "displayed": false },
+
+        "rate_limit_reached_type": { "types": ["string", "object", "null", "absent"], "use": "Why requests are blocked, decoded, not displayed", "displayed": false },
+        "rate_limit_reached_type.type": { "types": ["string"], "use": "Decoded, not displayed", "displayed": false },
+
+        "rate_limit_reset_credits": { "types": ["object", "null", "absent"], "use": "Banked reset credits: footer pill and widget" },
+        "rate_limit_reset_credits.available_count": { "types": ["number", "null", "absent"], "use": "Banked reset credits count" }
+      }
+    }
+  }
+}
