@@ -145,6 +145,23 @@ enum CodexFixtures {
     }
     """
 
+    /// `promax`, the plan upstream added on 2026-09-25, with the 5h + weekly
+    /// pair the other Pro tiers report.
+    static let promaxJSON = """
+    {
+      "plan_type": "promax",
+      "rate_limit": {
+        "allowed": true,
+        "limit_reached": false,
+        "primary_window": { "used_percent": 4, "limit_window_seconds": 18000, "reset_after_seconds": 15000, "reset_at": 1789000000 },
+        "secondary_window": { "used_percent": 11, "limit_window_seconds": 604800, "reset_after_seconds": 400000, "reset_at": 1789400000 }
+      },
+      "additional_rate_limits": [],
+      "spend_control": { "reached": false, "individual_limit": null },
+      "rate_limit_reached_type": null
+    }
+    """
+
     static func decode(_ json: String) -> CodexUsageResponse {
         try! JSONDecoder().decode(CodexUsageResponse.self, from: Data(json.utf8))
     }
