@@ -41,7 +41,7 @@ struct ModelKindTests {
     }
 
     /// A 4.x minor without its own case stays in the 4.x generation instead of
-    /// being absorbed by the bare-opus fallback into the Opus 5 bucket.
+    /// being absorbed by the bare-opus fallback into the current Opus bucket.
     @Test func unknownOpus4MinorStaysInGeneration4() {
         #expect(ModelKind(rawModel: "claude-opus-4-5") == .opus48)
         #expect(ModelKind(rawModel: "claude-opus-4-5-20251101") == .opus48)
