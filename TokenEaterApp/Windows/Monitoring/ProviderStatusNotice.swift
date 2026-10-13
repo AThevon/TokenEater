@@ -55,10 +55,16 @@ struct ProviderStatusNotice: View {
     /// Nil while the provider is fine, and nil as well for the calm case
     /// where the token is momentarily unreadable but a snapshot is still on
     /// screen: the app recovers from that by itself, and an alarm the user
-    /// cannot act on is worse than no alarm.
+    /// cannot act on is worse than no alarm. An hour after the login expired
+    /// it no longer recovers by itself, and the notice says what to do (#268).
     private var errorMessage: String? {
         switch provider {
         case .claude:
+            if usageStore.errorState == .tokenUnavailable, let since = usageStore.loginExpiredSince {
+                let headline = String(format: String(localized: "error.login.expired"),
+                                      since.formatted(.relative(presentation: .named)))
+                return headline + ". " + String(localized: "error.login.expired.hint")
+            }
             guard !usageStore.isAwaitingRefresh else { return nil }
             switch usageStore.errorState {
             case .tokenUnavailable:

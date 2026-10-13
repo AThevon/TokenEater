@@ -556,19 +556,40 @@ final class NotificationService: NotificationServiceProtocol {
 
     // MARK: - Token expired
 
+    /// A 401 that is not the routine wait for Claude Code's next run: a
+    /// refused or timed-out Keychain read, a shadowed item, a revoked token.
+    /// These tend to persist, and "reconnect" does not fix most of them, so
+    /// the alert fires once per run of failures and points at the popover,
+    /// which names the actual cause. `endTokenAlertEpisode()` re-arms it.
     func notifyTokenExpired(toggles: NotificationToggles) {
         guard toggles.masterEnabled, toggles.claudeEnabled, toggles.tokenExpired else { return }
-        let now = Date()
-        // De-dupe: only one token-expired notif per hour.
-        if let last = state.tokenExpiredFiredAt(),
-           now.timeIntervalSince(last) < 3600 {
-            return
-        }
-        state.setTokenExpiredFiredAt(now)
+        guard !state.tokenAlertSent() else { return }
+        state.setTokenAlertSent(true)
 
         let content = content(for: .claude)
         content.title = String(localized: "notif.title.token")
         content.body = String(localized: "notif.body.token")
+        send(id: "token_expired", content: content)
+    }
+
+    func endTokenAlertEpisode() {
+        // Runs on every successful refresh: write only when there is
+        // something to clear.
+        if state.tokenAlertSent() { state.setTokenAlertSent(false) }
+    }
+
+    /// The Claude Code login has been expired long enough that nothing is
+    /// renewing it. One alert per expiry episode, keyed on the expiry date
+    /// itself: the same login stays announced across ticks and relaunches,
+    /// and a renewed login expires later, which opens the next episode.
+    func notifyLoginExpired(since expiredAt: Date, toggles: NotificationToggles) {
+        guard toggles.masterEnabled, toggles.claudeEnabled, toggles.tokenExpired else { return }
+        if let announced = state.loginExpiredAlertedFor(), announced >= expiredAt { return }
+        state.setLoginExpiredAlertedFor(expiredAt)
+
+        let content = content(for: .claude)
+        content.title = String(localized: "notif.title.login.expired")
+        content.body = String(localized: "notif.body.login.expired")
         send(id: "token_expired", content: content)
     }
 

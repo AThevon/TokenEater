@@ -122,16 +122,72 @@ struct NotificationServiceTests {
         #expect(!center.addedIDs.contains("recovery_fiveHour"))
     }
 
-    @Test("token expired de-dupes within one hour")
-    func tokenExpiredDedupes() {
+    /// The generic alert covers 401s that tend to persist (a refused Keychain
+    /// read, a revoked token): one alert per run of failures, however many
+    /// ticks or hours it lasts, re-armed by the next successful refresh.
+    @Test("the generic token alert fires once per run of failures")
+    func tokenAlertOncePerRun() {
+        let (service, center, _) = makeSUT()
+
+        service.notifyTokenExpired(toggles: toggles())
+        service.notifyTokenExpired(toggles: toggles())
+        service.notifyTokenExpired(toggles: toggles())
+        #expect(center.addedIDs.filter { $0 == "token_expired" }.count == 1)
+
+        service.endTokenAlertEpisode()
+        service.notifyTokenExpired(toggles: toggles())
+        #expect(center.addedIDs.filter { $0 == "token_expired" }.count == 2)
+    }
+
+    @Test("a muted token alert does not use up the run")
+    func mutedTokenAlertStaysArmed() {
         let (service, center, state) = makeSUT()
-        _ = state
 
-        service.notifyTokenExpired(toggles: toggles())
+        service.notifyTokenExpired(toggles: toggles(claudeEnabled: false))
+        #expect(center.addedIDs.isEmpty)
+        #expect(!state.tokenAlertSentFlag)
+    }
+
+    /// One alert per expiry episode (#268): repeated failing ticks after the
+    /// first fire stay silent, and a later expiry (the login was renewed,
+    /// then expired again) is a new episode.
+    @Test("login expired fires once per expiry episode")
+    func loginExpiredOncePerEpisode() {
+        let (service, center, _) = makeSUT()
+        let firstExpiry = Date().addingTimeInterval(-2 * 3600)
+
+        service.notifyLoginExpired(since: firstExpiry, toggles: toggles())
+        service.notifyLoginExpired(since: firstExpiry, toggles: toggles())
         #expect(center.addedIDs.filter { $0 == "token_expired" }.count == 1)
 
+        let secondExpiry = firstExpiry.addingTimeInterval(9 * 3600)
+        service.notifyLoginExpired(since: secondExpiry, toggles: toggles())
+        #expect(center.addedIDs.filter { $0 == "token_expired" }.count == 2)
+    }
+
+    /// A Keychain timeout on one tick in the first hour fires the generic
+    /// alert; the escalation an hour later must still get its own, actionable
+    /// one, and the reverse order must not mute the generic alert either.
+    @Test("the generic and expired-login alerts do not suppress each other")
+    func tokenAlertsIndependent() {
+        let (service, center, _) = makeSUT()
+        let expiry = Date().addingTimeInterval(-2 * 3600)
+
         service.notifyTokenExpired(toggles: toggles())
-        #expect(center.addedIDs.filter { $0 == "token_expired" }.count == 1)
+        service.notifyLoginExpired(since: expiry, toggles: toggles())
+        #expect(center.addedIDs.filter { $0 == "token_expired" }.count == 2)
+
+        let (other, otherCenter, _) = makeSUT()
+        other.notifyLoginExpired(since: expiry, toggles: toggles())
+        other.notifyTokenExpired(toggles: toggles())
+        #expect(otherCenter.addedIDs.filter { $0 == "token_expired" }.count == 2)
+    }
+
+    @Test("login expired respects the token-expired toggle")
+    func loginExpiredGated() {
+        let (service, center, _) = makeSUT()
+        service.notifyLoginExpired(since: Date().addingTimeInterval(-7200), toggles: toggles(claudeEnabled: false))
+        #expect(center.addedIDs.isEmpty)
     }
 
     @Test("every notification names its provider and groups by it")

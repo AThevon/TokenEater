@@ -76,7 +76,7 @@ struct NotificationsSectionView: View {
         settingsStore.notifResetReminderSessionOffset = 15
         settingsStore.notifResetReminderWeeklyOffset = 60
         settingsStore.notifExtraCredits = true
-        settingsStore.notifTokenExpired = false
+        settingsStore.notifTokenExpired = true
         settingsStore.notifVendorDegraded = true
         settingsStore.notifVendorRestored = true
         settingsStore.notification.codexEnabled = true
