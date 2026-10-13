@@ -1,0 +1,80 @@
+name: Contract upstream (Codex)
+
+# Weekly, credential-free watch of the openai/codex files that define the Codex
+# usage payload (Tools/contract-check/upstream-check.py). On a change it bumps
+# Tools/contract-check/upstream/codex.lock.json on bot/contract-upstream and
+# opens or updates a PR, authored by github-actions[bot] so the maintainer is
+# notified. Merging the PR acknowledges the change.
+#
+# GITHUB_TOKEN can only open PRs once "Allow GitHub Actions to create and
+# approve pull requests" is on (Settings > Actions > General). The local
+# checker re-enables this workflow if GitHub disables it for inactivity.
+
+on:
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: contract-upstream
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare the watched files with the lock
+        id: check
+        run: |
+          python3 Tools/contract-check/upstream-check.py \
+            --body "$RUNNER_TEMP/body.md" --output "$GITHUB_OUTPUT"
+
+      - name: Push the new lock and open or update the pull request
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          lock=Tools/contract-check/upstream/codex.lock.json
+          title="Codex usage models changed upstream"
+          number=$(gh pr list --head bot/contract-upstream --base main --state open \
+            --json number --jq '.[0].number // empty')
+          # An open PR already carrying these blob SHAs: nothing new upstream.
+          # Only the files are compared, since openai/codex main moves daily.
+          if [ -n "$number" ] && git fetch --quiet origin bot/contract-upstream \
+              && [ "$(git show "FETCH_HEAD:$lock" | jq -S .files)" = "$(jq -S .files "$lock")" ]; then
+            echo "Already pending in #$number."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B bot/contract-upstream
+          git add "$lock"
+          git commit -m "chore(contract): acknowledge openai/codex usage model changes"
+          git push --force origin bot/contract-upstream
+
+          gh label create contract-upstream --color FBCA04 --force \
+            --description "The openai/codex usage models changed upstream"
+          if [ -n "$number" ]; then
+            gh pr edit "$number" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+            echo "Updated #$number"
+          else
+            gh pr create --head bot/contract-upstream --base main \
+              --title "$title" --body-file "$RUNNER_TEMP/body.md" --label contract-upstream
+          fi
+
+      - name: Fail when a watched file disappeared
+        if: steps.check.outputs.missing == 'true'
+        run: |
+          echo "::error::A watched openai/codex file no longer exists. Update upstream/codex.lock.json by hand."
+          exit 1

@@ -1,0 +1,36 @@
+name: Contract check heartbeat
+
+# The usage API contract check runs on the maintainer's Mac, where nothing on
+# GitHub would notice it stopping. Each run writes the CONTRACT_CHECK_HEARTBEAT
+# repository variable; this daily watchdog opens an issue labelled
+# contract-check-down when the last successful Claude check is more than 9 days
+# old (or the variable is missing), and closes it once the check is back.
+# The local checker re-enables this workflow if GitHub disables it for
+# inactivity.
+
+on:
+  schedule:
+    - cron: "41 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: contract-heartbeat
+  cancel-in-progress: false
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the heartbeat
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          HEARTBEAT: ${{ vars.CONTRACT_CHECK_HEARTBEAT }}
+        run: python3 Tools/contract-check/heartbeat-check.py

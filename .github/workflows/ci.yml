@@ -5,6 +5,10 @@ on:
     branches: [main]
   push:
     branches: [main]
+    # Merging a contract-check bot PR only moves a baseline or a lock file;
+    # it must not cost a macOS build.
+    paths-ignore:
+      - "Tools/contract-check/**"
 
 concurrency:
   group: ci-${{ github.ref }}
