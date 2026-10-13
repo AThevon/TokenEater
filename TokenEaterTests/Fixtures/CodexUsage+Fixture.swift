@@ -114,6 +114,70 @@ enum CodexFixtures {
     }
     """
 
+    /// Enterprise member with a monthly credit cap. `individual_limit` follows
+    /// the upstream model (openai/codex `SpendControlLimitDetails`, sample from
+    /// PR #24812): amounts are decimal strings, percentages and times integers.
+    static let enterpriseSpendControlJSON = """
+    {
+      "plan_type": "enterprise",
+      "rate_limit": {
+        "allowed": true,
+        "limit_reached": false,
+        "primary_window": { "used_percent": 9, "limit_window_seconds": 18000, "reset_after_seconds": 12000, "reset_at": 1789000000 },
+        "secondary_window": null
+      },
+      "additional_rate_limits": null,
+      "credits": null,
+      "spend_control": {
+        "reached": false,
+        "individual_limit": {
+          "source": "workspace_default",
+          "limit": "25000",
+          "used": "8000",
+          "remaining": "17000",
+          "used_percent": 32,
+          "remaining_percent": 68,
+          "reset_after_seconds": 86400,
+          "reset_at": 1778137680
+        }
+      },
+      "rate_limit_reached_type": null
+    }
+    """
+
+    /// `promax`, the plan upstream added on 2026-09-25, with the 5h + weekly
+    /// pair the other Pro tiers report.
+    static let promaxJSON = """
+    {
+      "plan_type": "promax",
+      "rate_limit": {
+        "allowed": true,
+        "limit_reached": false,
+        "primary_window": { "used_percent": 4, "limit_window_seconds": 18000, "reset_after_seconds": 15000, "reset_at": 1789000000 },
+        "secondary_window": { "used_percent": 11, "limit_window_seconds": 604800, "reset_after_seconds": 400000, "reset_at": 1789400000 }
+      },
+      "additional_rate_limits": [],
+      "spend_control": { "reached": false, "individual_limit": null },
+      "rate_limit_reached_type": null
+    }
+    """
+
+    /// Not observed live yet: a 5h window next to a 30-day one. The long window
+    /// must not be called weekly just because it is longer than a few days.
+    static let monthlyWindowJSON = """
+    {
+      "plan_type": "plus",
+      "rate_limit": {
+        "allowed": true,
+        "limit_reached": false,
+        "primary_window": { "used_percent": 20, "limit_window_seconds": 18000, "reset_after_seconds": 9000, "reset_at": 1789000000 },
+        "secondary_window": { "used_percent": 35, "limit_window_seconds": 2592000, "reset_after_seconds": 1000000, "reset_at": 1790000000 }
+      },
+      "additional_rate_limits": [],
+      "rate_limit_reached_type": null
+    }
+    """
+
     static func decode(_ json: String) -> CodexUsageResponse {
         try! JSONDecoder().decode(CodexUsageResponse.self, from: Data(json.utf8))
     }
