@@ -229,7 +229,22 @@ struct TokenProviderTests {
         securityCLI.itemListed = true
 
         #expect(provider.hasTokenSource() == true)
+        #expect(securityCLI.hasItemCallCount == 1)
         #expect(securityCLI.readCallCount == 0)
+    }
+
+    /// The trade-off of answering from attributes: an item with no login in
+    /// it, like the MCP-only shadow of #268, still counts as Claude Code being
+    /// here. The missing login surfaces at Connect, which reads the payload.
+    @Test("hasTokenSource counts a listed item even when it holds no usable login")
+    func hasTokenSourceCountsShadowItem() {
+        let (provider, securityCLI, _, _, _) = makeSUT()
+        securityCLI.itemListed = true
+        securityCLI.failure = .unusablePayload
+
+        #expect(provider.hasTokenSource() == true)
+        #expect(provider.currentToken() == nil)
+        #expect(provider.tokenDiagnostic.keychainFailure == .unusablePayload)
     }
 
     @Test("hasTokenSource never falls back to TokenEater's own Keychain read")
@@ -253,8 +268,8 @@ struct TokenProviderTests {
         #expect(provider.hasTokenSource() == false)
     }
 
-    @Test("config.json decryption is tried before direct Keychain")
-    func configJsonBeforeKeychain() {
+    @Test("a config.json token never reaches the native Keychain read")
+    func configJsonWithoutNativeRead() {
         let oauthJSON: [String: Any] = [
             "claudeAiOauth": ["accessToken": "config-token"]
         ]
@@ -291,7 +306,7 @@ struct TokenProviderTests {
         #expect(keychainWasCalled == false)
     }
 
-    @Test("silent re-bootstrap recovers when decryption key is stale")
+    @Test("re-deriving the decryption key recovers a config.json token")
     func silentRebootstrapRecovery() {
         let oauthJSON: [String: Any] = [
             "claudeAiOauth": ["accessToken": "recovered-token"]
@@ -323,7 +338,7 @@ struct TokenProviderTests {
         #expect(decryption.decryptCallCount == 1)
     }
 
-    @Test("no native Keychain read when config.json is unavailable and re-bootstrap fails")
+    @Test("no native Keychain read when config.json is unavailable")
     func noNativeReadWhenConfigUnavailable() {
         let securityCLI = MockSecurityCLIReader()
         let credentials = MockCredentialsFileReader()
@@ -415,8 +430,8 @@ struct TokenProviderTests {
 
     /// The interactive read survives only behind `bootstrap()`, which nothing
     /// calls today; wiring it up is a decision about accepting the prompt.
-    @Test("bootstrap is the only caller of the native Keychain read")
-    func bootstrapIsTheOnlyNativeReader() throws {
+    @Test("bootstrap still reaches the native Keychain read")
+    func bootstrapReachesNativeRead() throws {
         let spy = NativeReaderSpy(token: "native-token")
         let provider = TokenProvider(
             securityCLIReader: MockSecurityCLIReader(),
@@ -430,6 +445,53 @@ struct TokenProviderTests {
 
         #expect(spy.calls == 1)
         #expect(provider.currentToken() == "native-token")
+    }
+
+    // MARK: - Claude Desktop key re-derivation stays off the tick
+
+    /// The same bug through the Claude Desktop path: `security` fails, the
+    /// only token is in config.json, and no decryption key is cached. The
+    /// "Claude Safe Storage" read behind the re-derivation can prompt in
+    /// TokenEater's name, so the ticks must not retry it.
+    @Test("a failing key re-derivation is tried once, not on every refresh tick")
+    func keyRederivationIsNotRetriedPerTick() {
+        let (provider, securityCLI, _, _, decryption) = makeSUT(encryptedToken: "encrypted-blob")
+        securityCLI.failure = .accessDenied
+        decryption.silentRebootstrapResult = false
+
+        #expect(provider.currentToken() == nil)
+        for _ in 0..<5 {
+            #expect(provider.refreshTokenIfChanged() == false)
+            #expect(provider.currentToken() == nil)
+        }
+        provider.invalidateToken()
+        #expect(provider.currentToken() == nil)
+
+        #expect(decryption.silentRebootstrapCallCount == 1)
+    }
+
+    /// Reset connection is a click, not a timer, so it earns one more try.
+    @Test("Reset connection re-arms the key re-derivation once")
+    func resetConnectionRearmsKeyRederivation() {
+        let oauthJSON: [String: Any] = ["claudeAiOauth": ["accessToken": "desktop-token"]]
+        let (provider, securityCLI, _, _, decryption) = makeSUT(
+            encryptedToken: "encrypted-blob",
+            decryptedData: try! JSONSerialization.data(withJSONObject: oauthJSON)
+        )
+        securityCLI.failure = .accessDenied
+
+        #expect(provider.currentToken() == nil)
+        #expect(provider.refreshTokenIfChanged() == false)
+        #expect(decryption.silentRebootstrapCallCount == 1)
+
+        decryption.silentRebootstrapResult = true
+        #expect(provider.resetConnection() == "desktop-token")
+        #expect(decryption.silentRebootstrapCallCount == 2)
+        #expect(provider.tokenDiagnostic.source == .claudeDesktop)
+
+        // With the key cached again, later ticks decrypt without re-deriving.
+        #expect(provider.refreshTokenIfChanged() == false)
+        #expect(decryption.silentRebootstrapCallCount == 2)
     }
 
     // MARK: - refreshTokenIfChanged (account swap detection)

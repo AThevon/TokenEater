@@ -22,6 +22,13 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
 
     var tokenDiagnostic: TokenDiagnostic { diagnostic }
 
+    /// Whether this launch already tried to re-derive the Claude Desktop key
+    /// from "Claude Safe Storage". That read goes through TokenEater's own
+    /// identity too, and `kSecUseAuthenticationUISkip` does not keep it quiet
+    /// either, so it gets one try per launch rather than one per refresh tick.
+    /// Only `resetConnection()`, an explicit user action, re-arms it.
+    private var safeStorageRebootstrapAttempted = false
+
     /// Reads Claude Code's Keychain item with TokenEater's own identity, the
     /// one read that makes macOS name TokenEater in its "wants to access"
     /// dialog. There is no silent form of it: `kSecUseAuthenticationUISkip`
@@ -147,7 +154,11 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
         return false
     }
 
-    /// Try to decrypt config.json. If key is missing, attempt silent re-bootstrap.
+    /// Decrypts Claude Desktop's config.json with the cached key. Without a
+    /// working key it re-derives one from "Claude Safe Storage", at most once
+    /// per launch: that Keychain read can show a TokenEater-named dialog, and
+    /// this path runs on every refresh tick, so retrying it here would bring
+    /// back the recurring prompt of #225 for Claude Desktop users.
     private func tokenFromConfigJSON() -> String? {
         guard let encrypted = configReader.readEncryptedToken() else { return nil }
 
@@ -156,9 +167,12 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
             return token
         }
 
+        guard !safeStorageRebootstrapAttempted else { return nil }
+        safeStorageRebootstrapAttempted = true
+
         if decryptionService.trySilentRebootstrap(),
            let token = decryptFromConfigJSON(encrypted) {
-            logger.info("Token recovered via silent re-bootstrap of decryption key")
+            logger.info("Token recovered by re-deriving the Claude Desktop decryption key")
             return token
         }
 
@@ -175,7 +189,8 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     /// Forgets everything the app learned about the connection and reads it
     /// again from scratch: the in-memory token and the cached Claude Desktop
     /// decryption key, which survives a relaunch and can outlive the account
-    /// it was derived for.
+    /// it was derived for. Being a click rather than a timer, it also allows
+    /// one more attempt at re-deriving that key.
     ///
     /// It touches nothing the user configured, which is the whole point of
     /// the request behind it: people were reinstalling the app, and losing
@@ -183,6 +198,7 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     func resetConnection() -> String? {
         cachedToken = nil
         diagnostic = .unknown
+        safeStorageRebootstrapAttempted = false
         decryptionService.clearCachedKey()
         logger.info("Connection reset: caches dropped, re-reading sources")
         return currentToken()
