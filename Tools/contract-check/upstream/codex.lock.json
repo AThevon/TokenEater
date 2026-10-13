@@ -1,0 +1,15 @@
+{
+  "commit": "cf0ed4c600161fcaa18eeac02b5fc715e1076955",
+  "files": {
+    "codex-rs/app-server-protocol/schema/json/v2/GetAccountRateLimitsResponse.json": "785596cc043d18c22c6e6ff90b12037ecde494fd",
+    "codex-rs/backend-client/src/types.rs": "925716d67e389ddce6360b1253e532725bb3b99f",
+    "codex-rs/codex-backend-openapi-models/src/models/additional_rate_limit_details.rs": "d89e656141939f15adc910c2e2ce28ab7ce5597c",
+    "codex-rs/codex-backend-openapi-models/src/models/credit_status_details.rs": "b62b88d7159fcf9d828cb63b98c205603f9436e8",
+    "codex-rs/codex-backend-openapi-models/src/models/rate_limit_status_details.rs": "ca9fdfe2406d5d03a557cd3b8018c88abe80476d",
+    "codex-rs/codex-backend-openapi-models/src/models/rate_limit_status_payload.rs": "6062257651437a52ae27040fe1e6018e84773022",
+    "codex-rs/codex-backend-openapi-models/src/models/rate_limit_window_snapshot.rs": "b2a6c0c228572521b4e247d2f4f47258add71c8c",
+    "codex-rs/codex-backend-openapi-models/src/models/spend_control_limit_details.rs": "6fc1fc51a938e5681c5f93b30d9bfe564bbb7ddf",
+    "codex-rs/codex-backend-openapi-models/src/models/spend_control_status_details.rs": "1283acabf8841735b56e14f44d8710b9019bb3ff"
+  },
+  "repo": "openai/codex"
+}

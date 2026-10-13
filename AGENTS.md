@@ -29,9 +29,9 @@ Three targets:
 |--------|-----------|---------|
 | `TokenEaterApp` | The app host. Non-sandboxed (since v5.0) so it can read the token. `LSUIElement` (no Dock icon). | `TokenEaterApp/` + `Shared/` |
 | `TokenEaterWidgetExtension` | The WidgetKit extension. Sandboxed and read-only (WidgetKit requires `app-sandbox: true`). | `TokenEaterWidget/` + `Shared/` |
-| `TokenEaterTests` | Swift Testing bundle, unsigned. | `TokenEaterTests/` + `Shared/` + the single file `TokenEaterApp/Onboarding/OnboardingViewModel.swift` |
+| `TokenEaterTests` | Swift Testing bundle, unsigned. | `TokenEaterTests/` + `Shared/` + two single files: `TokenEaterApp/Onboarding/OnboardingViewModel.swift` and `Tools/contract-check/Sources/ContractCore.swift` |
 
-`project.yml` declares the widget's `NSExtension` key under the target's `info.properties`, so XcodeGen writes it into `TokenEaterWidget/Info.plist` on every generate. That plist is tracked but fully regenerated, so never hand-edit it. The `plutil -insert NSExtension ...` step in `build.sh`, `SETUP.md` and all three workflows is therefore a no-op today: it exits 1 with "Value already exists", swallowed by `|| true`. Keep it as a guard in case the `info.properties` block is ever dropped, but it is not load-bearing. If the widget gallery shows nothing, check the cache nuke (`com.apple.chrono` plus `pluginkit -r`) and that the `.appex` still carries `com.apple.security.app-sandbox` (no `--deep` on the parent sign) instead.
+`project.yml` declares the widget's `NSExtension` key under the target's `info.properties`, so XcodeGen writes it into `TokenEaterWidget/Info.plist` on every generate. That plist is tracked but fully regenerated, so never hand-edit it. The `plutil -insert NSExtension ...` step in `build.sh`, `SETUP.md` and all three build workflows is therefore a no-op today: it exits 1 with "Value already exists", swallowed by `|| true`. Keep it as a guard in case the `info.properties` block is ever dropped, but it is not load-bearing. If the widget gallery shows nothing, check the cache nuke (`com.apple.chrono` plus `pluginkit -r`) and that the `.appex` still carries `com.apple.security.app-sandbox` (no `--deep` on the parent sign) instead.
 
 `TokenEaterApp/` has no Swift file at its root; every source sits in a subfolder (`App/`, `Components/`, `Onboarding/`, `Overlay/`, `Popover/`, `Resources/`, `Settings/`, `Studio/`, `Updater/`, `Windows/`). Quote full paths when editing `project.yml`; the bare filenames in the feature index below are grep targets, not paths.
 
@@ -45,6 +45,8 @@ Three targets:
 - `Shared/Components/` - reusable SwiftUI views shared by app and widget (RingGauge, PacingBar, AnimatedGradient, GlowText, etc.).
 - `Shared/Design/DesignTokens.swift` - the `DS` design-token namespace plus a `View` extension.
 - `Shared/Extensions/` and `Shared/en.lproj` / `Shared/fr.lproj` - shared extensions and EN/FR localization.
+
+`Tools/contract-check/` is the maintainer's weekly canary for both usage API contracts (a local launchd job plus the `contract-*.yml` workflows), not part of the app; see `Tools/contract-check/README.md`. Its `read-set.json` lists the JSON paths the usage decoders read, so a new `CodingKey` in `UsageModels.swift` or `CodexUsageModels.swift` needs a path there too.
 
 ## Architecture and mental model
 
@@ -153,13 +155,13 @@ Prerequisites: macOS 14+, XcodeGen (`brew install xcodegen`), and Xcode (see the
 
 - **Minimum to build:** Xcode 15+ / Swift 5.9 language mode. `project.yml` sets `SWIFT_VERSION: "5.9"` (language mode) and `deploymentTarget macOS 14.0`.
 - **Recommended for anything SwiftUI or Release-related:** Xcode 16.4 (`xcodes install 16.4`), used locally via `export DEVELOPER_DIR=/Applications/Xcode-16.4.0.app/Contents/Developer`. The `@Observable` freeze is a property of the Swift 6.1.x compiler that Xcode 16.4 ships, in Release, independent of the 5.9 language mode.
-- **CI is not pinned to a specific Xcode.** All three workflows run on the `macos-15` GitHub runner with whatever Xcode that image ships by default. There is no `.xcode-version` file or `xcode-select` step. To learn the exact toolchain a given CI run used, read the "Print toolchain info" step in `test-build.yml`; that step exists only there, so a failing `ci.yml` run's toolchain is not recoverable this way.
+- **CI is not pinned to a specific Xcode.** All three build workflows run on the `macos-15` GitHub runner with whatever Xcode that image ships by default. There is no `.xcode-version` file or `xcode-select` step. To learn the exact toolchain a given CI run used, read the "Print toolchain info" step in `test-build.yml`; that step exists only there, so a failing `ci.yml` run's toolchain is not recoverable this way.
 
 ### Unit tests
 
 The suite uses [Swift Testing](https://developer.apple.com/documentation/testing) (`import Testing`, `@Test`, `#expect`), not XCTest. Recompute the suite size rather than trusting a number here: `grep -rho '@Test' TokenEaterTests --include='*.swift' | wc -l` for cases and `grep -rl '@Test' TokenEaterTests --include='*.swift' | wc -l` for files. Mocks live in `TokenEaterTests/Mocks/`, fixtures in `TokenEaterTests/Fixtures/`. Most store suites are `@MainActor` because the stores are, but `HistoryStoreTests` and `MonitoringInsightsStoreTests` are not: they exercise only `nonisolated static` helpers. The suites that write the shared `UserDefaults` are marked `.serialized` and clean **before** each test, via a `cleanDefaults()` helper called from the store factory (see `TokenEaterTests/SettingsStoreTests.swift`), never in a teardown. Follow the same pattern when adding a store suite.
 
-`python3 scripts/check-docs.py` verifies that this document still matches the tree: every path it quotes resolves, the store and helper inventories are complete, the one-protocol-one-mock convention holds, the widget list matches the `WidgetBundle`, no `@Observable` or App-struct `@StateObject` slipped in, no hardcoded per-user cache prefix came back, and no bare inventory count was reintroduced. It runs as the `docs` job in `ci.yml` and fails in seconds. If it fails, fix whichever side is wrong: the doc or the code. Adding an intentional exception (a service with no mock, say) means updating both the exception list in that script and the prose here.
+`python3 scripts/check-docs.py` verifies that this document still matches the tree: every path it quotes resolves, the store and helper inventories are complete, the one-protocol-one-mock convention holds, the widget list matches the `WidgetBundle`, no `@Observable` or App-struct `@StateObject` slipped in, no hardcoded per-user cache prefix came back, no bare inventory count was reintroduced, and every usage `CodingKey` name ends a path in the contract canary's `read-set.json` (matched by name, not by parent). It runs as the `docs` job in `ci.yml` and fails in seconds. If it fails, fix whichever side is wrong: the doc or the code. Adding an intentional exception (a service with no mock, say) means updating both the exception list in that script and the prose here.
 
 Run the tests (identical to CI):
 
@@ -172,7 +174,7 @@ xcodebuild -project TokenEater.xcodeproj -scheme TokenEaterTests \
   test
 ```
 
-Run the tests before any commit that touches `Shared/` (stores, services, repository, helpers, models). CI (`ci.yml`) runs build + tests on every PR and every push to `main`.
+Run the tests before any commit that touches `Shared/` (stores, services, repository, helpers, models). CI (`ci.yml`) runs build + tests on every PR and every push to `main`, except a push that only touches the contract canary's bot-written data (its baselines, reports and upstream lock under `Tools/contract-check/`).
 
 For SwiftUI or widget changes, manual testing matters more than unit tests. Build a Release version and try it. Widget rendering in particular cannot be unit-tested; use the build + nuke + install flow below.
 
