@@ -19,7 +19,7 @@ Requirements: Xcode command line tools, and `gh` logged in with the `repo` scope
 Tools/contract-check/install.sh
 ```
 
-This compiles the checker into `~/Library/Application Support/TokenEaterContractCheck/`, writes `~/Library/LaunchAgents/dev.athevon.tokeneater.contract-check.plist` with the absolute path of `gh` and a full `PATH`, and loads it. The job runs at load, then every hour at :17. It does real work once every 7 days, at the first hour a non-expired Claude token exists, and exits silently the rest of the time. Rerun `install.sh` after changing `Sources/`.
+This compiles the checker into `~/Library/Application Support/TokenEaterContractCheck/`, writes `~/Library/LaunchAgents/dev.athevon.tokeneater.contract-check.plist` with the absolute path of `gh` and a full `PATH`, and loads it. The job runs at load, then every hour at :17. Each provider is checked once every 7 days, at the first hour its token is usable (non-expired), and the job exits silently the rest of the time. The gate is per provider, so an expired Claude token never turns a Codex login into an hourly check. Rerun `install.sh` after changing `Sources/`.
 
 Check that it works:
 
@@ -45,7 +45,7 @@ Tools/contract-check/install.sh --uninstall
 | Thing | Location |
 |-------|----------|
 | Committed baselines | `baselines/claude-usage.json`, `baselines/codex-usage.json` (created by the first Codex capture) |
-| Paths the app decodes | `read-set.json` (`scripts/check-docs.py` fails when a `CodingKey` has no path here) |
+| Paths the app decodes | `read-set.json` (`scripts/check-docs.py` fails when a `CodingKey` name ends no path here; it matches names, not parents, so a known key decoded under a new parent still needs its path added by hand) |
 | openai/codex watch lock | `upstream/codex.lock.json` |
 | Pending drift | branch `bot/contract-drift`, PR labelled `contract-drift` |
 | Pending upstream change | branch `bot/contract-upstream`, PR labelled `contract-upstream` |
@@ -98,5 +98,5 @@ CONTRACT_CHECK_REPLAY=/tmp/cc-responses \
 
 - **A `contract-check-down` issue opened.** Most often Claude Code has not been opened for a while and its token expired: open it once and the next hourly run catches up. Otherwise check the log, `gh auth status`, and that the job is loaded.
 - **The job logs `gh not found`.** `gh` moved; rerun `install.sh`.
-- **GitHub disabled a scheduled workflow for inactivity.** The local job turns `contract-heartbeat.yml` and `contract-upstream.yml` back on whenever it reaches GitHub.
+- **GitHub disabled a scheduled workflow for inactivity.** The local job turns `contract-heartbeat.yml` and `contract-upstream.yml` back on each time it writes the heartbeat: after each weekly check, and at most daily while waiting for a token.
 - **The upstream workflow fails with a missing file.** openai/codex moved a model file: point `upstream/codex.lock.json` at the new path by hand.

@@ -36,7 +36,8 @@ let toolPath = "Tools/contract-check"
 let driftBranch = "bot/contract-drift"
 let heartbeatVariable = "CONTRACT_CHECK_HEARTBEAT"
 /// Scheduled workflows on a public repo are disabled after 60 days without
-/// activity. These two must keep running, so every online run re-enables them.
+/// activity. These two must keep running, so every heartbeat write (after each
+/// weekly check, and at most daily while waiting) re-enables them.
 let watchedWorkflows = ["contract-heartbeat.yml", "contract-upstream.yml"]
 /// A week, minus half an hour so the hourly job does not slip by one hour
 /// every week.
@@ -644,6 +645,9 @@ struct LocalState: Codable {
     var status: [String: String] = [:]
     var heartbeatAt: Date?
     var heartbeat: String?
+    /// Drift counts per provider, from that provider's last check. Kept here so
+    /// a run that checks one provider does not zero the other's.
+    var drift: [String: [String: Int]]?
 }
 
 func loadState() -> LocalState {
@@ -664,13 +668,16 @@ func saveState(_ state: LocalState) {
 
 /// What the watchdog workflow reads. Statuses and dates only. `at` is left
 /// out when comparing two bodies, or every run would look like a change.
-func heartbeatBody(_ state: LocalState, pending: [ContractCheck.Severity: Int], at: Date?) -> String {
+func heartbeatBody(_ state: LocalState, at: Date?) -> String {
     func date(_ provider: ProviderID) -> Any { state.lastOk[provider.rawValue].map { $0.ISO8601Format() } ?? NSNull() }
+    func pending(_ severity: ContractCheck.Severity) -> Int {
+        (state.drift ?? [:]).values.reduce(0) { $0 + ($1[severity.label] ?? 0) }
+    }
     var body: [String: Any] = [
         "v": 1,
         "lastOk": Dictionary(uniqueKeysWithValues: ProviderID.allCases.map { ($0.rawValue, date($0)) }),
         "status": state.status,
-        "pending": Dictionary(uniqueKeysWithValues: ContractCheck.Severity.allCases.map { ($0.label, pending[$0] ?? 0) }),
+        "pending": Dictionary(uniqueKeysWithValues: ContractCheck.Severity.allCases.map { ($0.label, pending($0)) }),
         "build": build,
     ]
     if let at { body["at"] = at.ISO8601Format() }
@@ -733,18 +740,26 @@ func runDry(_ options: Options) async throws {
 func runScheduled(_ options: Options) async -> Int32 {
     var state = loadState()
     let now = Date()
-    let due = state.lastOk[ProviderID.claude.rawValue].map { now.timeIntervalSince($0) >= checkInterval } ?? true
-    // The weekly gate. Silent on purpose: this runs every hour.
-    guard due || options.force else { return 0 }
+    // The weekly gate, per provider: an expired Claude token must not turn a
+    // usable Codex login into an hourly check. Silent on purpose, this runs
+    // every hour.
+    let due = ProviderID.allCases.filter { provider in
+        options.force || state.lastOk[provider.rawValue].map { now.timeIntervalSince($0) >= checkInterval } ?? true
+    }
+    guard !due.isEmpty else { return 0 }
 
     var exitCode: Int32 = 0
     var observed: [ProviderID: ContractCheck.Signature] = [:]
-    var pending: [ContractCheck.Severity: Int] = [:]
     var github: GitHub?
-    let lookups = Dictionary(uniqueKeysWithValues: ProviderID.allCases.map { ($0, lookup($0)) })
-    let online = lookups.values.contains { if case .usable = $0 { return true } else { return false } }
+    let lookups = Dictionary(uniqueKeysWithValues: due.map { ($0, lookup($0)) })
+    // Only a due provider with a usable token is checked. The others keep
+    // their last status, or record why they are waiting.
+    let checked = due.filter { if case .usable = lookups[$0]! { return true } else { return false } }
+    for provider in due where !checked.contains(provider) {
+        state.status[provider.rawValue] = offlineStatus(provider, lookups[provider]!)
+    }
 
-    if online {
+    if !checked.isEmpty {
         guard let located = GitHub.locate() else {
             log("gh not found (GH_BIN, PATH, ~/.nix-profile/bin). Reinstall with install.sh.")
             return 1
@@ -759,7 +774,7 @@ func runScheduled(_ options: Options) async -> Int32 {
         }
 
         var shouldPublish = false
-        for provider in ProviderID.allCases {
+        for provider in checked {
             let readSet = readSetProvider(inputs, provider)
             let baseline = inputs.baselines[provider]
             let result = await capture(provider, lookup: lookups[provider]!, readSet: readSet, baseline: baseline)
@@ -771,7 +786,10 @@ func runScheduled(_ options: Options) async -> Int32 {
             guard let live = result.signature else { continue }
             observed[provider] = live
             let changes = ContractCheck.diff(baseline: baseline, live: live, provider: readSet)
-            for change in changes { pending[change.severity, default: 0] += 1 }
+            state.drift = (state.drift ?? [:]).merging([provider.rawValue: Dictionary(
+                uniqueKeysWithValues: ContractCheck.Severity.allCases.map { severity in
+                    (severity.label, changes.filter { $0.severity == severity }.count)
+                })]) { $1 }
             if changes.contains(where: { $0.severity >= .active }) { shouldPublish = true }
             log("\(provider.name): " + ContractCheck.Severity.allCases.reversed()
                 .map { severity in "\(changes.filter { $0.severity == severity }.count) \(severity.label)" }
@@ -793,15 +811,11 @@ func runScheduled(_ options: Options) async -> Int32 {
         if published {
             for provider in observed.keys { state.lastOk[provider.rawValue] = now }
         }
-    } else {
-        for (provider, lookup) in lookups {
-            state.status[provider.rawValue] = offlineStatus(provider, lookup)
-        }
     }
 
     // The heartbeat goes out when something changed, and once a day while
     // waiting for a token, so the watchdog can tell "waiting" from "dead".
-    let core = heartbeatBody(state, pending: pending, at: nil)
+    let core = heartbeatBody(state, at: nil)
     let stale = state.heartbeatAt.map { now.timeIntervalSince($0) >= heartbeatInterval } ?? true
     guard core != state.heartbeat || stale else {
         saveState(state)
@@ -821,7 +835,7 @@ func runScheduled(_ options: Options) async -> Int32 {
         }
     }
     do {
-        try github.setVariable(heartbeatVariable, to: heartbeatBody(state, pending: pending, at: now))
+        try github.setVariable(heartbeatVariable, to: heartbeatBody(state, at: now))
         state.heartbeat = core
         state.heartbeatAt = now
     } catch {
