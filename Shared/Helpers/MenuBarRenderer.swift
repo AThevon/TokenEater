@@ -413,12 +413,18 @@ enum MenuBarRenderer {
     // MARK: - Per-family content
 
     private static func usageContent(kind: MenuBarSegmentKind, style: MenuBarSegmentStyle, data: RenderData) -> SegmentVisual.Content {
-        if kind == .extraCredits, let spend = data.extraCreditsUncappedSpend {
-            return uncappedSpendContent(spend, style: style, data: data)
-        }
         let value = usageValue(kind, data: data)
         let label = usageLabel(kind, data: data)
-        let color = colorForPct(value, resetDate: usageResetDate(kind, data: data), windowDuration: usageWindow(kind, data: data), data: data)
+        // Extra Credits with no monthly limit: the amount spent stands where
+        // the always-0 percentage would, in every style, in the neutral
+        // `labelColor` (the colour monochrome uses) since there is no limit
+        // for a threshold colour to measure against. Everything else, the
+        // capped pool included, draws its percentage through the same path.
+        let spend = kind == .extraCredits ? data.extraCreditsUncappedSpend : nil
+        let color = spend != nil
+            ? NSColor.labelColor
+            : colorForPct(value, resetDate: usageResetDate(kind, data: data), windowDuration: usageWindow(kind, data: data), data: data)
+        let valueText = spend ?? "\(value)%"
 
         switch style {
         case .labelValue:
@@ -426,46 +432,7 @@ enum MenuBarRenderer {
             s.append(NSAttributedString(string: "\(label) ", attributes: [
                 .font: systemFont(9, .medium), .foregroundColor: periodColor(data),
             ]))
-            s.append(NSAttributedString(string: "\(value)%", attributes: [
-                .font: systemFont(12, .bold, monoDigits: true), .foregroundColor: color,
-            ]))
-            return .run(s)
-        case .valueOnly:
-            return .run(NSAttributedString(string: "\(value)%", attributes: [
-                .font: systemFont(12, .bold, monoDigits: true), .foregroundColor: color,
-            ]))
-        case .mono:
-            let s = NSMutableAttributedString()
-            s.append(NSAttributedString(string: "\(label):", attributes: [
-                .font: monoFont(11, .regular), .foregroundColor: periodColor(data),
-            ]))
-            s.append(NSAttributedString(string: "\(value)", attributes: [
-                .font: monoFont(11, .bold), .foregroundColor: color,
-            ]))
-            return .run(s)
-        case .pill:
-            return .pill(text: "\(value)%", tint: color)
-        default:
-            return .run(NSAttributedString(string: "\(value)%", attributes: [
-                .font: systemFont(12, .bold, monoDigits: true), .foregroundColor: color,
-            ]))
-        }
-    }
-
-    /// Extra Credits with no monthly limit: the amount spent where the
-    /// percentage would be, in every style. Neutral `labelColor` rather than a
-    /// threshold colour, since there is no limit to be near; the same colour
-    /// monochrome uses, so the segment reads as plain information.
-    private static func uncappedSpendContent(_ spend: String, style: MenuBarSegmentStyle, data: RenderData) -> SegmentVisual.Content {
-        let label = MetricID.extraCredits.shortLabel
-        let color = NSColor.labelColor
-        switch style {
-        case .labelValue:
-            let s = NSMutableAttributedString()
-            s.append(NSAttributedString(string: "\(label) ", attributes: [
-                .font: systemFont(9, .medium), .foregroundColor: periodColor(data),
-            ]))
-            s.append(NSAttributedString(string: spend, attributes: [
+            s.append(NSAttributedString(string: valueText, attributes: [
                 .font: systemFont(12, .bold, monoDigits: true), .foregroundColor: color,
             ]))
             return .run(s)
@@ -474,14 +441,15 @@ enum MenuBarRenderer {
             s.append(NSAttributedString(string: "\(label):", attributes: [
                 .font: monoFont(11, .regular), .foregroundColor: periodColor(data),
             ]))
-            s.append(NSAttributedString(string: spend, attributes: [
+            s.append(NSAttributedString(string: spend ?? "\(value)", attributes: [
                 .font: monoFont(11, .bold), .foregroundColor: color,
             ]))
             return .run(s)
         case .pill:
-            return .pill(text: spend, tint: color)
+            return .pill(text: valueText, tint: color)
         default:
-            return .run(NSAttributedString(string: spend, attributes: [
+            // `.valueOnly` and any style this family does not special-case.
+            return .run(NSAttributedString(string: valueText, attributes: [
                 .font: systemFont(12, .bold, monoDigits: true), .foregroundColor: color,
             ]))
         }

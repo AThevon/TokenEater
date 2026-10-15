@@ -28,6 +28,9 @@ enum PopoverMetricResolver {
         /// an open dotted track rather than a 0 % fill that would read as
         /// "nothing spent". Nil for everything else, which renders as before.
         var unscaledValue: String? = nil
+        /// Says in words why `unscaledValue` replaced the percentage, for the
+        /// cells with room for a caption and as a tooltip on the others.
+        var unscaledNote: String? = nil
 
         /// The value a cell prints: the unscaled amount when there is one,
         /// the percentage otherwise.
@@ -96,7 +99,9 @@ enum PopoverMetricResolver {
                 resetText: "",
                 windowDuration: 0,
                 provider: .claude,
-                unscaledValue: usage.extraCreditsUncappedSpend
+                unscaledValue: usage.extraCreditsUncappedSpend,
+                unscaledNote: usage.extraCreditsUncappedSpend == nil
+                    ? nil : String(localized: "dashboard.extra.uncapped")
             )
         default:
             return nil
