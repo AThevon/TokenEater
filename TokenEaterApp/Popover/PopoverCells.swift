@@ -115,41 +115,53 @@ private struct GaugeRingCell: View {
     let showReset: Bool
 
     var body: some View {
-        let color = PopoverColors.gauge(
-            pct: snapshot.pct, resetDate: snapshot.resetDate,
-            windowDuration: snapshot.windowDuration,
-            theme: themeStore, settings: settingsStore
-        )
+        let unscaled = snapshot.unscaledValue != nil
+        let color = unscaled
+            ? PopoverCellPalette.unscaled
+            : PopoverColors.gauge(
+                pct: snapshot.pct, resetDate: snapshot.resetDate,
+                windowDuration: snapshot.windowDuration,
+                theme: themeStore, settings: settingsStore
+            )
         let gradient = PopoverColors.gaugeGradient(
             pct: snapshot.pct, resetDate: snapshot.resetDate,
             windowDuration: snapshot.windowDuration,
             theme: themeStore, settings: settingsStore
         )
+        // An amount is wider than "67%": keep it inside the ring's hole.
+        let innerWidth = ringSize - 2 * max(ringSize * 0.08, 4) - 4
 
         VStack(spacing: width == .third ? 4 : 8) {
             ZStack {
-                RingGauge(
-                    percentage: snapshot.pct,
-                    gradient: gradient,
-                    size: ringSize,
-                    glowColor: color,
-                    glowRadius: glowRadius
-                )
+                if unscaled {
+                    UnscaledTrack(lineWidth: max(ringSize * 0.08, 4), color: color)
+                        .frame(width: ringSize, height: ringSize)
+                } else {
+                    RingGauge(
+                        percentage: snapshot.pct,
+                        gradient: gradient,
+                        size: ringSize,
+                        glowColor: color,
+                        glowRadius: glowRadius
+                    )
+                }
                 if width == .third {
                     GlowText(
-                        "\(snapshot.pct)%",
+                        snapshot.valueText,
                         font: .system(size: 11, weight: .black, design: .rounded),
                         color: color,
                         glowRadius: 2
                     )
+                    .modifier(UnscaledFit(active: unscaled, width: innerWidth))
                 } else {
                     VStack(spacing: 2) {
                         GlowText(
-                            "\(snapshot.pct)%",
+                            snapshot.valueText,
                             font: .system(size: valueFontSize, weight: .black, design: .rounded),
                             color: color,
                             glowRadius: width == .full ? 4 : 3
                         )
+                        .modifier(UnscaledFit(active: unscaled, width: innerWidth))
                         ProviderMetricLabel(provider: snapshot.provider, text: snapshot.label)
                     }
                 }
@@ -213,23 +225,31 @@ private struct ChipCell: View {
     let showReset: Bool
 
     var body: some View {
-        let color = PopoverColors.gauge(
-            pct: snapshot.pct, resetDate: snapshot.resetDate,
-            windowDuration: snapshot.windowDuration,
-            theme: themeStore, settings: settingsStore
-        )
+        let unscaled = snapshot.unscaledValue != nil
+        let color = unscaled
+            ? PopoverCellPalette.unscaled
+            : PopoverColors.gauge(
+                pct: snapshot.pct, resetDate: snapshot.resetDate,
+                windowDuration: snapshot.windowDuration,
+                theme: themeStore, settings: settingsStore
+            )
 
         HStack(spacing: 10) {
-            ZStack {
-                Circle()
-                    .stroke(Color.white.opacity(0.06), lineWidth: 4)
+            if unscaled {
+                UnscaledTrack(lineWidth: 4, color: color)
                     .frame(width: 38, height: 38)
-                Circle()
-                    .trim(from: 0, to: CGFloat(min(max(snapshot.pct, 0), 100)) / 100.0)
-                    .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                    .frame(width: 38, height: 38)
-                    .rotationEffect(.degrees(-90))
-                    .dsGlow(color, radius: 3, opacity: 0.4)
+            } else {
+                ZStack {
+                    Circle()
+                        .stroke(Color.white.opacity(0.06), lineWidth: 4)
+                        .frame(width: 38, height: 38)
+                    Circle()
+                        .trim(from: 0, to: CGFloat(min(max(snapshot.pct, 0), 100)) / 100.0)
+                        .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                        .frame(width: 38, height: 38)
+                        .rotationEffect(.degrees(-90))
+                        .dsGlow(color, radius: 3, opacity: 0.4)
+                }
             }
             VStack(alignment: .leading, spacing: 1) {
                 ProviderMetricLabel(
@@ -237,9 +257,10 @@ private struct ChipCell: View {
                     size: 9, weight: .semibold, uppercased: true,
                     tracking: 0.5, opacity: 0.45
                 )
-                Text("\(snapshot.pct)%")
+                Text(snapshot.valueText)
                     .font(.system(size: 18, weight: .black, design: .rounded))
                     .foregroundStyle(color)
+                    .modifier(UnscaledFit(active: unscaled, width: nil))
                 if showReset && !snapshot.resetText.isEmpty {
                     Text(width == .full
                          ? String(format: String(localized: "metric.reset"), snapshot.resetText)
@@ -275,6 +296,7 @@ private struct ArcCell: View {
                 Text(displayValue)
                     .font(.system(size: 38, weight: .black, design: .rounded))
                     .foregroundStyle(color)
+                    .modifier(UnscaledFit(active: content == .percent && snapshot.unscaledValue != nil, width: nil))
                     .dsGlow(color, radius: 10, opacity: 0.35)
                 Text(label.uppercased())
                     .font(.system(size: 9, weight: .semibold))
@@ -287,7 +309,7 @@ private struct ArcCell: View {
 
     private var displayValue: String {
         switch content {
-        case .percent: return "\(snapshot.pct)%"
+        case .percent: return snapshot.valueText
         case .resetCountdown: return snapshot.resetText.isEmpty ? "-" : snapshot.resetText
         }
     }
@@ -304,6 +326,7 @@ private struct ArcCell: View {
         case .resetCountdown:
             return PopoverCellPalette.countdown
         case .percent:
+            if snapshot.unscaledValue != nil { return PopoverCellPalette.unscaled }
             return PopoverColors.gauge(
                 pct: snapshot.pct, resetDate: snapshot.resetDate,
                 windowDuration: snapshot.windowDuration,
@@ -342,12 +365,18 @@ private struct ArcCell: View {
                 )
             }
             ZStack {
-                path
-                    .stroke(Color.white.opacity(0.06), style: StrokeStyle(lineWidth: strokeW, lineCap: .round))
-                path
-                    .trim(from: 0, to: progress)
-                    .stroke(color, style: StrokeStyle(lineWidth: strokeW, lineCap: .round))
-                    .dsGlow(color, radius: 8, opacity: 0.5)
+                if content == .percent && snapshot.unscaledValue != nil {
+                    // No limit, so no fill: an open dotted arc, not a 0 % one.
+                    path
+                        .stroke(color.opacity(PopoverCellPalette.unscaledTrackOpacity), style: PopoverCellPalette.unscaledTrackStyle(lineWidth: strokeW))
+                } else {
+                    path
+                        .stroke(Color.white.opacity(0.06), style: StrokeStyle(lineWidth: strokeW, lineCap: .round))
+                    path
+                        .trim(from: 0, to: progress)
+                        .stroke(color, style: StrokeStyle(lineWidth: strokeW, lineCap: .round))
+                        .dsGlow(color, radius: 8, opacity: 0.5)
+                }
             }
         }
     }
@@ -391,7 +420,7 @@ private struct BigTextCell: View {
 
     private var displayValue: String {
         switch content {
-        case .percent: return "\(snapshot.pct)%"
+        case .percent: return snapshot.valueText
         case .resetCountdown: return snapshot.resetText.isEmpty ? "-" : snapshot.resetText
         }
     }
@@ -408,6 +437,7 @@ private struct BigTextCell: View {
         case .resetCountdown:
             return PopoverCellPalette.countdown
         case .percent:
+            if snapshot.unscaledValue != nil { return PopoverCellPalette.unscaled }
             return PopoverColors.gauge(
                 pct: snapshot.pct, resetDate: snapshot.resetDate,
                 windowDuration: snapshot.windowDuration,
@@ -684,6 +714,49 @@ private extension View {
 enum PopoverCellPalette {
     /// Warm yellow used for reset countdown values (same as the old Focus hero).
     static let countdown = Color(red: 0.99, green: 0.90, blue: 0.54)
+
+    /// Neutral tint for a value with no scale (Extra Credits with no monthly
+    /// limit): plain information, not a threshold colour, since there is no
+    /// limit to be close to.
+    static let unscaled = DS.Palette.textPrimary
+    static let unscaledTrackOpacity: Double = 0.28
+
+    /// Round dots along the track: open-ended rather than an empty gauge.
+    static func unscaledTrackStyle(lineWidth: CGFloat) -> StrokeStyle {
+        StrokeStyle(lineWidth: lineWidth * 0.6, lineCap: .round, dash: [0, lineWidth * 1.6])
+    }
+}
+
+/// The ring a gauge draws when its metric has no scale: a full circle of
+/// faint dots, so the cell never shows a 0 % fill for money already spent.
+private struct UnscaledTrack: View {
+    let lineWidth: CGFloat
+    let color: Color
+
+    var body: some View {
+        Circle()
+            .stroke(color.opacity(PopoverCellPalette.unscaledTrackOpacity), style: PopoverCellPalette.unscaledTrackStyle(lineWidth: lineWidth))
+    }
+}
+
+/// Lets an amount ("$1,235") shrink to fit where a short percentage always
+/// fit. Inactive, it returns the content untouched, so a percentage cell
+/// lays out exactly as before.
+private struct UnscaledFit: ViewModifier {
+    let active: Bool
+    let width: CGFloat?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if active {
+            content
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+                .frame(maxWidth: width)
+        } else {
+            content
+        }
+    }
 }
 
 /// A metric label with its provider's mark in front of it.

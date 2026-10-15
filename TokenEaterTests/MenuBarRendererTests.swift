@@ -129,6 +129,7 @@ struct MenuBarOutageBadgeTests {
             nextPollSeconds: nextPollSeconds,
             extraCreditsPct: 0,
             hasExtraCredits: false,
+            extraCreditsUncappedSpend: nil,
             codexSession: nil, codexWeekly: nil,
             visibleProviders: [.claude, .codex]
         )
@@ -281,7 +282,8 @@ struct MenuBarExtraCreditsRenderTests {
     private func data(
         segments: [MenuBarSegment] = [MenuBarSegment(kind: .extraCredits, style: .labelValue)],
         hasExtraCredits: Bool = true,
-        extraCreditsPct: Int = 67
+        extraCreditsPct: Int = 67,
+        uncappedSpend: String? = nil
     ) -> MenuBarRenderer.RenderData {
         MenuBarRenderer.RenderData(
             composition: MenuBarComposition(segments: segments),
@@ -301,6 +303,7 @@ struct MenuBarExtraCreditsRenderTests {
             fablePct: 0, hasFable: false, fableResetDate: nil,
             outageActive: false, outageHealth: .healthy, nextPollSeconds: nil,
             extraCreditsPct: extraCreditsPct, hasExtraCredits: hasExtraCredits,
+            extraCreditsUncappedSpend: uncappedSpend,
             codexSession: nil, codexWeekly: nil,
             visibleProviders: [.claude, .codex]
         )
@@ -331,6 +334,41 @@ struct MenuBarExtraCreditsRenderTests {
         #expect(image.isTemplate == false)
         #expect(image.size.width > 0)
     }
+
+    /// No monthly limit: the segment draws the amount spent where the
+    /// percentage was. A wider image than the same segment's "0%" proves the
+    /// amount replaced it, in every style that shows a value.
+    @Test("uncapped EC draws the amount spent instead of 0%", arguments: [
+        MenuBarSegmentStyle.labelValue, .valueOnly, .mono, .pill,
+    ])
+    func uncappedDrawsSpend(style: MenuBarSegmentStyle) {
+        let segments = [MenuBarSegment(kind: .extraCredits, style: style)]
+        let percent = MenuBarRenderer.renderUncached(data(segments: segments, extraCreditsPct: 0))
+        let spend = MenuBarRenderer.renderUncached(
+            data(segments: segments, extraCreditsPct: 0, uncappedSpend: "$1,235")
+        )
+        #expect(spend.isTemplate == false)
+        #expect(spend.size.width > percent.size.width)
+    }
+
+    /// A monthly limit leaves the percentage alone: no spend, same pixels.
+    @Test("capped EC keeps rendering the percentage")
+    func cappedKeepsPercent() {
+        let a = MenuBarRenderer.renderUncached(data(extraCreditsPct: 67, uncappedSpend: nil))
+        let b = MenuBarRenderer.renderUncached(data(extraCreditsPct: 67))
+        #expect(a.size == b.size)
+        #expect(a.tiffRepresentation == b.tiffRepresentation)
+    }
+
+    /// The spend only ever replaces the Extra Credits value, never another
+    /// segment's percentage.
+    @Test("uncapped spend does not leak into other segments")
+    func spendScopedToExtraCredits() {
+        let segments = [MenuBarSegment(kind: .session, style: .labelValue)]
+        let without = MenuBarRenderer.renderUncached(data(segments: segments))
+        let with = MenuBarRenderer.renderUncached(data(segments: segments, uncappedSpend: "$1,235"))
+        #expect(without.tiffRepresentation == with.tiffRepresentation)
+    }
 }
 
 /// Fable pacing 3-state gating (#241 + idle status): absent (no Fable bucket)
@@ -360,7 +398,7 @@ struct MenuBarFablePacingRenderTests {
             pacingMargin: 10,
             fablePct: 0, hasFable: hasFable, fableResetDate: nil,
             outageActive: false, outageHealth: .healthy, nextPollSeconds: nil,
-            extraCreditsPct: 0, hasExtraCredits: false,
+            extraCreditsPct: 0, hasExtraCredits: false, extraCreditsUncappedSpend: nil,
             codexSession: nil, codexWeekly: nil,
             visibleProviders: [.claude, .codex]
         )

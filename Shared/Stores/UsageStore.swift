@@ -80,6 +80,11 @@ final class UsageStore: ObservableObject {
     /// `ExtraUsage.percent`). 0 when the pool is absent.
     var extraCreditsPct: Int { extraUsage?.percent ?? 0 }
 
+    /// The amount spent when the Extra Credits pool has no monthly limit, nil
+    /// otherwise (see `ExtraUsage.uncappedSpendText`). A percentage of no limit
+    /// is always 0, so the menu bar and the popover show this instead.
+    var extraCreditsUncappedSpend: String? { extraUsage?.uncappedSpendText }
+
     var pacingMargin: Int = 10
     /// Workweek pacing schedule (from settings). Wired by StatusBarController.
     /// Drives whether off-days count toward the expected pace.
