@@ -67,7 +67,7 @@ struct UsageResponseDecodingTests {
     func uncappedSpendText() {
         #expect(ExtraUsage.fixture(monthlyLimit: nil, usedCredits: 2049, utilization: nil).uncappedSpendText == "$20.49")
         #expect(ExtraUsage.fixture(monthlyLimit: 0, usedCredits: 123456, utilization: nil).uncappedSpendText == "$1,235")
-        #expect(ExtraUsage.fixture(monthlyLimit: nil, usedCredits: nil, utilization: nil).uncappedSpendText == "$0")
+        #expect(ExtraUsage.fixture(monthlyLimit: nil, usedCredits: nil, utilization: nil).uncappedSpendText == "$0.00")
         #expect(ExtraUsage.fixture(monthlyLimit: 40000, usedCredits: 27000).uncappedSpendText == nil)
         #expect(ExtraUsage.fixture(isEnabled: false, monthlyLimit: nil, usedCredits: 2049, utilization: nil).uncappedSpendText == nil)
     }

@@ -283,7 +283,8 @@ struct MenuBarExtraCreditsRenderTests {
         segments: [MenuBarSegment] = [MenuBarSegment(kind: .extraCredits, style: .labelValue)],
         hasExtraCredits: Bool = true,
         extraCreditsPct: Int = 67,
-        uncappedSpend: String? = nil
+        uncappedSpend: String? = nil,
+        monochrome: Bool = false
     ) -> MenuBarRenderer.RenderData {
         MenuBarRenderer.RenderData(
             composition: MenuBarComposition(segments: segments),
@@ -293,7 +294,7 @@ struct MenuBarExtraCreditsRenderTests {
             fablePacingDelta: 0, fablePacingZone: .onTrack, hasFablePacing: false,
             hasConfig: true, hasError: false, isAwaitingRefresh: false,
             themeColors: .default, thresholds: .default,
-            menuBarMonochrome: false,
+            menuBarMonochrome: monochrome,
             fiveHourReset: "", fiveHourResetAbsolute: "",
             fiveHourResetDate: nil, sevenDayResetDate: nil, sonnetResetDate: nil,
             hasFiveHourBucket: false,
@@ -351,13 +352,33 @@ struct MenuBarExtraCreditsRenderTests {
         #expect(spend.size.width > percent.size.width)
     }
 
-    /// A monthly limit leaves the percentage alone: no spend, same pixels.
-    @Test("capped EC keeps rendering the percentage")
-    func cappedKeepsPercent() {
-        let a = MenuBarRenderer.renderUncached(data(extraCreditsPct: 67, uncappedSpend: nil))
-        let b = MenuBarRenderer.renderUncached(data(extraCreditsPct: 67))
-        #expect(a.size == b.size)
-        #expect(a.tiffRepresentation == b.tiffRepresentation)
+    /// A monthly limit keeps the percentage. The data comes from a real
+    /// capped pool ($268 of $400), so it carries no spend text; in monochrome
+    /// (where both paths use `labelColor`) its segment is pixel-identical to
+    /// one whose value text is literally "67%", which proves the capped
+    /// segment prints its percentage and not an amount.
+    @Test("capped EC keeps rendering the percentage", arguments: [
+        MenuBarSegmentStyle.labelValue, .valueOnly, .pill,
+    ])
+    func cappedKeepsPercent(style: MenuBarSegmentStyle) {
+        let pool = ExtraUsage(
+            isEnabled: true, monthlyLimit: 40000, usedCredits: 26800,
+            utilization: nil, currency: "USD", disabledReason: nil
+        )
+        #expect(pool.uncappedSpendText == nil)
+        #expect(pool.percent == 67)
+
+        let segments = [MenuBarSegment(kind: .extraCredits, style: style)]
+        let capped = MenuBarRenderer.renderUncached(data(
+            segments: segments, extraCreditsPct: pool.percent,
+            uncappedSpend: pool.uncappedSpendText, monochrome: true
+        ))
+        let reference = MenuBarRenderer.renderUncached(data(
+            segments: segments, extraCreditsPct: 0,
+            uncappedSpend: "67%", monochrome: true
+        ))
+        #expect(capped.size == reference.size)
+        #expect(capped.tiffRepresentation == reference.tiffRepresentation)
     }
 
     /// The spend only ever replaces the Extra Credits value, never another

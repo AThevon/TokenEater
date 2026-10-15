@@ -134,7 +134,7 @@ private struct GaugeRingCell: View {
         VStack(spacing: width == .third ? 4 : 8) {
             ZStack {
                 if unscaled {
-                    UnscaledTrack(lineWidth: max(ringSize * 0.08, 4), color: color)
+                    DottedRing(lineWidth: max(ringSize * 0.08, 4), color: color)
                         .frame(width: ringSize, height: ringSize)
                 } else {
                     RingGauge(
@@ -150,7 +150,9 @@ private struct GaugeRingCell: View {
                         snapshot.valueText,
                         font: .system(size: 11, weight: .black, design: .rounded),
                         color: color,
-                        glowRadius: 2
+                        // Plain information, so no halo: a glow would make the
+                        // amount louder than the threshold-coloured gauges.
+                        glowRadius: unscaled ? 0 : 2
                     )
                     .modifier(UnscaledFit(active: unscaled, width: innerWidth))
                 } else {
@@ -159,7 +161,7 @@ private struct GaugeRingCell: View {
                             snapshot.valueText,
                             font: .system(size: valueFontSize, weight: .black, design: .rounded),
                             color: color,
-                            glowRadius: width == .full ? 4 : 3
+                            glowRadius: unscaled ? 0 : (width == .full ? 4 : 3)
                         )
                         .modifier(UnscaledFit(active: unscaled, width: innerWidth))
                         ProviderMetricLabel(provider: snapshot.provider, text: snapshot.label)
@@ -168,6 +170,16 @@ private struct GaugeRingCell: View {
             }
             if width == .third {
                 ProviderMetricLabel(provider: snapshot.provider, text: snapshot.label, size: 9)
+            }
+            if let note = snapshot.unscaledNote, width != .third {
+                // Where the reset line would be (Extra Credits has none): say
+                // why an amount stands where a percentage usually does.
+                Text(note)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.35))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if showReset && !snapshot.resetText.isEmpty {
                 // Only the full-width card has room for the sentence. At half
@@ -191,6 +203,7 @@ private struct GaugeRingCell: View {
         // this the VStack is only as wide as the ring and the layout pins it
         // to the cell's leading edge (visibly off-centre for half / third).
         .frame(maxWidth: .infinity)
+        .unscaledHelp(snapshot.unscaledNote)
     }
 
     private var ringSize: CGFloat {
@@ -236,7 +249,7 @@ private struct ChipCell: View {
 
         HStack(spacing: 10) {
             if unscaled {
-                UnscaledTrack(lineWidth: 4, color: color)
+                DottedRing(lineWidth: 4, color: color)
                     .frame(width: 38, height: 38)
             } else {
                 ZStack {
@@ -261,6 +274,13 @@ private struct ChipCell: View {
                     .font(.system(size: 18, weight: .black, design: .rounded))
                     .foregroundStyle(color)
                     .modifier(UnscaledFit(active: unscaled, width: nil))
+                if let note = snapshot.unscaledNote {
+                    Text(note)
+                        .font(.system(size: 9))
+                        .foregroundStyle(.white.opacity(0.5))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if showReset && !snapshot.resetText.isEmpty {
                     Text(width == .full
                          ? String(format: String(localized: "metric.reset"), snapshot.resetText)
@@ -277,6 +297,7 @@ private struct ChipCell: View {
         }
         .padding(10)
         .popoverCard()
+        .unscaledHelp(snapshot.unscaledNote)
     }
 }
 
@@ -296,8 +317,8 @@ private struct ArcCell: View {
                 Text(displayValue)
                     .font(.system(size: 38, weight: .black, design: .rounded))
                     .foregroundStyle(color)
-                    .modifier(UnscaledFit(active: content == .percent && snapshot.unscaledValue != nil, width: nil))
-                    .dsGlow(color, radius: 10, opacity: 0.35)
+                    .modifier(UnscaledFit(active: isUnscaled, width: nil))
+                    .dsGlow(color, radius: 10, opacity: isUnscaled ? 0 : 0.35)
                 Text(label.uppercased())
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.5))
@@ -305,6 +326,12 @@ private struct ArcCell: View {
             }
         }
         .frame(height: 150)
+        .unscaledHelp(isUnscaled ? snapshot.unscaledNote : nil)
+    }
+
+    /// The cell shows an amount with no scale (uncapped Extra Credits).
+    private var isUnscaled: Bool {
+        content == .percent && snapshot.unscaledValue != nil
     }
 
     private var displayValue: String {
@@ -326,7 +353,7 @@ private struct ArcCell: View {
         case .resetCountdown:
             return PopoverCellPalette.countdown
         case .percent:
-            if snapshot.unscaledValue != nil { return PopoverCellPalette.unscaled }
+            if isUnscaled { return PopoverCellPalette.unscaled }
             return PopoverColors.gauge(
                 pct: snapshot.pct, resetDate: snapshot.resetDate,
                 windowDuration: snapshot.windowDuration,
@@ -365,10 +392,14 @@ private struct ArcCell: View {
                 )
             }
             ZStack {
-                if content == .percent && snapshot.unscaledValue != nil {
+                if isUnscaled {
                     // No limit, so no fill: an open dotted arc, not a 0 % one.
+                    // Half a circle long, with a dot on each end.
                     path
-                        .stroke(color.opacity(PopoverCellPalette.unscaledTrackOpacity), style: PopoverCellPalette.unscaledTrackStyle(lineWidth: strokeW))
+                        .stroke(
+                            color.opacity(DottedTrack.opacity),
+                            style: DottedTrack.style(lineWidth: strokeW, length: .pi * rect.width / 2, closed: false)
+                        )
                 } else {
                     path
                         .stroke(Color.white.opacity(0.06), style: StrokeStyle(lineWidth: strokeW, lineCap: .round))
@@ -408,6 +439,7 @@ private struct BigTextCell: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 10)
         .popoverCard()
+        .unscaledHelp(content == .percent ? snapshot.unscaledNote : nil)
     }
 
     private var valueFontSize: CGFloat {
@@ -719,23 +751,18 @@ enum PopoverCellPalette {
     /// limit): plain information, not a threshold colour, since there is no
     /// limit to be close to.
     static let unscaled = DS.Palette.textPrimary
-    static let unscaledTrackOpacity: Double = 0.28
-
-    /// Round dots along the track: open-ended rather than an empty gauge.
-    static func unscaledTrackStyle(lineWidth: CGFloat) -> StrokeStyle {
-        StrokeStyle(lineWidth: lineWidth * 0.6, lineCap: .round, dash: [0, lineWidth * 1.6])
-    }
 }
 
-/// The ring a gauge draws when its metric has no scale: a full circle of
-/// faint dots, so the cell never shows a 0 % fill for money already spent.
-private struct UnscaledTrack: View {
-    let lineWidth: CGFloat
-    let color: Color
-
-    var body: some View {
-        Circle()
-            .stroke(color.opacity(PopoverCellPalette.unscaledTrackOpacity), style: PopoverCellPalette.unscaledTrackStyle(lineWidth: lineWidth))
+private extension View {
+    /// The tooltip on a cell that shows an amount with no scale, so even the
+    /// cells too small for a caption say why there is no percentage.
+    @ViewBuilder
+    func unscaledHelp(_ note: String?) -> some View {
+        if let note {
+            help(note)
+        } else {
+            self
+        }
     }
 }
 
