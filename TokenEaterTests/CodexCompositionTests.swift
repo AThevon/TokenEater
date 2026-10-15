@@ -162,7 +162,7 @@ struct CodexCompositionTests {
             smartResetColor: false, smartColorProfile: .balanced, pacingMargin: 10,
             fablePct: 0, hasFable: false, fableResetDate: nil,
             outageActive: false, outageHealth: .healthy, nextPollSeconds: nil,
-            extraCreditsPct: 0, hasExtraCredits: false,
+            extraCreditsPct: 0, hasExtraCredits: false, extraCreditsUncappedSpend: nil,
             codexSession: codexSession, codexWeekly: codexWeekly,
             visibleProviders: [.claude, .codex]
         )

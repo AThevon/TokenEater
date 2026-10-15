@@ -22,6 +22,16 @@ enum PopoverMetricResolver {
         /// reads "❀ 5h" next to Claude's "✳ 5h" rather than "Codex weekly"
         /// next to "Weekly". Nil for anything that belongs to no provider.
         var provider: MetricProvider? = nil
+        /// Set when the metric has no scale to measure against: Extra Credits
+        /// with no monthly limit, whose percentage is always 0. Cells show
+        /// this amount instead of the percentage, in a neutral tint, and draw
+        /// an open dotted track rather than a 0 % fill that would read as
+        /// "nothing spent". Nil for everything else, which renders as before.
+        var unscaledValue: String? = nil
+
+        /// The value a cell prints: the unscaled amount when there is one,
+        /// the percentage otherwise.
+        var valueText: String { unscaledValue ?? "\(pct)%" }
     }
 
     /// Codex windows arrive as a list rather than named buckets, so a kind
@@ -85,7 +95,8 @@ enum PopoverMetricResolver {
                 resetDate: nil,
                 resetText: "",
                 windowDuration: 0,
-                provider: .claude
+                provider: .claude,
+                unscaledValue: usage.extraCreditsUncappedSpend
             )
         default:
             return nil

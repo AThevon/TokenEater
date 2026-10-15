@@ -61,6 +61,17 @@ struct UsageResponseDecodingTests {
         #expect(!ExtraUsage(isEnabled: false, monthlyLimit: nil, usedCredits: 0, utilization: nil, currency: "USD", disabledReason: "out_of_credits").isUncapped)
     }
 
+    /// The text the menu bar and the popover show in place of the percentage:
+    /// present only when uncapped, so the capped case draws what it always did.
+    @Test("ExtraUsage.uncappedSpendText only when uncapped")
+    func uncappedSpendText() {
+        #expect(ExtraUsage.fixture(monthlyLimit: nil, usedCredits: 2049, utilization: nil).uncappedSpendText == "$20.49")
+        #expect(ExtraUsage.fixture(monthlyLimit: 0, usedCredits: 123456, utilization: nil).uncappedSpendText == "$1,235")
+        #expect(ExtraUsage.fixture(monthlyLimit: nil, usedCredits: nil, utilization: nil).uncappedSpendText == "$0")
+        #expect(ExtraUsage.fixture(monthlyLimit: 40000, usedCredits: 27000).uncappedSpendText == nil)
+        #expect(ExtraUsage.fixture(isEnabled: false, monthlyLimit: nil, usedCredits: 2049, utilization: nil).uncappedSpendText == nil)
+    }
+
     /// Unfamiliar top-level keys (new server-side codenames) must not break decoding.
     @Test("unknown top-level keys are ignored")
     func unknownKeysIgnored() throws {

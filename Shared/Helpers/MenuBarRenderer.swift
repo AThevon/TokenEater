@@ -53,6 +53,10 @@ enum MenuBarRenderer {
         let nextPollSeconds: Int?
         let extraCreditsPct: Int
         let hasExtraCredits: Bool
+        /// The amount spent when the Extra Credits pool has no monthly limit.
+        /// Non-nil replaces the always-0 percentage with that amount, drawn in
+        /// a neutral tint; nil (a limit is set) keeps the percentage.
+        let extraCreditsUncappedSpend: String?
         /// Nested rather than flattened into ten more fields: `RenderData` is
         /// the Equatable key of the render cache, and a nested Equatable value
         /// keeps that comparison honest without widening the struct further.
@@ -409,6 +413,9 @@ enum MenuBarRenderer {
     // MARK: - Per-family content
 
     private static func usageContent(kind: MenuBarSegmentKind, style: MenuBarSegmentStyle, data: RenderData) -> SegmentVisual.Content {
+        if kind == .extraCredits, let spend = data.extraCreditsUncappedSpend {
+            return uncappedSpendContent(spend, style: style, data: data)
+        }
         let value = usageValue(kind, data: data)
         let label = usageLabel(kind, data: data)
         let color = colorForPct(value, resetDate: usageResetDate(kind, data: data), windowDuration: usageWindow(kind, data: data), data: data)
@@ -440,6 +447,41 @@ enum MenuBarRenderer {
             return .pill(text: "\(value)%", tint: color)
         default:
             return .run(NSAttributedString(string: "\(value)%", attributes: [
+                .font: systemFont(12, .bold, monoDigits: true), .foregroundColor: color,
+            ]))
+        }
+    }
+
+    /// Extra Credits with no monthly limit: the amount spent where the
+    /// percentage would be, in every style. Neutral `labelColor` rather than a
+    /// threshold colour, since there is no limit to be near; the same colour
+    /// monochrome uses, so the segment reads as plain information.
+    private static func uncappedSpendContent(_ spend: String, style: MenuBarSegmentStyle, data: RenderData) -> SegmentVisual.Content {
+        let label = MetricID.extraCredits.shortLabel
+        let color = NSColor.labelColor
+        switch style {
+        case .labelValue:
+            let s = NSMutableAttributedString()
+            s.append(NSAttributedString(string: "\(label) ", attributes: [
+                .font: systemFont(9, .medium), .foregroundColor: periodColor(data),
+            ]))
+            s.append(NSAttributedString(string: spend, attributes: [
+                .font: systemFont(12, .bold, monoDigits: true), .foregroundColor: color,
+            ]))
+            return .run(s)
+        case .mono:
+            let s = NSMutableAttributedString()
+            s.append(NSAttributedString(string: "\(label):", attributes: [
+                .font: monoFont(11, .regular), .foregroundColor: periodColor(data),
+            ]))
+            s.append(NSAttributedString(string: spend, attributes: [
+                .font: monoFont(11, .bold), .foregroundColor: color,
+            ]))
+            return .run(s)
+        case .pill:
+            return .pill(text: spend, tint: color)
+        default:
+            return .run(NSAttributedString(string: spend, attributes: [
                 .font: systemFont(12, .bold, monoDigits: true), .foregroundColor: color,
             ]))
         }

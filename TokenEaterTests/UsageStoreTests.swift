@@ -181,6 +181,30 @@ struct UsageStoreTests {
         #expect(store.extraCreditsPct == 67)
     }
 
+    @Test("an enabled pool with no monthly limit exposes the amount spent")
+    func uncappedExtraCreditsExposeSpend() async {
+        let (store, _, _, _, _) = makeSUT(
+            usage: .fixture(extraUsage: .fixture(monthlyLimit: nil, usedCredits: 2049, utilization: nil))
+        )
+
+        await store.refresh()
+
+        #expect(store.hasExtraCredits == true)
+        #expect(store.extraCreditsPct == 0)
+        #expect(store.extraCreditsUncappedSpend == "$20.49")
+    }
+
+    @Test("a capped pool keeps its percentage and exposes no spend")
+    func cappedExtraCreditsExposeNoSpend() async {
+        let (store, _, _, _, _) = makeSUT(
+            usage: .fixture(extraUsage: .fixture(isEnabled: true, utilization: 67.5))
+        )
+
+        await store.refresh()
+
+        #expect(store.extraCreditsUncappedSpend == nil)
+    }
+
     @Test("a disabled extra-credits pool is not surfaced")
     func disabledExtraCreditsNotSurfaced() async {
         let (store, _, _, _, _) = makeSUT(

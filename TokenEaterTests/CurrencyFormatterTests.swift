@@ -70,6 +70,27 @@ struct CurrencyFormatterTests {
         #expect(!result.isEmpty)
     }
 
+    // MARK: - Compact (menu bar, popover)
+
+    @Test func compactKeepsCentsBelowOneHundred() {
+        #expect(CurrencyFormatter.formatMinorUnitsCompact(2049, currencyCode: "USD", locale: usLocale) == "$20.49")
+        #expect(CurrencyFormatter.formatMinorUnitsCompact(9950, currencyCode: "USD", locale: usLocale) == "$99.50")
+    }
+
+    @Test func compactRoundsToWholeUnitsFromOneHundred() {
+        #expect(CurrencyFormatter.formatMinorUnitsCompact(10000, currencyCode: "USD", locale: usLocale) == "$100")
+        #expect(CurrencyFormatter.formatMinorUnitsCompact(123456, currencyCode: "USD", locale: usLocale) == "$1,235")
+    }
+
+    @Test func compactLeavesZeroDecimalCurrenciesAlone() {
+        let result = CurrencyFormatter.formatMinorUnitsCompact(2049, currencyCode: "JPY", locale: usLocale)
+        #expect(result == CurrencyFormatter.formatMinorUnits(2049, currencyCode: "JPY", locale: usLocale))
+    }
+
+    @Test func compactFallsBackToUSD() {
+        #expect(CurrencyFormatter.formatMinorUnitsCompact(123456, currencyCode: nil, locale: usLocale) == "$1,235")
+    }
+
     // MARK: - Regression: shuhulx report (issue #146)
 
     @Test func extraCreditsBugReproduction() {
