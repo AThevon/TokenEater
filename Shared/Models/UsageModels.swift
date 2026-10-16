@@ -201,6 +201,12 @@ struct ExtraUsage: Codable, Equatable {
         let limit = monthlyLimit ?? 0
         return limit > 0 ? Int((used / limit) * 100) : 0
     }
+
+    /// The pool is on but has no monthly limit, so a percentage means nothing:
+    /// the spend is uncapped. Surfaces show the amount spent instead of 0 %.
+    var isUncapped: Bool {
+        isEnabled && (monthlyLimit ?? 0) <= 0
+    }
 }
 
 // MARK: - Cached Usage (for offline support)
