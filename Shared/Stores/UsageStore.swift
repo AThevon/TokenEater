@@ -156,7 +156,7 @@ final class UsageStore: ObservableObject {
 
     init(
         repository: UsageRepositoryProtocol = UsageRepository(),
-        tokenProvider: TokenProviderProtocol = TokenProvider(),
+        tokenProvider: TokenProviderProtocol = TokenProvider.forMainAccount(),
         sharedFileService: SharedFileServiceProtocol = SharedFileService(),
         notificationService: NotificationServiceProtocol = NotificationService(),
         sessionSamplesKey: String = "sessionPacingSamples"

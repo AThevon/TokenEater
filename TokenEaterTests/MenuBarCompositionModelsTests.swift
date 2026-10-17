@@ -107,4 +107,63 @@ struct MenuBarCompositionModelsTests {
         let decoded = try JSONDecoder().decode([MenuBarUserTemplate].self, from: data)
         #expect(decoded == [t])
     }
+
+    // MARK: - Accounts
+
+    /// A menu bar blob exactly as 6.0 wrote it, keys sorted.
+    private static let blob60 = #"{"segments":[{"id":"6F1B1D0C-6B1F-4C5B-9A43-1B6E8A6F0A01","isHidden":false,"kind":"session","options":{"pacingShape":"circle","resetFormat":"relative"},"style":"labelValue"},{"id":"6F1B1D0C-6B1F-4C5B-9A43-1B6E8A6F0A02","isHidden":true,"kind":"codexWeekly","options":{"pacingShape":"diamond","resetFormat":"both"},"style":"pill"}]}"#
+
+    private func sortedEncoder() -> JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return encoder
+    }
+
+    @Test("a 6.0 blob decodes and re-encodes byte for byte")
+    func blob60IsByteIdentical() throws {
+        let decoded = try JSONDecoder().decode(MenuBarComposition.self, from: Data(Self.blob60.utf8))
+        #expect(decoded.accountLabel == .dotAndName)
+        #expect(decoded.segments.allSatisfy { $0.account == nil })
+        let encoded = try sortedEncoder().encode(decoded)
+        #expect(String(data: encoded, encoding: .utf8) == Self.blob60)
+    }
+
+    @Test("a segment's account survives the round trip")
+    func accountRoundTrip() throws {
+        let id = AccountID(rawValue: "acct-1")
+        let composition = MenuBarComposition(
+            segments: [MenuBarSegment(kind: .session, style: .labelValue, account: id)],
+            accountLabel: .dot
+        )
+        let data = try JSONEncoder().encode(composition)
+        let decoded = try JSONDecoder().decode(MenuBarComposition.self, from: data)
+        #expect(decoded == composition)
+        #expect(decoded.segments[0].account == id)
+        #expect(decoded.accountLabel == .dot)
+    }
+
+    @Test("an unreadable account falls back to the mode's account, the segment stays")
+    func invalidAccountIsNil() throws {
+        let json = #"{"segments":[{"kind":"session","style":"labelValue","account":42},{"kind":"weekly","style":"labelValue","account":"acct-../x"}]}"#
+        let decoded = try JSONDecoder().decode(MenuBarComposition.self, from: Data(json.utf8))
+        #expect(decoded.segments.count == 2)
+        #expect(decoded.segments.allSatisfy { $0.account == nil })
+    }
+
+    @Test("the default account label is never written")
+    func accountLabelOmittedWhenDefault() throws {
+        let plain = try JSONSerialization.jsonObject(with: JSONEncoder().encode(MenuBarComposition.default)) as? [String: Any]
+        #expect(plain?.keys.sorted() == ["segments"])
+        let custom = MenuBarComposition(segments: [], accountLabel: .dot)
+        let object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(custom)) as? [String: Any]
+        #expect(object?["accountLabel"] as? String == "dot")
+    }
+
+    @Test("two layouts that differ only by account are not equivalent")
+    func equivalenceSeesAccount() {
+        let a = MenuBarComposition(segments: [MenuBarSegment(kind: .session, style: .labelValue)])
+        let b = MenuBarComposition(segments: [MenuBarSegment(kind: .session, style: .labelValue, account: AccountID(rawValue: "acct-1"))])
+        #expect(!a.isEquivalent(to: b))
+        #expect(a.isEquivalent(to: MenuBarComposition(segments: [MenuBarSegment(kind: .session, style: .labelValue)])))
+    }
 }

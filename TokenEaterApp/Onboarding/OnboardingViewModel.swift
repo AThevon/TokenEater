@@ -128,7 +128,7 @@ final class OnboardingViewModel: ObservableObject {
     private let settingsStore: SettingsStore
 
     init(
-        tokenProvider: TokenProviderProtocol = TokenProvider(),
+        tokenProvider: TokenProviderProtocol = TokenProvider.forMainAccount(),
         repository: UsageRepositoryProtocol = UsageRepository(),
         notificationService: NotificationServiceProtocol = NotificationService(),
         settingsStore: SettingsStore? = nil,

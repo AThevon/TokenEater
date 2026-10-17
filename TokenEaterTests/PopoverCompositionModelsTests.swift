@@ -142,4 +142,41 @@ struct PopoverCompositionModelsTests {
         let decoded = try JSONDecoder().decode([PopoverUserTemplate].self, from: data)
         #expect(decoded == [template])
     }
+
+    // MARK: - Accounts
+
+    /// A popover blob exactly as 6.0 wrote it, keys sorted.
+    private static let blob60 = #"{"elements":[{"id":"6F1B1D0C-6B1F-4C5B-9A43-1B6E8A6F0B01","isHidden":false,"kind":"session","options":{"content":"percent","showReset":true},"style":"gaugeRing","width":"half"},{"id":"6F1B1D0C-6B1F-4C5B-9A43-1B6E8A6F0B02","isHidden":false,"kind":"planBadge","options":{"content":"percent","showReset":false},"style":"badge","width":"full"}],"showPlanBadge":true,"showRefreshButton":false,"version":2}"#
+
+    @Test("a 6.0 blob decodes and re-encodes byte for byte")
+    func blob60IsByteIdentical() throws {
+        let decoded = try JSONDecoder().decode(PopoverComposition.self, from: Data(Self.blob60.utf8))
+        #expect(decoded.elements.count == 2)
+        #expect(decoded.elements.allSatisfy { $0.account == nil })
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        #expect(String(data: try encoder.encode(decoded), encoding: .utf8) == Self.blob60)
+    }
+
+    @Test("an element's account survives the round trip, an unreadable one becomes nil")
+    func accountRoundTrip() throws {
+        let id = AccountID(rawValue: "acct-9")
+        let composition = PopoverComposition(elements: [
+            PopoverElement(kind: .session, style: .chip, width: .half, account: id),
+        ])
+        let decoded = try JSONDecoder().decode(PopoverComposition.self, from: JSONEncoder().encode(composition))
+        #expect(decoded.elements[0].account == id)
+
+        let json = #"{"version":2,"elements":[{"kind":"session","style":"chip","width":"half","account":7}]}"#
+        let lossy = try JSONDecoder().decode(PopoverComposition.self, from: Data(json.utf8))
+        #expect(lossy.elements.count == 1)
+        #expect(lossy.elements[0].account == nil)
+    }
+
+    @Test("two layouts that differ only by account are not equivalent")
+    func equivalenceSeesAccount() {
+        let a = PopoverComposition(elements: [PopoverElement(kind: .session, style: .chip, width: .half)])
+        let b = PopoverComposition(elements: [PopoverElement(kind: .session, style: .chip, width: .half, account: AccountID(rawValue: "acct-1"))])
+        #expect(!a.isEquivalent(to: b))
+    }
 }

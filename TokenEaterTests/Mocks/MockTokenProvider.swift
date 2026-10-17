@@ -37,6 +37,14 @@ final class MockTokenProvider: TokenProviderProtocol, @unchecked Sendable {
         return token
     }
 
+    var reconfigureCallCount = 0
+    var lastScope: CredentialScope?
+
+    func reconfigure(scope: CredentialScope) {
+        reconfigureCallCount += 1
+        lastScope = scope
+    }
+
     func refreshTokenIfChanged() -> Bool {
         refreshTokenIfChangedCallCount += 1
         return tokenDidChange

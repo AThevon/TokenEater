@@ -220,19 +220,27 @@ struct MenuBarSegment: Codable, Equatable, Identifiable {
     var style: MenuBarSegmentStyle
     var isHidden: Bool
     var options: MenuBarSegmentOptions
+    /// The Claude account a Claude segment reads. Nil is the account the mode
+    /// shows (the main one, or the focused one in Claude mode), so every
+    /// segment written before accounts existed keeps meaning what it meant.
+    /// Ignored by Codex and neutral kinds. Encoded only when set, so a layout
+    /// that never targets an account stays byte for byte what 6.0 wrote.
+    var account: AccountID?
 
     init(
         id: UUID = UUID(),
         kind: MenuBarSegmentKind,
         style: MenuBarSegmentStyle,
         isHidden: Bool = false,
-        options: MenuBarSegmentOptions = MenuBarSegmentOptions()
+        options: MenuBarSegmentOptions = MenuBarSegmentOptions(),
+        account: AccountID? = nil
     ) {
         self.id = id
         self.kind = kind
         self.style = style
         self.isHidden = isHidden
         self.options = options
+        self.account = account
     }
 
     init(from decoder: Decoder) throws {
@@ -245,6 +253,9 @@ struct MenuBarSegment: Codable, Equatable, Identifiable {
         id = (try? c.decodeIfPresent(UUID.self, forKey: .id)) ?? UUID()
         isHidden = (try? c.decodeIfPresent(Bool.self, forKey: .isHidden)) ?? false
         options = (try? c.decodeIfPresent(MenuBarSegmentOptions.self, forKey: .options)) ?? MenuBarSegmentOptions()
+        // An unreadable account falls back to the mode's account rather than
+        // dropping the segment.
+        account = (try? c.decodeIfPresent(AccountID.self, forKey: .account)) ?? nil
     }
 
     /// Style clamped to what the kind allows - a decoded or programmatic
@@ -259,14 +270,32 @@ struct MenuBarSegment: Codable, Equatable, Identifiable {
 struct MenuBarComposition: Codable, Equatable {
     /// Ordered list; order = left-to-right render order.
     var segments: [MenuBarSegment]
+    /// How a group of segments is marked with its account once two Claude
+    /// accounts are on. Written only when it differs from the default, so a
+    /// composition nobody customised encodes exactly as it did in 6.0.
+    var accountLabel: MenuBarAccountLabel
 
-    init(segments: [MenuBarSegment]) {
+    private enum CodingKeys: String, CodingKey {
+        case segments, accountLabel
+    }
+
+    init(segments: [MenuBarSegment], accountLabel: MenuBarAccountLabel = .dotAndName) {
         self.segments = segments
+        self.accountLabel = accountLabel
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         segments = c.decodeLossyArray(MenuBarSegment.self, forKey: .segments)
+        accountLabel = (try? c.decodeIfPresent(MenuBarAccountLabel.self, forKey: .accountLabel)) ?? .dotAndName
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(segments, forKey: .segments)
+        if accountLabel != .dotAndName {
+            try c.encode(accountLabel, forKey: .accountLabel)
+        }
     }
 
     var visibleSegments: [MenuBarSegment] { segments.filter { !$0.isHidden } }
@@ -284,7 +313,8 @@ struct MenuBarComposition: Codable, Equatable {
         guard segments.count == other.segments.count else { return false }
         for (a, b) in zip(segments, other.segments) where
             a.kind != b.kind || a.style != b.style
-            || a.isHidden != b.isHidden || a.options != b.options {
+            || a.isHidden != b.isHidden || a.options != b.options
+            || a.account != b.account {
             return false
         }
         return true

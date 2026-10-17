@@ -5,11 +5,25 @@ import os.log
 private let logger = Logger(subsystem: "com.tokeneater.app", category: "TokenProvider")
 
 final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
-    private let securityCLIReader: SecurityCLIReaderProtocol
-    private let credentialsFileReader: CredentialsFileReaderProtocol
-    private let configReader: ClaudeConfigReaderProtocol
-    private let decryptionService: ElectronDecryptionServiceProtocol
-    private let keychainReader: KeychainTokenReader
+    /// The four sources one scope reads, in priority order.
+    struct Readers {
+        let securityCLI: SecurityCLIReaderProtocol
+        let credentialsFile: CredentialsFileReaderProtocol
+        let config: ClaudeConfigReaderProtocol
+        let decryption: ElectronDecryptionServiceProtocol
+        let keychain: KeychainTokenReader
+    }
+
+    typealias ReaderFactory = (CredentialScope) -> Readers
+
+    private var securityCLIReader: SecurityCLIReaderProtocol
+    private var credentialsFileReader: CredentialsFileReaderProtocol
+    private var configReader: ClaudeConfigReaderProtocol
+    private var decryptionService: ElectronDecryptionServiceProtocol
+    private var keychainReader: KeychainTokenReader
+    /// Builds the readers for a scope on `reconfigure(scope:)`.
+    private let makeReaders: ReaderFactory
+    private(set) var scope: CredentialScope
 
     /// In-memory token cache - avoids hitting the Keychain on every refresh.
     /// Only cleared on 401 (token expired) via `invalidateToken()`.
@@ -43,13 +57,85 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
         credentialsFileReader: CredentialsFileReaderProtocol = CredentialsFileReader(),
         configReader: ClaudeConfigReaderProtocol = ClaudeConfigReader(),
         decryptionService: ElectronDecryptionServiceProtocol = ElectronDecryptionService(),
-        keychainReader: KeychainTokenReader? = nil
+        keychainReader: KeychainTokenReader? = nil,
+        scope: CredentialScope = .defaultChain,
+        readerFactory: ReaderFactory? = nil
     ) {
         self.securityCLIReader = securityCLIReader
         self.credentialsFileReader = credentialsFileReader
         self.configReader = configReader
         self.decryptionService = decryptionService
-        self.keychainReader = keychainReader ?? Self.defaultKeychainReader
+        self.keychainReader = keychainReader ?? { Self.nativeKeychainRead(service: ClaudeConfigDirResolver.baseService) }
+        self.scope = scope
+        self.makeReaders = readerFactory ?? { Self.readers(for: $0) }
+    }
+
+    /// A provider bounded to one account's sources. `.defaultChain` builds
+    /// exactly the readers the app has always used; `.configDir` reads that
+    /// folder's exact Keychain service and its `.credentials.json`, and never
+    /// Claude Desktop, so a token can only ever belong to that folder.
+    convenience init(scope: CredentialScope, home: String = ClaudeConfigDirResolver.realHome()) {
+        let readers = Self.readers(for: scope, home: home)
+        self.init(
+            securityCLIReader: readers.securityCLI,
+            credentialsFileReader: readers.credentialsFile,
+            configReader: readers.config,
+            decryptionService: readers.decryption,
+            keychainReader: readers.keychain,
+            scope: scope,
+            readerFactory: { Self.readers(for: $0, home: home) }
+        )
+    }
+
+    /// The main account's provider, scoped to the folder the user chose for
+    /// it, or to the default chain when they never chose one (#294). Only
+    /// reads `UserDefaults`; nothing touches a credential until a token is
+    /// asked for.
+    static func forMainAccount(defaults: UserDefaults = .standard) -> TokenProvider {
+        let main = ClaudeAccountsStorage.load(from: defaults).first ?? .defaultMain()
+        return TokenProvider(scope: main.scope)
+    }
+
+    /// The readers a scope is allowed to use.
+    static func readers(
+        for scope: CredentialScope,
+        home: String = ClaudeConfigDirResolver.realHome()
+    ) -> Readers {
+        switch scope {
+        case .defaultChain:
+            return Readers(
+                securityCLI: SecurityCLIReader(),
+                credentialsFile: CredentialsFileReader(filePath: scope.credentialsFilePath(home: home)),
+                config: ClaudeConfigReader(),
+                decryption: ElectronDecryptionService(),
+                keychain: { nativeKeychainRead(service: ClaudeConfigDirResolver.baseService) }
+            )
+        case .configDir(_, let service):
+            return Readers(
+                securityCLI: SecurityCLIReader(service: service),
+                credentialsFile: CredentialsFileReader(filePath: scope.credentialsFilePath(home: home)),
+                config: NoClaudeDesktopConfig(),
+                decryption: NoDecryptionService(),
+                keychain: { nativeKeychainRead(service: service) }
+            )
+        }
+    }
+
+    /// Points the provider at another scope. Drops everything tied to the
+    /// previous one (cached token, diagnostic, the once-per-launch Desktop
+    /// key attempt) and reads nothing: the next `currentToken()` does.
+    func reconfigure(scope: CredentialScope) {
+        let readers = makeReaders(scope)
+        securityCLIReader = readers.securityCLI
+        credentialsFileReader = readers.credentialsFile
+        configReader = readers.config
+        decryptionService = readers.decryption
+        keychainReader = readers.keychain
+        self.scope = scope
+        cachedToken = nil
+        diagnostic = .unknown
+        safeStorageRebootstrapAttempted = false
+        logger.info("Token scope reconfigured")
     }
 
     var isBootstrapped: Bool { true }
@@ -261,10 +347,10 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
 
     // MARK: - Keychain (static, no instance state)
 
-    private static func defaultKeychainReader() -> String? {
+    private static func nativeKeychainRead(service: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "Claude Code-credentials",
+            kSecAttrService as String: service,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
@@ -310,4 +396,23 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
         }
         return nil
     }
+}
+
+// MARK: - Scoped no-op sources
+
+/// Claude Desktop's login is not tied to any `CLAUDE_CONFIG_DIR`, so a folder
+/// scope never reads it.
+private struct NoClaudeDesktopConfig: ClaudeConfigReaderProtocol {
+    func readEncryptedToken() -> String? { nil }
+}
+
+/// The decryption a folder scope never needs. No migration in its init and
+/// nothing to clear, so resetting an added account's connection leaves the
+/// main account's cached `decryption.key` alone.
+private struct NoDecryptionService: ElectronDecryptionServiceProtocol {
+    func decrypt(_ encryptedBase64: String) throws -> Data { throw ElectronDecryptionError.keyDerivationFailed }
+    var hasEncryptionKey: Bool { false }
+    func bootstrapEncryptionKey() throws {}
+    func clearCachedKey() {}
+    func trySilentRebootstrap() -> Bool { false }
 }

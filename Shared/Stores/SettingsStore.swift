@@ -521,7 +521,7 @@ final class SettingsStore: ObservableObject {
 
     init(
         notificationService: NotificationServiceProtocol = NotificationService(),
-        tokenProvider: TokenProviderProtocol = TokenProvider(),
+        tokenProvider: TokenProviderProtocol = TokenProvider.forMainAccount(),
         sharedFileService: SharedFileServiceProtocol = SharedFileService(),
         codexAuthStateProvider: @escaping () -> CodexAuthState = { CodexAuthReader().authState() }
     ) {
