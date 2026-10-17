@@ -67,7 +67,10 @@ final class AccountRuntime {
 @MainActor
 final class AccountsStore: ObservableObject, AccountsStoreProtocol {
     @Published private(set) var records: [ClaudeAccountRecord] {
-        didSet { notificationLabels.update(records, home: home) }
+        didSet {
+            notificationLabels.update(records, home: home)
+            publishWidgetIndex()
+        }
     }
     /// Added accounts only, paused ones included (they keep their last
     /// numbers on screen in Settings).
@@ -105,6 +108,15 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
     private let makeConnectTokenProvider: ConnectTokenProviderFactory
     /// Fetches the profile that identifies a login before it is added.
     private let apiClient: APIClientProtocol
+    /// `shared.json`, where the account picker of the "Claude · Account"
+    /// widget finds the accounts. Nil writes no index (tests that do not
+    /// look at it).
+    private let indexFile: SharedFileServiceProtocol?
+    /// Asks WidgetKit to redraw the account widget after the index changed.
+    private let reloadAccountWidgets: @MainActor () -> Void
+    /// The index last written or found on disk, so an unchanged list costs
+    /// no write and no reload.
+    private var publishedIndex: [AccountIndexEntry]?
 
     init(
         mainStore: UsageStore,
@@ -114,6 +126,8 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
         makeConnectTokenProvider: ConnectTokenProviderFactory? = nil,
         apiClient: APIClientProtocol = APIClient(),
         notifications: NotificationServiceProtocol? = nil,
+        indexFile: SharedFileServiceProtocol? = nil,
+        reloadAccountWidgets: @escaping @MainActor () -> Void = {},
         makeRuntime: (@MainActor (ClaudeAccountRecord) -> AccountRuntime)? = nil
     ) {
         let labels = AccountNotificationLabels()
@@ -125,6 +139,9 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
         self.makeConnectTokenProvider = makeConnectTokenProvider ?? { TokenProvider(scope: $0, home: home) }
         self.apiClient = apiClient
         self.notifications = notifications ?? NotificationService()
+        self.indexFile = indexFile
+        self.reloadAccountWidgets = reloadAccountWidgets
+        self.publishedIndex = indexFile?.accountsIndex
         let runtimeMaker = makeRuntime ?? { record in
             AccountsStore.liveRuntime(record, notificationScope: labels.scope(for: record.id))
         }
@@ -142,6 +159,10 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
             self?.captureMainDigest(digest)
         }
         installIdentityGates()
+        // The index may predate this launch's list: written by a build with
+        // other accounts, or wiped with the shared folder while the list
+        // stayed in the defaults.
+        publishWidgetIndex()
     }
 
     // MARK: - Reading
@@ -192,10 +213,11 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
 
     /// The recipe for an added account: its own shared file (no migrations,
     /// no identity in it), its own folder-scoped token provider, its own
-    /// pacing samples, notification state and alert identifiers, and no
-    /// reload of the widgets, none of which reads its file.
+    /// pacing samples, notification state and alert identifiers. Its
+    /// refreshes reload the account widget only, the one kind that can read
+    /// its file.
     static func liveRuntime(_ record: ClaudeAccountRecord, notificationScope: NotificationScope) -> AccountRuntime {
-        let file = SharedFileService(fileName: "shared-\(record.id.rawValue).json")
+        let file = SharedFileService(fileName: record.id.sharedFileName)
         let store = UsageStore(
             repository: UsageRepository(apiClient: APIClient(), sharedFileService: file),
             tokenProvider: TokenProvider(scope: record.scope),
@@ -205,7 +227,7 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
                 scope: notificationScope
             ),
             sessionSamplesKey: sessionSamplesKey(for: record.id),
-            reloadWidgets: {}
+            reloadWidgets: { WidgetReloader.scheduleAccountReload() }
         )
         let history = ClaudeHistoryRoot(
             account: record.id,
@@ -651,6 +673,22 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
                 self?.identityVerdict(for: digest, account: id) ?? .accepted
             }
         }
+    }
+
+    // MARK: - Widget index
+
+    /// Writes the accounts the widget can pick from into `shared.json` when
+    /// they changed in a way it can see (a name, a colour, a pause, an
+    /// account added or removed), then reloads the account widget. Nothing
+    /// is written while the list says what the widget assumes without an
+    /// index, so an install with one untouched account never writes one.
+    private func publishWidgetIndex() {
+        guard let indexFile else { return }
+        let next = AccountIndexEntry.index(of: records)
+        guard next != (publishedIndex ?? [AccountIndexEntry.mainFallback]) else { return }
+        indexFile.updateAccountsIndex(next)
+        publishedIndex = next
+        reloadAccountWidgets()
     }
 
     // MARK: - Persistence

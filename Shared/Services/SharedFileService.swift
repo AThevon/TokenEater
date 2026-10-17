@@ -155,6 +155,12 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         var pacingHoursEnabled: Bool?
         var pacingStartHour: Int?
         var pacingEndHour: Int?
+        /// The tracked Claude accounts, for the account picker of the
+        /// "Claude · Account" widget: identifier, name, colour, paused. No
+        /// identity (see `AccountIndexEntry`). Absent until a second account
+        /// or a renamed main account makes it say something the widget
+        /// would not assume on its own.
+        var accountsIndex: StoredAccountsIndex?
     }
 
     /// In-memory cache - avoids redundant disk reads within the same process.
@@ -300,6 +306,18 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         var data = loadFresh()
         data.lastWeekDailyTotals = totals
         data.lastWeekTotalsRefreshedAt = refreshedAt
+        save(data)
+    }
+
+    /// The tracked Claude accounts as the widget knows them, nil until the
+    /// app first writes them (the widget then assumes the main account alone).
+    var accountsIndex: [AccountIndexEntry]? {
+        load().accountsIndex?.entries
+    }
+
+    func updateAccountsIndex(_ index: [AccountIndexEntry]) {
+        var data = loadFresh()
+        data.accountsIndex = StoredAccountsIndex(index)
         save(data)
     }
 

@@ -149,7 +149,13 @@ struct TokenEaterApp: App {
             notificationService: mainNotifications
         )
         self.usageStore = usageStore
-        let accountsStore = AccountsStore(mainStore: usageStore)
+        // The accounts index for the "Claude · Account" widget goes into
+        // `shared.json`, next to the main account's numbers.
+        let accountsStore = AccountsStore(
+            mainStore: usageStore,
+            indexFile: SharedFileService(),
+            reloadAccountWidgets: { WidgetReloader.scheduleAccountReload() }
+        )
         self.accountsStore = accountsStore
         // The main account's alerts keep their historical identifiers and
         // only name the account once a second one runs; the scope that knows

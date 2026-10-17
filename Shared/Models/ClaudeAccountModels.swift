@@ -433,6 +433,139 @@ struct NotificationScope: Sendable {
     static let main = NotificationScope(account: .main)
 }
 
+// MARK: - Widget
+
+extension AccountID {
+    /// The shared file the account's numbers go to, next to `shared.json` in
+    /// the folder the widget reads: `shared.json` itself for the main account,
+    /// `shared-acct-<uuid>.json` for an added one. Built only from a validated
+    /// identifier, so it never leaves that folder.
+    var sharedFileName: String {
+        isMain ? "shared.json" : "shared-\(rawValue).json"
+    }
+}
+
+/// What the sandboxed widget may know about a tracked account, written into
+/// `shared.json` (`accountsIndex`) for the account picker of the
+/// "Claude · Account" widget: the local identifier, the name the user chose,
+/// the colour and whether the account is paused. Never an email, an account
+/// or organization uuid, an organization name, a folder or a Keychain
+/// service, since everything in that folder is readable by the widget.
+struct AccountIndexEntry: Codable, Equatable, Hashable, Sendable, Identifiable {
+    /// `AccountID.rawValue`.
+    let id: String
+    let name: String
+    let colorHex: String
+    let isPaused: Bool
+
+    init(id: String, name: String, colorHex: String, isPaused: Bool) {
+        self.id = id
+        self.name = name
+        self.colorHex = colorHex
+        self.isPaused = isPaused
+    }
+
+    init(_ record: ClaudeAccountRecord) {
+        self.init(
+            id: record.id.rawValue,
+            name: record.name,
+            colorHex: record.colorHex,
+            isPaused: record.isPaused
+        )
+    }
+
+    /// The main account as the widget assumes it while no index was ever
+    /// written: one account, under the default name and the first colour.
+    /// An install that never adds an account never writes an index, since
+    /// this is exactly what it would say.
+    static let mainFallback = AccountIndexEntry(ClaudeAccountRecord.defaultMain())
+
+    /// The index for these records, in display order, main first.
+    static func index(of records: [ClaudeAccountRecord]) -> [AccountIndexEntry] {
+        records.map(AccountIndexEntry.init)
+    }
+
+    /// The identifier, when it is one this build would ever have written.
+    /// Anything else is never turned into a file name.
+    var accountID: AccountID? {
+        AccountID.isValid(id) ? AccountID(rawValue: id) : nil
+    }
+
+    var isMain: Bool { id == AccountID.main.rawValue }
+
+    /// The index as the widget reads it: the stored one, or the main account
+    /// alone when none was written yet.
+    static func effectiveIndex(_ stored: [AccountIndexEntry]?) -> [AccountIndexEntry] {
+        let valid = (stored ?? []).filter { $0.accountID != nil }
+        guard !valid.isEmpty else { return [mainFallback] }
+        return valid
+    }
+
+    /// The account a widget configured with `id` shows: the main account for
+    /// nil (a widget nobody configured), the matching entry otherwise, nil
+    /// for an identifier the index does not list any more (a removed account).
+    static func resolve(_ id: String?, in index: [AccountIndexEntry]) -> AccountIndexEntry? {
+        let entries = effectiveIndex(index)
+        guard let id, id != AccountID.main.rawValue else {
+            return entries.first(where: \.isMain) ?? mainFallback
+        }
+        return entries.first { $0.id == id }
+    }
+}
+
+/// The accounts index as `shared.json` stores it. Decoding never throws,
+/// whatever the key holds: an entry this build cannot read is dropped, and a
+/// value of another shape reads as an empty index. A malformed index must
+/// never cost the widgets the usage stored next to it, which a throwing
+/// field would (the whole file fails to decode).
+struct StoredAccountsIndex: Codable, Equatable, Sendable {
+    var entries: [AccountIndexEntry]
+
+    init(_ entries: [AccountIndexEntry]) {
+        self.entries = entries
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let lossy = (try? container.decode([Lossy<AccountIndexEntry>].self)) ?? []
+        entries = lossy.compactMap(\.value)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(entries)
+    }
+}
+
+/// What the "Claude · Account" widget has to show for the account it was
+/// configured with.
+enum ClaudeAccountEntryState: Equatable, Sendable {
+    /// Tracked and running: its numbers, under its name and colour.
+    case active(AccountIndexEntry)
+    /// Tracked but paused: its last numbers, dimmed and labelled as paused.
+    case paused(AccountIndexEntry)
+    /// No longer tracked: the widget says so instead of quietly falling back
+    /// to another account.
+    case removed
+
+    static func resolve(id: String?, index: [AccountIndexEntry]?) -> ClaudeAccountEntryState {
+        guard let entry = AccountIndexEntry.resolve(id, in: index ?? []) else { return .removed }
+        return entry.isPaused && !entry.isMain ? .paused(entry) : .active(entry)
+    }
+
+    var entry: AccountIndexEntry? {
+        switch self {
+        case .active(let entry), .paused(let entry): return entry
+        case .removed: return nil
+        }
+    }
+
+    /// The shared file holding the account's numbers, nil once it is removed.
+    var sharedFileName: String? {
+        entry?.accountID?.sharedFileName
+    }
+}
+
 // MARK: - Resolving an account
 
 extension AccountID {
