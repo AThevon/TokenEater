@@ -56,25 +56,35 @@ struct MonitoringView: View {
                 header
 
                 // One ordered list drives all three modes. A provider mode
-                // renders it once; All renders it once per provider, side by
+                // renders it once; All renders it once per column, side by
                 // side, which is what makes the columns line up row for row
                 // without anything coordinating them. The order and the
                 // visibility come from Studio.
                 if isComparing {
-                    HStack(alignment: .top, spacing: DS.Spacing.md) {
-                        ForEach(visibleProviders) { provider in
-                            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                                ProviderStatusNotice(provider: provider)
-                                blocks(for: provider)
+                    if columns.count == 2 {
+                        HStack(alignment: .top, spacing: DS.Spacing.md) {
+                            ForEach(columns) { column in
+                                columnView(column)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .transition(.glanceCard)
+                        }
+                    } else {
+                        // Three columns and more (several Claude accounts):
+                        // as many abreast as the window holds, stacking under
+                        // each other when it narrows.
+                        LazyVGrid(
+                            columns: [GridItem(.adaptive(minimum: 300), spacing: DS.Spacing.md, alignment: .top)],
+                            alignment: .leading,
+                            spacing: DS.Spacing.md
+                        ) {
+                            ForEach(columns) { column in
+                                columnView(column)
+                            }
                         }
                     }
-                } else if let provider = visibleProviders.first {
+                } else if let column = columns.first {
                     VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                        ProviderStatusNotice(provider: provider)
-                        blocks(for: provider)
+                        ProviderStatusNotice(provider: column.provider)
+                        blocks(for: column.provider)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .transition(.glanceCard)
@@ -85,7 +95,7 @@ struct MonitoringView: View {
             // band it used to live on, so the animation moved up with it. One
             // value drives it, and `glide` has no overshoot because these
             // cards are expensive to rasterise at a new size.
-            .animation(reduceMotion ? nil : DS.Motion.glide, value: visibleProviders)
+            .animation(reduceMotion ? nil : DS.Motion.glide, value: columns)
             .padding(DS.Spacing.md)
         }
         .task {
@@ -192,13 +202,54 @@ struct MonitoringView: View {
 
     var showsCodex: Bool { visibleProviders.contains(.codex) }
 
-    /// True when the page has two providers to put side by side. A provider
-    /// mode, or a single active provider, gets that provider's own full page
-    /// instead: there is nothing to compare, and half a comparison is worse
-    /// than none.
-    private var isComparing: Bool {
-        settingsStore.activeProviderMode == .all && visibleProviders.count > 1
+    /// The page's columns: in All, one per running Claude account then
+    /// Codex; in a provider mode, the one it shows.
+    private var columns: [MonitoringColumns.Column] {
+        MonitoringColumns.columns(
+            mode: settingsStore.activeProviderMode,
+            focused: settingsStore.focusedClaudeAccount,
+            activeAccounts: settingsStore.activeClaudeAccounts.map(\.id),
+            codexEnabled: settingsStore.codexEnabled
+        )
     }
+
+    /// True when the page has two columns or more to put side by side. A
+    /// provider mode, or a single active provider with a single account, gets
+    /// that provider's own full page instead: there is nothing to compare,
+    /// and half a comparison is worse than none. An embedded account column
+    /// is always part of a comparison.
+    private var isComparing: Bool {
+        embeddedAccount != nil || columns.count > 1
+    }
+
+    /// One column of the All comparison. The main account and Codex draw
+    /// here as they always have; an added account draws through an embedded
+    /// copy of this view over its own `UsageStore`.
+    @ViewBuilder
+    private func columnView(_ column: MonitoringColumns.Column) -> some View {
+        switch column {
+        case .claude(let account) where !account.isMain:
+            if let store = accountsStore.usageStore(for: account) {
+                MonitoringView(embeddedAccount: account, insightsStore: insightsStore)
+                    .environmentObject(store)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .transition(.glanceCard)
+            }
+        default:
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                ProviderStatusNotice(provider: column.provider)
+                blocks(for: column.provider)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .transition(.glanceCard)
+        }
+    }
+
+    /// The local history behind the LIVE back of the glance card and the
+    /// insights on the tiles' backs belongs to the main account for now, so
+    /// another account's column leaves them out rather than show the main
+    /// account's under its name.
+    private var showsMainAccountExtras: Bool { heroAccount.isMain }
 
     /// Renders one provider's blocks, in the order Studio put them.
     @ViewBuilder
@@ -350,13 +401,19 @@ struct MonitoringView: View {
         isComparing ? columnName(for: provider) + " · " + base : base
     }
 
-    /// The name a card label gives its column: the provider, or for an
-    /// embedded account's column that account's own name, since it draws
-    /// with Claude's provider.
+    /// The name a card label gives its column: the provider, or once two
+    /// Claude accounts run, the account's own name, since every Claude
+    /// column draws with Claude's provider.
     private func columnName(for provider: MetricProvider) -> String {
-        guard provider == .claude, let embeddedAccount,
-              let record = accountsStore.record(for: embeddedAccount) else { return provider.displayName }
-        return record.name
+        guard provider == .claude, let name = accountName else { return provider.displayName }
+        return name
+    }
+
+    /// The name of the account this view draws, once there are several to
+    /// tell apart.
+    private var accountName: String? {
+        guard settingsStore.showsAccountMarkers else { return nil }
+        return settingsStore.claudeAccount(heroAccount)?.name
     }
 
     private func labelled(_ tile: TileDescriptor, for provider: MetricProvider) -> TileDescriptor {
@@ -369,34 +426,18 @@ struct MonitoringView: View {
 
     @ViewBuilder
     private var providerBadges: some View {
-        HStack(spacing: 5) {
-            if showsClaude, usageStore.planType != .unknown {
-                planBadge(.claude, usageStore.planType.displayLabel, DS.Palette.brandPrimary)
-            }
-            if showsCodex, codexStore.planType != .unknown {
-                planBadge(.codex, codexStore.planType.displayLabel, codexStore.planType.badgeColor)
+        if settingsStore.showsAccountMarkers && showsClaude {
+            DashboardAccountPlanBadges(columns: columns)
+        } else {
+            HStack(spacing: 5) {
+                if showsClaude, usageStore.planType != .unknown {
+                    DashboardPlanBadge(provider: .claude, plan: usageStore.planType.displayLabel, tint: DS.Palette.brandPrimary)
+                }
+                if showsCodex, codexStore.planType != .unknown {
+                    DashboardPlanBadge(provider: .codex, plan: codexStore.planType.displayLabel, tint: codexStore.planType.badgeColor)
+                }
             }
         }
-    }
-
-    private func planBadge(_ provider: MetricProvider, _ plan: String, _ tint: Color) -> some View {
-        HStack(spacing: 4) {
-            ProviderGlyph(provider: provider, size: 10)
-            Text(plan)
-                .font(.system(size: 9, weight: .bold))
-                .tracking(0.5)
-        }
-        .foregroundStyle(DS.Palette.textPrimary)
-        .padding(.horizontal, 7)
-        .padding(.vertical, 3)
-        .background(
-            RoundedRectangle(cornerRadius: DS.Radius.input, style: .continuous)
-                .fill(tint.opacity(0.22))
-                .overlay(
-                    RoundedRectangle(cornerRadius: DS.Radius.input, style: .continuous)
-                        .stroke(tint.opacity(0.45), lineWidth: 0.6)
-                )
-        )
     }
 
     private var header: some View {
@@ -434,10 +475,18 @@ struct MonitoringView: View {
             // provider mode is that one provider.
             if !visibleProviders.isEmpty {
                 Button {
-                    for provider in visibleProviders {
-                        switch provider {
-                        case .claude: Task { await usageStore.refresh(force: true) }
-                        case .codex:  Task { await codexStore.refresh(force: true) }
+                    // Every column on the page: each Claude account's own
+                    // store, and Codex. In Claude mode the page's store is
+                    // the focused account's.
+                    for column in columns {
+                        switch column {
+                        case .claude(let account):
+                            let store = settingsStore.activeProviderMode == .claude
+                                ? usageStore
+                                : (accountsStore.usageStore(for: account) ?? usageStore)
+                            Task { await store.refresh(force: true) }
+                        case .codex:
+                            Task { await codexStore.refresh(force: true) }
                         }
                     }
                 } label: {
@@ -609,7 +658,7 @@ struct MonitoringView: View {
             zone: zone,
             resetText: resetText,
             resetDate: resetDate,
-            name: embeddedAccount == nil ? nil : columnName(for: .claude)
+            name: accountName
         )
     }
 
@@ -680,39 +729,43 @@ struct MonitoringView: View {
 
             // Right column: live session activity. Sessions count is the
             // headline number; top model fills the line below. Pulls
-            // from SessionStore (kept in sync by the overlay watcher).
-            VStack(alignment: .trailing, spacing: 6) {
-                Text("LIVE")
-                    .font(DS.Typography.micro)
-                    .tracking(1.2)
-                    .foregroundStyle(DS.Palette.textTertiary)
+            // from SessionStore (kept in sync by the overlay watcher),
+            // which watches the main account's sessions: another account's
+            // card shows its pacing alone.
+            if showsMainAccountExtras {
+                VStack(alignment: .trailing, spacing: 6) {
+                    Text("LIVE")
+                        .font(DS.Typography.micro)
+                        .tracking(1.2)
+                        .foregroundStyle(DS.Palette.textTertiary)
 
-                let count = sessionStore.activeSessions.count
-                Text("\(count)")
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
-                    .foregroundStyle(count > 0 ? DS.Palette.textPrimary : DS.Palette.textTertiary)
-                    .monospacedDigit()
-                    .contentTransition(.numericText(value: Double(count)))
-                    .animation(DS.Motion.springLiquid, value: count)
-                Text(count == 1 ? "active session" : "active sessions")
-                    .font(.system(size: 9, weight: .medium))
-                    .tracking(0.8)
-                    .foregroundStyle(DS.Palette.textTertiary)
-                    .textCase(.uppercase)
+                    let count = sessionStore.activeSessions.count
+                    Text("\(count)")
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundStyle(count > 0 ? DS.Palette.textPrimary : DS.Palette.textTertiary)
+                        .monospacedDigit()
+                        .contentTransition(.numericText(value: Double(count)))
+                        .animation(DS.Motion.springLiquid, value: count)
+                    Text(count == 1 ? "active session" : "active sessions")
+                        .font(.system(size: 9, weight: .medium))
+                        .tracking(0.8)
+                        .foregroundStyle(DS.Palette.textTertiary)
+                        .textCase(.uppercase)
 
-                if let topModel = sessionStore.topActiveModelName {
-                    HStack(spacing: 5) {
-                        Circle()
-                            .fill(gaugeColor)
-                            .frame(width: 5, height: 5)
-                        Text(topModel)
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                            .foregroundStyle(DS.Palette.textSecondary)
+                    if let topModel = sessionStore.topActiveModelName {
+                        HStack(spacing: 5) {
+                            Circle()
+                                .fill(gaugeColor)
+                                .frame(width: 5, height: 5)
+                            Text(topModel)
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                .foregroundStyle(DS.Palette.textSecondary)
+                        }
+                        .padding(.top, 2)
                     }
-                    .padding(.top, 2)
                 }
+                .frame(width: 160, height: 160)
             }
-            .frame(width: 160, height: 160)
         }
     }
 
@@ -775,7 +828,7 @@ struct MonitoringView: View {
             pacingMargin: Double(settingsStore.pacingMargin),
             smartProfile: settingsStore.smartColorProfile,
             themeStore: themeStore,
-            insights: hasRichBack(tileId: tile.id)
+            insights: hasRichBack(tileId: tile.id) && showsMainAccountExtras
                 ? insightsStore.snapshot(for: tileFamily(for: tile.id))
                 : nil,
             insightsLoaded: insightsStore.hasLoaded
@@ -1114,3 +1167,106 @@ struct MonitoringView: View {
     }
 }
 
+// MARK: - Plan badges
+
+/// A plan badge of the dashboard header: whose plan (the provider's mark, or
+/// an account's dot and name) and which.
+private struct DashboardPlanBadge: View {
+    let provider: MetricProvider
+    let plan: String
+    let tint: Color
+    var account: ClaudeAccountSummary? = nil
+    /// How much an account's badge says when the header runs short of room:
+    /// its name and plan, then its plan, then its dot alone (the rest in the
+    /// tooltip).
+    var detail: Detail = .full
+
+    enum Detail { case full, plan, dot }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if let account {
+                AccountDot(colorHex: account.colorHex, size: 7)
+                if detail == .full {
+                    Text(account.name)
+                        .font(.system(size: 9, weight: .semibold))
+                        .lineLimit(1)
+                        .foregroundStyle(DS.Palette.textSecondary)
+                }
+            } else {
+                ProviderGlyph(provider: provider, size: 10)
+            }
+            if detail != .dot {
+                Text(plan)
+                    .font(.system(size: 9, weight: .bold))
+                    .tracking(0.5)
+                    .lineLimit(1)
+            }
+        }
+        .foregroundStyle(DS.Palette.textPrimary)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.input, style: .continuous)
+                .fill(tint.opacity(0.22))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DS.Radius.input, style: .continuous)
+                        .stroke(tint.opacity(0.45), lineWidth: 0.6)
+                )
+        )
+        .help(account.map { $0.name + " · " + plan } ?? plan)
+    }
+}
+
+/// The header's badges once two Claude accounts run: one per Claude column,
+/// dot and name and plan, then Codex's. It follows the added accounts'
+/// stores itself, since their plans arrive with their profiles.
+private struct DashboardAccountPlanBadges: View {
+    let columns: [MonitoringColumns.Column]
+
+    @EnvironmentObject private var usageStore: UsageStore
+    @EnvironmentObject private var codexStore: CodexUsageStore
+    @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var accountsStore: AccountsStore
+
+    @StateObject private var accountStores = UsageStoresObserver()
+
+    var body: some View {
+        // Three accounts and Codex next to the app's name do not always fit
+        // a narrow window: the badges shed the names, then the plans.
+        ViewThatFits(in: .horizontal) {
+            badges(.full)
+            badges(.plan)
+            badges(.dot)
+        }
+        .onAppear { accountStores.track(accountsStore.runningExtraStores) }
+        .onChange(of: settingsStore.claudeAccounts) { _, _ in
+            accountStores.track(accountsStore.runningExtraStores)
+        }
+    }
+
+    private func badges(_ detail: DashboardPlanBadge.Detail) -> some View {
+        HStack(spacing: 5) {
+            ForEach(columns) { column in
+                switch column {
+                case .claude(let account):
+                    if let summary = settingsStore.claudeAccount(account),
+                       let plan = store(for: account)?.planType, plan != .unknown {
+                        DashboardPlanBadge(provider: .claude, plan: plan.displayLabel, tint: DS.Palette.brandPrimary,
+                                           account: summary, detail: detail)
+                    }
+                case .codex:
+                    if codexStore.planType != .unknown {
+                        DashboardPlanBadge(provider: .codex, plan: codexStore.planType.displayLabel, tint: codexStore.planType.badgeColor)
+                    }
+                }
+            }
+        }
+        .fixedSize()
+    }
+
+    /// Claude mode hands the page the focused account's store already.
+    private func store(for account: AccountID) -> UsageStore? {
+        settingsStore.activeProviderMode == .claude ? usageStore : accountsStore.usageStore(for: account)
+    }
+}

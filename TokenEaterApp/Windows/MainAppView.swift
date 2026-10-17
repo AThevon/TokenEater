@@ -112,7 +112,11 @@ struct MainAppView: View {
             Group {
                 switch displayedSpace {
                 case .monitoring:
+                    // Claude mode on an added account: the dashboard reads
+                    // that account's store. Only the dashboard: Settings and
+                    // Studio keep the main account's.
                     MonitoringView(insightsStore: insightsStore)
+                        .environmentObject(dashboardStore)
                 case .history:
                     HistoryView(store: historyStore)
                 case .studio:
@@ -210,6 +214,16 @@ struct MainAppView: View {
                 settingsStore.hasSeenStudioIntro = true
             }
         }
+    }
+
+    /// The Claude store the dashboard reads: the focused account's in Claude
+    /// mode, the main one otherwise.
+    private var dashboardStore: UsageStore {
+        let focused = settingsStore.focusedClaudeAccount
+        guard settingsStore.activeProviderMode == .claude, !focused.isMain,
+              settingsStore.runningClaudeAccountIDs.contains(focused),
+              let store = accountsStore.usageStore(for: focused) else { return usageStore }
+        return store
     }
 
     /// The one-shot Studio discovery bubble: upgrading users only (fresh
