@@ -297,14 +297,14 @@ struct CodexCredits: Codable, Equatable {
 /// Workspace-level spending cap (Business / Enterprise members).
 struct CodexSpendControl: Codable, Equatable {
     let reached: Bool?
-    let individualLimit: Double?
+    let individualLimit: CodexSpendLimit?
 
     enum CodingKeys: String, CodingKey {
         case reached
         case individualLimit = "individual_limit"
     }
 
-    init(reached: Bool? = nil, individualLimit: Double? = nil) {
+    init(reached: Bool? = nil, individualLimit: CodexSpendLimit? = nil) {
         self.reached = reached
         self.individualLimit = individualLimit
     }
@@ -312,18 +312,112 @@ struct CodexSpendControl: Codable, Equatable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         reached = try? container.decode(Bool.self, forKey: .reached)
-        // The backend sends either a scalar cap or a whole object describing it.
-        if let scalar = try? container.decode(Double.self, forKey: .individualLimit) {
-            individualLimit = scalar
-        } else if let nested = try? container.nestedContainer(keyedBy: IndividualLimitKeys.self, forKey: .individualLimit) {
-            individualLimit = try? nested.decode(Double.self, forKey: .limit)
+        // The backend describes the cap as an object. A bare scalar is still
+        // read as the cap alone, the shape an earlier `codex.json` carried.
+        if let object = try? container.decode(CodexSpendLimit.self, forKey: .individualLimit) {
+            individualLimit = object
+        } else if let scalar = container.decodeLenientDouble(forKey: .individualLimit) {
+            individualLimit = CodexSpendLimit(limit: scalar)
         } else {
             individualLimit = nil
         }
     }
+}
 
-    private enum IndividualLimitKeys: String, CodingKey {
+/// The member's own cap inside a workspace spend control, in credits. Amounts
+/// are decimal strings on the wire (`"25000"`), like `CodexCredits.balance`,
+/// and percentages are integers; both also decode from the other shape so a
+/// backend switching representation degrades nothing.
+struct CodexSpendLimit: Codable, Equatable {
+    /// Who set the cap (workspace default, per-member override, ...). Optional
+    /// upstream and free-form, so kept verbatim.
+    let source: String?
+    let limit: Double?
+    let used: Double?
+    let remaining: Double?
+    let usedPercent: Double?
+    let remainingPercent: Double?
+    let resetAfterSeconds: Int?
+    /// Unix seconds.
+    let resetAt: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case source
         case limit
+        case used
+        case remaining
+        case usedPercent = "used_percent"
+        case remainingPercent = "remaining_percent"
+        case resetAfterSeconds = "reset_after_seconds"
+        case resetAt = "reset_at"
+    }
+
+    init(
+        source: String? = nil,
+        limit: Double? = nil,
+        used: Double? = nil,
+        remaining: Double? = nil,
+        usedPercent: Double? = nil,
+        remainingPercent: Double? = nil,
+        resetAfterSeconds: Int? = nil,
+        resetAt: Int? = nil
+    ) {
+        self.source = source
+        self.limit = limit
+        self.used = used
+        self.remaining = remaining
+        self.usedPercent = usedPercent
+        self.remainingPercent = remainingPercent
+        self.resetAfterSeconds = resetAfterSeconds
+        self.resetAt = resetAt
+    }
+
+    /// Throws when the object carries neither a cap nor any consumption, so the
+    /// parent degrades to nil instead of holding an empty shell.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        source = try? container.decode(String.self, forKey: .source)
+        limit = container.decodeLenientDouble(forKey: .limit)
+        used = container.decodeLenientDouble(forKey: .used)
+        remaining = container.decodeLenientDouble(forKey: .remaining)
+        usedPercent = container.decodeLenientDouble(forKey: .usedPercent)
+        remainingPercent = container.decodeLenientDouble(forKey: .remainingPercent)
+        resetAfterSeconds = container.decodeLenientInt(forKey: .resetAfterSeconds)
+        resetAt = container.decodeLenientInt(forKey: .resetAt)
+
+        guard limit != nil || used != nil || usedPercent != nil else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .limit, in: container,
+                debugDescription: "individual_limit carries no amount"
+            )
+        }
+    }
+
+    var resetDate: Date? {
+        guard let resetAt, resetAt > 0 else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(resetAt))
+    }
+}
+
+private extension KeyedDecodingContainer {
+    /// A number sent either as a JSON number or as a decimal string. Anything
+    /// else (null, garbage, a non-finite value) reads as nil.
+    func decodeLenientDouble(forKey key: Key) -> Double? {
+        if let number = try? decode(Double.self, forKey: key) {
+            return number.isFinite ? number : nil
+        }
+        guard let text = try? decode(String.self, forKey: key),
+              let number = Double(text.trimmingCharacters(in: .whitespaces)),
+              number.isFinite else { return nil }
+        return number
+    }
+
+    /// Same tolerance for whole numbers. A fractional or out-of-range value is
+    /// rounded or dropped rather than trapping on the `Int` conversion.
+    func decodeLenientInt(forKey key: Key) -> Int? {
+        if let integer = try? decode(Int.self, forKey: key) { return integer }
+        guard let number = decodeLenientDouble(forKey: key) else { return nil }
+        return Int(exactly: number.rounded())
     }
 }
 

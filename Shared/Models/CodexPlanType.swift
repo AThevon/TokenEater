@@ -13,9 +13,11 @@ enum CodexPlanType: Equatable {
     // MARK: - Enumeration Cases
 
     case free
+    case go
     case plus
     case pro
     case proLite
+    case proMax
     case team
     case business
     case enterprise
@@ -32,12 +34,15 @@ enum CodexPlanType: Equatable {
         }
         switch raw {
         case "free", "guest": self = .free
-        case "plus", "go": self = .plus
+        case "go": self = .go
+        case "plus": self = .plus
         case "pro": self = .pro
         case "prolite": self = .proLite
+        case "promax": self = .proMax
         case "team", "free_workspace": self = .team
         case "business", "self_serve_business_prolite", "self_serve_business_usage_based": self = .business
-        case "enterprise", "ent26", "enterprise_cbp_automation", "enterprise_cbp_usage_based": self = .enterprise
+        // `hc` is an alias upstream maps to Enterprise (protocol/src/auth.rs).
+        case "enterprise", "hc", "ent26", "enterprise_cbp_automation", "enterprise_cbp_usage_based": self = .enterprise
         case "edu", "education", "edu_plus", "edu_pro", "k12": self = .edu
         default: self = .other(raw)
         }
@@ -48,9 +53,11 @@ enum CodexPlanType: Equatable {
     var displayLabel: String {
         switch self {
         case .free: return "FREE"
+        case .go: return "GO"
         case .plus: return "PLUS"
         case .pro: return "PRO"
         case .proLite: return "PRO LITE"
+        case .proMax: return "PRO MAX"
         case .team: return "TEAM"
         case .business: return "BUSINESS"
         case .enterprise: return "ENTERPRISE"
@@ -62,8 +69,9 @@ enum CodexPlanType: Equatable {
 
     var badgeColor: Color {
         switch self {
-        case .pro, .proLite: return .purple
+        case .pro, .proLite, .proMax: return .purple
         case .plus: return .blue
+        case .go: return .mint
         case .team: return .teal
         case .business, .enterprise: return .orange
         case .edu: return .green

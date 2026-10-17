@@ -173,6 +173,43 @@ struct CodexUsageStoreTests {
         #expect(sut.store.planType == .proLite)
     }
 
+    @Test("a promax payload publishes its own plan, not an unknown badge")
+    func promaxPlan() async {
+        let sut = makeSUT(usage: CodexFixtures.decode(CodexFixtures.promaxJSON))
+
+        await sut.store.refresh(force: true)
+
+        #expect(sut.store.planType == .proMax)
+        #expect(sut.store.planType.displayLabel == "PRO MAX")
+        #expect(sut.store.weekly?.pct == 11)
+    }
+
+    @Test("without a plan in the payload, the token's plan claim fills the badge")
+    func planFallsBackToTokenClaim() async {
+        let sut = makeSUT(
+            credentials: CodexFixtures.credentials(planType: "promax"),
+            usage: CodexFixtures.usage(
+                plan: nil,
+                primary: CodexFixtures.window(usedPercent: 5, windowSeconds: 18_000, resetAt: Date().addingTimeInterval(3_600))
+            )
+        )
+
+        await sut.store.refresh(force: true)
+
+        #expect(sut.store.planType == .proMax)
+    }
+
+    @Test("a 30-day window is published but never takes the weekly slot")
+    func monthlyWindowIsNotWeekly() async {
+        let sut = makeSUT(usage: CodexFixtures.decode(CodexFixtures.monthlyWindowJSON))
+
+        await sut.store.refresh(force: true)
+
+        #expect(sut.store.windows.count == 2)
+        #expect(sut.store.session?.pct == 20)
+        #expect(sut.store.weekly == nil)
+    }
+
     @Test("the server's limit verdict is published for the UI to trust over percentages")
     func limitReached() async {
         let sut = makeSUT(usage: CodexFixtures.decode(CodexFixtures.limitReachedJSON))
