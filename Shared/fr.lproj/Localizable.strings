@@ -361,6 +361,9 @@
 "settings.notifications.row.credentials" = "Identifiants expirés";
 "settings.notifications.group.providers" = "Par provider";
 "settings.notifications.group.providers.hint" = "Coupe un provider sans toucher à l'autre. L'interrupteur principal ci-dessus reste prioritaire.";
+"settings.notifications.group.accounts" = "Comptes Claude";
+"settings.notifications.group.accounts.hint" = "Un interrupteur par compte. Les événements et délais de cette page valent pour tous les comptes, et chaque alerte nomme le compte concerné.";
+"settings.notifications.account.help" = "Alertes de %@";
 "settings.notifications.shared" = "COMMUN";
 "settings.notifications.shared.hint" = "Un seul réglage, appliqué à tous les providers.";
 "settings.notifications.unsupported" = "%@ n'a pas cet évènement";

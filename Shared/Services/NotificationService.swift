@@ -168,6 +168,13 @@ final class NotificationService: NotificationServiceProtocol {
         send(id: "test_\(Date().timeIntervalSince1970)", content: content)
     }
 
+    func sendTest(forClaudeAccount account: NotificationScope) {
+        let content = content(for: .claude, scope: account)
+        content.title = String(localized: "notif.title.test")
+        content.body = String(localized: "notif.body.test")
+        send(id: "test\(account.account.storageSuffix)_\(Date().timeIntervalSince1970)", content: content)
+    }
+
     /// Every notification the app sends is built here, so none can ship
     /// without saying who it is about. The subtitle is the line macOS renders
     /// under the title; the thread identifier is what makes Notification
@@ -178,13 +185,18 @@ final class NotificationService: NotificationServiceProtocol {
     /// account's own (`claude.acct-<uuid>`), and once two accounts run, its
     /// subtitle names it ("Claude · Work"). The main account alone reads
     /// "Claude" in the "claude" thread, as it always has.
-    private func content(for provider: MetricProvider?, scoped: Bool = true) -> UNMutableNotificationContent {
+    private func content(
+        for provider: MetricProvider?,
+        scoped: Bool = true,
+        scope explicitScope: NotificationScope? = nil
+    ) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         content.sound = .default
         if let provider {
             content.subtitle = provider.displayName
             content.threadIdentifier = provider.rawValue
             if scoped, provider == .claude {
+                let scope = explicitScope ?? self.scope
                 content.threadIdentifier += scope.account.storageSuffix
                 if let name = scope.displayName() {
                     content.subtitle = "\(provider.displayName) · \(name)"

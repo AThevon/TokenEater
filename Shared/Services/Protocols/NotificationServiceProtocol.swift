@@ -78,6 +78,18 @@ struct NotificationToggles {
     var codex: CodexNotificationToggles = .default
 }
 
+extension NotificationToggles {
+    /// The bundle one Claude account's store alerts with: the app's settings,
+    /// with the Claude sub-master also off when the user silenced that
+    /// account. Thresholds, events and offsets stay global; only the switch
+    /// is per account. Codex and the vendor alerts never go through here.
+    func scoped(to record: ClaudeAccountRecord?) -> NotificationToggles {
+        var copy = self
+        copy.claudeEnabled = claudeEnabled && (record?.notificationsEnabled ?? true)
+        return copy
+    }
+}
+
 protocol NotificationServiceProtocol {
     func setupDelegate()
     func requestPermission()
@@ -85,6 +97,9 @@ protocol NotificationServiceProtocol {
     /// `provider` names the sender in the banner subtitle, exactly as a real
     /// alert would, so a test verifies what the user will actually see.
     func sendTest(for provider: MetricProvider?)
+    /// A Claude test banner as one account's real alerts look: its subtitle
+    /// and its thread.
+    func sendTest(forClaudeAccount account: NotificationScope)
     func evaluate(
         fiveHour: MetricSnapshot,
         sevenDay: MetricSnapshot,

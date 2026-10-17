@@ -32,6 +32,13 @@ final class MockNotificationService: NotificationServiceProtocol {
         testedProviders.append(provider)
     }
 
+    var testedAccounts: [AccountID] = []
+
+    func sendTest(forClaudeAccount account: NotificationScope) {
+        testSent = true
+        testedAccounts.append(account.account)
+    }
+
     func evaluate(
         fiveHour: MetricSnapshot,
         sevenDay: MetricSnapshot,

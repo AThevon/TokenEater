@@ -380,7 +380,8 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
     }
 
     /// Edits what the user owns on a record: its name, colour and
-    /// notification switch. The folder and the identity have their own
+    /// notification switch (turning that off drops the account's pending
+    /// reminders). The folder and the identity have their own
     /// paths (`setMainScope`, `acceptIdentity`) and are kept as they were.
     func update(_ id: AccountID, _ mutate: (inout ClaudeAccountRecord) -> Void) {
         guard let index = records.firstIndex(where: { $0.id == id }) else { return }
@@ -396,6 +397,10 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
         guard next != before else { return }
         records[index] = next
         persist()
+        // Alerts switched off: a reminder already scheduled would still fire.
+        if before.notificationsEnabled, !next.notificationsEnabled {
+            notifications.purge(account: id, includingDelivered: false)
+        }
     }
 
     /// Pauses or resumes an added account. A paused account makes no call

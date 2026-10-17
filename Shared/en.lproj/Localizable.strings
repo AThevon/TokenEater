@@ -361,6 +361,9 @@
 "settings.notifications.row.credentials" = "Credentials expired";
 "settings.notifications.group.providers" = "Per provider";
 "settings.notifications.group.providers.hint" = "Silence one provider without touching the other. The master switch above still wins over both.";
+"settings.notifications.group.accounts" = "Claude accounts";
+"settings.notifications.group.accounts.hint" = "One switch per account. The events and offsets on this page apply to every account, and each alert names the account it is about.";
+"settings.notifications.account.help" = "Alerts for %@";
 "settings.notifications.shared" = "SHARED";
 "settings.notifications.shared.hint" = "One setting, applied to every provider.";
 "settings.notifications.unsupported" = "%@ has no such event";

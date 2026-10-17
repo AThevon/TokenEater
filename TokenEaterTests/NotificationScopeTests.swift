@@ -167,6 +167,19 @@ struct NotificationScopeTests {
         #expect(center.content(for: "codex_token_expired")?.threadIdentifier == "codex")
     }
 
+    @Test("a test banner for an account looks like that account's real alerts")
+    func accountTestBanner() {
+        let center = MockNotificationCenter()
+        let service = NotificationService(center: center, stateStore: MockNotificationStateStore())
+
+        service.sendTest(forClaudeAccount: workScope())
+
+        #expect(center.added.count == 1)
+        #expect(center.added.first?.identifier.hasPrefix("test.acct-x_") == true)
+        #expect(center.added.first?.content.subtitle == "Claude · Work")
+        #expect(center.added.first?.content.threadIdentifier == "claude.acct-x")
+    }
+
     // MARK: - Two accounts side by side
 
     @Test("two accounts crossing the same threshold both alert, without sharing id or state")
@@ -251,6 +264,46 @@ struct NotificationScopeTests {
 
         #expect(!center.removedIDs.isEmpty)
         #expect(center.removedDeliveredIDs.isEmpty)
+    }
+
+    // MARK: - Per-account switch
+
+    @Test("an account switched off is silenced alone; the others keep the app's settings")
+    func switchMutesOneAccount() {
+        let main = record("main", name: "Perso")
+        var muted = record("acct-x", name: "Work", dir: "/Users/tester/.claude-work")
+        muted.notificationsEnabled = false
+        let base = toggles()
+
+        #expect(base.scoped(to: main).claudeEnabled)
+        #expect(!base.scoped(to: muted).claudeEnabled)
+        // An account unknown to the list (removed meanwhile) keeps the default.
+        #expect(base.scoped(to: nil).claudeEnabled)
+        // Everything else is the same bundle.
+        #expect(base.scoped(to: muted).trackFiveHour == base.trackFiveHour)
+        #expect(base.scoped(to: muted).codex == base.codex)
+    }
+
+    @Test("the Claude master off silences every account")
+    func claudeMasterWins() {
+        let base = toggles(claudeEnabled: false)
+        #expect(!base.scoped(to: record("main", name: "Perso")).claudeEnabled)
+        #expect(!base.scoped(to: record("acct-x", name: "Work", dir: "/Users/tester/.claude-work")).claudeEnabled)
+    }
+
+    @Test("a muted account sends nothing and drops its own reminders")
+    func mutedAccountSendsNothing() {
+        let center = MockNotificationCenter()
+        let state = MockNotificationStateStore()
+        state.levels["lastLevel_fiveHour"] = UsageLevel.orange.rawValue
+        let service = NotificationService(center: center, stateStore: state, scope: workScope())
+        var muted = record("acct-x", name: "Work", dir: "/Users/tester/.claude-work")
+        muted.notificationsEnabled = false
+
+        evaluate(service, fiveHour: 96, toggles: toggles().scoped(to: muted))
+
+        #expect(center.addedIDs.isEmpty)
+        #expect(center.removedIDs == ["reminder_session.acct-x", "reminder_weekly.acct-x"])
     }
 
     // MARK: - Labels

@@ -1153,6 +1153,12 @@ final class SettingsStore: ObservableObject {
         notificationService.sendTest(for: provider)
     }
 
+    /// One Claude test per account, for when several run and each real alert
+    /// carries its account's name.
+    func sendTestNotification(forClaudeAccount account: NotificationScope) {
+        notificationService.sendTest(forClaudeAccount: account)
+    }
+
     func refreshNotificationStatus() async {
         let newStatus = await notificationService.checkAuthorizationStatus()
         if newStatus != notificationStatus {

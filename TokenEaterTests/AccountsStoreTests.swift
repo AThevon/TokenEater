@@ -217,6 +217,23 @@ struct AccountsStoreTests {
         #expect(notifications.purges.last?.includingDelivered == true)
     }
 
+    @Test("switching an account's alerts off drops its pending reminders, on leaves them")
+    func notificationSwitchPurgesPending() {
+        let defaults = cleanDefaults()
+        let notifications = MockNotificationService()
+        let sut = makeStore(defaults: defaults, notifications: notifications)
+        sut.store.add(extra("s"))
+        let id = AccountID(rawValue: "acct-s")
+
+        sut.store.update(id) { $0.notificationsEnabled = false }
+        #expect(notifications.purges.map(\.account) == [id])
+        #expect(notifications.purges.first?.includingDelivered == false)
+        #expect(AccountsStore.loadRecords(from: defaults)[1].notificationsEnabled == false)
+
+        sut.store.update(id) { $0.notificationsEnabled = true }
+        #expect(notifications.purges.count == 1)
+    }
+
     @Test("an account's alerts are named once two accounts run, never before")
     func notificationScopeNames() {
         let defaults = cleanDefaults()

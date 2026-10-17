@@ -374,7 +374,7 @@ final class StatusBarController: NSObject {
         usageStore.pacingMargin = settingsStore.pacingMargin
         usageStore.pacingSchedule = settingsStore.pacingSchedule
         usageStore.refreshIntervalSeconds = TimeInterval(settingsStore.refreshInterval)
-        usageStore.notifTogglesProvider = { [weak self] in self?.makeNotificationToggles() }
+        usageStore.notifTogglesProvider = { [weak self] in self?.makeNotificationToggles(for: .main) }
         vendorStatusStore.notifTogglesProvider = { [weak self] in self?.makeNotificationToggles() }
         vendorStatusStore.healthyPollInterval = TimeInterval(settingsStore.statusPollInterval)
         usageStore.reloadConfig(thresholds: themeStore.thresholds)
@@ -454,8 +454,9 @@ final class StatusBarController: NSObject {
         store.pacingMargin = settingsStore.pacingMargin
         store.pacingSchedule = settingsStore.pacingSchedule
         store.refreshIntervalSeconds = TimeInterval(settingsStore.refreshInterval)
-        // Notifications for added accounts arrive with their own scope.
-        store.notifTogglesProvider = nil
+        // The account's alerts follow the app's settings and its own switch.
+        let id = record.id
+        store.notifTogglesProvider = { [weak self] in self?.makeNotificationToggles(for: id) }
 
         guard settingsStore.claudeEnabled, !record.isPaused else {
             store.stopAutoRefresh()
@@ -463,7 +464,6 @@ final class StatusBarController: NSObject {
             return
         }
         let thresholds = themeStore.thresholds
-        let id = record.id
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(Double(index) * 5))
             guard let self, self.settingsStore.claudeEnabled,
@@ -473,6 +473,13 @@ final class StatusBarController: NSObject {
         }
         let spread = Double(index) * Double(settingsStore.refreshInterval) / Double(max(count, 1))
         store.startAutoRefresh(interval: 600 + spread, thresholds: thresholds)
+    }
+
+    /// What one Claude account's store alerts with: the shared bundle, muted
+    /// for Claude when the user switched that account's alerts off in
+    /// Settings > Notifications.
+    private func makeNotificationToggles(for account: AccountID) -> NotificationToggles {
+        makeNotificationToggles().scoped(to: accountsStore.record(for: account))
     }
 
     /// Single source of truth for the notification-toggle bundle, shared by the
