@@ -181,7 +181,9 @@ struct ProvidersSectionView: View {
     private func redetectClaude() {
         isRedetecting = true
         claudeMessage = nil
-        guard settingsStore.credentialsTokenExists() else {
+        // Asked of the store's own scope, so a main account pointed at a
+        // custom config folder is checked against that folder (#294).
+        guard usageStore.hasTokenSource() else {
             isRedetecting = false
             claudeMessage = String(localized: "connect.noclaudecode")
             claudeSucceeded = false

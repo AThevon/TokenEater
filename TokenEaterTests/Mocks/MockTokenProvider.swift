@@ -39,6 +39,7 @@ final class MockTokenProvider: TokenProviderProtocol, @unchecked Sendable {
 
     var reconfigureCallCount = 0
     var lastScope: CredentialScope?
+    var scope: CredentialScope { lastScope ?? .defaultChain }
 
     func reconfigure(scope: CredentialScope) {
         reconfigureCallCount += 1

@@ -1,7 +1,7 @@
 import Foundation
 
 final class MockSharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
-    var fileURL: URL { URL(fileURLWithPath: "/tmp/mock-shared.json") }
+    var fileURL: URL = URL(fileURLWithPath: "/tmp/mock-shared.json")
 
     var _cachedUsage: CachedUsage?
     var _lastSyncDate: Date?

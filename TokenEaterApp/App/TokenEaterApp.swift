@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var updateStore: UpdateStore!
     var sessionStore: SessionStore!
     var vendorStatusStore: VendorStatusStore!
+    var accountsStore: AccountsStore!
 
     private var statusBarController: StatusBarController?
     private var overlayWindowController: OverlayWindowController?
@@ -45,7 +46,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settingsStore: settingsStore,
             updateStore: updateStore,
             sessionStore: sessionStore,
-            vendorStatusStore: vendorStatusStore
+            vendorStatusStore: vendorStatusStore,
+            accountsStore: accountsStore
         )
         // Apply persisted watcher scan settings before the first tick uses them.
         sessionStore.setScanInterval(settingsStore.watcherScanInterval.seconds)
@@ -104,6 +106,7 @@ struct TokenEaterApp: App {
     private let updateStore: UpdateStore
     private let sessionStore: SessionStore
     private let vendorStatusStore: VendorStatusStore
+    private let accountsStore: AccountsStore
 
     init() {
         // NSRunningApplication only enumerates the current login session, so this
@@ -125,7 +128,11 @@ struct TokenEaterApp: App {
 
         self.historyWidgetStore = HistoryWidgetStore()
         self.codexStore = CodexUsageStore()
-        self.usageStore = UsageStore()
+        // The main account's store reads the folder the user chose for it,
+        // `~/.claude` unless they chose another one (#294).
+        let usageStore = UsageStore(tokenProvider: TokenProvider.forMainAccount())
+        self.usageStore = usageStore
+        self.accountsStore = AccountsStore(mainStore: usageStore)
         self.themeStore = ThemeStore()
         self.settingsStore = SettingsStore()
         self.updateStore = UpdateStore()
@@ -141,6 +148,7 @@ struct TokenEaterApp: App {
         appDelegate.updateStore = updateStore
         appDelegate.sessionStore = sessionStore
         appDelegate.vendorStatusStore = vendorStatusStore
+        appDelegate.accountsStore = accountsStore
     }
 
     var body: some Scene {

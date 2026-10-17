@@ -11,11 +11,40 @@ struct ProviderModeTests {
     private static let keys = [
         "popoverComposition", "popoverComposition.claude", "popoverComposition.codex",
         "menuBarComposition", "menuBarComposition.claude", "menuBarComposition.codex",
-        "activeProviderMode", "codexEnabled",
+        "dashboardComposition", "dashboardComposition.claude", "dashboardComposition.codex",
+        "activeProviderMode", "codexEnabled", "claudeEnabled",
+        "claudeAccounts.v1", "focusedClaudeAccount", "heroWindows",
     ]
 
     private func clean() {
-        for key in Self.keys { UserDefaults.standard.removeObject(forKey: key) }
+        let defaults = UserDefaults.standard
+        for key in Self.keys { defaults.removeObject(forKey: key) }
+        // Every per-account layout a test left behind, and the keys of the
+        // second-account prototype (#284) earlier runs may have left.
+        for key in defaults.dictionaryRepresentation().keys
+        where key.contains(".acct-") || key.hasSuffix(".claudeWork") {
+            defaults.removeObject(forKey: key)
+        }
+    }
+
+    private static let work = AccountID(rawValue: "acct-work")
+    private static let side = AccountID(rawValue: "acct-side")
+
+    private func summary(_ id: AccountID, _ name: String, paused: Bool = false) -> ClaudeAccountSummary {
+        ClaudeAccountSummary(id: id, name: name, colorHex: "#6366F1", isPaused: paused)
+    }
+
+    private var mainSummary: ClaudeAccountSummary {
+        ClaudeAccountRecord.defaultMain().summary
+    }
+
+    /// Every composition and account key currently written.
+    private func layoutKeys() -> Set<String> {
+        Set(UserDefaults.standard.dictionaryRepresentation().keys.filter {
+            $0.hasPrefix("popoverComposition") || $0.hasPrefix("menuBarComposition")
+                || $0.hasPrefix("dashboardComposition") || $0 == "focusedClaudeAccount"
+                || $0 == "claudeAccounts.v1"
+        })
     }
 
     private func makeStore() -> SettingsStore {
@@ -196,6 +225,196 @@ struct ProviderModeTests {
         #expect(!ProviderMode.codex.shows(.claude))
         #expect(ProviderMode.codex.shows(.codex))
         #expect(ProviderMode.codex.shows(nil))
+    }
+
+    // MARK: - Accounts
+
+    @Test("Without an added account, the keys written are exactly the 6.0 ones")
+    func keysMatchSixPointZero() {
+        let store = makeStore()
+        defer { clean() }
+        store.claudeEnabled = true
+        store.codexEnabled = true
+
+        store.popoverComposition = PopoverBuiltinTemplate.sideBySide.composition
+        store.activeProviderMode = .claude
+        store.activeProviderMode = .codex
+        store.activeProviderMode = .all
+
+        #expect(layoutKeys() == [
+            "popoverComposition", "popoverComposition.claude", "popoverComposition.codex",
+            "menuBarComposition", "menuBarComposition.claude", "menuBarComposition.codex",
+            "dashboardComposition", "dashboardComposition.claude", "dashboardComposition.codex",
+        ])
+        #expect(store.compositionSuffix.isEmpty)
+        #expect(store.focusedClaudeAccount == .main)
+    }
+
+    @Test("An account's Claude mode writes under its own key and leaves Claude's alone")
+    func accountModeHasItsOwnKey() throws {
+        let store = makeStore()
+        defer { clean() }
+        store.claudeAccounts = [mainSummary, summary(Self.work, "Work")]
+
+        store.activeProviderMode = .claude
+        store.popoverComposition = PopoverBuiltinTemplate.minimalist.composition
+        let claudeLayout = try #require(UserDefaults.standard.data(forKey: "popoverComposition.claude")
+            .flatMap { try? JSONDecoder().decode(PopoverComposition.self, from: $0) })
+        store.activeProviderMode = .all
+
+        store.selectScope(.claude, account: Self.work)
+        #expect(store.activeProviderMode == .claude)
+        #expect(store.focusedClaudeAccount == Self.work)
+        #expect(store.compositionSuffix == ".claude.acct-work")
+        // Seeded from Claude's own layout.
+        #expect(store.popoverComposition.elements.map(\.kind) == PopoverBuiltinTemplate.minimalist.composition.elements.map(\.kind))
+        store.popoverComposition = PopoverBuiltinTemplate.compact.composition
+        #expect(UserDefaults.standard.data(forKey: "popoverComposition.claude.acct-work") != nil)
+        #expect(UserDefaults.standard.string(forKey: "focusedClaudeAccount") == "acct-work")
+        #expect(UserDefaults.standard.data(forKey: "popoverComposition.claude")
+            .flatMap { try? JSONDecoder().decode(PopoverComposition.self, from: $0) } == claudeLayout)
+
+        store.selectScope(.claude, account: .main)
+        #expect(store.popoverComposition.elements.map(\.kind) == PopoverBuiltinTemplate.minimalist.composition.elements.map(\.kind))
+        #expect(UserDefaults.standard.string(forKey: "focusedClaudeAccount") == nil)
+
+        store.selectScope(.claude, account: Self.work)
+        #expect(store.popoverComposition.elements.map(\.kind) == PopoverBuiltinTemplate.compact.composition.elements.map(\.kind))
+    }
+
+    @Test("Seeding Claude mode keeps only what belongs to the account on screen")
+    func claudeSeedDropsOtherAccounts() {
+        let store = makeStore()
+        defer { clean() }
+        store.claudeAccounts = [mainSummary, summary(Self.work, "Work")]
+        var all = PopoverBuiltinTemplate.classic.composition
+        all.elements.append(PopoverElement(kind: .weekly, style: .chip, width: .half, account: Self.work))
+        store.popoverComposition = all
+
+        store.activeProviderMode = .claude
+        #expect(!store.popoverComposition.elements.contains { $0.account != nil })
+        #expect(store.popoverComposition.elements.count == PopoverBuiltinTemplate.classic.composition.elements.count)
+    }
+
+    @Test("Claude mode on an account that gets paused goes back to the main account")
+    func pausedFocusFallsBack() {
+        let store = makeStore()
+        defer { clean() }
+        store.claudeAccounts = [mainSummary, summary(Self.work, "Work")]
+        store.selectScope(.claude, account: Self.work)
+        store.popoverComposition = PopoverBuiltinTemplate.compact.composition
+
+        store.claudeAccounts = [mainSummary, summary(Self.work, "Work", paused: true)]
+        #expect(store.focusedClaudeAccount == .main)
+        #expect(store.activeProviderMode == .claude)
+        #expect(store.compositionSuffix == ".claude")
+        // Saved before leaving.
+        #expect(UserDefaults.standard.data(forKey: "popoverComposition.claude.acct-work") != nil)
+    }
+
+    @Test("A relaunch restores the focused account, unless it stopped running")
+    func restoreFocusedAccount() {
+        let store = makeStore()
+        defer { clean() }
+        store.claudeAccounts = [mainSummary, summary(Self.work, "Work")]
+        UserDefaults.standard.set(ClaudeAccountsStorage.encode([
+            .defaultMain(),
+            ClaudeAccountRecord(id: Self.work, configDir: "/tmp/w", name: "Work", colorHex: "#6366F1"),
+        ]), forKey: "claudeAccounts.v1")
+        store.selectScope(.claude, account: Self.work)
+        store.popoverComposition = PopoverBuiltinTemplate.compact.composition
+
+        let relaunched = SettingsStore(notificationService: MockNotificationService(), tokenProvider: MockTokenProvider())
+        #expect(relaunched.focusedClaudeAccount == Self.work)
+        #expect(relaunched.compositionSuffix == ".claude.acct-work")
+        #expect(relaunched.popoverComposition.elements.map(\.kind) == PopoverBuiltinTemplate.compact.composition.elements.map(\.kind))
+
+        UserDefaults.standard.set(ClaudeAccountsStorage.encode([.defaultMain()]), forKey: "claudeAccounts.v1")
+        let afterRemoval = SettingsStore(notificationService: MockNotificationService(), tokenProvider: MockTokenProvider())
+        #expect(afterRemoval.focusedClaudeAccount == .main)
+        #expect(afterRemoval.compositionSuffix == ".claude")
+    }
+
+    @Test("One pill per running Claude account, Codex last, nothing below two")
+    func modeChoices() {
+        let store = makeStore()
+        defer { clean() }
+        store.claudeEnabled = true
+        store.codexEnabled = false
+        store.claudeAccounts = [mainSummary]
+        #expect(store.modeChoices.isEmpty)
+
+        store.codexEnabled = true
+        #expect(store.modeChoices.map(\.id) == ["all", "claude", "codex"])
+
+        store.codexEnabled = false
+        store.claudeAccounts = [mainSummary, summary(Self.work, "Work")]
+        #expect(store.modeChoices.map(\.id) == ["all", "claude", "claude.acct-work"])
+
+        store.codexEnabled = true
+        store.claudeAccounts = [mainSummary, summary(Self.work, "Work"), summary(Self.side, "Side")]
+        #expect(store.modeChoices.map(\.id) == ["all", "claude", "claude.acct-work", "claude.acct-side", "codex"])
+
+        store.claudeAccounts = [mainSummary, summary(Self.work, "Work", paused: true), summary(Self.side, "Side")]
+        #expect(store.modeChoices.map(\.id) == ["all", "claude", "claude.acct-side", "codex"])
+
+        // Claude off stops every account.
+        store.claudeEnabled = false
+        #expect(store.activeClaudeAccounts.isEmpty)
+        #expect(store.modeChoices.isEmpty)
+    }
+
+    @Test("Removing an account purges its layouts, its pinned cells and templates, its glance card")
+    func purgeAccount() throws {
+        let store = makeStore()
+        defer {
+            clean()
+            store.popoverUserTemplates = []
+            store.menuBarUserTemplates = []
+        }
+        store.claudeAccounts = [mainSummary, summary(Self.work, "Work")]
+
+        var popover = PopoverBuiltinTemplate.classic.composition
+        popover.elements.append(PopoverElement(kind: .session, style: .chip, width: .half, account: Self.work))
+        store.popoverComposition = popover
+        var bar = MenuBarBuiltinTemplate.classic.composition
+        bar.segments.append(MenuBarSegment(kind: .session, style: .labelValue, account: Self.work))
+        store.menuBarComposition = bar
+        store.popoverUserTemplates = [PopoverUserTemplate(name: "T", composition: popover)]
+        store.menuBarUserTemplates = [MenuBarUserTemplate(name: "T", composition: bar)]
+        store.setHeroWindow("weekly", for: .claude, account: Self.work)
+        store.setHeroWindow("session", for: .claude)
+
+        store.selectScope(.claude, account: Self.work)
+        store.selectScope(.codex)
+        #expect(UserDefaults.standard.data(forKey: "popoverComposition.claude.acct-work") != nil)
+        // A saved All layout that still targets the account.
+        store.selectScope(.all)
+        store.selectScope(.codex)
+
+        store.claudeAccounts = [mainSummary]
+        store.purgeAccount(Self.work)
+
+        for base in ["popoverComposition", "menuBarComposition", "dashboardComposition"] {
+            #expect(UserDefaults.standard.data(forKey: base + ".claude.acct-work") == nil)
+        }
+        let savedAll = try #require(UserDefaults.standard.data(forKey: "popoverComposition"))
+        #expect(!(try JSONDecoder().decode(PopoverComposition.self, from: savedAll)).elements.contains { $0.account != nil })
+        let savedBar = try #require(UserDefaults.standard.data(forKey: "menuBarComposition"))
+        #expect(!(try JSONDecoder().decode(MenuBarComposition.self, from: savedBar)).segments.contains { $0.account != nil })
+        #expect(!store.popoverUserTemplates[0].composition.elements.contains { $0.account != nil })
+        #expect(!store.menuBarUserTemplates[0].composition.segments.contains { $0.account != nil })
+        #expect(store.heroWindow(for: .claude, account: Self.work) == nil)
+        #expect(store.heroWindow(for: .claude) == "session")
+    }
+
+    @Test("The glance card key is the provider's for the main account, suffixed for another")
+    func heroWindowKeys() {
+        let store = makeStore()
+        defer { clean() }
+        #expect(store.heroWindowKey(.claude) == "claude")
+        #expect(store.heroWindowKey(.claude, account: Self.work) == "claude.acct-work")
+        #expect(store.heroWindowKey(.codex, account: Self.work) == "codex")
     }
 }
 

@@ -27,6 +27,8 @@ protocol TokenProviderProtocol: Sendable {
     /// `CLAUDE_CONFIG_DIR` for the main account, #294). Drops the cached token
     /// and reads nothing.
     func reconfigure(scope: CredentialScope)
+    /// The sources this provider is bounded to.
+    var scope: CredentialScope { get }
 }
 
 extension TokenProviderProtocol {

@@ -154,20 +154,55 @@ final class UsageStore: ObservableObject {
         sharedFileService.cachedUsage
     }
 
+    // MARK: - Identity (several Claude accounts)
+
+    /// Decides whether the login behind a token is this account's. Set by
+    /// `AccountsStore` only while two or more accounts are tracked: with one,
+    /// the store follows whatever login is active (cswap, #153) and never
+    /// fetches a profile on the refresh path.
+    var identityGate: ((String) -> IdentityVerdict)? {
+        didSet {
+            guard identityGate == nil else { return }
+            verifiedToken = nil
+            if identityState != .unchecked { identityState = .unchecked }
+        }
+    }
+
+    /// Hands every fetched profile's identity digest to `AccountsStore`, which
+    /// keeps the main account's digest current while it is the only one.
+    var onIdentityDigest: ((String) -> Void)?
+
+    /// Where the identity check stands. Stays `.unchecked` with one account.
+    @Published private(set) var identityState: IdentityState = .unchecked
+
+    /// The token whose login the gate last accepted. A rotation (a new token
+    /// for the same folder) is checked again before its numbers are written.
+    private var verifiedToken: String?
+
+    /// Where this store's token may come from.
+    var credentialScope: CredentialScope { tokenProvider.scope }
+
     init(
         repository: UsageRepositoryProtocol = UsageRepository(),
         tokenProvider: TokenProviderProtocol = TokenProvider.forMainAccount(),
         sharedFileService: SharedFileServiceProtocol = SharedFileService(),
         notificationService: NotificationServiceProtocol = NotificationService(),
-        sessionSamplesKey: String = "sessionPacingSamples"
+        sessionSamplesKey: String = "sessionPacingSamples",
+        reloadWidgets: @escaping @MainActor () -> Void = { WidgetReloader.scheduleReload() }
     ) {
         self.sessionSamplesKey = sessionSamplesKey
         self.repository = repository
         self.tokenProvider = tokenProvider
         self.sharedFileService = sharedFileService
         self.notificationService = notificationService
+        self.reloadWidgets = reloadWidgets
         self.sessionSamples = Self.loadSessionSamples(key: sessionSamplesKey)
     }
+
+    /// Reloads the widgets that read this store's shared file. The main
+    /// account reloads the existing kinds; an added account passes a no-op,
+    /// since none of those kinds reads its file.
+    private let reloadWidgets: @MainActor () -> Void
 
     // MARK: - Session pacing samples (#240)
 
@@ -232,6 +267,16 @@ final class UsageStore: ObservableObject {
         isLoading = true
         defer { isLoading = false }
 
+        // With several accounts, a login is checked before its numbers are
+        // written anywhere, so one account's usage can never land under
+        // another's name. Nothing runs here with a single account.
+        if identityGate != nil {
+            switch await verifyIdentity(token: token) {
+            case .proceed, .unauthorized: break
+            case .stop: return
+            }
+        }
+
         do {
             let usage = try await repository.refreshUsage(token: token, proxyConfig: proxyConfig)
             applySuccess(usage: usage)
@@ -243,6 +288,7 @@ final class UsageStore: ObservableObject {
                 tokenProvider.invalidateToken()
                 // Retry once with a fresh token
                 if let freshToken = tokenProvider.currentToken(), freshToken != token {
+                    if identityGate != nil, await verifyIdentity(token: freshToken) == .stop { return }
                     do {
                         let usage = try await repository.refreshUsage(token: freshToken, proxyConfig: proxyConfig)
                         applySuccess(usage: usage)
@@ -294,6 +340,40 @@ final class UsageStore: ObservableObject {
                 underlyingError: error.localizedDescription
             )
             errorState = .networkError
+        }
+    }
+
+    private enum IdentityCheck { case proceed, stop, unauthorized }
+
+    /// Asks the gate about the login behind `token`, fetching its profile
+    /// once per token. A refused token is left to the ordinary 401 path; a
+    /// profile that cannot be fetched keeps the last numbers and writes
+    /// nothing until a later tick gets an answer.
+    private func verifyIdentity(token: String) async -> IdentityCheck {
+        guard let gate = identityGate else { return .proceed }
+        guard token != verifiedToken else { return .proceed }
+        do {
+            let profile = try await repository.fetchProfile(token: token, proxyConfig: proxyConfig)
+            let digest = applyProfile(profile)
+            let verdict = gate(digest)
+            guard verdict == .accepted else {
+                identityState = .conflict(verdict)
+                return .stop
+            }
+            verifiedToken = token
+            identityState = .verified
+            return .proceed
+        } catch let error as APIError {
+            switch error {
+            case .tokenExpired, .noToken:
+                return .unauthorized
+            default:
+                identityState = .pending
+                return .stop
+            }
+        } catch {
+            identityState = .pending
+            return .stop
         }
     }
 
@@ -371,7 +451,7 @@ final class UsageStore: ObservableObject {
         errorState = token != nil ? .none : .tokenUnavailable
         loadCached()
         notificationService.requestPermission()
-        WidgetReloader.scheduleReload()
+        reloadWidgets()
         refreshTask?.cancel()
         refreshTask = Task {
             await refresh(thresholds: thresholds, force: true)
@@ -481,13 +561,86 @@ final class UsageStore: ObservableObject {
         if let last = lastProfileFetch, Date().timeIntervalSince(last) < 300 { return }
         do {
             let profile = try await repository.fetchProfile(token: token, proxyConfig: proxyConfig)
-            planType = PlanType(from: profile.account, organization: profile.organization)
-            rateLimitTier = profile.organization?.rateLimitTier
-            organizationName = profile.organization?.name
-            lastProfileFetch = Date()
+            applyProfile(profile)
         } catch {
             // Profile fetch failure is non-critical - don't update errorState
         }
+    }
+
+    /// Takes in a fetched profile and returns its identity digest, after
+    /// handing it to `onIdentityDigest`. The uuids go no further than here.
+    @discardableResult
+    private func applyProfile(_ profile: ProfileResponse) -> String {
+        planType = PlanType(from: profile.account, organization: profile.organization)
+        rateLimitTier = profile.organization?.rateLimitTier
+        organizationName = profile.organization?.name
+        lastProfileFetch = Date()
+        let digest = ClaudeConfigDirResolver.identityDigest(
+            accountUUID: profile.account.uuid,
+            organizationUUID: profile.organization?.uuid
+        )
+        onIdentityDigest?(digest)
+        return digest
+    }
+
+    /// Whether this store's scope holds any login at all. Attributes only for
+    /// the Keychain, like onboarding's detection.
+    func hasTokenSource() -> Bool {
+        tokenProvider.hasTokenSource()
+    }
+
+    /// Points the store at another config folder (#294). Everything shown
+    /// came from the previous login, so it is dropped rather than left on
+    /// screen under the new folder; the next refresh fills it again.
+    func reconfigure(scope: CredentialScope) {
+        refreshTask?.cancel()
+        tokenProvider.reconfigure(scope: scope)
+        sharedFileService.invalidateCache()
+        resetDisplayedUsage()
+        errorState = .none
+        authFailureHint = nil
+        lastAPIError = nil
+        hasConfig = false
+        retryAfterDate = nil
+        consecutiveRateLimits = 0
+        currentSpeed = .normal
+        fastModeStart = nil
+        lastProfileFetch = nil
+        verifiedToken = nil
+        if identityState != .unchecked { identityState = .unchecked }
+    }
+
+    /// Every number, date and plan fact back to its empty state, pacing
+    /// samples included.
+    private func resetDisplayedUsage() {
+        lastUsage = nil
+        lastUpdate = nil
+        fiveHourPct = 0
+        sevenDayPct = 0
+        sonnetPct = 0
+        opusPct = 0
+        coworkPct = 0
+        fablePct = 0
+        oauthAppsPct = 0
+        hasOpus = false
+        hasCowork = false
+        hasFable = false
+        hasSonnet = false
+        extraUsage = nil
+        planType = .unknown
+        rateLimitTier = nil
+        organizationName = nil
+        fiveHourReset = ""
+        fiveHourResetAbsolute = ""
+        sevenDayReset = ""
+        sevenDayResetAbsolute = ""
+        fableReset = ""
+        fableResetAbsolute = ""
+        sonnetReset = ""
+        sonnetResetAbsolute = ""
+        applyPacing([:])
+        sessionSamples = []
+        UserDefaults.standard.removeObject(forKey: sessionSamplesKey)
     }
 
     /// Applies a successful usage fetch: updates the published UI state, clears
@@ -507,7 +660,7 @@ final class UsageStore: ObservableObject {
         retryAfterDate = nil
         consecutiveRateLimits = 0
         notificationService.endTokenAlertEpisode()
-        WidgetReloader.scheduleReload()
+        reloadWidgets()
         evaluateNotifications(usage: usage)
     }
 
