@@ -35,13 +35,25 @@ extension EnvironmentValues {
 struct ComposablePopoverView: View {
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var accountsStore: AccountsStore
 
     static let popoverWidth: CGFloat = 300
 
     /// True only when the switcher actually draws something: it renders
-    /// nothing below two providers, and padding around nothing is a gap.
+    /// nothing below two choices, and padding around nothing is a gap.
     private var showsSwitcher: Bool {
         settingsStore.popoverShowsProviderSwitch && settingsStore.modeChoices.count > 1
+    }
+
+    /// The Claude store the popover reads by default. Claude mode on an
+    /// added account shows that account throughout: its banner, its cells,
+    /// its plan badge and its refresh, as if it were the only account.
+    private var scopeStore: UsageStore {
+        let focused = settingsStore.focusedClaudeAccount
+        guard settingsStore.activeProviderMode == .claude, !focused.isMain,
+              settingsStore.runningClaudeAccountIDs.contains(focused),
+              let store = accountsStore.usageStore(for: focused) else { return usageStore }
+        return store
     }
 
     var body: some View {
@@ -59,7 +71,7 @@ struct ComposablePopoverView: View {
             // delete. It was an element for one release and switching into a
             // mode whose layout lacked it left no way back out. Presence is a
             // single global preference now, off in Studio if you want it off,
-            // and it still draws nothing below two providers.
+            // and it still draws nothing below two choices.
             if settingsStore.popoverShowsProviderSwitch {
                 ProviderModeSwitcher(size: .dots)
                     .padding(.bottom, showsSwitcher ? 3 : 0)
@@ -67,14 +79,27 @@ struct ComposablePopoverView: View {
 
             VendorStatusBanner()
 
+            PopoverScopedBody()
+                .environmentObject(scopeStore)
+        }
+        .frame(width: Self.popoverWidth)
+        .background(Color(nsColor: NSColor(red: 0.08, green: 0.08, blue: 0.09, alpha: 1)))
+    }
+}
+
+/// The part of the popover that reads the scope's Claude store, received
+/// through the environment so it observes whichever store that is.
+private struct PopoverScopedBody: View {
+    @EnvironmentObject private var usageStore: UsageStore
+
+    var body: some View {
+        VStack(spacing: 0) {
             if usageStore.hasError {
                 PopoverErrorBanner()
             }
 
             PopoverGrid()
         }
-        .frame(width: Self.popoverWidth)
-        .background(Color(nsColor: NSColor(red: 0.08, green: 0.08, blue: 0.09, alpha: 1)))
     }
 }
 
@@ -85,52 +110,115 @@ struct ComposablePopoverView: View {
 /// duplicated identities during transitions (the nested-ForEach +
 /// matchedGeometryEffect approach mounted the same id twice mid-reorder,
 /// which SwiftUI documents as undefined geometry).
+///
+/// Once two Claude accounts run, the All popover is split into sections, one
+/// per run of an account's cells (and Codex's), each under a header naming
+/// it (`PopoverSectionGrouping`), and every Claude cell reads its own
+/// account's store. Cells then glide within their section only. Below two
+/// accounts it is the one flat grid it always was.
 private struct PopoverGrid: View {
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var accountsStore: AccountsStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.popoverElementTap) private var tapHandler
     @Environment(\.popoverSelectedElement) private var selectedID
+
+    /// Repaints the grid when an added account's numbers change, since a
+    /// cell's presence depends on them.
+    @StateObject private var accountStores = UsageStoresObserver()
 
     @State private var appeared = false
 
     private static let horizontalPadding: CGFloat = 16
     private static let cellSpacing: CGFloat = 8
     private static let rowSpacing: CGFloat = 10
+    private static let sectionSpacing: CGFloat = 12
 
     var body: some View {
         let visible = visibleElements
         Group {
             if visible.isEmpty {
                 emptyState
+            } else if showsSections {
+                sectioned(visible)
             } else {
-                grid(visible)
+                grid(visible, rowOffset: 0)
+                    // Edit-time reflow: flat stable ids make position changes
+                    // animate as moves, cells glide to their new row instead
+                    // of jump-cutting.
+                    .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: settingsStore.popoverComposition.elements)
             }
         }
         .padding(.horizontal, Self.horizontalPadding)
         .padding(.top, 4)
         .padding(.bottom, 10)
+        .onAppear {
+            appeared = true
+            accountStores.track(accountsStore.runningExtraStores)
+        }
+        .onChange(of: settingsStore.claudeAccounts) { _, _ in
+            accountStores.track(accountsStore.runningExtraStores)
+        }
     }
 
-    private func grid(_ visible: [PopoverElement]) -> some View {
+    /// Sections only in All, where several accounts share the popover. Claude
+    /// mode shows one account, so it needs no header to say which.
+    private var showsSections: Bool {
+        settingsStore.activeProviderMode == .all && settingsStore.showsAccountMarkers
+    }
+
+    private func grid(_ visible: [PopoverElement], rowOffset: Int) -> some View {
         let rowIndexByID = rowIndexMap(visible)
         return PopoverGridLayout(cellSpacing: Self.cellSpacing, rowSpacing: Self.rowSpacing) {
             ForEach(visible) { element in
-                cell(element, rowIndex: rowIndexByID[element.id] ?? 0)
+                cell(element, rowIndex: rowOffset + (rowIndexByID[element.id] ?? 0))
                     .layoutValue(key: PopoverGridWidthKey.self, value: element.effectiveWidth)
                     .layoutValue(key: PopoverGridChromeKey.self, value: element.kind.isChrome)
             }
         }
-        // Edit-time reflow: flat stable ids make position changes animate as
-        // moves, cells glide to their new row instead of jump-cutting.
+    }
+
+    private func sectioned(_ visible: [PopoverElement]) -> some View {
+        let sections = PopoverSectionGrouping.groups(
+            visible,
+            mode: settingsStore.activeProviderMode,
+            focused: settingsStore.focusedClaudeAccount,
+            running: settingsStore.runningClaudeAccountIDs
+        )
+        var offsets: [String: Int] = [:]
+        var rows = 0
+        for section in sections {
+            offsets[section.id] = rows
+            rows += PopoverRowPacker.pack(section.elements).count
+        }
+        return VStack(alignment: .leading, spacing: Self.sectionSpacing) {
+            ForEach(sections) { section in
+                VStack(alignment: .leading, spacing: 6) {
+                    if section.key.hasHeader {
+                        PopoverSectionHeader(key: section.key)
+                    }
+                    grid(section.elements, rowOffset: offsets[section.id] ?? 0)
+                }
+            }
+        }
         .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: settingsStore.popoverComposition.elements)
-        .onAppear { appeared = true }
+    }
+
+    /// The store a cell reads: the account its Claude kind resolves to, the
+    /// scope's own store for everything else. Nil for a Claude cell whose
+    /// account is not running, which is then not drawn at all.
+    private func store(for element: PopoverElement) -> UsageStore? {
+        guard element.kind.provider == .claude else { return usageStore }
+        guard let account = settingsStore.effectiveAccount(for: element.account) else { return nil }
+        return accountsStore.usageStore(for: account) ?? usageStore
     }
 
     private var visibleElements: [PopoverElement] {
-        settingsStore.popoverComposition.visibleElements.filter {
-            PopoverMetricResolver.isVisible($0.kind, usage: usageStore, codex: codexStore, settings: settingsStore)
+        settingsStore.popoverComposition.visibleElements.filter { element in
+            guard let store = store(for: element) else { return false }
+            return PopoverMetricResolver.isVisible(element.kind, usage: store, codex: codexStore, settings: settingsStore)
         }
     }
 
@@ -146,6 +234,9 @@ private struct PopoverGrid: View {
     private func cell(_ element: PopoverElement, rowIndex: Int) -> some View {
         let selected = selectedID == element.id
         PopoverElementCellView(element: element)
+            // Each Claude cell reads its own account; with a single account
+            // this is the store the popover already holds.
+            .environmentObject(store(for: element) ?? usageStore)
             .overlay {
                 if selected {
                     RoundedRectangle(cornerRadius: 12)
@@ -185,6 +276,107 @@ private struct PopoverGrid: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
+    }
+}
+
+// MARK: - Section headers
+
+/// The line above an account's section in the All popover: whose numbers
+/// follow, and how fresh they are. Codex gets one too, so the sections read
+/// as peers.
+private struct PopoverSectionHeader: View {
+    let key: PopoverSectionGrouping.Key
+
+    @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var accountsStore: AccountsStore
+
+    var body: some View {
+        switch key {
+        case .claude(let id):
+            if let account = settingsStore.claudeAccount(id), let store = accountsStore.usageStore(for: id) {
+                ClaudeAccountSectionHeader(account: account, store: store)
+            }
+        case .codex:
+            CodexSectionHeader()
+        case .neutral:
+            EmptyView()
+        }
+    }
+}
+
+private struct ClaudeAccountSectionHeader: View {
+    let account: ClaudeAccountSummary
+    @ObservedObject var store: UsageStore
+
+    @EnvironmentObject private var settingsStore: SettingsStore
+
+    var body: some View {
+        HStack(spacing: 5) {
+            AccountDot(colorHex: account.colorHex, size: 7)
+            Text(account.name)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.75))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .help(account.name)
+            Spacer(minLength: 6)
+            // Re-read every half minute so "4 min ago" keeps up while the
+            // popover stays open.
+            TimelineView(.periodic(from: .now, by: 30)) { context in
+                if let caption = caption(now: context.date) {
+                    Text(caption.text)
+                        .font(.system(size: 9, weight: caption.isAlert ? .semibold : .medium))
+                        .foregroundStyle(caption.isAlert ? DS.Palette.semanticWarning.opacity(0.9) : .white.opacity(0.4))
+                        .lineLimit(1)
+                }
+            }
+        }
+        .padding(.horizontal, 2)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Where the account stands, in a few words: its login is gone, its
+    /// numbers are old, or simply its plan when all is well.
+    private func caption(now: Date) -> (text: String, isAlert: Bool)? {
+        if case .conflict = store.identityState {
+            return (String(localized: "popover.account.conflict"), true)
+        }
+        if store.loginExpiredSince != nil {
+            return (String(localized: "popover.account.expired"), true)
+        }
+        if store.errorState == .tokenUnavailable, store.lastUsage == nil {
+            return (String(localized: "popover.account.noLogin"), true)
+        }
+        if let last = store.lastUpdate,
+           now.timeIntervalSince(last) > 2 * Double(settingsStore.refreshInterval) {
+            return (last.formatted(.relative(presentation: .named, unitsStyle: .abbreviated)), false)
+        }
+        guard store.planType != .unknown else { return nil }
+        return (store.planType.displayLabel, false)
+    }
+}
+
+private struct CodexSectionHeader: View {
+    @EnvironmentObject private var codexStore: CodexUsageStore
+
+    var body: some View {
+        HStack(spacing: 5) {
+            ProviderGlyph(provider: .codex, size: 9)
+                .foregroundStyle(.white.opacity(0.6))
+            Text(ProviderMode.codex.localizedLabel)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.75))
+                .lineLimit(1)
+            Spacer(minLength: 6)
+            if codexStore.planType != .unknown {
+                Text(codexStore.planType.displayLabel)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.4))
+                    .lineLimit(1)
+            }
+        }
+        .padding(.horizontal, 2)
+        .accessibilityElement(children: .combine)
     }
 }
 

@@ -763,6 +763,9 @@
 "popover.cell.resetLabel" = "Reset %@";
 "popover.empty" = "Rien à afficher pour le moment";
 "popover.empty.hint" = "Ajoutez des éléments dans Studio > Popover";
+"popover.account.expired" = "Connexion expirée";
+"popover.account.noLogin" = "Non connecté";
+"popover.account.conflict" = "Autre connexion";
 
 "popoverElement.session" = "Session (5h)";
 "popoverElement.weekly" = "Hebdomadaire";

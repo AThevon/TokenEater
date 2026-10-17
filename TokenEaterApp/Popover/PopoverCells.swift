@@ -631,33 +631,58 @@ private struct PopoverQuitButtonCell: View {
 /// merely unlabelled. It follows the mode now, and in All it shows both side
 /// by side, because with two providers on there are two plans and picking one
 /// to display would be choosing a favourite.
+///
+/// Once two Claude accounts run, All shows one badge per account, marked
+/// with the account's dot instead of the Claude mark, and folds to the dots
+/// alone when the row cannot hold every plan.
 private struct PlanBadgeCell: View {
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var accountsStore: AccountsStore
+
+    /// Follows the added accounts' plans, which arrive with their profile.
+    @StateObject private var accountStores = UsageStoresObserver()
 
     private var visible: [MetricProvider] {
         settingsStore.activeProviders.filter { settingsStore.activeProviderMode.shows($0) }
     }
 
+    private var badgesPerAccount: Bool {
+        settingsStore.activeProviderMode == .all && settingsStore.showsAccountMarkers
+    }
+
     var body: some View {
-        HStack(spacing: 4) {
-            ForEach(visible) { provider in
-                switch provider {
-                case .claude:
-                    if usageStore.planType != .unknown {
-                        badge(provider, usageStore.planType.displayLabel,
-                              usageStore.planType.badgeColor)
-                    }
-                case .codex:
-                    if codexStore.planType != .unknown {
-                        badge(provider, codexStore.planType.displayLabel,
-                              codexStore.planType.badgeColor)
+        Group {
+            if badgesPerAccount {
+                ViewThatFits(in: .horizontal) {
+                    accountBadges(showsPlans: true)
+                    accountBadges(showsPlans: false)
+                }
+            } else {
+                HStack(spacing: 4) {
+                    ForEach(visible) { provider in
+                        switch provider {
+                        case .claude:
+                            if usageStore.planType != .unknown {
+                                badge(provider, usageStore.planType.displayLabel,
+                                      usageStore.planType.badgeColor)
+                            }
+                        case .codex:
+                            if codexStore.planType != .unknown {
+                                badge(provider, codexStore.planType.displayLabel,
+                                      codexStore.planType.badgeColor)
+                            }
+                        }
                     }
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear { accountStores.track(accountsStore.runningExtraStores) }
+        .onChange(of: settingsStore.claudeAccounts) { _, _ in
+            accountStores.track(accountsStore.runningExtraStores)
+        }
     }
 
     private func badge(_ provider: MetricProvider, _ plan: String, _ tint: Color) -> some View {
@@ -680,6 +705,49 @@ private struct PlanBadgeCell: View {
         .background(tint.opacity(0.3))
         .clipShape(Capsule())
     }
+
+    /// One badge per running Claude account whose plan is known, then
+    /// Codex's. Without plans, each badge keeps its dot (or mark) and says
+    /// the rest in its tooltip.
+    private func accountBadges(showsPlans: Bool) -> some View {
+        HStack(spacing: 4) {
+            ForEach(settingsStore.activeClaudeAccounts) { account in
+                if let plan = accountsStore.usageStore(for: account.id)?.planType, plan != .unknown {
+                    HStack(spacing: 3) {
+                        AccountDot(colorHex: account.colorHex, size: 6)
+                        if showsPlans { Text(plan.displayLabel) }
+                    }
+                    .modifier(PlanCapsule(tint: plan.badgeColor))
+                    .help(account.name + " · " + plan.displayLabel)
+                }
+            }
+            if visible.contains(.codex), codexStore.planType != .unknown {
+                HStack(spacing: 3) {
+                    ProviderGlyph(provider: .codex, size: 7)
+                    if showsPlans { Text(codexStore.planType.displayLabel) }
+                }
+                .modifier(PlanCapsule(tint: codexStore.planType.badgeColor))
+                .help(ProviderMode.codex.localizedLabel + " · " + codexStore.planType.displayLabel)
+            }
+        }
+        .fixedSize()
+    }
+}
+
+/// The capsule a plan badge sits in.
+private struct PlanCapsule: ViewModifier {
+    let tint: Color
+
+    func body(content: Content) -> some View {
+        content
+            .lineLimit(1)
+            .font(.system(size: 8, weight: .bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(tint.opacity(0.3))
+            .clipShape(Capsule())
+    }
 }
 
 // MARK: - Refresh button (ex-header chrome, v2 composable element)
@@ -689,12 +757,20 @@ private struct PlanBadgeCell: View {
 
 private struct PopoverRefreshButtonCell: View {
     @EnvironmentObject private var usageStore: UsageStore
+    @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var accountsStore: AccountsStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var refreshHovering = false
 
     var body: some View {
         Button {
             Task { await usageStore.refresh(force: true) }
+            // All shows every running account, so it refreshes them all.
+            if settingsStore.activeProviderMode == .all {
+                for store in accountsStore.runningExtraStores {
+                    Task { await store.refresh(force: true) }
+                }
+            }
         } label: {
             Group {
                 if usageStore.isLoading {
