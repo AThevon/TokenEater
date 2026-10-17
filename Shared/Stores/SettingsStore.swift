@@ -219,6 +219,45 @@ final class SettingsStore: ObservableObject {
         provider == .claude ? provider.rawValue + account.storageSuffix : provider.rawValue
     }
 
+    /// The All mode's menu bar layout, whichever mode is on screen: the
+    /// published one in All, the stored one otherwise.
+    var allModeMenuBarComposition: MenuBarComposition {
+        if activeProviderMode == .all { return menuBarComposition }
+        return UserDefaults.standard.data(forKey: "menuBarComposition" + ProviderMode.all.storageSuffix)
+            .flatMap { try? JSONDecoder().decode(MenuBarComposition.self, from: $0) }
+            ?? Self.seededMenuBar(for: .all)
+    }
+
+    /// Gives a newly added account its place in the All layouts: always a
+    /// compact section in the popover, and its session and weekly segments in
+    /// the menu bar when the user kept "Add to the menu bar" checked. When All
+    /// is not the mode on screen, its stored layout is updated in place and
+    /// the one on screen is left alone. The account's own Claude mode layouts
+    /// are seeded later, on its first visit.
+    func seedAccount(_ id: AccountID, addToMenuBar: Bool) {
+        guard !id.isMain else { return }
+        if activeProviderMode == .all {
+            popoverComposition = popoverComposition.addingAccountSection(id)
+            if addToMenuBar {
+                menuBarComposition = menuBarComposition.addingAccountSegments(id)
+            }
+            return
+        }
+        let defaults = UserDefaults.standard
+        let popoverKey = "popoverComposition" + ProviderMode.all.storageSuffix
+        let storedPopover = defaults.data(forKey: popoverKey)
+            .flatMap { try? JSONDecoder().decode(PopoverComposition.self, from: $0) }
+            .map(Self.reconcile) ?? Self.seededPopover(for: .all)
+        if let data = try? JSONEncoder().encode(storedPopover.addingAccountSection(id)) {
+            defaults.set(data, forKey: popoverKey)
+        }
+        guard addToMenuBar else { return }
+        let menuBarKey = "menuBarComposition" + ProviderMode.all.storageSuffix
+        if let data = try? JSONEncoder().encode(allModeMenuBarComposition.addingAccountSegments(id)) {
+            defaults.set(data, forKey: menuBarKey)
+        }
+    }
+
     /// Forgets everything stored for a removed account: its own mode's
     /// layouts, every segment and element that targeted it (saved layouts and
     /// templates included), and its glance card choice.

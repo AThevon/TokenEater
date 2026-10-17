@@ -565,7 +565,10 @@ final class StatusBarController: NSObject {
             return
         }
         let image = MenuBarRenderer.render(
-            .live(usage: usageStore, theme: themeStore, settings: settingsStore, vendor: vendorStatusStore, codex: codexStore)
+            .live(
+                usage: usageStore, theme: themeStore, settings: settingsStore, vendor: vendorStatusStore,
+                codex: codexStore, accounts: accountsStore
+            )
         )
         statusItem.button?.image = image
     }

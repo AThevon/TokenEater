@@ -461,6 +461,7 @@ private struct MenuBarLivePreview: View {
     @EnvironmentObject private var themeStore: ThemeStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var vendorStatusStore: VendorStatusStore
+    @EnvironmentObject private var accountsStore: AccountsStore
 
     @Binding var selectedSegmentID: UUID?
 
@@ -469,7 +470,7 @@ private struct MenuBarLivePreview: View {
     var body: some View {
         let data = MenuBarRenderer.RenderData.live(
             usage: usageStore, theme: themeStore, settings: settingsStore, vendor: vendorStatusStore,
-            codex: codexStore
+            codex: codexStore, accounts: accountsStore
         )
         let rendered = MenuBarRenderer.renderWithHitRects(data)
         let w = rendered.image.size.width * scale

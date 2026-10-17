@@ -345,6 +345,22 @@ struct PopoverComposition: Codable, Equatable {
     }
 
     static let `default` = PopoverBuiltinTemplate.classic.composition
+
+    /// The layout with a compact section for an added account: its session
+    /// and weekly limits as two half-width chips, right after the last Claude
+    /// element so the Claude accounts stay together above Codex. Unchanged
+    /// when the account already has an element here.
+    func addingAccountSection(_ id: AccountID) -> PopoverComposition {
+        guard !id.isMain, !elements.contains(where: { $0.account == id }) else { return self }
+        let added = [
+            PopoverElement(kind: .session, style: .chip, width: .half, options: .init(showReset: true), account: id),
+            PopoverElement(kind: .weekly, style: .chip, width: .half, options: .init(showReset: true), account: id),
+        ]
+        var next = self
+        let insertAt = elements.lastIndex { $0.kind.provider == .claude }.map { $0 + 1 } ?? elements.count
+        next.elements.insert(contentsOf: added, at: insertAt)
+        return next
+    }
 }
 
 // MARK: - Templates

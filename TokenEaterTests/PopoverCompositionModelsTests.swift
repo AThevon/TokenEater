@@ -179,4 +179,21 @@ struct PopoverCompositionModelsTests {
         let b = PopoverComposition(elements: [PopoverElement(kind: .session, style: .chip, width: .half, account: AccountID(rawValue: "acct-1"))])
         #expect(!a.isEquivalent(to: b))
     }
+    // MARK: - Adding an account
+
+    @Test("an added account gets two half-width chips after the last Claude element")
+    func addingAccountSection() {
+        let work = AccountID(rawValue: "acct-work")
+        let base = PopoverComposition(elements: [
+            PopoverElement(kind: .session, style: .gaugeRing, width: .half),
+            PopoverElement(kind: .weekly, style: .gaugeRing, width: .half),
+            PopoverElement(kind: .codexSession, style: .chip, width: .half),
+        ])
+        let added = base.addingAccountSection(work)
+        #expect(added.elements.map(\.kind) == [.session, .weekly, .session, .weekly, .codexSession])
+        let section = Array(added.elements[2...3])
+        #expect(section.allSatisfy { $0.style == .chip && $0.width == .half && $0.account == work })
+        #expect(added.addingAccountSection(work) == added)
+        #expect(base.addingAccountSection(.main) == base)
+    }
 }

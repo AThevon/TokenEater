@@ -33,7 +33,7 @@ Three targets:
 
 `project.yml` declares the widget's `NSExtension` key under the target's `info.properties`, so XcodeGen writes it into `TokenEaterWidget/Info.plist` on every generate. That plist is tracked but fully regenerated, so never hand-edit it. The `plutil -insert NSExtension ...` step in `build.sh`, `SETUP.md` and all three workflows is therefore a no-op today: it exits 1 with "Value already exists", swallowed by `|| true`. Keep it as a guard in case the `info.properties` block is ever dropped, but it is not load-bearing. If the widget gallery shows nothing, check the cache nuke (`com.apple.chrono` plus `pluginkit -r`) and that the `.appex` still carries `com.apple.security.app-sandbox` (no `--deep` on the parent sign) instead.
 
-`TokenEaterApp/` has no Swift file at its root; every source sits in a subfolder (`App/`, `Components/`, `Onboarding/`, `Overlay/`, `Popover/`, `Resources/`, `Settings/`, `Studio/`, `Updater/`, `Windows/`). Quote full paths when editing `project.yml`; the bare filenames in the feature index below are grep targets, not paths.
+`TokenEaterApp/` has no Swift file at its root; every source sits in a subfolder (`Accounts/`, `App/`, `Components/`, `Onboarding/`, `Overlay/`, `Popover/`, `Resources/`, `Settings/`, `Studio/`, `Updater/`, `Windows/`). Quote full paths when editing `project.yml`; the bare filenames in the feature index below are grep targets, not paths.
 
 `Shared/` is compiled into all three targets:
 

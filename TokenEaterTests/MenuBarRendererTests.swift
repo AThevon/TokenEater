@@ -504,3 +504,75 @@ struct MenuBarFablePacingRenderTests {
         #expect(image.size.width > 0)
     }
 }
+
+@Suite("MenuBarRenderer.accounts")
+struct MenuBarAccountSegmentTests {
+
+    private let work = AccountID(rawValue: "acct-work")
+
+    private func data(_ segments: [MenuBarSegment]) -> MenuBarRenderer.RenderData {
+        MenuBarOutageBadgeTests.sampleRenderData(segments: segments)
+    }
+
+    @Test("a segment pinned to a running account reads that account's numbers")
+    func pinnedSegmentReadsItsAccount() {
+        var bar = data([
+            MenuBarSegment(kind: .session, style: .labelValue),
+            MenuBarSegment(kind: .session, style: .labelValue, account: work),
+        ])
+        var account = bar
+        account.composition = MenuBarComposition(segments: [])
+        bar.accountData[work.rawValue] = account
+
+        let pinned = bar.composition.segments[1]
+        #expect(MenuBarRenderer.source(for: pinned, data: bar) == account)
+        #expect(MenuBarRenderer.source(for: bar.composition.segments[0], data: bar) == bar)
+        #expect(MenuBarRenderer.renderWithHitRects(bar).hitRects.count == 2)
+    }
+
+    @Test("a segment whose account is not running draws nothing and the bar closes up")
+    func missingAccountIsSkipped() {
+        let bar = data([
+            MenuBarSegment(kind: .session, style: .labelValue),
+            MenuBarSegment(kind: .weekly, style: .labelValue, account: work),
+        ])
+        let rects = MenuBarRenderer.renderWithHitRects(bar).hitRects
+        #expect(rects.map(\.id) == [bar.composition.segments[0].id])
+    }
+
+    @Test("an explicit main account and the Codex kinds read the bar's own numbers")
+    func mainAndCodexIgnoreAccounts() {
+        let bar = data([
+            MenuBarSegment(kind: .session, style: .labelValue, account: .main),
+            MenuBarSegment(kind: .serviceStatus, style: .glyph, account: work),
+        ])
+        for segment in bar.composition.segments {
+            #expect(MenuBarRenderer.source(for: segment, data: bar) == bar)
+        }
+    }
+
+    @Test("a single account renders exactly as before")
+    func singleAccountUnchanged() {
+        let bar = data([
+            MenuBarSegment(kind: .session, style: .labelValue),
+            MenuBarSegment(kind: .weekly, style: .pill),
+        ])
+        var withEmptyAccounts = bar
+        withEmptyAccounts.accountData = [:]
+        #expect(withEmptyAccounts == bar)
+        let before = MenuBarRenderer.renderWithHitRects(bar)
+        #expect(before.hitRects.count == 2)
+        #expect(MenuBarRenderer.renderUncached(bar).size == before.image.size)
+    }
+
+    @Test("an account with no numbers yet shows a placeholder, never a 0%")
+    func placeholderWidth() {
+        let segment = MenuBarSegment(kind: .session, style: .valueOnly)
+        var placeholder = data([segment])
+        placeholder.showsPlaceholderValues = true
+        let real = data([segment])
+        // "--" and "10%" are different runs: the placeholder is not the value.
+        #expect(MenuBarRenderer.renderUncached(placeholder).size != MenuBarRenderer.renderUncached(real).size)
+        #expect(placeholder != real)
+    }
+}

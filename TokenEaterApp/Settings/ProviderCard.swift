@@ -12,7 +12,7 @@ import SwiftUI
 /// belongs. Turning a provider off collapses its body rather than leaving a
 /// live-looking card with a dead toggle: the shape says what is on before you
 /// read a word.
-struct ProviderCard<Action: View>: View {
+struct ProviderCard<Action: View, Footer: View>: View {
     let provider: MetricProvider
     let name: String
     let isEnabled: Bool
@@ -21,9 +21,34 @@ struct ProviderCard<Action: View>: View {
     /// the rest are facts about the account.
     let status: String
     /// Non-empty disables the switch and says why, for the last provider on.
-    var lockedReason: String = ""
+    var lockedReason: String
     @Binding var enabled: Bool
-    @ViewBuilder var action: () -> Action
+    let action: () -> Action
+    /// Under the chips and the action, inside the card: what belongs to the
+    /// provider beyond its connection (Claude's accounts and folder).
+    let footer: () -> Footer
+
+    init(
+        provider: MetricProvider,
+        name: String,
+        isEnabled: Bool,
+        isLive: Bool,
+        status: String,
+        lockedReason: String = "",
+        enabled: Binding<Bool>,
+        @ViewBuilder action: @escaping () -> Action,
+        @ViewBuilder footer: @escaping () -> Footer
+    ) {
+        self.provider = provider
+        self.name = name
+        self.isEnabled = isEnabled
+        self.isLive = isLive
+        self.status = status
+        self.lockedReason = lockedReason
+        self._enabled = enabled
+        self.action = action
+        self.footer = footer
+    }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var hovering = false
@@ -128,8 +153,35 @@ struct ProviderCard<Action: View>: View {
                     .foregroundStyle(DS.Palette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+
+            footer()
         }
         .padding(.top, DS.Spacing.xs)
         .padding(.leading, 34)
+    }
+}
+
+extension ProviderCard where Footer == EmptyView {
+    init(
+        provider: MetricProvider,
+        name: String,
+        isEnabled: Bool,
+        isLive: Bool,
+        status: String,
+        lockedReason: String = "",
+        enabled: Binding<Bool>,
+        @ViewBuilder action: @escaping () -> Action
+    ) {
+        self.init(
+            provider: provider,
+            name: name,
+            isEnabled: isEnabled,
+            isLive: isLive,
+            status: status,
+            lockedReason: lockedReason,
+            enabled: enabled,
+            action: action,
+            footer: { EmptyView() }
+        )
     }
 }

@@ -4,7 +4,7 @@ enum MenuBarRenderer {
     struct RenderData: Equatable {
         /// The composable menu bar: ordered segments + per-segment styles.
         /// Drives which segments appear, in what order, and how each is drawn.
-        let composition: MenuBarComposition
+        var composition: MenuBarComposition
         let fiveHourPct: Int
         let sevenDayPct: Int
         let sonnetPct: Int
@@ -69,7 +69,16 @@ enum MenuBarRenderer {
         /// Providers the user tracks, intersected with the current display
         /// mode. A segment whose provider is absent from this set draws
         /// nothing and the bar recompacts.
-        let visibleProviders: Set<MetricProvider>
+        var visibleProviders: Set<MetricProvider>
+        /// The numbers of each running added Claude account, keyed by
+        /// `AccountID.rawValue`. A Claude segment pinned to an account reads
+        /// its values here; one whose account is missing (paused, removed,
+        /// Claude switched off) draws nothing, like a provider switched off.
+        /// Empty with a single account, which leaves the bar exactly as it was.
+        var accountData: [String: RenderData] = [:]
+        /// Draws "--" for every usage value: an account that is connected but
+        /// has no numbers yet, as the add-account preview shows it.
+        var showsPlaceholderValues: Bool = false
     }
 
     /// One Codex window, in the shape the renderer needs.
@@ -366,8 +375,9 @@ enum MenuBarRenderer {
     /// item never collapses to an invisible sliver.
     private static func drawComposition(_ data: RenderData) -> (image: NSImage, hitRects: [SegmentHitRect]) {
         let visuals: [SegmentVisual] = data.composition.visibleSegments.compactMap { segment in
-            guard isSegmentAvailable(segment.kind, data: data) else { return nil }
-            return visual(for: segment, data: data)
+            guard let source = source(for: segment, data: data),
+                  isSegmentAvailable(segment.kind, data: source) else { return nil }
+            return visual(for: segment, data: source)
         }
         guard !visuals.isEmpty else {
             return (renderLogoTemplate(), [])
@@ -394,6 +404,16 @@ enum MenuBarRenderer {
         }
         img.isTemplate = false
         return (img, rects)
+    }
+
+    /// The numbers a segment reads: an added account's for a Claude segment
+    /// pinned to it, the bar's own otherwise. Nil when that account is not
+    /// running, so the segment is skipped and the bar recompacts.
+    static func source(for segment: MenuBarSegment, data: RenderData) -> RenderData? {
+        guard segment.kind.provider == .claude, let account = segment.account, !account.isMain else {
+            return data
+        }
+        return data.accountData[account.rawValue]
     }
 
     /// Presence / data gating, matching the pre-5.10 renderer: metrics the
@@ -447,6 +467,9 @@ enum MenuBarRenderer {
         // (`uncappedSpendColor`): neutral at zero, the warning gauge colour
         // once something is spent. Everything else, the capped pool included,
         // draws its percentage through the same path.
+        if data.showsPlaceholderValues {
+            return placeholderContent(kind: kind, style: style, data: data)
+        }
         let spend = kind == .extraCredits ? data.extraCreditsUncappedSpend : nil
         let color = spend != nil
             ? uncappedSpendColor(
@@ -483,6 +506,39 @@ enum MenuBarRenderer {
             // `.valueOnly` and any style this family does not special-case.
             return .run(NSAttributedString(string: valueText, attributes: [
                 .font: systemFont(12, .bold, monoDigits: true), .foregroundColor: color,
+            ]))
+        }
+    }
+
+    /// A usage segment with no number yet: its label as usual and "--" in
+    /// a muted colour, so it never passes for a real 0%.
+    private static func placeholderContent(kind: MenuBarSegmentKind, style: MenuBarSegmentStyle, data: RenderData) -> SegmentVisual.Content {
+        let label = usageLabel(kind, data: data)
+        let muted = NSColor.tertiaryLabelColor
+        switch style {
+        case .labelValue:
+            let s = NSMutableAttributedString()
+            s.append(NSAttributedString(string: "\(label) ", attributes: [
+                .font: systemFont(9, .medium), .foregroundColor: periodColor(data),
+            ]))
+            s.append(NSAttributedString(string: "--", attributes: [
+                .font: systemFont(12, .bold, monoDigits: true), .foregroundColor: muted,
+            ]))
+            return .run(s)
+        case .mono:
+            let s = NSMutableAttributedString()
+            s.append(NSAttributedString(string: "\(label):", attributes: [
+                .font: monoFont(11, .regular), .foregroundColor: periodColor(data),
+            ]))
+            s.append(NSAttributedString(string: "--", attributes: [
+                .font: monoFont(11, .bold), .foregroundColor: muted,
+            ]))
+            return .run(s)
+        case .pill:
+            return .pill(text: "--", tint: muted)
+        default:
+            return .run(NSAttributedString(string: "--", attributes: [
+                .font: systemFont(12, .bold, monoDigits: true), .foregroundColor: muted,
             ]))
         }
     }

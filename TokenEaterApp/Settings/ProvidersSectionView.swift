@@ -24,6 +24,7 @@ struct ProvidersSectionView: View {
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var themeStore: ThemeStore
+    @EnvironmentObject private var accountsStore: AccountsStore
 
     @State private var isRedetecting = false
     @State private var claudeMessage: String?
@@ -32,6 +33,7 @@ struct ProvidersSectionView: View {
     @State private var codexResult: ConnectionTestResult?
     @State private var isResettingClaude = false
     @State private var isResettingCodex = false
+    @State private var showsAddAccount = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
@@ -48,6 +50,8 @@ struct ProvidersSectionView: View {
                     enabled: $settingsStore.claudeEnabled
                 ) {
                     claudeActions
+                } footer: {
+                    claudeAccountsFooter
                 }
                 resultLine(claudeMessage, success: claudeSucceeded)
                 if usageStore.errorState == .rateLimited {
@@ -105,6 +109,33 @@ struct ProvidersSectionView: View {
                 )
             }
         }
+        .sheet(isPresented: $showsAddAccount) {
+            AddClaudeAccountSheet(isPresented: $showsAddAccount)
+        }
+    }
+
+    // MARK: - Claude accounts
+
+    /// What the Claude card holds beyond its connection: the accounts, and
+    /// the way to track one more. With a single account the card is the one
+    /// it always was, plus this one quiet line.
+    @ViewBuilder
+    private var claudeAccountsFooter: some View {
+        addAccountLink
+            .padding(.top, 2)
+    }
+
+    private var addAccountLink: some View {
+        Button {
+            showsAddAccount = true
+        } label: {
+            Label(String(localized: "accounts.add.link"), systemImage: "plus.circle")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(DS.Palette.textSecondary)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(String(localized: "accounts.add.link.hint"))
     }
 
     // MARK: - Per-provider actions

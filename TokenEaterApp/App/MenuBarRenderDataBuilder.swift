@@ -10,7 +10,8 @@ extension MenuBarRenderer.RenderData {
         theme: ThemeStore,
         settings: SettingsStore,
         vendor: VendorStatusStore,
-        codex: CodexUsageStore
+        codex: CodexUsageStore,
+        accounts: AccountsStore? = nil
     ) -> MenuBarRenderer.RenderData {
         /// A window the plan does not have, or a provider that is switched
         /// off, resolves to nil and its segments disappear from the bar.
@@ -26,7 +27,7 @@ extension MenuBarRenderer.RenderData {
             )
         }
 
-        return MenuBarRenderer.RenderData(
+        var data = MenuBarRenderer.RenderData(
             composition: settings.menuBarComposition,
             fiveHourPct: usage.fiveHourPct,
             sevenDayPct: usage.sevenDayPct,
@@ -71,5 +72,42 @@ extension MenuBarRenderer.RenderData {
             codexWeekly: codexSegment(.weekly),
             visibleProviders: Set(settings.activeProviders.filter { settings.activeProviderMode.shows($0) })
         )
+        // Each running added account, built the same way from its own store,
+        // for the segments pinned to it. Paused accounts are left out, so
+        // their segments step aside.
+        if let accounts, settings.claudeEnabled {
+            for id in accounts.activeAccountIDs where !id.isMain {
+                guard let store = accounts.usageStore(for: id) else { continue }
+                data.accountData[id.rawValue] = .live(
+                    usage: store, theme: theme, settings: settings, vendor: vendor, codex: codex
+                )
+            }
+        }
+        return data
+    }
+
+    /// The bar as it will look once a just-connected account is added: the
+    /// All layout with the account's segments, which show "--" until its
+    /// first refresh. Drawn in the add-account sheet; nothing is saved.
+    static func previewAddingAccount(
+        _ id: AccountID,
+        usage: UsageStore,
+        theme: ThemeStore,
+        settings: SettingsStore,
+        vendor: VendorStatusStore,
+        codex: CodexUsageStore,
+        accounts: AccountsStore
+    ) -> (before: MenuBarRenderer.RenderData, after: MenuBarRenderer.RenderData) {
+        var before = live(usage: usage, theme: theme, settings: settings, vendor: vendor, codex: codex, accounts: accounts)
+        let allLayout = settings.allModeMenuBarComposition
+        before.composition = allLayout
+        before.visibleProviders = Set(settings.activeProviders)
+        var pending = before
+        pending.accountData = [:]
+        pending.showsPlaceholderValues = true
+        var after = before
+        after.composition = allLayout.addingAccountSegments(id)
+        after.accountData[id.rawValue] = pending
+        return (before, after)
     }
 }

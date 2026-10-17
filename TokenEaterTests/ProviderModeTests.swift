@@ -416,6 +416,76 @@ struct ProviderModeTests {
         #expect(store.heroWindowKey(.claude, account: Self.work) == "claude.acct-work")
         #expect(store.heroWindowKey(.codex, account: Self.work) == "codex")
     }
+
+    // MARK: - Seeding an added account
+
+    @Test("In All, a new account gets a popover section and, when asked, its menu bar segments")
+    func seedAccountInAll() {
+        let store = makeStore()
+        defer { clean() }
+        store.claudeEnabled = true
+        store.codexEnabled = true
+        store.claudeAccounts = [mainSummary, summary(Self.work, "Work")]
+        store.seedAccount(Self.work, addToMenuBar: true)
+
+        let pinned = store.popoverComposition.elements.filter { $0.account == Self.work }
+        #expect(pinned.map(\.kind) == [.session, .weekly])
+        #expect(pinned.allSatisfy { $0.style == .chip && $0.width == .half })
+        #expect(store.menuBarComposition.segments.filter { $0.account == Self.work }.map(\.kind) == [.session, .weekly])
+
+        // Persisted under the All keys, which are the published ones here.
+        let saved = UserDefaults.standard.data(forKey: "menuBarComposition")
+            .flatMap { try? JSONDecoder().decode(MenuBarComposition.self, from: $0) }
+        #expect(saved?.segments.contains { $0.account == Self.work } == true)
+    }
+
+    @Test("Leaving the menu bar unchecked leaves it exactly as it was")
+    func seedAccountWithoutMenuBar() {
+        let store = makeStore()
+        defer { clean() }
+        let before = store.menuBarComposition
+        store.seedAccount(Self.work, addToMenuBar: false)
+        #expect(store.menuBarComposition == before)
+        #expect(store.popoverComposition.elements.contains { $0.account == Self.work })
+    }
+
+    @Test("In Codex mode, the All layouts are updated in storage and Codex's own stay put")
+    func seedAccountFromCodexMode() throws {
+        let store = makeStore()
+        defer { clean() }
+        store.claudeEnabled = true
+        store.codexEnabled = true
+        store.activeProviderMode = .codex
+        let codexPopover = store.popoverComposition
+        let codexMenuBar = store.menuBarComposition
+
+        store.seedAccount(Self.work, addToMenuBar: true)
+
+        #expect(store.popoverComposition == codexPopover)
+        #expect(store.menuBarComposition == codexMenuBar)
+        let allPopover = try #require(UserDefaults.standard.data(forKey: "popoverComposition")
+            .flatMap { try? JSONDecoder().decode(PopoverComposition.self, from: $0) })
+        #expect(allPopover.elements.filter { $0.account == Self.work }.count == 2)
+        let allMenuBar = try #require(UserDefaults.standard.data(forKey: "menuBarComposition")
+            .flatMap { try? JSONDecoder().decode(MenuBarComposition.self, from: $0) })
+        #expect(allMenuBar.segments.filter { $0.account == Self.work }.count == 2)
+
+        // Back in All, the account is there.
+        store.activeProviderMode = .all
+        #expect(store.menuBarComposition.segments.contains { $0.account == Self.work })
+        #expect(store.popoverComposition.elements.contains { $0.account == Self.work })
+    }
+
+    @Test("The main account is never seeded")
+    func seedAccountIgnoresMain() {
+        let store = makeStore()
+        defer { clean() }
+        let popover = store.popoverComposition
+        let menuBar = store.menuBarComposition
+        store.seedAccount(.main, addToMenuBar: true)
+        #expect(store.popoverComposition == popover)
+        #expect(store.menuBarComposition == menuBar)
+    }
 }
 
 /// A mode is a view of what is on, so it cannot outlive what it was a view of.

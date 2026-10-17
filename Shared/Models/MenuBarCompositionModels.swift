@@ -321,6 +321,26 @@ struct MenuBarComposition: Codable, Equatable {
     }
 
     static let `default` = MenuBarBuiltinTemplate.classic.composition
+
+    /// The layout with an added account's session and weekly segments, put
+    /// right after the last Claude segment so every Claude account reads as
+    /// one run before Codex. They copy the style of the first visible Claude
+    /// usage segment, so the new account looks like the rest of the bar.
+    /// Unchanged when the account already has a segment here.
+    func addingAccountSegments(_ id: AccountID) -> MenuBarComposition {
+        guard !id.isMain, !segments.contains(where: { $0.account == id }) else { return self }
+        let style = visibleSegments
+            .first { $0.kind.provider == .claude && $0.kind.family == .usage }?
+            .effectiveStyle ?? .labelValue
+        let added = [
+            MenuBarSegment(kind: .session, style: style, account: id),
+            MenuBarSegment(kind: .weekly, style: style, account: id),
+        ]
+        var next = self
+        let insertAt = segments.lastIndex { $0.kind.provider == .claude }.map { $0 + 1 } ?? segments.count
+        next.segments.insert(contentsOf: added, at: insertAt)
+        return next
+    }
 }
 
 // MARK: - Templates
