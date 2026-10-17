@@ -79,6 +79,34 @@ enum MenuBarRenderer {
         /// Draws "--" for every usage value: an account that is connected but
         /// has no numbers yet, as the add-account preview shows it.
         var showsPlaceholderValues: Bool = false
+        /// The mark drawn before each run of one account's Claude segments,
+        /// keyed by `AccountID.rawValue`, the main account included. Filled
+        /// only once two Claude accounts run; empty, the bar draws no marker
+        /// and keeps every rule it had with a single account.
+        var accountMarkers: [String: AccountMarker] = [:]
+        /// The account a Claude segment with no account of its own reads: the
+        /// one Claude mode is focused on, the main one everywhere else.
+        var defaultAccount: String = AccountID.main.rawValue
+        /// Whether this account has a usage snapshot at all. With several
+        /// accounts on, one that has none draws "--" in its place instead of
+        /// turning the whole bar into the logo.
+        var hasNumbers: Bool = true
+    }
+
+    /// How an account's run of segments is marked: its colour dot, and its
+    /// name unless the bar is set to dots only.
+    struct AccountMarker: Equatable {
+        /// The full name; the renderer shortens it (`AccountNameRules.menuBarLabel`).
+        let label: String
+        let colorHex: String
+    }
+
+    /// One thing the bar draws, in order: an account marker or a segment. The
+    /// plan is computed apart from the drawing so the rule "one marker per
+    /// run of an account's segments" can be checked without pixels.
+    enum PlannedVisual: Equatable {
+        case marker(String)
+        case segment(UUID)
     }
 
     /// One Codex window, in the shape the renderer needs.
@@ -114,10 +142,20 @@ enum MenuBarRenderer {
         if data.outageActive {
             return renderWithOutageBadge(data)
         }
-        if !data.hasConfig || (data.hasError && !data.isAwaitingRefresh) {
+        if !hasUsableMetrics(data) {
             return renderLogoTemplate()
         }
         return drawComposition(data).image
+    }
+
+    /// Whether the bar has numbers to draw at all. A single account with no
+    /// token or a hard error has none, and the bar shows the logo as it
+    /// always did. With several accounts on, each account answers for itself
+    /// instead: one with nothing to show draws "--" in its run, and the bar
+    /// falls back to the logo only when nothing at all is drawable.
+    private static func hasUsableMetrics(_ data: RenderData) -> Bool {
+        if !data.accountMarkers.isEmpty { return true }
+        return data.hasConfig && (!data.hasError || data.isAwaitingRefresh)
     }
 
     /// Composition render that also returns each segment's hit rectangle in the
@@ -127,7 +165,7 @@ enum MenuBarRenderer {
     /// real item, but never composes the separate outage badge (the preview is
     /// about the composition itself).
     static func renderWithHitRects(_ data: RenderData) -> (image: NSImage, hitRects: [SegmentHitRect]) {
-        if !data.hasConfig || (data.hasError && !data.isAwaitingRefresh) {
+        if !hasUsableMetrics(data) {
             return (renderLogoTemplate(), [])
         }
         return drawComposition(data)
@@ -294,8 +332,7 @@ enum MenuBarRenderer {
     /// alone — avoids compositing a template logo into a coloured image.
     private static func renderWithOutageBadge(_ data: RenderData) -> NSImage {
         let badge = renderOutageBadgeImage(data)
-        let hasMetrics = data.hasConfig && (!data.hasError || data.isAwaitingRefresh)
-        guard hasMetrics else { return badge }
+        guard hasUsableMetrics(data) else { return badge }
         let base = drawComposition(data)
         // An empty / all-filtered composition draws the template logo, which
         // would composite as static black next to the coloured badge. Show the
@@ -360,45 +397,123 @@ enum MenuBarRenderer {
     private static let pillPaddingH: CGFloat = 7
     private static let pillFont = NSFont.systemFont(ofSize: 11, weight: .bold)
 
+    /// Space between an account's marker and the first segment it marks:
+    /// tighter than between two segments, so the mark reads as part of the
+    /// run it names rather than as a segment of its own.
+    private static let markerGap: CGFloat = 3
+    private static let markerDot: CGFloat = 6
+    private static let markerFont = NSFont.systemFont(ofSize: 10, weight: .semibold)
+
     private struct SegmentVisual {
         let id: UUID
         let content: Content
         enum Content {
             case run(NSAttributedString)
             case pill(text: String, tint: NSColor)
+            /// An account's mark: its dot, then its short name when there is one.
+            case marker(dot: NSColor, name: NSAttributedString?)
         }
+
+        var isMarker: Bool {
+            if case .marker = content { return true }
+            return false
+        }
+    }
+
+    /// One drawable segment with the numbers it reads and the account whose
+    /// run it belongs to (nil for Codex and the neutral kinds, which break a
+    /// run).
+    private struct PlannedSegment {
+        let segment: MenuBarSegment
+        let source: RenderData
+        let account: String?
+    }
+
+    /// The visible segments that will draw, in order, each with its source.
+    private static func plannedSegments(_ data: RenderData) -> [PlannedSegment] {
+        let marksAccounts = !data.accountMarkers.isEmpty
+        return data.composition.visibleSegments.compactMap { segment in
+            guard var source = source(for: segment, data: data),
+                  isSegmentAvailable(segment.kind, data: source) else { return nil }
+            let account = segment.kind.provider == .claude ? accountKey(for: segment, data: data) : nil
+            // With several accounts, one with no snapshot yet (or no login)
+            // shows "--" in its run rather than a 0% or the bare logo.
+            if marksAccounts, account != nil, !source.hasNumbers {
+                source.showsPlaceholderValues = true
+            }
+            return PlannedSegment(segment: segment, source: source, account: account)
+        }
+    }
+
+    /// What the bar draws, in order: a marker before each run of consecutive
+    /// Claude segments of one account (the main account included) once two
+    /// accounts run, and every drawable segment. A Codex or neutral segment
+    /// ends a run, so an account split around one is marked twice. With a
+    /// single account there is no marker, and the plan is the segments alone.
+    static func layoutPlan(_ data: RenderData) -> [PlannedVisual] {
+        var plan: [PlannedVisual] = []
+        var run: String?
+        for planned in plannedSegments(data) {
+            if let account = planned.account, account != run, data.accountMarkers[account] != nil {
+                plan.append(.marker(account))
+            }
+            run = planned.account
+            plan.append(.segment(planned.segment.id))
+        }
+        return plan
     }
 
     /// Draws the visible, account-available segments left to right into a single
     /// image, mixing text runs and tinted pills, and returns per-segment hit
     /// rects. Falls back to the app logo when nothing is drawable, so the status
-    /// item never collapses to an invisible sliver.
+    /// item never collapses to an invisible sliver. An account marker belongs
+    /// to the segment it precedes: clicking it selects that segment.
     private static func drawComposition(_ data: RenderData) -> (image: NSImage, hitRects: [SegmentHitRect]) {
-        let visuals: [SegmentVisual] = data.composition.visibleSegments.compactMap { segment in
-            guard let source = source(for: segment, data: data),
-                  isSegmentAvailable(segment.kind, data: source) else { return nil }
-            return visual(for: segment, data: source)
+        let segments = Dictionary(plannedSegments(data).map { ($0.segment.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let visuals: [SegmentVisual] = layoutPlan(data).compactMap { step in
+            switch step {
+            case .marker(let account):
+                guard let marker = data.accountMarkers[account] else { return nil }
+                return markerVisual(marker, data: data)
+            case .segment(let id):
+                guard let planned = segments[id] else { return nil }
+                return visual(for: planned.segment, data: planned.source)
+            }
         }
-        guard !visuals.isEmpty else {
+        guard visuals.contains(where: { !$0.isMarker }) else {
             return (renderLogoTemplate(), [])
         }
 
         let widths = visuals.map { visualWidth($0) }
-        let total = widths.reduce(0, +) + segmentGap * CGFloat(max(visuals.count - 1, 0))
+        var gaps: [CGFloat] = []
+        for (i, v) in visuals.enumerated() where i < visuals.count - 1 {
+            gaps.append(v.isMarker ? markerGap : segmentGap)
+        }
+        let total = widths.reduce(0, +) + gaps.reduce(0, +)
         let imgSize = NSSize(width: ceil(total) + 2, height: imageHeight)
 
         var rects: [SegmentHitRect] = []
         var cursor: CGFloat = 1
+        var markerStart: CGFloat?
         for (i, v) in visuals.enumerated() {
-            rects.append(SegmentHitRect(id: v.id, rect: CGRect(x: cursor, y: 0, width: widths[i], height: imageHeight)))
-            cursor += widths[i] + segmentGap
+            if v.isMarker {
+                markerStart = cursor
+            } else {
+                let start = markerStart ?? cursor
+                rects.append(SegmentHitRect(
+                    id: v.id,
+                    rect: CGRect(x: start, y: 0, width: cursor + widths[i] - start, height: imageHeight)
+                ))
+                markerStart = nil
+            }
+            cursor += widths[i] + (i < gaps.count ? gaps[i] : 0)
         }
 
         let img = NSImage(size: imgSize, flipped: false) { _ in
             var x: CGFloat = 1
             for (i, v) in visuals.enumerated() {
                 drawVisual(v, at: x, width: widths[i])
-                x += widths[i] + segmentGap
+                x += widths[i] + (i < gaps.count ? gaps[i] : 0)
             }
             return true
         }
@@ -406,14 +521,34 @@ enum MenuBarRenderer {
         return (img, rects)
     }
 
+    /// The account a Claude segment reads: the one it names, or the bar's
+    /// default (the focused account in Claude mode, the main one otherwise).
+    private static func accountKey(for segment: MenuBarSegment, data: RenderData) -> String {
+        segment.account?.rawValue ?? data.defaultAccount
+    }
+
     /// The numbers a segment reads: an added account's for a Claude segment
-    /// pinned to it, the bar's own otherwise. Nil when that account is not
-    /// running, so the segment is skipped and the bar recompacts.
+    /// that resolves to it, the bar's own otherwise. Nil when that account is
+    /// not running, so the segment is skipped and the bar recompacts.
     static func source(for segment: MenuBarSegment, data: RenderData) -> RenderData? {
-        guard segment.kind.provider == .claude, let account = segment.account, !account.isMain else {
-            return data
-        }
-        return data.accountData[account.rawValue]
+        guard segment.kind.provider == .claude else { return data }
+        let account = accountKey(for: segment, data: data)
+        guard account != AccountID.main.rawValue else { return data }
+        return data.accountData[account]
+    }
+
+    /// The marker's visual. The dot carries the account's colour and nothing
+    /// else: the values after it keep their risk colours. A monochrome bar
+    /// has no colour to tell accounts apart, so it always spells the name.
+    private static func markerVisual(_ marker: AccountMarker, data: RenderData) -> SegmentVisual {
+        let showsName = data.composition.accountLabel == .dotAndName || data.menuBarMonochrome
+        let name = showsName
+            ? NSAttributedString(string: AccountNameRules.menuBarLabel(marker.label), attributes: [
+                .font: markerFont, .foregroundColor: periodColor(data),
+            ])
+            : nil
+        let dot: NSColor = data.menuBarMonochrome ? .labelColor : NSColor(hex: marker.colorHex)
+        return SegmentVisual(id: UUID(), content: .marker(dot: dot, name: name))
     }
 
     /// Presence / data gating, matching the pre-5.10 renderer: metrics the
@@ -758,6 +893,9 @@ enum MenuBarRenderer {
         case .pill(let text, _):
             let w = (text as NSString).size(withAttributes: [.font: pillFont]).width
             return ceil(w) + pillPaddingH * 2
+        case .marker(_, let name):
+            guard let name else { return markerDot }
+            return markerDot + markerGap + ceil(name.size().width)
         }
     }
 
@@ -780,6 +918,14 @@ enum MenuBarRenderer {
                 at: NSPoint(x: x + (width - ts.width) / 2, y: (imageHeight - ts.height) / 2 - 0.5),
                 withAttributes: attrs
             )
+        case .marker(let dot, let name):
+            let dotRect = NSRect(x: x, y: (imageHeight - markerDot) / 2, width: markerDot, height: markerDot)
+            dot.setFill()
+            NSBezierPath(ovalIn: dotRect).fill()
+            if let name {
+                let ts = name.size()
+                name.draw(at: NSPoint(x: x + markerDot + markerGap, y: (imageHeight - ts.height) / 2))
+            }
         }
     }
 

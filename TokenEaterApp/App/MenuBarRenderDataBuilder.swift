@@ -72,9 +72,10 @@ extension MenuBarRenderer.RenderData {
             codexWeekly: codexSegment(.weekly),
             visibleProviders: Set(settings.activeProviders.filter { settings.activeProviderMode.shows($0) })
         )
+        data.hasNumbers = usage.lastUsage != nil
         // Each running added account, built the same way from its own store,
-        // for the segments pinned to it. Paused accounts are left out, so
-        // their segments step aside.
+        // for the segments that resolve to it. Paused accounts are left out,
+        // so their segments step aside.
         if let accounts, settings.claudeEnabled {
             for id in accounts.activeAccountIDs where !id.isMain {
                 guard let store = accounts.usageStore(for: id) else { continue }
@@ -82,15 +83,43 @@ extension MenuBarRenderer.RenderData {
                     usage: store, theme: theme, settings: settings, vendor: vendor, codex: codex
                 )
             }
+            // Claude mode shows the focused account: its segments carry no
+            // account of their own and read that one.
+            let focused = settings.focusedClaudeAccount
+            if settings.activeProviderMode == .claude, !focused.isMain, data.accountData[focused.rawValue] != nil {
+                data.defaultAccount = focused.rawValue
+            }
+            if accounts.showsAccountMarkers {
+                data.accountMarkers = markers(for: accounts.activeAccountIDs, accounts: accounts)
+            }
         }
         return data
     }
 
+    /// The marker of each running account, the main one included.
+    private static func markers(
+        for ids: [AccountID],
+        accounts: AccountsStore
+    ) -> [String: MenuBarRenderer.AccountMarker] {
+        var markers: [String: MenuBarRenderer.AccountMarker] = [:]
+        for id in ids {
+            guard let record = accounts.record(for: id) else { continue }
+            markers[id.rawValue] = MenuBarRenderer.AccountMarker(label: record.name, colorHex: record.colorHex)
+        }
+        return markers
+    }
+
     /// The bar as it will look once a just-connected account is added: the
     /// All layout with the account's segments, which show "--" until its
-    /// first refresh. Drawn in the add-account sheet; nothing is saved.
+    /// first refresh, every run marked with its account since there will be
+    /// two. `name` and `colorHex` are the new account's as the sheet has them;
+    /// `mainName` is the main account's when the sheet is renaming it too.
+    /// Drawn in the add-account sheet; nothing is saved.
     static func previewAddingAccount(
         _ id: AccountID,
+        name: String,
+        colorHex: String,
+        mainName: String? = nil,
         usage: UsageStore,
         theme: ThemeStore,
         settings: SettingsStore,
@@ -102,12 +131,23 @@ extension MenuBarRenderer.RenderData {
         let allLayout = settings.allModeMenuBarComposition
         before.composition = allLayout
         before.visibleProviders = Set(settings.activeProviders)
+        before.defaultAccount = AccountID.main.rawValue
         var pending = before
         pending.accountData = [:]
+        pending.accountMarkers = [:]
         pending.showsPlaceholderValues = true
         var after = before
         after.composition = allLayout.addingAccountSegments(id)
         after.accountData[id.rawValue] = pending
+        var markers = markers(for: accounts.activeAccountIDs, accounts: accounts)
+        if let mainName, let main = markers[AccountID.main.rawValue] {
+            markers[AccountID.main.rawValue] = MenuBarRenderer.AccountMarker(
+                label: AccountNameRules.sanitize(mainName, fallback: main.label),
+                colorHex: main.colorHex
+            )
+        }
+        markers[id.rawValue] = MenuBarRenderer.AccountMarker(label: name, colorHex: colorHex)
+        after.accountMarkers = markers
         return (before, after)
     }
 }

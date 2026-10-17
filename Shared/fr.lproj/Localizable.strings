@@ -838,6 +838,10 @@
 "menuBar.editor.deleteTemplate" = "Supprimer le template";
 "menuBar.editor.preview" = "Aperçu";
 "menuBar.editor.preview.hint" = "Cliquez sur un segment pour le sélectionner dans la liste";
+"menuBar.editor.accountLabel" = "Comptes";
+"menuBar.editor.accountLabel.dot" = "Point";
+"menuBar.editor.accountLabel.dotAndName" = "Point et nom";
+"menuBar.editor.accountLabel.monochrome" = "Une barre de menus monochrome n'a pas de couleur pour distinguer les points, elle affiche donc les noms.";
 "menuBar.editor.empty" = "Vide - le menu bar affiche l'icône de l'app";
 "menuBar.editor.emptyList" = "Aucun segment. Ajoutez-en un, sinon le menu bar affiche juste l'icône.";
 

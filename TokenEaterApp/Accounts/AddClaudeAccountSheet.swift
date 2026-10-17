@@ -427,6 +427,9 @@ struct AddClaudeAccountSheet: View {
     private func menuBarChoice(_ pending: PendingAccount) -> some View {
         let preview = MenuBarRenderer.RenderData.previewAddingAccount(
             AccountID(rawValue: "acct-preview"),
+            name: AccountNameRules.sanitize(name, fallback: pending.proposedName),
+            colorHex: colorHex,
+            mainName: asksForMainName ? mainName : nil,
             usage: usageStore,
             theme: themeStore,
             settings: settingsStore,

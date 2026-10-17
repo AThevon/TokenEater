@@ -838,6 +838,10 @@
 "menuBar.editor.deleteTemplate" = "Delete template";
 "menuBar.editor.preview" = "Preview";
 "menuBar.editor.preview.hint" = "Click a segment to select it in the list";
+"menuBar.editor.accountLabel" = "Accounts";
+"menuBar.editor.accountLabel.dot" = "Dot";
+"menuBar.editor.accountLabel.dotAndName" = "Dot and name";
+"menuBar.editor.accountLabel.monochrome" = "A monochrome menu bar has no colour to tell the dots apart, so it shows the names.";
 "menuBar.editor.empty" = "Empty - the menu bar shows the app icon";
 "menuBar.editor.emptyList" = "No segments. Add one, or the menu bar shows just the app icon.";
 

@@ -530,6 +530,42 @@ private struct MenuBarLivePreview: View {
                 .foregroundStyle(.white.opacity(0.3))
                 .frame(maxWidth: .infinity)
                 .multilineTextAlignment(.center)
+
+            if settingsStore.showsAccountMarkers {
+                accountLabelPicker
+                    .padding(.top, 6)
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// How each account's run is marked, once two accounts run. Bound to a
+    /// stored field of the published composition, which is a plain
+    /// key path into storage rather than a computed forward.
+    private var accountLabelPicker: some View {
+        VStack(spacing: 5) {
+            HStack(spacing: 8) {
+                Text("menuBar.editor.accountLabel")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.5))
+                    .textCase(.uppercase)
+                    .tracking(0.8)
+                Picker("", selection: $settingsStore.menuBarComposition.accountLabel) {
+                    Text("menuBar.editor.accountLabel.dot").tag(MenuBarAccountLabel.dot)
+                    Text("menuBar.editor.accountLabel.dotAndName").tag(MenuBarAccountLabel.dotAndName)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .controlSize(.small)
+                .fixedSize()
+            }
+            if themeStore.menuBarMonochrome && settingsStore.menuBarComposition.accountLabel == .dot {
+                Text("menuBar.editor.accountLabel.monochrome")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.white.opacity(0.3))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .frame(maxWidth: .infinity)
     }
