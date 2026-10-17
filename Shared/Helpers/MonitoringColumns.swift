@@ -58,15 +58,23 @@ enum MonitoringColumns {
     /// several accounts share the page. Below it, the columns stack.
     static let minimumSideBySideWidth: CGFloat = 360
 
-    /// How the columns wrap on a page `availableWidth` wide, row by row.
+    /// The narrowest page that still puts two columns abreast once there
+    /// are more than two to lay out.
+    static func twoAbreastMinimumWidth(spacing: CGFloat) -> CGFloat {
+        minimumSideBySideWidth * CGFloat(maxPerRow) + spacing
+    }
+
+    /// How the columns wrap, row by row.
     ///
-    /// One or two columns stay on one row at any width, which is the layout
-    /// 6.0 had for Claude and Codex. From three, the columns go two by two,
-    /// in order (so Codex lands after the Claude accounts), and stack one per
-    /// row when two would be narrower than `minimumSideBySideWidth`.
-    static func rows(_ columns: [Column], availableWidth: CGFloat, spacing: CGFloat) -> [[Column]] {
-        guard columns.count > maxPerRow else { return columns.isEmpty ? [] : [columns] }
-        let perRow = (availableWidth - spacing) / 2 >= minimumSideBySideWidth ? maxPerRow : 1
+    /// One or two columns stay on one row whatever the width, which is the
+    /// layout 6.0 had for Claude and Codex. From three, the columns go two by
+    /// two in order (so Codex lands after the Claude accounts), or one per
+    /// row when the page is narrower than `twoAbreastMinimumWidth`, which the
+    /// view decides by measuring, not by storing a width.
+    static func rows(_ columns: [Column], twoAbreast: Bool) -> [[Column]] {
+        guard !columns.isEmpty else { return [] }
+        guard columns.count > maxPerRow else { return [columns] }
+        let perRow = twoAbreast ? maxPerRow : 1
         return stride(from: 0, to: columns.count, by: perRow).map {
             Array(columns[$0 ..< min($0 + perRow, columns.count)])
         }

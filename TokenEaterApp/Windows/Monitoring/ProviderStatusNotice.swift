@@ -49,7 +49,28 @@ struct ProviderStatusNotice: View {
     }
 
     private var hasContent: Bool {
-        errorMessage != nil || showsLimitReached || showsNoWindows
+        Self.hasContent(provider: provider, usageStore: usageStore, codexStore: codexStore)
+    }
+
+    private var errorMessage: String? {
+        Self.errorMessage(provider: provider, usageStore: usageStore, codexStore: codexStore)
+    }
+
+    private var showsLimitReached: Bool {
+        Self.showsLimitReached(provider: provider, codexStore: codexStore)
+    }
+
+    private var showsNoWindows: Bool {
+        Self.showsNoWindows(provider: provider, codexStore: codexStore)
+    }
+
+    /// Whether the notice draws anything, so the dashboard can leave its row
+    /// out when no column of the row has one.
+    @MainActor
+    static func hasContent(provider: MetricProvider, usageStore: UsageStore, codexStore: CodexUsageStore) -> Bool {
+        errorMessage(provider: provider, usageStore: usageStore, codexStore: codexStore) != nil
+            || showsLimitReached(provider: provider, codexStore: codexStore)
+            || showsNoWindows(provider: provider, codexStore: codexStore)
     }
 
     /// Nil while the provider is fine, and nil as well for the calm case
@@ -57,7 +78,8 @@ struct ProviderStatusNotice: View {
     /// screen: the app recovers from that by itself, and an alarm the user
     /// cannot act on is worse than no alarm. An hour after the login expired
     /// it no longer recovers by itself, and the notice says what to do (#268).
-    private var errorMessage: String? {
+    @MainActor
+    private static func errorMessage(provider: MetricProvider, usageStore: UsageStore, codexStore: CodexUsageStore) -> String? {
         switch provider {
         case .claude:
             if usageStore.errorState == .tokenUnavailable, let since = usageStore.loginExpiredSince {
@@ -84,11 +106,13 @@ struct ProviderStatusNotice: View {
         }
     }
 
-    private var showsLimitReached: Bool {
+    @MainActor
+    private static func showsLimitReached(provider: MetricProvider, codexStore: CodexUsageStore) -> Bool {
         provider == .codex && codexStore.limitReached
     }
 
-    private var showsNoWindows: Bool {
+    @MainActor
+    private static func showsNoWindows(provider: MetricProvider, codexStore: CodexUsageStore) -> Bool {
         provider == .codex
             && codexStore.windows.isEmpty
             && !codexStore.hasError

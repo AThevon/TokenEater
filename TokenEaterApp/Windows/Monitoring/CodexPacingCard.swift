@@ -11,6 +11,8 @@ struct CodexPacingCard: View {
     /// window, so string-matching it picked the weekly icon for a session
     /// pace exactly when both providers were on screen to compare.
     var isSession: Bool = false
+    /// The column's name, said in front of the label while it fits.
+    var labelPrefix: String? = nil
 
     var body: some View {
         let tint = themeStore.current.pacingColor(for: pacing.zone)
@@ -23,12 +25,10 @@ struct CodexPacingCard: View {
                         Image(systemName: isSession ? "clock.fill" : "calendar.badge.clock")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(tint)
-                        Text((windowLabel.isEmpty
-                              ? String(localized: "pacing.weekly.label")
-                              : windowLabel).uppercased())
-                            .font(DS.Typography.micro)
-                            .tracking(1.4)
-                            .foregroundStyle(DS.Palette.textSecondary)
+                        DashboardCardLabel(
+                            label: windowLabel.isEmpty ? String(localized: "pacing.weekly.label") : windowLabel,
+                            prefix: labelPrefix
+                        )
                     }
                     HStack(spacing: DS.Spacing.xxs) {
                         Circle().fill(tint).frame(width: 5, height: 5)
@@ -78,5 +78,29 @@ struct CodexPacingCard: View {
         case .warning: String(localized: "pacing.zone.warning")
         case .hot: String(localized: "pacing.zone.hot")
         }
+    }
+}
+
+/// A pacing card's label: one line, the column's name in front of it while
+/// it fits and dropped first when it does not, like the small cards.
+struct DashboardCardLabel: View {
+    let label: String
+    var prefix: String? = nil
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            if let prefix {
+                text(prefix + " · " + label)
+            }
+            text(label)
+        }
+    }
+
+    private func text(_ value: String) -> some View {
+        Text(value.uppercased())
+            .font(DS.Typography.micro)
+            .tracking(1.4)
+            .foregroundStyle(DS.Palette.textSecondary)
+            .lineLimit(1)
     }
 }

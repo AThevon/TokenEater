@@ -17,11 +17,17 @@ struct MonitoringView: View {
     @EnvironmentObject private var vendorStatusStore: VendorStatusStore
     @EnvironmentObject private var accountsStore: AccountsStore
 
-    /// Set when this view draws one added Claude account as a column of the
-    /// All dashboard: only that account's Claude blocks, over the account's
-    /// own `UsageStore`, which the caller injects into the environment. No
-    /// header and no scroll view, since the page around it has both.
+    /// Set when this view draws one cell of an added Claude account's column
+    /// in the All dashboard: the `embeddedSlot` row of that account, over the
+    /// account's own `UsageStore`, which the caller injects into the
+    /// environment. No header and no scroll view, since the page around it
+    /// has both.
     var embeddedAccount: AccountID? = nil
+    /// Which row of its column an embedded copy draws.
+    var embeddedSlot: DashboardSlot = .notice
+    /// Whether an embedded copy lays its pacing cards side by side, which a
+    /// column does once it has the page's width to itself.
+    var embeddedPacingAbreast: Bool = false
 
     /// Lightweight 7d daily-buckets store for the back-of-card stats.
     /// Loaded once on appear, refreshed if older than 60s. The main
@@ -38,18 +44,13 @@ struct MonitoringView: View {
     @State private var heroFlipped: Bool = false
     @State private var heroBlurProgress: CGFloat = 0
     @State private var heroFlipping: Bool = false
-    /// The width the columns share, measured, so they can wrap two by two.
-    @State private var columnsWidth: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.glowIntensity) private var glowIntensity
 
     var body: some View {
         if embeddedAccount != nil {
-            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                ProviderStatusNotice(provider: .claude)
-                blocks(for: .claude)
-            }
-            .onAppear { insightsStore.warmIfStale() }
+            slotContent(embeddedSlot, provider: .claude, pacingAbreast: embeddedPacingAbreast)
+                .onAppear { insightsStore.warmIfStale() }
         } else {
             page
         }
@@ -61,10 +62,10 @@ struct MonitoringView: View {
                 header
 
                 // One ordered list drives all three modes. A provider mode
-                // renders it once; All renders it once per column, side by
-                // side, which is what makes the columns line up row for row
-                // without anything coordinating them. The order and the
-                // visibility come from Studio.
+                // renders it once; All lays it out block by block across the
+                // columns of each row, so a block starts at the same height
+                // in every column of the row whatever the blocks above it
+                // hold. The order and the visibility come from Studio.
                 if isComparing {
                     comparison
                 } else if let column = columns.first {
@@ -149,7 +150,11 @@ struct MonitoringView: View {
     }
 
     var claudeHeroWindow: ClaudeHeroWindow {
-        settingsStore.heroWindow(for: .claude, account: heroAccount)
+        claudeHeroWindow(for: heroAccount)
+    }
+
+    private func claudeHeroWindow(for account: AccountID) -> ClaudeHeroWindow {
+        settingsStore.heroWindow(for: .claude, account: account)
             .flatMap(ClaudeHeroWindow.init(rawValue:)) ?? .session
     }
 
@@ -211,68 +216,164 @@ struct MonitoringView: View {
         embeddedAccount != nil || columns.count > 1
     }
 
+    /// The columns All compares. An added account whose store is not there
+    /// yet (just added, or resumed) is left out rather than drawn as a hole
+    /// its neighbour would spread into.
+    private var comparisonColumns: [MonitoringColumns.Column] {
+        columns.filter { column in
+            guard case .claude(let account) = column, !account.isMain else { return true }
+            return accountsStore.usageStore(for: account) != nil
+        }
+    }
+
     /// The All comparison: the columns two by two at most, never three
-    /// abreast, stacking one per row when the window is too narrow for two.
+    /// abreast, stacking one per row when the page is too narrow for two.
     /// One or two columns stay side by side as they did in 6.0.
+    ///
+    /// The width decides through `ViewThatFits`, not a measured `@State`:
+    /// nothing to store on every frame of a resize, nothing stale after a
+    /// mode switch, and the first frame is already the right layout.
+    @ViewBuilder
     private var comparison: some View {
-        let rows = MonitoringColumns.rows(columns, availableWidth: columnsWidth, spacing: DS.Spacing.md)
+        let shown = comparisonColumns
+        Group {
+            if shown.count > MonitoringColumns.maxPerRow {
+                let minimum = MonitoringColumns.twoAbreastMinimumWidth(spacing: DS.Spacing.md)
+                ViewThatFits(in: .horizontal) {
+                    columnRows(shown, twoAbreast: true)
+                        .frame(minWidth: minimum, idealWidth: minimum, maxWidth: .infinity)
+                    columnRows(shown, twoAbreast: false)
+                }
+            } else {
+                columnRows(shown, twoAbreast: true)
+            }
+        }
+        .environment(\.dashboardColumnHeaded, columnsAreHeaded)
+    }
+
+    private func columnRows(_ columns: [MonitoringColumns.Column], twoAbreast: Bool) -> some View {
+        let rows = MonitoringColumns.rows(columns, twoAbreast: twoAbreast)
         let sideBySide = rows.contains { $0.count > 1 }
         return VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                HStack(alignment: .top, spacing: DS.Spacing.md) {
+            ForEach(rows, id: \.self) { row in
+                columnRow(row, cells: sideBySide ? MonitoringColumns.maxPerRow : 1, sideBySide: sideBySide)
+            }
+        }
+        .environment(\.dashboardTilesPerRow, MetricsGridLayout.maxPerRow(sideBySide: sideBySide))
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// One row of columns, laid out slot by slot: the headers, the notices,
+    /// then each block, every column's cell at the same width and starting
+    /// at the same height. A column without the block keeps an empty cell,
+    /// and a slot no column of the row has is left out. A last row with one
+    /// column left keeps it the width of the columns above.
+    private func columnRow(_ row: [MonitoringColumns.Column], cells: Int, sideBySide: Bool) -> some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            ForEach(slots(for: row), id: \.self) { slot in
+                EqualWidthRow(spacing: DS.Spacing.md) {
                     ForEach(row) { column in
-                        columnView(column)
+                        Group {
+                            if hasContent(slot, in: column) {
+                                cell(slot, of: column, pacingAbreast: !sideBySide)
+                            } else {
+                                Color.clear.frame(height: 0)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .transition(.glanceCard)
                     }
-                    // A last row with one column left keeps it the width of
-                    // the columns above, so a column reads the same in every
-                    // row and its cards never spread to the full page.
-                    if sideBySide && row.count < MonitoringColumns.maxPerRow {
-                        Color.clear
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 0)
+                    ForEach(row.count ..< max(row.count, cells), id: \.self) { _ in
+                        Color.clear.frame(height: 0)
                     }
                 }
             }
         }
-        .environment(\.dashboardTilesPerRow, MetricsGridLayout.maxPerRow(sideBySide: sideBySide))
-        .environment(\.dashboardColumnHeaded, columnsAreHeaded)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            GeometryReader { geo in
-                Color.clear
-                    .onAppear { columnsWidth = geo.size.width }
-                    .onChange(of: geo.size.width) { _, width in columnsWidth = width }
-            }
-        )
     }
 
-    /// One column of the All comparison. The main account and Codex draw
-    /// here as they always have; an added account draws through an embedded
-    /// copy of this view over its own `UsageStore`.
+    /// The slots a row draws, in order: only those at least one of its
+    /// columns has.
+    private func slots(for row: [MonitoringColumns.Column]) -> [DashboardSlot] {
+        let candidates: [DashboardSlot] = [.header, .notice]
+            + settingsStore.dashboardComposition.visibleBlocks.map(DashboardSlot.block)
+        return candidates.filter { slot in row.contains { hasContent(slot, in: $0) } }
+    }
+
+    /// The store a Claude column reads. In All, the page's own store is the
+    /// main account's.
+    private func store(for column: MonitoringColumns.Column) -> UsageStore? {
+        guard case .claude(let account) = column else { return nil }
+        return account.isMain ? usageStore : accountsStore.usageStore(for: account)
+    }
+
+    /// Whether a column draws anything in a slot, read from the same state
+    /// the cell renders from.
+    private func hasContent(_ slot: DashboardSlot, in column: MonitoringColumns.Column) -> Bool {
+        switch slot {
+        case .header:
+            return settingsStore.showsAccountMarkers
+        case .notice:
+            guard let claude = store(for: column) ?? (column == .codex ? usageStore : nil) else { return false }
+            return ProviderStatusNotice.hasContent(provider: column.provider, usageStore: claude, codexStore: codexStore)
+        case .block(let block):
+            guard block.providers.contains(column.provider) else { return false }
+            switch (block, column) {
+            case (.hero, _):
+                return true
+            case (.windows, .claude(let account)):
+                guard let store = store(for: column) else { return false }
+                return !claudeGridTiles(of: store, account: account).isEmpty
+            case (.windows, .codex):
+                return !codexGridWindows.isEmpty
+            case (.pacing, .claude):
+                guard let store = store(for: column) else { return false }
+                return store.fiveHourPacing != nil || store.pacingResult != nil
+            case (.pacing, .codex):
+                return codexStore.windows.contains { $0.pacing != nil }
+            case (.extraCredits, .claude):
+                return store(for: column)?.extraUsage?.isEnabled == true
+            case (.extraCredits, .codex):
+                return false
+            case (.footer, .claude):
+                return store(for: column).map { !claudePills($0).isEmpty } ?? false
+            case (.footer, .codex):
+                return !CodexFooterPills.pills(codexStore).isEmpty
+            }
+        }
+    }
+
+    /// One cell of the comparison. The main account and Codex draw here as
+    /// they always have; an added account draws through an embedded copy of
+    /// this view over its own `UsageStore`.
     @ViewBuilder
-    private func columnView(_ column: MonitoringColumns.Column) -> some View {
-        switch column {
-        case .claude(let account) where !account.isMain:
+    private func cell(_ slot: DashboardSlot, of column: MonitoringColumns.Column, pacingAbreast: Bool) -> some View {
+        switch (slot, column) {
+        case (.header, _):
+            columnHeader(column)
+        case (_, .claude(let account)) where !account.isMain:
             if let store = accountsStore.usageStore(for: account) {
-                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                    columnHeader(column)
-                    MonitoringView(
-                        embeddedAccount: account,
-                        insightsStore: accountsStore.insightsStore(for: account) ?? insightsStore
-                    )
-                        .environmentObject(store)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .transition(.glanceCard)
+                MonitoringView(
+                    embeddedAccount: account,
+                    embeddedSlot: slot,
+                    embeddedPacingAbreast: pacingAbreast,
+                    insightsStore: accountsStore.insightsStore(for: account) ?? insightsStore
+                )
+                    .environmentObject(store)
             }
         default:
-            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                columnHeader(column)
-                ProviderStatusNotice(provider: column.provider)
-                blocks(for: column.provider)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .transition(.glanceCard)
+            slotContent(slot, provider: column.provider, pacingAbreast: pacingAbreast)
+        }
+    }
+
+    @ViewBuilder
+    private func slotContent(_ slot: DashboardSlot, provider: MetricProvider, pacingAbreast: Bool) -> some View {
+        switch slot {
+        case .header:
+            EmptyView()
+        case .notice:
+            ProviderStatusNotice(provider: provider)
+        case .block(let block):
+            blockContent(block, for: provider, pacingAbreast: pacingAbreast)
         }
     }
 
@@ -301,18 +402,19 @@ struct MonitoringView: View {
     }
 
 
-    /// Renders one provider's blocks, in the order Studio put them.
+    /// Renders one provider's blocks, in the order Studio put them, for a
+    /// page with a single column.
     @ViewBuilder
     private func blocks(for provider: MetricProvider) -> some View {
         ForEach(settingsStore.dashboardComposition.visibleBlocks) { block in
             if block.providers.contains(provider) {
-                blockContent(block, for: provider)
+                blockContent(block, for: provider, pacingAbreast: true)
             }
         }
     }
 
     @ViewBuilder
-    private func blockContent(_ block: DashboardBlock, for provider: MetricProvider) -> some View {
+    private func blockContent(_ block: DashboardBlock, for provider: MetricProvider, pacingAbreast: Bool) -> some View {
         switch (block, provider) {
         case (.hero, .claude):
             heroTile
@@ -331,15 +433,10 @@ struct MonitoringView: View {
 
         case (.windows, .claude):
             // The hero already shows one window, so the grid never repeats it.
-            // In every mode: the duplicate showed up as soon as the hero was
-            // pinned to Weekly, which a Claude-only user can do just as well.
-            grid(of: secondaryTiles
-                .filter { $0.id != claudeHeroTileID }
+            grid(of: claudeGridTiles(of: usageStore, account: heroAccount)
                 .map { labelled($0, for: .claude) })
         case (.windows, .codex):
-            grid(of: codexStore.windows
-                .sorted { $0.windowDuration < $1.windowDuration }
-                .filter { $0.id != codexHeroWindow?.id }
+            grid(of: codexGridWindows
                 .map { window in
                     labelled(TileDescriptor(
                         id: "codex-" + window.id,
@@ -353,9 +450,9 @@ struct MonitoringView: View {
                 })
 
         case (.pacing, .claude):
-            claudePacing
+            claudePacing(abreast: pacingAbreast)
         case (.pacing, .codex):
-            codexPacing
+            codexPacing(abreast: pacingAbreast)
 
         case (.extraCredits, .claude):
             if let extra = usageStore.extraUsage, extra.isEnabled {
@@ -371,60 +468,68 @@ struct MonitoringView: View {
         }
     }
 
-    /// Stacked in a column, side by side on a single-provider page: the
-    /// pacing row has always been two cards abreast and that is the layout
-    /// Claude alone keeps.
+    /// Side by side when the column has the page's width (a single-provider
+    /// page, or a column stacked alone on its row), one under the other in a
+    /// column that shares the page: the pacing row has always been two cards
+    /// abreast where there was room for it.
     @ViewBuilder
-    private var claudePacing: some View {
+    private func claudePacing(abreast: Bool) -> some View {
         let cards = [
             usageStore.fiveHourPacing.map {
-                (pacing: $0, label: labelled(String(localized: "pacing.session.label"), for: .claude),
+                (pacing: $0, label: String(localized: "pacing.session.label"),
                  icon: "clock.fill", workweek: false, cooldown: false)
             },
             usageStore.pacingResult.map {
-                (pacing: $0, label: labelled(String(localized: "pacing.weekly.label"), for: .claude),
+                (pacing: $0, label: String(localized: "pacing.weekly.label"),
                  icon: "calendar.badge.clock", workweek: true, cooldown: true)
             },
         ].compactMap { $0 }
+        let prefix = labelPrefix(for: .claude)
 
-        if isComparing {
-            ForEach(Array(cards.enumerated()), id: \.offset) { _, card in
-                pacingCard(pacing: card.pacing, label: card.label, icon: card.icon,
-                           showWorkweekBadge: card.workweek, showCooldown: card.cooldown)
-            }
-        } else {
+        if abreast {
             HStack(spacing: DS.Spacing.sm) {
                 ForEach(Array(cards.enumerated()), id: \.offset) { _, card in
-                    pacingCard(pacing: card.pacing, label: card.label, icon: card.icon,
+                    pacingCard(pacing: card.pacing, label: card.label, prefix: prefix, icon: card.icon,
                                showWorkweekBadge: card.workweek, showCooldown: card.cooldown)
                         .frame(maxWidth: .infinity)
+                }
+            }
+        } else {
+            VStack(spacing: DS.Spacing.sm) {
+                ForEach(Array(cards.enumerated()), id: \.offset) { _, card in
+                    pacingCard(pacing: card.pacing, label: card.label, prefix: prefix, icon: card.icon,
+                               showWorkweekBadge: card.workweek, showCooldown: card.cooldown)
                 }
             }
         }
     }
 
     @ViewBuilder
-    private var codexPacing: some View {
+    private func codexPacing(abreast: Bool) -> some View {
         let windows = codexStore.windows
             .sorted { $0.windowDuration < $1.windowDuration }
             .filter { $0.pacing != nil }
-        if isComparing {
-            ForEach(windows) { window in
-                CodexPacingCard(
-                    pacing: window.pacing!,
-                    windowLabel: labelled(codexPacingLabel(window), for: .codex),
-                    isSession: window.kind == .session
-                )
-            }
-        } else {
+        if abreast {
             HStack(spacing: DS.Spacing.sm) {
                 ForEach(windows) { window in
                     CodexPacingCard(
                         pacing: window.pacing!,
-                        windowLabel: labelled(codexPacingLabel(window), for: .codex),
-                        isSession: window.kind == .session
+                        windowLabel: codexPacingLabel(window),
+                        isSession: window.kind == .session,
+                        labelPrefix: labelPrefix(for: .codex)
                     )
                     .frame(maxWidth: .infinity)
+                }
+            }
+        } else {
+            VStack(spacing: DS.Spacing.sm) {
+                ForEach(windows) { window in
+                    CodexPacingCard(
+                        pacing: window.pacing!,
+                        windowLabel: codexPacingLabel(window),
+                        isSession: window.kind == .session,
+                        labelPrefix: labelPrefix(for: .codex)
+                    )
                 }
             }
         }
@@ -445,8 +550,23 @@ struct MonitoringView: View {
     /// Which tile the Claude hero is already showing, so the grid can skip it.
     /// Nil when the hero shows the 5-hour window, which has no tile of its own
     /// in the grid, so nothing is filtered out.
-    private var claudeHeroTileID: String? {
-        claudeHeroWindow == .weekly ? "weekly" : nil
+    private func claudeHeroTileID(for account: AccountID) -> String? {
+        claudeHeroWindow(for: account) == .weekly ? "weekly" : nil
+    }
+
+    /// The small cards of a Claude column: every window but the one its hero
+    /// already shows. In every mode: the duplicate showed up as soon as the
+    /// hero was pinned to Weekly, which a Claude-only user can do as well.
+    private func claudeGridTiles(of store: UsageStore, account: AccountID) -> [TileDescriptor] {
+        let heroTile = claudeHeroTileID(for: account)
+        return secondaryTiles(of: store).filter { $0.id != heroTile }
+    }
+
+    /// Codex's small cards: every window but the hero's.
+    private var codexGridWindows: [CodexWindowSnapshot] {
+        codexStore.windows
+            .sorted { $0.windowDuration < $1.windowDuration }
+            .filter { $0.id != codexHeroWindow?.id }
     }
 
     private var codexHeroWindow: CodexWindowSnapshot? {
@@ -471,11 +591,6 @@ struct MonitoringView: View {
     /// 6.0; none otherwise.
     private func labelPrefix(for provider: MetricProvider) -> String? {
         isComparing && !columnsAreHeaded ? columnName(for: provider) : nil
-    }
-
-    /// One rule for every card label on this page, see `labelPrefix`.
-    private func labelled(_ base: String, for provider: MetricProvider) -> String {
-        labelPrefix(for: provider).map { $0 + " · " + base } ?? base
     }
 
     /// The name a card label gives its column: the provider, or once two
@@ -750,98 +865,128 @@ struct MonitoringView: View {
         pacing: PacingResult?,
         resetDate: Date?
     ) -> some View {
-        HStack(alignment: .center, spacing: DS.Spacing.lg) {
-            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                HStack(spacing: DS.Spacing.xs) {
-                    ProviderGlyph(provider: .claude, size: 11)
-                        .foregroundStyle(gaugeColor)
-                        .dsGlow(gaugeColor, radius: 4, opacity: 0.6)
-                    Text(columnsAreHeaded ? "PACING" : columnName(for: .claude).uppercased() + " · PACING")
-                        .font(DS.Typography.micro)
-                        .tracking(1.5)
-                        .foregroundStyle(DS.Palette.textSecondary)
-                    Spacer(minLength: 0)
-                    if let pacing {
-                        Text(String(format: "%+.1f%%", pacing.delta))
-                            .font(.system(size: 10, weight: .bold, design: .rounded))
-                            .foregroundStyle(pacing.delta > 0 ? DS.Palette.semanticWarning : DS.Palette.brandPrimary)
-                            .monospacedDigit()
-                    }
-                }
+        // The live column gives way before the graph does: full, then
+        // without its caption, then gone, so a narrow column keeps a graph
+        // wide enough to read and a header that is not cut.
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: DS.Spacing.lg) {
+                heroBackPacing(gaugeColor: gaugeColor, zone: zone, pacing: pacing)
+                    .frame(minWidth: 170, maxWidth: .infinity, alignment: .leading)
+                heroBackLive(gaugeColor: gaugeColor, compact: false)
+            }
+            HStack(alignment: .center, spacing: DS.Spacing.md) {
+                heroBackPacing(gaugeColor: gaugeColor, zone: zone, pacing: pacing)
+                    .frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
+                heroBackLive(gaugeColor: gaugeColor, compact: true)
+            }
+            heroBackPacing(gaugeColor: gaugeColor, zone: zone, pacing: pacing)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
 
+    /// "PACING", with the column's name in front when no header names it.
+    private var pacingTitle: String {
+        let pacing = String(localized: "pacing.label").uppercased()
+        return columnsAreHeaded ? pacing : columnName(for: .claude).uppercased() + " · " + pacing
+    }
+
+    @ViewBuilder
+    private func heroBackPacing(gaugeColor: Color, zone: PacingZone?, pacing: PacingResult?) -> some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            HStack(spacing: DS.Spacing.xs) {
+                ProviderGlyph(provider: .claude, size: 11)
+                    .foregroundStyle(gaugeColor)
+                    .dsGlow(gaugeColor, radius: 4, opacity: 0.6)
+                Text(pacingTitle)
+                    .lineLimit(1)
+                    .font(DS.Typography.micro)
+                    .tracking(1.5)
+                    .foregroundStyle(DS.Palette.textSecondary)
+                Spacer(minLength: 0)
                 if let pacing {
-                    HeroPacingGraph(
-                        actualUsage: pacing.actualUsage,
-                        expectedUsage: pacing.expectedUsage,
-                        deltaColor: pacing.delta > 0 ? DS.Palette.semanticWarning : DS.Palette.brandPrimary,
-                        trajectoryColor: gaugeColor,
-                        trajectory: PacingSampleBuffer.trajectory(
-                            usageStore.sessionSamples,
-                            resetDate: usageStore.lastUsage?.fiveHour?.resetsAtDate,
-                            windowDuration: 5 * 3600
-                        )
-                    )
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 92)
-                } else {
-                    Spacer(minLength: 0)
-                    Text("Pacing data unavailable")
-                        .font(.system(size: 10))
-                        .foregroundStyle(DS.Palette.textTertiary)
-                    Spacer(minLength: 0)
-                }
-
-                if let zone {
-                    HStack(spacing: 6) {
-                        Image(systemName: zoneGlyph(for: zone))
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(themeStore.current.pacingColor(for: zone))
-                        Text(zoneLabel(zone).uppercased())
-                            .font(.system(size: 10, weight: .bold))
-                            .tracking(1)
-                            .foregroundStyle(themeStore.current.pacingColor(for: zone))
-                    }
+                    Text(String(format: "%+.1f%%", pacing.delta))
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(pacing.delta > 0 ? DS.Palette.semanticWarning : DS.Palette.brandPrimary)
+                        .monospacedDigit()
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Right column: live session activity. Sessions count is the
-            // headline number; top model fills the line below. Pulls
-            // from SessionStore (kept in sync by the overlay watcher),
-            // narrowed to the sessions running in this card's account folder.
-            VStack(alignment: .trailing, spacing: 6) {
-                Text("LIVE")
-                    .font(DS.Typography.micro)
-                    .tracking(1.2)
+            if let pacing {
+                HeroPacingGraph(
+                    actualUsage: pacing.actualUsage,
+                    expectedUsage: pacing.expectedUsage,
+                    deltaColor: pacing.delta > 0 ? DS.Palette.semanticWarning : DS.Palette.brandPrimary,
+                    trajectoryColor: gaugeColor,
+                    trajectory: PacingSampleBuffer.trajectory(
+                        usageStore.sessionSamples,
+                        resetDate: usageStore.lastUsage?.fiveHour?.resetsAtDate,
+                        windowDuration: 5 * 3600
+                    )
+                )
+                .frame(maxWidth: .infinity)
+                .frame(height: 92)
+            } else {
+                Spacer(minLength: 0)
+                Text("Pacing data unavailable")
+                    .font(.system(size: 10))
                     .foregroundStyle(DS.Palette.textTertiary)
+                Spacer(minLength: 0)
+            }
 
-                let count = sessionStore.activeSessions(for: heroAccount).count
-                Text("\(count)")
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
-                    .foregroundStyle(count > 0 ? DS.Palette.textPrimary : DS.Palette.textTertiary)
-                    .monospacedDigit()
-                    .contentTransition(.numericText(value: Double(count)))
-                    .animation(DS.Motion.springLiquid, value: count)
+            if let zone {
+                HStack(spacing: 6) {
+                    Image(systemName: zoneGlyph(for: zone))
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(themeStore.current.pacingColor(for: zone))
+                    Text(zoneLabel(zone).uppercased())
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(1)
+                        .foregroundStyle(themeStore.current.pacingColor(for: zone))
+                }
+            }
+        }
+    }
+
+    /// Right column: live session activity. Sessions count is the headline
+    /// number; top model fills the line below. Pulls from SessionStore (kept
+    /// in sync by the overlay watcher), narrowed to the sessions running in
+    /// this card's account folder.
+    private func heroBackLive(gaugeColor: Color, compact: Bool) -> some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            Text("LIVE")
+                .font(DS.Typography.micro)
+                .tracking(1.2)
+                .foregroundStyle(DS.Palette.textTertiary)
+
+            let count = sessionStore.activeSessions(for: heroAccount).count
+            Text("\(count)")
+                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .foregroundStyle(count > 0 ? DS.Palette.textPrimary : DS.Palette.textTertiary)
+                .monospacedDigit()
+                .contentTransition(.numericText(value: Double(count)))
+                .animation(DS.Motion.springLiquid, value: count)
+            if !compact {
                 Text(count == 1 ? "active session" : "active sessions")
                     .font(.system(size: 9, weight: .medium))
                     .tracking(0.8)
                     .foregroundStyle(DS.Palette.textTertiary)
                     .textCase(.uppercase)
-
-                if let topModel = sessionStore.topActiveModelName(for: heroAccount) {
-                    HStack(spacing: 5) {
-                        Circle()
-                            .fill(gaugeColor)
-                            .frame(width: 5, height: 5)
-                        Text(topModel)
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                            .foregroundStyle(DS.Palette.textSecondary)
-                    }
-                    .padding(.top, 2)
-                }
             }
-            .frame(width: 160, height: 160)
+
+            if let topModel = sessionStore.topActiveModelName(for: heroAccount) {
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(gaugeColor)
+                        .frame(width: 5, height: 5)
+                    Text(topModel)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(DS.Palette.textSecondary)
+                        .lineLimit(1)
+                }
+                .padding(.top, 2)
+            }
         }
+        .frame(width: compact ? 84 : 160, height: 160)
     }
 
     private func statValue(label: String, value: String, color: Color) -> some View {
@@ -906,7 +1051,7 @@ struct MonitoringView: View {
         )
     }
 
-    private var secondaryTiles: [TileDescriptor] {
+    private func secondaryTiles(of usageStore: UsageStore) -> [TileDescriptor] {
         let weekWindow: TimeInterval = 7 * 86_400
         var tiles: [TileDescriptor] = [
             TileDescriptor(
@@ -971,7 +1116,7 @@ struct MonitoringView: View {
 
     // MARK: - Pacing row
 
-    private func pacingCard(pacing: PacingResult, label: String, icon: String, showWorkweekBadge: Bool = false, showCooldown: Bool = false) -> some View {
+    private func pacingCard(pacing: PacingResult, label: String, prefix: String?, icon: String, showWorkweekBadge: Bool = false, showCooldown: Bool = false) -> some View {
         let tint = themeStore.current.pacingColor(for: pacing.zone)
         let sign = pacing.delta >= 0 ? "+" : ""
         // "back to 0% in 3d 14h" when ahead of pace (#245). Takes the caption
@@ -999,10 +1144,7 @@ struct MonitoringView: View {
                         Image(systemName: icon)
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(tint)
-                        Text(label.uppercased())
-                            .font(DS.Typography.micro)
-                            .tracking(1.4)
-                            .foregroundStyle(DS.Palette.textSecondary)
+                        DashboardCardLabel(label: label, prefix: prefix)
                         if showWorkweekBadge {
                             WorkweekBadge(schedule: settingsStore.pacingSchedule, tint: DS.Palette.textTertiary)
                         }
@@ -1174,15 +1316,20 @@ struct MonitoringView: View {
     // MARK: - Footer pills
 
     private var footerPills: some View {
-        HStack(spacing: DS.Spacing.xs) {
-            if let tier = usageStore.rateLimitTier {
-                DashboardStatusPill(icon: "sparkles", label: String(localized: "dashboard.tier"), value: tier.formattedRateLimitTier, tint: DS.Palette.accentStats)
-            }
-            if let org = usageStore.organizationName {
-                DashboardStatusPill(icon: "building.2.fill", label: String(localized: "dashboard.org"), value: org, tint: DS.Palette.accentHistory)
-            }
-            Spacer()
+        DashboardPillRow(pills: claudePills(usageStore))
+    }
+
+    private func claudePills(_ store: UsageStore) -> [DashboardPill] {
+        var pills: [DashboardPill] = []
+        if let tier = store.rateLimitTier {
+            pills.append(DashboardPill(id: "tier", icon: "sparkles", label: String(localized: "dashboard.tier"),
+                                       value: tier.formattedRateLimitTier, tint: DS.Palette.accentStats))
         }
+        if let org = store.organizationName {
+            pills.append(DashboardPill(id: "org", icon: "building.2.fill", label: String(localized: "dashboard.org"),
+                                       value: org, tint: DS.Palette.accentHistory))
+        }
+        return pills
     }
 
     // MARK: - Helpers
@@ -1340,4 +1487,12 @@ private struct DashboardAccountPlanBadges: View {
     private func store(for account: AccountID) -> UsageStore? {
         settingsStore.activeProviderMode == .claude ? usageStore : accountsStore.usageStore(for: account)
     }
+}
+
+/// One row of a column in the All comparison: the column's header, its
+/// status notice, or one of the blocks Studio orders.
+enum DashboardSlot: Hashable {
+    case header
+    case notice
+    case block(DashboardBlock)
 }

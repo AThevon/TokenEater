@@ -36,6 +36,10 @@ struct MetricTile: View {
     /// back face show a "loading..." placeholder vs a "no data" one.
     let insightsLoaded: Bool
 
+    /// Set by the grid for all its cards at once; nil lets this card shed
+    /// words on its own.
+    @Environment(\.dashboardTileStyle) private var style
+
     @State private var isHovered: Bool = false
     @State private var showBack: Bool = false
     @State private var blurProgress: CGFloat = 0
@@ -133,12 +137,16 @@ struct MetricTile: View {
 
             Group {
                 if let resetText, !resetText.isEmpty {
-                    // Sheds the "resets in" words, then the clock time, before
-                    // anything would truncate.
-                    ViewThatFits(in: .horizontal) {
-                        resetLine(resetText, words: true, absolute: true)
-                        resetLine(resetText, words: false, absolute: true)
-                        resetLine(resetText, words: false, absolute: false)
+                    if let style {
+                        resetLine(resetText, words: style.resetWords, absolute: style.clock)
+                    } else {
+                        // Sheds the "resets in" words, then the clock time,
+                        // before anything would truncate.
+                        ViewThatFits(in: .horizontal) {
+                            resetLine(resetText, words: true, absolute: true)
+                            resetLine(resetText, words: false, absolute: true)
+                            resetLine(resetText, words: false, absolute: false)
+                        }
                     }
                 } else {
                     Text(" ")
@@ -153,13 +161,22 @@ struct MetricTile: View {
     /// The tile's label, with the column's name in front while it fits and
     /// without it once it does not. The name is what goes first: the tile's
     /// place under its column's hero still says whose it is.
+    /// The back face adds its window ("7D"), which goes before the label
+    /// would be cut.
     private func tileLabel(suffix: String?) -> some View {
-        let tail = suffix.map { " · " + $0 } ?? ""
+        let named = labelPrefix.flatMap { prefix in (style?.prefix ?? true) ? prefix : nil }
         return ViewThatFits(in: .horizontal) {
-            if let labelPrefix {
-                tileLabelText(labelPrefix + " · " + label + tail)
+            if let named {
+                tileLabelText(named + " · " + label + (suffix.map { " · " + $0 } ?? ""))
             }
-            tileLabelText(label + tail)
+            // With a style set by the grid the name is either always there
+            // or never, so cards side by side keep reading alike.
+            if named == nil || style == nil {
+                tileLabelText(label + (suffix.map { " · " + $0 } ?? ""))
+            }
+            if suffix != nil {
+                tileLabelText(label)
+            }
         }
     }
 

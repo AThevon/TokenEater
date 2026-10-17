@@ -113,19 +113,15 @@ struct ProviderHeroFace: View {
                 }
 
                 // Never truncated: this number is what the card is for. The
-                // ring gives way before it does.
-                HStack(alignment: .firstTextBaseline, spacing: 2) {
-                    Text("\(pct)")
-                        .font(.system(size: 64, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(gaugeColor)
-                        .dsGlow(gaugeColor, radius: 10, opacity: 0.45)
-                        .contentTransition(.numericText(value: Double(pct)))
-                        .animation(DS.Motion.springLiquid, value: pct)
-                    Text("%")
-                        .font(.system(size: 26, weight: .heavy, design: .rounded))
-                        .foregroundStyle(gaugeColor.opacity(0.55))
-                        .baselineOffset(5)
+                // ring gives way before it does. The face measures itself
+                // as if it read 100%, so two cards side by side settle on
+                // the same ring whatever their numbers, and a card does not
+                // change shape when its number gains a digit.
+                ZStack(alignment: .leading) {
+                    number("100")
+                        .hidden()
+                        .accessibilityHidden(true)
+                    number("\(pct)")
                 }
                 .fixedSize()
                 .layoutPriority(1)
@@ -143,6 +139,22 @@ struct ProviderHeroFace: View {
             if ring != .none {
                 gauge(ring)
             }
+        }
+    }
+
+    private func number(_ value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 2) {
+            Text(value)
+                .font(.system(size: 64, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(gaugeColor)
+                .dsGlow(gaugeColor, radius: 10, opacity: 0.45)
+                .contentTransition(.numericText(value: Double(pct)))
+                .animation(DS.Motion.springLiquid, value: pct)
+            Text("%")
+                .font(.system(size: 26, weight: .heavy, design: .rounded))
+                .foregroundStyle(gaugeColor.opacity(0.55))
+                .baselineOffset(5)
         }
     }
 
