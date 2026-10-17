@@ -779,6 +779,11 @@
 "popover.account.expired" = "Connexion expirée";
 "popover.account.noLogin" = "Non connecté";
 "popover.account.conflict" = "Autre connexion";
+"popover.account.keychainRefused" = "Trousseau refusé";
+"popover.account.keychainTimedOut" = "Trousseau muet";
+"popover.account.folderMissing" = "Dossier introuvable";
+"popover.account.rateLimited" = "Requêtes limitées";
+"popover.account.offline" = "Hors ligne";
 
 "popoverElement.session" = "Session (5h)";
 "popoverElement.weekly" = "Hebdomadaire";
@@ -1150,13 +1155,16 @@
 "accounts.details.color.hint" = "Elle marque le compte à côté de ses chiffres. Les chiffres gardent leurs couleurs de risque.";
 "accounts.color.custom" = "Couleur personnalisée";
 "accounts.color.taken" = "Un autre compte porte déjà cette couleur";
+"accounts.color.nearRisk" = "Cette couleur ressemble à une couleur de risque des jauges : la marque pourrait passer pour une alerte.";
 "accounts.details.mainName" = "Ton compte principal";
 "accounts.details.mainName.hint" = "Avec deux comptes, chaque surface les nomme. Tu pourras renommer les deux plus tard dans Réglages.";
 "accounts.details.addToMenuBar" = "Ajouter à la barre des menus";
 "accounts.details.preview.now" = "Maintenant";
 "accounts.details.preview.with" = "Avec %@";
 "accounts.details.preview.hint" = "Ses chiffres apparaissent après le premier rafraîchissement, dans quelques secondes. Le popover reçoit de toute façon une section compacte pour lui.";
-"accounts.details.preview.off" = "La barre des menus reste telle quelle. Le popover reçoit quand même une section compacte, et Studio pourra ajouter le compte à la barre des menus plus tard.";
+"accounts.details.preview.off" = "Le compte reste hors de la barre des menus. Le popover reçoit quand même une section compacte, et Studio pourra ajouter le compte à la barre des menus plus tard.";
+"accounts.details.preview.switchesToAll" = "Le compte rejoint la disposition Tout, donc la barre des menus passe en mode Tout, celui qui montre tous les comptes.";
+"accounts.details.preview.compact" = "Avec trois comptes, les noms ne tiendraient pas à côté de l'encoche : la barre les marque seulement par leur couleur. Studio peut remettre les noms.";
 "accounts.details.back" = "Retour";
 "accounts.details.done" = "Terminer";
 

@@ -309,6 +309,7 @@ private struct ClaudeAccountSectionHeader: View {
     @ObservedObject var store: UsageStore
 
     @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var accountsStore: AccountsStore
 
     var body: some View {
         HStack(spacing: 5) {
@@ -335,17 +336,44 @@ private struct ClaudeAccountSectionHeader: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// Where the account stands, in a few words: its login is gone, its
-    /// numbers are old, or simply its plan when all is well.
+    /// Where the account stands, in a few words, read from the same
+    /// `AccountHealth` Settings shows: another login, a refused or silent
+    /// Keychain, no login, a missing folder, a limit or no network, or its
+    /// numbers are old, or simply its plan when all is well. An expired
+    /// token stays calm for the first hour, the usual wait for Claude Code's
+    /// next run, as it does everywhere else.
     private func caption(now: Date) -> (text: String, isAlert: Bool)? {
-        if case .conflict = store.identityState {
+        let folder = accountsStore.record(for: account.id)?.configDir
+        let health = AccountHealth.resolve(
+            errorState: store.errorState,
+            diagnostic: store.tokenDiagnostic,
+            loginExpiredSince: store.loginExpiredSince,
+            identityState: store.identityState,
+            isPaused: false,
+            lastUpdate: store.lastUpdate,
+            folderExists: folder.map { FileManager.default.fileExists(atPath: $0) } ?? true,
+            command: "",
+            names: [:]
+        )
+        switch health {
+        case .identityConflict:
             return (String(localized: "popover.account.conflict"), true)
-        }
-        if store.loginExpiredSince != nil {
-            return (String(localized: "popover.account.expired"), true)
-        }
-        if store.errorState == .tokenUnavailable, store.lastUsage == nil {
+        case .accessDenied:
+            return (String(localized: "popover.account.keychainRefused"), true)
+        case .timedOut:
+            return (String(localized: "popover.account.keychainTimedOut"), true)
+        case .noLogin:
             return (String(localized: "popover.account.noLogin"), true)
+        case .folderMissing:
+            return (String(localized: "popover.account.folderMissing"), true)
+        case .rateLimited:
+            return (String(localized: "popover.account.rateLimited"), true)
+        case .network:
+            return (String(localized: "popover.account.offline"), true)
+        case .loginExpired where store.loginExpiredSince != nil:
+            return (String(localized: "popover.account.expired"), true)
+        default:
+            break
         }
         if let last = store.lastUpdate,
            now.timeIntervalSince(last) > 2 * Double(settingsStore.refreshInterval) {

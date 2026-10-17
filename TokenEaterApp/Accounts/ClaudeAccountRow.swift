@@ -165,7 +165,8 @@ struct ClaudeAccountRow<FolderLine: View>: View {
                 .foregroundStyle(DS.Palette.textTertiary)
             AccountColorPicker(
                 colorHex: $draftColor,
-                taken: accountsStore.records.filter { $0.id != record.id }.map(\.colorHex)
+                taken: accountsStore.records.filter { $0.id != record.id }.map(\.colorHex),
+                riskColors: themeStore.current.gaugeRiskColors
             )
         }
         .padding(DS.Spacing.md)
@@ -376,6 +377,27 @@ extension ClaudeAccountRow where FolderLine == AccountFolderLabel {
     init(record: ClaudeAccountRecord, store: UsageStore) {
         self.init(record: record, store: store) {
             AccountFolderLabel(record: record, maskedEmail: store.maskedEmail, organization: store.organizationName)
+        }
+    }
+}
+
+/// The organization and masked email of the login an account's store reads,
+/// followed live. Settings is the only place either shows.
+struct AccountLoginFacts: View {
+    @ObservedObject var store: UsageStore
+
+    var body: some View {
+        let facts = [store.organizationName, store.maskedEmail].compactMap { $0 }.filter { !$0.isEmpty }
+        if !facts.isEmpty {
+            HStack(spacing: 6) {
+                ForEach(facts, id: \.self) { fact in
+                    Text(fact)
+                        .font(.system(size: 10))
+                        .foregroundStyle(DS.Palette.textTertiary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+            }
         }
     }
 }

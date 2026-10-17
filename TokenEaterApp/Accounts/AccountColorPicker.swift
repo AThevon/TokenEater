@@ -9,6 +9,10 @@ struct AccountColorPicker: View {
     @Binding var colorHex: String
     /// The colours the other tracked accounts wear.
     var taken: [String] = []
+    /// The gauges' risk colours in the active theme. A custom colour close to
+    /// one of them is flagged, since a dot that looks like a warning next to
+    /// a value invites a misreading.
+    var riskColors: [String] = []
 
     /// The system picker's own value. Local state, pushed to `colorHex` on
     /// change, so no hand-made binding is needed.
@@ -21,6 +25,18 @@ struct AccountColorPicker: View {
     }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            swatches
+            if isCustom, let selected, AccountPalette.resemblesRiskColor(selected, riskColors: riskColors) {
+                Label(String(localized: "accounts.color.nearRisk"), systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(DS.Palette.semanticWarning.opacity(0.9))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var swatches: some View {
         HStack(spacing: 7) {
             ForEach(AccountPalette.presets, id: \.self) { hex in
                 swatch(hex)

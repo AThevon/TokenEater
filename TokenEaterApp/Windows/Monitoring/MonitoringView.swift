@@ -236,21 +236,54 @@ struct MonitoringView: View {
         switch column {
         case .claude(let account) where !account.isMain:
             if let store = accountsStore.usageStore(for: account) {
-                MonitoringView(
-                    embeddedAccount: account,
-                    insightsStore: accountsStore.insightsStore(for: account) ?? insightsStore
-                )
-                    .environmentObject(store)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .transition(.glanceCard)
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                    columnHeader(column)
+                    MonitoringView(
+                        embeddedAccount: account,
+                        insightsStore: accountsStore.insightsStore(for: account) ?? insightsStore
+                    )
+                        .environmentObject(store)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .transition(.glanceCard)
             }
         default:
             VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                columnHeader(column)
                 ProviderStatusNotice(provider: column.provider)
                 blocks(for: column.provider)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .transition(.glanceCard)
+        }
+    }
+
+    /// What each column is, once several Claude accounts share the page:
+    /// the account's identity dot and full name over a Claude column, the
+    /// provider's mark over Codex's, so the rows below still line up. The
+    /// dot only names the account; the values keep their risk colours. Not
+    /// drawn with a single Claude account, where the page is as it was.
+    @ViewBuilder
+    private func columnHeader(_ column: MonitoringColumns.Column) -> some View {
+        if settingsStore.showsAccountMarkers {
+            HStack(spacing: DS.Spacing.xs) {
+                switch column {
+                case .claude(let account):
+                    let summary = settingsStore.claudeAccount(account)
+                    AccountDot(colorHex: summary?.colorHex ?? AccountPalette.presets[0], size: 8)
+                    Text(summary?.name ?? MetricProvider.claude.displayName)
+                        .lineLimit(1)
+                        .help(summary?.name ?? "")
+                case .codex:
+                    ProviderGlyph(provider: .codex, size: 9)
+                        .foregroundStyle(DS.Palette.textTertiary)
+                    Text(MetricProvider.codex.displayName)
+                        .lineLimit(1)
+                }
+            }
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(DS.Palette.textSecondary)
+            .frame(height: 14)
         }
     }
 

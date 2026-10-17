@@ -145,6 +145,11 @@ struct ResetCountdownRow: View {
 struct SessionRingWidgetView: View {
     let entry: UsageEntry
 
+    /// Set only by the "Claude · Account" widget. A paused account's reset
+    /// countdown means nothing (no refresh moves it), so its last sync date
+    /// takes that row: the numbers above are dated, as they are in medium.
+    @Environment(\.widgetAccount) private var account
+
     private var theme: ThemeColors { WidgetTheme.theme }
     private var thresholds: UsageThresholds { WidgetTheme.thresholds }
 
@@ -204,7 +209,30 @@ struct SessionRingWidgetView: View {
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 6)
             Spacer(minLength: 8)
-            ResetCountdownRow(date: resetDate)
+            if account?.isPaused == true {
+                PausedSinceRow(date: entry.lastSync)
+            } else {
+                ResetCountdownRow(date: resetDate)
+            }
+        }
+    }
+}
+
+/// When a paused account's numbers were last fetched.
+struct PausedSinceRow: View {
+    let date: Date?
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "pause.circle")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(Color(hex: WidgetTheme.theme.widgetText).opacity(WidgetTokens.tertiary))
+            Text(date.map { String(format: String(localized: "widget.updated"), $0.relativeFormatted) } ?? "-")
+                .font(WidgetTokens.microMono)
+                .foregroundStyle(Color(hex: WidgetTheme.theme.widgetText).opacity(WidgetTokens.secondary))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 0)
         }
     }
 }

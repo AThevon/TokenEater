@@ -305,17 +305,42 @@ enum AccountPalette {
         "#C084FC", // lilac
         "#6366F1", // indigo
         "#8B7CF6", // violet
-        "#D6B88A", // sand
+        "#E879F9", // fuchsia
         "#94A3B8", // slate
     ]
 
-    /// The hue of a `#RRGGBB` colour in degrees, nil when it is not one.
-    static func hue(of hex: String) -> Double? {
+    /// The red, green and blue of a `#RRGGBB` colour, 0 to 1.
+    private static func rgb(of hex: String) -> (r: Double, g: Double, b: Double)? {
         guard let normalized = normalizedHex(hex),
               let value = Int(normalized.dropFirst(), radix: 16) else { return nil }
-        let r = Double((value >> 16) & 0xFF) / 255
-        let g = Double((value >> 8) & 0xFF) / 255
-        let b = Double(value & 0xFF) / 255
+        return (
+            Double((value >> 16) & 0xFF) / 255,
+            Double((value >> 8) & 0xFF) / 255,
+            Double(value & 0xFF) / 255
+        )
+    }
+
+    /// How far a colour is from grey, 0 to 1.
+    static func chroma(of hex: String) -> Double? {
+        guard let (r, g, b) = rgb(of: hex) else { return nil }
+        return max(r, g, b) - min(r, g, b)
+    }
+
+    /// Whether a colour could pass for one of the risk colours: a hue within
+    /// 20 degrees of one of them, both colourful enough for the hue to read.
+    /// A custom identity colour that does gets a warning; nothing refuses it.
+    static func resemblesRiskColor(_ hex: String, riskColors: [String]) -> Bool {
+        guard let hue = hue(of: hex), let chroma = chroma(of: hex), chroma >= 0.25 else { return false }
+        return riskColors.contains { risk in
+            guard let riskHue = self.hue(of: risk), let riskChroma = self.chroma(of: risk),
+                  riskChroma >= 0.25 else { return false }
+            return hueDistance(hue, riskHue) < 20
+        }
+    }
+
+    /// The hue of a `#RRGGBB` colour in degrees, nil when it is not one.
+    static func hue(of hex: String) -> Double? {
+        guard let (r, g, b) = rgb(of: hex) else { return nil }
         let maxC = max(r, g, b), minC = min(r, g, b)
         let delta = maxC - minC
         guard delta > 0 else { return 0 }

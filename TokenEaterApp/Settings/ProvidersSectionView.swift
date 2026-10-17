@@ -126,7 +126,15 @@ struct ProvidersSectionView: View {
                 ForEach(accountsStore.records) { record in
                     if let store = accountsStore.usageStore(for: record.id) {
                         if record.id.isMain {
-                            ClaudeAccountRow(record: record, store: store) { MainConfigDirRow() }
+                            ClaudeAccountRow(record: record, store: store) {
+                                // The folder can change here, and the login
+                                // facts say which login it reads, like the
+                                // added accounts' rows.
+                                VStack(alignment: .leading, spacing: 3) {
+                                    MainConfigDirRow()
+                                    AccountLoginFacts(store: store)
+                                }
+                            }
                         } else {
                             ClaudeAccountRow(record: record, store: store)
                         }

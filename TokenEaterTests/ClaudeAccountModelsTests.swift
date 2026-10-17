@@ -119,6 +119,16 @@ struct ClaudeAccountModelsTests {
         #expect(ClaudeAccountsStorage.decode(moved, home: "/Users/tester").map(\.id.rawValue) == ["main", "acct-1"])
     }
 
+    @Test("a custom colour close to a gauge's risk colour is flagged, the presets never are")
+    func riskLookalikes() {
+        let risk = ThemeColors.default.gaugeRiskColors
+        #expect(AccountPalette.resemblesRiskColor("#EF4444", riskColors: ["#EF4444"]))
+        #expect(!AccountPalette.resemblesRiskColor("#94A3B8", riskColors: ["#94A3B8"]))
+        for preset in AccountPalette.presets {
+            #expect(!AccountPalette.resemblesRiskColor(preset, riskColors: risk), "\(preset)")
+        }
+    }
+
     @Test("the first three colours an account gets are far apart on the wheel")
     func paletteFirstChoicesAreDistinct() throws {
         var used: [String] = []

@@ -3,6 +3,10 @@ import SwiftUI
 // MARK: - Theme Colors
 
 struct ThemeColors: Codable, Equatable {
+    /// The colours that say "risk" on a gauge, which an account's identity
+    /// colour should not look like.
+    var gaugeRiskColors: [String] { [gaugeNormal, gaugeWarning, gaugeCritical] }
+
     var gaugeNormal: String
     var gaugeWarning: String
     var gaugeCritical: String

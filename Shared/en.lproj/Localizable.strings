@@ -779,6 +779,11 @@
 "popover.account.expired" = "Login expired";
 "popover.account.noLogin" = "Not connected";
 "popover.account.conflict" = "Another login";
+"popover.account.keychainRefused" = "Keychain refused";
+"popover.account.keychainTimedOut" = "Keychain silent";
+"popover.account.folderMissing" = "Folder missing";
+"popover.account.rateLimited" = "Rate-limited";
+"popover.account.offline" = "Offline";
 
 "popoverElement.session" = "Session (5h)";
 "popoverElement.weekly" = "Weekly";
@@ -1150,13 +1155,16 @@
 "accounts.details.color.hint" = "It marks the account next to its numbers. The numbers keep their risk colours.";
 "accounts.color.custom" = "Custom colour";
 "accounts.color.taken" = "Another account wears this colour";
+"accounts.color.nearRisk" = "This colour is close to one the gauges use for risk, so the mark could be read as a warning.";
 "accounts.details.mainName" = "Your main account";
 "accounts.details.mainName.hint" = "With two accounts, every surface names them. You can rename both later in Settings.";
 "accounts.details.addToMenuBar" = "Add to the menu bar";
 "accounts.details.preview.now" = "Now";
 "accounts.details.preview.with" = "With %@";
 "accounts.details.preview.hint" = "Its numbers appear after the first refresh, a few seconds from now. The popover gets a compact section for it either way.";
-"accounts.details.preview.off" = "The menu bar stays as it is. The popover still gets a compact section, and Studio can add the account to the menu bar later.";
+"accounts.details.preview.off" = "The account stays out of the menu bar. The popover still gets a compact section, and Studio can add the account to the menu bar later.";
+"accounts.details.preview.switchesToAll" = "The account goes into the All layout, so the menu bar switches to All, the mode that shows every account.";
+"accounts.details.preview.compact" = "With three accounts the names would not fit next to the notch, so the bar marks them with their colour only. Studio can bring the names back.";
 "accounts.details.back" = "Back";
 "accounts.details.done" = "Done";
 
