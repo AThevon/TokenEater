@@ -329,6 +329,13 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         save(data)
     }
 
+    func clearAccountsIndex() {
+        var data = loadFresh()
+        guard data.accountsIndex != nil else { return }
+        data.accountsIndex = nil
+        save(data)
+    }
+
     func clear() {
         let empty = SharedData()
         save(empty)

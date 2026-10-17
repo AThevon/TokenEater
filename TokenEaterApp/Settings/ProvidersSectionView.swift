@@ -37,6 +37,12 @@ struct ProvidersSectionView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
+            // Only while the multi-account demo runs, which nobody turns on
+            // by accident (`DemoMode`).
+            if DemoMode.isActive, showsCoverage {
+                DemoControlsCard()
+            }
+
             VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                 cardLabel(String(localized: "settings.providers.title"))
 

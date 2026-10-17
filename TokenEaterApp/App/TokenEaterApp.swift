@@ -139,23 +139,53 @@ struct TokenEaterApp: App {
         // missing this step would make every upgrading user land on onboarding.
         LegacyHelperCleanupService().migratePrefsIfNeeded()
 
+        // The multi-account demo starts or ends here, before any store reads
+        // the defaults it snapshots or restores. Without its switch this
+        // reads two keys and does nothing else (`DemoMode`).
+        DemoLaunch.prepareAtLaunch()
+        let demo = DemoMode.isActive
+
         self.historyWidgetStore = HistoryWidgetStore()
-        self.codexStore = CodexUsageStore()
+        self.codexStore = demo
+            ? CodexUsageStore(
+                repository: CodexUsageRepository(apiClient: DemoCodexAPIClient()),
+                tokenProvider: DemoCodexTokenProvider()
+            )
+            : CodexUsageStore()
         // The main account's store reads the folder the user chose for it,
         // `~/.claude` unless they chose another one (#294).
         let mainNotifications = NotificationService()
-        let usageStore = UsageStore(
-            tokenProvider: TokenProvider.forMainAccount(),
-            notificationService: mainNotifications
-        )
+        let usageStore = demo
+            ? UsageStore(
+                repository: UsageRepository(apiClient: DemoAPIClient(real: APIClient())),
+                tokenProvider: DemoRoutingTokenProvider(real: TokenProvider.forMainAccount()),
+                notificationService: mainNotifications
+            )
+            : UsageStore(
+                tokenProvider: TokenProvider.forMainAccount(),
+                notificationService: mainNotifications
+            )
         self.usageStore = usageStore
         // The accounts index for the "Claude · Account" widget goes into
         // `shared.json`, next to the main account's numbers.
-        let accountsStore = AccountsStore(
-            mainStore: usageStore,
-            indexFile: SharedFileService(),
-            reloadAccountWidgets: { WidgetReloader.scheduleAccountReload() }
-        )
+        let accountsStore = demo
+            ? AccountsStore(
+                mainStore: usageStore,
+                scanner: DemoConfigDirScanner(real: ClaudeConfigDirScanner()),
+                makeConnectTokenProvider: { DemoTokenProvider.orReal(scope: $0) },
+                apiClient: DemoAPIClient(real: APIClient()),
+                indexFile: SharedFileService(),
+                reloadAccountWidgets: { WidgetReloader.scheduleAccountReload() },
+                runtimeServices: AccountRuntimeServices(
+                    makeAPIClient: { DemoAPIClient(real: APIClient()) },
+                    makeTokenProvider: { DemoTokenProvider.orReal(scope: $0) }
+                )
+            )
+            : AccountsStore(
+                mainStore: usageStore,
+                indexFile: SharedFileService(),
+                reloadAccountWidgets: { WidgetReloader.scheduleAccountReload() }
+            )
         self.accountsStore = accountsStore
         // The main account's alerts keep their historical identifiers and
         // only name the account once a second one runs; the scope that knows
