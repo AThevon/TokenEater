@@ -138,7 +138,6 @@ private struct StudioPopoverThumbnail: View {
 /// Miniature of the menu bar item -> same pixels as the status bar, rendered
 /// through the shared `RenderData.live` path, on a simulated dark menu bar.
 private struct StudioMenuBarThumbnail: View {
-    @EnvironmentObject private var extraAccounts: ExtraAccountsStore
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var themeStore: ThemeStore
@@ -151,8 +150,7 @@ private struct StudioMenuBarThumbnail: View {
             theme: themeStore,
             settings: settingsStore,
             vendor: vendorStatusStore,
-            codex: codexStore,
-            work: extraAccounts.workUsageStore
+            codex: codexStore
         )
         // Same RenderData as the real status item -> `render(_:)` is the
         // memoized path shared with StatusBarController, so this is a cache

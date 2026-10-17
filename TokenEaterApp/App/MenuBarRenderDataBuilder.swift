@@ -10,8 +10,7 @@ extension MenuBarRenderer.RenderData {
         theme: ThemeStore,
         settings: SettingsStore,
         vendor: VendorStatusStore,
-        codex: CodexUsageStore,
-        work: UsageStore? = nil
+        codex: CodexUsageStore
     ) -> MenuBarRenderer.RenderData {
         /// A window the plan does not have, or a provider that is switched
         /// off, resolves to nil and its segments disappear from the bar.
@@ -70,26 +69,7 @@ extension MenuBarRenderer.RenderData {
             extraCreditsUncappedHasSpend: usage.extraCreditsUncappedHasSpend,
             codexSession: codexSegment(.session),
             codexWeekly: codexSegment(.weekly),
-            visibleProviders: Set(settings.activeProviders.filter { settings.activeProviderMode.shows($0) }),
-            workSession: workSegment(work, five: true),
-            workWeekly: workSegment(work, five: false),
-            workLabel: settings.workAccountLabel ?? ""
-        )
-    }
-
-    /// The second account's 5h or weekly window, shaped like a Codex window.
-    private static func workSegment(_ work: UsageStore?, five: Bool) -> MenuBarRenderer.CodexSegmentData? {
-        guard let work, work.hasConfig, work.lastUpdate != nil else { return nil }
-        let bucket = five ? work.lastUsage?.fiveHour : work.lastUsage?.sevenDay
-        guard bucket != nil else { return nil }
-        let pacing = five ? work.fiveHourPacing : work.pacingResult
-        return MenuBarRenderer.CodexSegmentData(
-            pct: five ? work.fiveHourPct : work.sevenDayPct,
-            resetDate: bucket?.resetsAtDate,
-            windowDuration: five ? 5 * 3600 : 7 * 86_400,
-            hasPacing: pacing != nil,
-            pacingZone: pacing?.zone ?? .onTrack,
-            pacingDelta: Int(pacing?.delta ?? 0)
+            visibleProviders: Set(settings.activeProviders.filter { settings.activeProviderMode.shows($0) })
         )
     }
 }

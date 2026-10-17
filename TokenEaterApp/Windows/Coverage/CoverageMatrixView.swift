@@ -44,7 +44,7 @@ struct CoverageMatrixView: View {
             }
             Spacer(minLength: DS.Spacing.sm)
 
-            ForEach(MetricProvider.vendors) { provider in
+            ForEach(MetricProvider.allCases) { provider in
                 VStack(spacing: 4) {
                     ProviderGlyph(provider: provider, size: 15)
                         .foregroundStyle(DS.Palette.textPrimary)
@@ -70,7 +70,7 @@ struct CoverageMatrixView: View {
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            ForEach(MetricProvider.vendors) { provider in
+            ForEach(MetricProvider.allCases) { provider in
                 mark(capability.support(for: provider))
                     .frame(width: columnWidth)
             }

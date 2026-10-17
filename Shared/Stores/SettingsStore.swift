@@ -96,9 +96,6 @@ final class SettingsStore: ObservableObject {
     var activeProviders: [MetricProvider] {
         var providers: [MetricProvider] = []
         if claudeEnabled { providers.append(.claude) }
-        // The second Claude account rides on Claude being on, and sits next
-        // to it everywhere providers are listed.
-        if claudeEnabled, workAccountLabel != nil { providers.append(.claudeWork) }
         if codexEnabled { providers.append(.codex) }
         return providers
     }
@@ -111,47 +108,6 @@ final class SettingsStore: ObservableObject {
         guard providers.count > 1 else { return [] }
         return [.all] + providers.compactMap { provider in
             ProviderMode.allCases.first { $0.provider == provider }
-        }
-    }
-
-    /// Short label of the second Claude account when one is tracked, nil
-    /// otherwise. Set by the app once the account has been discovered; the
-    /// Claude Work mode only exists while this is non-nil.
-    @Published var workAccountLabel: String? {
-        didSet {
-            reconcileProviderMode()
-            if oldValue == nil, workAccountLabel != nil { seedWorkAccountMenuBarIfNeeded() }
-        }
-    }
-
-    /// The first time a second account shows up, give the All menu bar a
-    /// copy of the Claude usage segments for it, in the same styles, so it
-    /// is visible without a trip to Studio. Once only: removing them in
-    /// Studio sticks.
-    private func seedWorkAccountMenuBarIfNeeded() {
-        let flag = "workAccountMenuBarSeeded"
-        guard !UserDefaults.standard.bool(forKey: flag) else { return }
-        UserDefaults.standard.set(true, forKey: flag)
-
-        func withWork(_ composition: MenuBarComposition) -> MenuBarComposition {
-            guard !composition.segments.contains(where: { $0.kind.provider == .claudeWork }) else { return composition }
-            var next = composition
-            let mirrored = composition.segments
-                .filter { !$0.isHidden && !$0.kind.isPacing }
-                .compactMap { segment -> MenuBarSegment? in
-                    guard let work = segment.kind.workEquivalent else { return nil }
-                    return MenuBarSegment(kind: work, style: segment.style, options: segment.options)
-                }
-            next.segments += mirrored
-            return next
-        }
-
-        if activeProviderMode == .all {
-            menuBarComposition = withWork(menuBarComposition)
-        } else if let data = UserDefaults.standard.data(forKey: "menuBarComposition"),
-                  let decoded = try? JSONDecoder().decode(MenuBarComposition.self, from: data),
-                  let encoded = try? JSONEncoder().encode(withWork(decoded)) {
-            UserDefaults.standard.set(encoded, forKey: "menuBarComposition")
         }
     }
 
@@ -826,19 +782,6 @@ final class SettingsStore: ObservableObject {
             return reconcile(decoded)
         }()
         var seeded = base
-        if mode == .claudeWork {
-            // Start from the Claude layout, each metric swapped for its
-            // second-account twin, so the two accounts look the same.
-            let claude = seededPopover(for: .claude)
-            seeded.elements = claude.elements.compactMap { element in
-                guard element.kind.provider != nil else { return element }
-                guard let work = element.kind.workEquivalent else { return nil }
-                var copy = element
-                copy.kind = work
-                return copy
-            }
-            return seeded
-        }
         seeded.elements = base.elements.filter { mode.shows($0.kind.provider) }
         // A provider the user has never placed leaves only chrome behind.
         // Start from the built-in instead of handing them an empty popover.
@@ -860,13 +803,6 @@ final class SettingsStore: ObservableObject {
             return decoded
         }()
         var seeded = base
-        if mode == .claudeWork {
-            seeded.segments = seededMenuBar(for: .claude).segments.compactMap { segment in
-                guard let work = segment.kind.workEquivalent else { return nil }
-                return MenuBarSegment(kind: work, style: segment.style, isHidden: segment.isHidden, options: segment.options)
-            }
-            return seeded
-        }
         seeded.segments = base.segments.filter { mode.shows($0.kind.provider) }
         if seeded.segments.isEmpty, mode == .codex {
             seeded.segments = [

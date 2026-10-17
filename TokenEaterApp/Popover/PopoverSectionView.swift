@@ -6,7 +6,6 @@ import SwiftUI
 /// and the live popover pinned on the right so every edit is visible without
 /// scrolling. Tapping a cell in the preview selects its row in the list.
 struct PopoverSectionView: View {
-    @EnvironmentObject private var extraAccounts: ExtraAccountsStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var usageStore: UsageStore
@@ -374,8 +373,7 @@ struct PopoverSectionView: View {
     /// what an account has.
     private func unavailability(_ kind: PopoverElementKind) -> EditorUnavailability? {
         EditorUnavailability.reason(
-            for: kind, settings: settingsStore, usage: usageStore, codex: codexStore,
-            work: extraAccounts.workUsageStore
+            for: kind, settings: settingsStore, usage: usageStore, codex: codexStore
         )
     }
 
@@ -595,7 +593,6 @@ private struct LivePopoverPreview: View {
 // MARK: - Element list
 
 private struct ElementListEditor: View {
-    @EnvironmentObject private var extraAccounts: ExtraAccountsStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var usageStore: UsageStore
@@ -666,7 +663,7 @@ private struct ElementListEditor: View {
     // That covers a Fable arc after a plan downgrade, a plan badge with no
     // known plan, and every Codex kind in a Claude-scoped layout.
     private func isAvailable(_ kind: PopoverElementKind) -> Bool {
-        PopoverMetricResolver.isVisible(kind, usage: usageStore, codex: codexStore, settings: settingsStore, work: extraAccounts.workUsageStore)
+        PopoverMetricResolver.isVisible(kind, usage: usageStore, codex: codexStore, settings: settingsStore)
     }
 
     /// The same answer as `isAvailable`, with the reason attached, for the
@@ -676,8 +673,7 @@ private struct ElementListEditor: View {
     /// things to do about it.
     private func unavailability(_ kind: PopoverElementKind) -> EditorUnavailability? {
         EditorUnavailability.reason(
-            for: kind, settings: settingsStore, usage: usageStore, codex: codexStore,
-            work: extraAccounts.workUsageStore
+            for: kind, settings: settingsStore, usage: usageStore, codex: codexStore
         )
     }
 

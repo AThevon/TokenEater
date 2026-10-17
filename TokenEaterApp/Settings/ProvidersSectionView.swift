@@ -75,8 +75,6 @@ struct ProvidersSectionView: View {
                 }
                 resultLine(codexResult?.message, success: codexResult?.success ?? false)
 
-                ExtraAccountsSettingsCard()
-
                 // App-level, not provider-level: it reports on the whole
                 // install, and sitting inside one provider's card implied it
                 // only covered that one.
@@ -250,7 +248,7 @@ struct ProvidersSectionView: View {
 
 // MARK: - Connection buttons
 
-// File-level so every provider card, including the extra Claude accounts,
+// File-level so every provider card, one per Claude account included,
 // draws the same pair.
 
 /// Unbind and rebind, for a connection a stale cache has broken. Quieter

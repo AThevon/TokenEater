@@ -15,12 +15,6 @@ struct MonitoringView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var sessionStore: SessionStore
     @EnvironmentObject private var vendorStatusStore: VendorStatusStore
-    @EnvironmentObject private var extraAccounts: ExtraAccountsStore
-
-    /// Renders only the Claude column, with no header or scroll view. All
-    /// mode embeds one of these, fed the second account's `UsageStore`, as
-    /// the extra Claude column.
-    var embeddedClaudeColumn = false
 
     /// Lightweight 7d daily-buckets store for the back-of-card stats.
     /// Loaded once on appear, refreshed if older than 60s. Owned by
@@ -39,37 +33,6 @@ struct MonitoringView: View {
     @Environment(\.glowIntensity) private var glowIntensity
 
     var body: some View {
-        if embeddedClaudeColumn {
-            // The second account's column: this view runs with that account's
-            // UsageStore injected, so the Claude blocks draw its numbers. The
-            // block list is filtered for `.claudeWork`, rendered as Claude.
-            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                ProviderStatusNotice(provider: .claude)
-                ForEach(settingsStore.dashboardComposition.visibleBlocks) { block in
-                    if block.providers.contains(.claudeWork) {
-                        blockContent(block, for: .claude)
-                    }
-                }
-            }
-        } else {
-            page
-        }
-    }
-
-    /// The second Claude account's column, shown in All next to Claude.
-    @ViewBuilder
-    private var workColumn: some View {
-        if let work = extraAccounts.workUsageStore {
-            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                MonitoringView(embeddedClaudeColumn: true, insightsStore: insightsStore)
-                    .environmentObject(work)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .transition(.glanceCard)
-        }
-    }
-
-    private var page: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
                 header
@@ -82,20 +45,14 @@ struct MonitoringView: View {
                 if isComparing {
                     HStack(alignment: .top, spacing: DS.Spacing.md) {
                         ForEach(visibleProviders) { provider in
-                            if provider == .claudeWork {
-                                workColumn
-                            } else {
-                                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                                    ProviderStatusNotice(provider: provider)
-                                    blocks(for: provider)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .transition(.glanceCard)
+                            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                                ProviderStatusNotice(provider: provider)
+                                blocks(for: provider)
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .transition(.glanceCard)
                         }
                     }
-                } else if visibleProviders.first == .claudeWork {
-                    workColumn
                 } else if let provider = visibleProviders.first {
                     VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                         ProviderStatusNotice(provider: provider)
@@ -283,11 +240,6 @@ struct MonitoringView: View {
             footerPills
         case (.footer, .codex):
             CodexFooterPills()
-
-        // Drawn by the embedded column (`workColumn`) as Claude blocks over
-        // the second account's store, never through this switch.
-        case (_, .claudeWork):
-            EmptyView()
         }
     }
 
@@ -368,14 +320,7 @@ struct MonitoringView: View {
     /// One rule for every card label on this page: name the provider when
     /// there is another one on screen, never when there is not.
     private func labelled(_ base: String, for provider: MetricProvider) -> String {
-        isComparing ? columnName(for: provider) + " · " + base : base
-    }
-
-    /// The embedded column draws Claude blocks for the second account, so its
-    /// labels name that account ("Claude W") rather than plain "Claude".
-    private func columnName(for provider: MetricProvider) -> String {
-        guard embeddedClaudeColumn else { return provider.displayName }
-        return ["Claude", settingsStore.workAccountLabel ?? ""].filter { !$0.isEmpty }.joined(separator: " ")
+        isComparing ? provider.displayName + " · " + base : base
     }
 
     private func labelled(_ tile: TileDescriptor, for provider: MetricProvider) -> TileDescriptor {
@@ -392,10 +337,6 @@ struct MonitoringView: View {
             if showsClaude, usageStore.planType != .unknown {
                 planBadge(.claude, usageStore.planType.displayLabel, DS.Palette.brandPrimary)
             }
-            if visibleProviders.contains(.claudeWork),
-               let work = extraAccounts.workUsageStore, work.planType != .unknown {
-                planBadge(.claudeWork, work.planType.displayLabel, DS.Palette.brandPrimary)
-            }
             if showsCodex, codexStore.planType != .unknown {
                 planBadge(.codex, codexStore.planType.displayLabel, codexStore.planType.badgeColor)
             }
@@ -405,10 +346,6 @@ struct MonitoringView: View {
     private func planBadge(_ provider: MetricProvider, _ plan: String, _ tint: Color) -> some View {
         HStack(spacing: 4) {
             ProviderGlyph(provider: provider, size: 10)
-            if provider == .claudeWork, let label = settingsStore.workAccountLabel {
-                Text(label)
-                    .font(.system(size: 9, weight: .heavy))
-            }
             Text(plan)
                 .font(.system(size: 9, weight: .bold))
                 .tracking(0.5)
@@ -465,7 +402,6 @@ struct MonitoringView: View {
                         switch provider {
                         case .claude: Task { await usageStore.refresh(force: true) }
                         case .codex:  Task { await codexStore.refresh(force: true) }
-                        case .claudeWork: Task { await extraAccounts.workUsageStore?.refresh(force: true) }
                         }
                     }
                 } label: {
@@ -636,8 +572,7 @@ struct MonitoringView: View {
             gaugeGradient: gaugeGradient,
             zone: zone,
             resetText: resetText,
-            resetDate: resetDate,
-            name: embeddedClaudeColumn ? columnName(for: .claude) : nil
+            resetDate: resetDate
         )
     }
 
@@ -657,7 +592,7 @@ struct MonitoringView: View {
                     ProviderGlyph(provider: .claude, size: 11)
                         .foregroundStyle(gaugeColor)
                         .dsGlow(gaugeColor, radius: 4, opacity: 0.6)
-                    Text(columnName(for: .claude).uppercased() + " · PACING")
+                    Text(MetricProvider.claude.displayName.uppercased() + " · PACING")
                         .font(DS.Typography.micro)
                         .tracking(1.5)
                         .foregroundStyle(DS.Palette.textSecondary)

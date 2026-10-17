@@ -39,7 +39,6 @@ enum ProviderCapability: String, CaseIterable, Identifiable, Sendable {
     }
 
     func support(for provider: MetricProvider) -> Support {
-        let provider = provider.vendor
         switch self {
         case .usageWindows, .smartColor, .pacing, .notifications, .surfaces:
             return .full
@@ -67,13 +66,13 @@ enum ProviderCapability: String, CaseIterable, Identifiable, Sendable {
     }
 
     var providers: Set<MetricProvider> {
-        Set(MetricProvider.vendors.filter(isSupported(by:)))
+        Set(MetricProvider.allCases.filter(isSupported(by:)))
     }
 
     /// True when the providers do not agree, which is the only case worth
     /// drawing attention to on a section header.
     var isUneven: Bool {
-        providers.count != MetricProvider.vendors.count
+        providers.count != MetricProvider.allCases.count
     }
 
     var localizedName: String {

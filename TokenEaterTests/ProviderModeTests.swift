@@ -12,7 +12,6 @@ struct ProviderModeTests {
         "popoverComposition", "popoverComposition.claude", "popoverComposition.codex",
         "menuBarComposition", "menuBarComposition.claude", "menuBarComposition.codex",
         "activeProviderMode", "codexEnabled",
-        "popoverComposition.claudeWork", "menuBarComposition.claudeWork", "dashboardComposition.claudeWork",
     ]
 
     private func clean() {
@@ -180,61 +179,6 @@ struct ProviderModeTests {
         // Codex alone offers nothing to switch between either.
         store.claudeEnabled = false
         #expect(store.availableProviderModes.isEmpty)
-    }
-
-    @Test("A second Claude account adds its own mode right after Claude")
-    func workAccountAddsAMode() {
-        let store = makeStore()
-        defer { clean() }
-
-        store.claudeEnabled = true
-        store.codexEnabled = false
-        store.workAccountLabel = "W"
-        // Two Claude accounts are already two things to switch between.
-        #expect(store.availableProviderModes == [.all, .claude, .claudeWork])
-
-        store.codexEnabled = true
-        #expect(store.availableProviderModes == [.all, .claude, .claudeWork, .codex])
-
-        // The second account rides on Claude being on.
-        store.claudeEnabled = false
-        #expect(!store.availableProviderModes.contains(.claudeWork))
-    }
-
-    @Test("Losing the second account leaves its mode, like turning a provider off")
-    func workAccountGoneFallsBackToClaude() {
-        let store = makeStore()
-        defer { clean() }
-
-        store.claudeEnabled = true
-        store.workAccountLabel = "W"
-        store.activeProviderMode = .claudeWork
-        store.workAccountLabel = nil
-        #expect(store.activeProviderMode == .all)
-    }
-
-    @Test("Claude Work is its own provider, a Claude account underneath")
-    func workModeIsItsOwnProvider() {
-        #expect(ProviderMode.claudeWork.provider == .claudeWork)
-        #expect(ProviderMode.claudeWork.storageSuffix == ".claudeWork")
-        #expect(MetricProvider.claudeWork.vendor == .claude)
-        #expect(!MetricProvider.vendors.contains(.claudeWork))
-    }
-
-    @Test("Every second-account kind mirrors a Claude kind and back")
-    func workKindsMirrorClaude() {
-        for kind in PopoverElementKind.allCases where kind.provider == .claudeWork {
-            let claude = kind.claudeEquivalent
-            #expect(claude?.provider == .claude)
-            #expect(claude?.family == kind.family)
-            #expect(claude?.workEquivalent == kind)
-        }
-        for kind in MenuBarSegmentKind.allCases where kind.provider == .claudeWork {
-            let claude = kind.claudeEquivalent
-            #expect(claude?.provider == .claude)
-            #expect(claude?.family == kind.family)
-            #expect(claude?.workEquivalent == kind)
-        }
     }
 
     // MARK: - Visibility rule

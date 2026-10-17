@@ -14,7 +14,6 @@ import SwiftUI
 /// injected by `DisplaySectionView` so the surrounding chrome lives with the
 /// code that owns those settings.
 struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
-    @EnvironmentObject private var extraAccounts: ExtraAccountsStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var codexStore: CodexUsageStore
@@ -293,8 +292,7 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
     /// disagree about what an account has.
     private func unavailability(_ kind: MenuBarSegmentKind) -> EditorUnavailability? {
         EditorUnavailability.reason(
-            for: kind, settings: settingsStore, usage: usageStore, codex: codexStore,
-            work: extraAccounts.workUsageStore
+            for: kind, settings: settingsStore, usage: usageStore, codex: codexStore
         )
     }
 
@@ -458,7 +456,6 @@ private struct MenuBarTemplateSchematic: View {
 // MARK: - Live preview (NSImage + click-to-select)
 
 private struct MenuBarLivePreview: View {
-    @EnvironmentObject private var extraAccounts: ExtraAccountsStore
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var themeStore: ThemeStore
@@ -472,7 +469,7 @@ private struct MenuBarLivePreview: View {
     var body: some View {
         let data = MenuBarRenderer.RenderData.live(
             usage: usageStore, theme: themeStore, settings: settingsStore, vendor: vendorStatusStore,
-            codex: codexStore, work: extraAccounts.workUsageStore
+            codex: codexStore
         )
         let rendered = MenuBarRenderer.renderWithHitRects(data)
         let w = rendered.image.size.width * scale
@@ -540,7 +537,6 @@ private struct MenuBarLivePreview: View {
 // MARK: - Segment list
 
 private struct MenuBarSegmentListEditor: View {
-    @EnvironmentObject private var extraAccounts: ExtraAccountsStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var codexStore: CodexUsageStore
@@ -603,8 +599,7 @@ private struct MenuBarSegmentListEditor: View {
     /// renderer; this only picks the sentence that explains it.
     private func unavailability(_ kind: MenuBarSegmentKind) -> EditorUnavailability? {
         EditorUnavailability.reason(
-            for: kind, settings: settingsStore, usage: usageStore, codex: codexStore,
-            work: extraAccounts.workUsageStore
+            for: kind, settings: settingsStore, usage: usageStore, codex: codexStore
         )
     }
 
@@ -795,15 +790,11 @@ enum MenuBarSegmentAvailability {
         _ kind: MenuBarSegmentKind,
         settings: SettingsStore,
         usage: UsageStore,
-        codex: CodexUsageStore,
-        work: UsageStore? = nil
+        codex: CodexUsageStore
     ) -> Bool {
         if let provider = kind.provider {
             guard settings.activeProviders.contains(provider) else { return false }
             guard settings.activeProviderMode.shows(provider) else { return false }
-        }
-        if kind.claudeEquivalent != nil {
-            return work?.lastUpdate != nil
         }
         switch kind {
         case .fable, .fablePacing: return usage.hasFable

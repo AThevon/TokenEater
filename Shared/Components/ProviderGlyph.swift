@@ -29,7 +29,7 @@ struct ProviderGlyph: View {
     var body: some View {
         Group {
             switch provider {
-            case .claude, .claudeWork:
+            case .claude:
                 AsteriskGlyph()
                     .stroke(style: StrokeStyle(lineWidth: lineWidth(2.1, floor: 1.0), lineCap: .round))
             case .codex:

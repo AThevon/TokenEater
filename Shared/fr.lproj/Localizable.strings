@@ -1070,30 +1070,3 @@
 "dashboard.editor.hint" = "Glisse pour réordonner. Un bloc masqué est conservé, pas supprimé.";
 "dashboard.editor.reset" = "Réinitialiser l'ordre";
 "dashboard.editor.lastBlock" = "Le dernier bloc visible doit le rester";
-
-/* Extra Claude accounts */
-"providerMode.claudeWork" = "Claude Travail";
-"extraAccounts.title" = "Autres comptes Claude";
-"extraAccounts.scan" = "Scanner et actualiser";
-"extraAccounts.refreshing" = "Actualisation…";
-"extraAccounts.empty" = "Aucune autre connexion trouvée. Connectez-vous à un autre compte avec son propre dossier de configuration, par ex. CLAUDE_CONFIG_DIR=~/.claude-work claude, puis cliquez sur Scanner.";
-"extraAccounts.shown" = "Affiché dans la barre de menus et comme mode à part";
-"extraAccounts.hidden" = "Masqué";
-"extraAccounts.label" = "Libellé";
-"extraAccounts.notRead" = "Pas encore lu";
-"extraAccounts.forget" = "Oublier ce compte (Scanner le retrouvera)";
-"extraAccounts.error.denied" = "Accès au trousseau refusé";
-"extraAccounts.error.noLogin" = "Aucune connexion trouvée. Lancez Claude Code avec ce dossier de configuration.";
-"extraAccounts.error.expired" = "Connexion expirée. Ouvrez Claude Code avec ce compte.";
-"extraAccounts.error.rateLimited" = "Limite atteinte, nouvel essai bientôt";
-"extraAccounts.check" = "Vérifier la connexion";
-"popoverElement.workSession" = "Session (5h)";
-"popoverElement.workWeekly" = "Hebdomadaire";
-"popoverElement.workSessionPacing" = "Pacing session";
-"popoverElement.workWeeklyPacing" = "Pacing hebdo";
-"menuBarSegment.workSession" = "Session (5h)";
-"menuBarSegment.workWeekly" = "Hebdomadaire";
-"menuBarSegment.workSessionPacing" = "Pacing session";
-"menuBarSegment.workWeeklyPacing" = "Pacing hebdo";
-"extraAccounts.name" = "Nom court :";
-"extraAccounts.label.help" = "6 caractères max, affiché dans le sélecteur, la barre de menus et le tableau de bord. Appuyez sur Entrée pour enregistrer.";

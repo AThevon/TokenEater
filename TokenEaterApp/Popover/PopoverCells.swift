@@ -9,7 +9,6 @@ import SwiftUI
 
 struct PopoverElementCellView: View {
     @EnvironmentObject private var usageStore: UsageStore
-    @EnvironmentObject private var extraAccounts: ExtraAccountsStore
     @EnvironmentObject private var codexStore: CodexUsageStore
 
     let element: PopoverElement
@@ -17,29 +16,29 @@ struct PopoverElementCellView: View {
     var body: some View {
         switch element.style {
         case .gaugeRing:
-            if let snapshot = PopoverMetricResolver.usageSnapshot(for: element.kind, usage: usageStore, codex: codexStore, work: extraAccounts.workUsageStore) {
+            if let snapshot = PopoverMetricResolver.usageSnapshot(for: element.kind, usage: usageStore, codex: codexStore) {
                 GaugeRingCell(snapshot: snapshot, width: element.effectiveWidth, showReset: element.options.showReset)
             }
         case .chip:
-            if let snapshot = PopoverMetricResolver.usageSnapshot(for: element.kind, usage: usageStore, codex: codexStore, work: extraAccounts.workUsageStore) {
+            if let snapshot = PopoverMetricResolver.usageSnapshot(for: element.kind, usage: usageStore, codex: codexStore) {
                 ChipCell(snapshot: snapshot, width: element.effectiveWidth, showReset: element.options.showReset)
             }
         case .arc:
-            if let snapshot = PopoverMetricResolver.usageSnapshot(for: element.kind, usage: usageStore, codex: codexStore, work: extraAccounts.workUsageStore) {
+            if let snapshot = PopoverMetricResolver.usageSnapshot(for: element.kind, usage: usageStore, codex: codexStore) {
                 ArcCell(snapshot: snapshot, content: element.options.content)
             }
         case .bigText:
-            if let snapshot = PopoverMetricResolver.usageSnapshot(for: element.kind, usage: usageStore, codex: codexStore, work: extraAccounts.workUsageStore) {
+            if let snapshot = PopoverMetricResolver.usageSnapshot(for: element.kind, usage: usageStore, codex: codexStore) {
                 BigTextCell(snapshot: snapshot, width: element.effectiveWidth, content: element.options.content)
             }
         case .paceBar:
-            if let pacing = PopoverMetricResolver.pacing(for: element.kind, usage: usageStore, codex: codexStore, work: extraAccounts.workUsageStore) {
+            if let pacing = PopoverMetricResolver.pacing(for: element.kind, usage: usageStore, codex: codexStore) {
                 PopoverPacingRow(
                     label: paceLabel,
                     pacing: pacing,
                     // The workweek schedule adjusts every weekly bucket (weekly +
                     // per-model Fable); only the intraday session is never adjusted.
-                    showWorkweekBadge: element.kind != .sessionPacing && element.kind != .workSessionPacing
+                    showWorkweekBadge: element.kind != .sessionPacing
                 )
             } else {
                 // Idle: the bucket exists (the cell only renders for available
@@ -47,13 +46,13 @@ struct PopoverElementCellView: View {
                 PaceIdleRow(label: paceLabel, provider: element.kind.provider)
             }
         case .paceTile:
-            if let pacing = PopoverMetricResolver.pacing(for: element.kind, usage: usageStore, codex: codexStore, work: extraAccounts.workUsageStore) {
+            if let pacing = PopoverMetricResolver.pacing(for: element.kind, usage: usageStore, codex: codexStore) {
                 PaceTileCell(label: paceShortLabel, provider: element.kind.provider, pacing: pacing)
             } else {
                 PaceIdleCardCell(label: paceShortLabel, provider: element.kind.provider, verticalPadding: 10)
             }
         case .paceText:
-            if let pacing = PopoverMetricResolver.pacing(for: element.kind, usage: usageStore, codex: codexStore, work: extraAccounts.workUsageStore) {
+            if let pacing = PopoverMetricResolver.pacing(for: element.kind, usage: usageStore, codex: codexStore) {
                 PaceTextCell(label: paceShortLabel, provider: element.kind.provider, pacing: pacing)
             } else {
                 PaceIdleCardCell(label: paceShortLabel, provider: element.kind.provider, verticalPadding: 8)
@@ -90,7 +89,7 @@ struct PopoverElementCellView: View {
         switch element.kind {
         // `.codexWeeklyPacing` used to fall through to `default` and label
         // itself "Session", which was simply the wrong word on the cell.
-        case .weeklyPacing, .codexWeeklyPacing, .workWeeklyPacing: return String(localized: "pacing.weekly.label")
+        case .weeklyPacing, .codexWeeklyPacing: return String(localized: "pacing.weekly.label")
         case .fablePacing: return String(localized: "pacing.fable.label")
         default: return String(localized: "pacing.session.label")
         }
@@ -98,7 +97,7 @@ struct PopoverElementCellView: View {
 
     private var paceShortLabel: String {
         switch element.kind {
-        case .weeklyPacing, .codexWeeklyPacing, .workWeeklyPacing: return String(localized: "pacing.weekly.label.short")
+        case .weeklyPacing, .codexWeeklyPacing: return String(localized: "pacing.weekly.label.short")
         case .fablePacing: return String(localized: "pacing.fable.label.short")
         default: return String(localized: "pacing.session.label.short")
         }
@@ -635,7 +634,6 @@ private struct PopoverQuitButtonCell: View {
 private struct PlanBadgeCell: View {
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var codexStore: CodexUsageStore
-    @EnvironmentObject private var extraAccounts: ExtraAccountsStore
     @EnvironmentObject private var settingsStore: SettingsStore
 
     private var visible: [MetricProvider] {
@@ -656,10 +654,6 @@ private struct PlanBadgeCell: View {
                         badge(provider, codexStore.planType.displayLabel,
                               codexStore.planType.badgeColor)
                     }
-                case .claudeWork:
-                    if let work = extraAccounts.workUsageStore, work.planType != .unknown {
-                        badge(provider, work.planType.displayLabel, work.planType.badgeColor)
-                    }
                 }
             }
         }
@@ -672,17 +666,13 @@ private struct PlanBadgeCell: View {
             // every other label on this surface.
             if visible.count > 1 {
                 ProviderGlyph(provider: provider, size: 7)
-                // Both Claude accounts share the mark, so the second one
-                // carries its short name to tell the two badges apart.
-                if provider == .claudeWork, let label = settingsStore.workAccountLabel {
-                    Text(label)
-                }
             }
             Text(plan)
         }
-        // Three providers can crowd the row; a badge shrinks before it wraps.
+        // Several badges can crowd the row: a badge truncates rather than
+        // wraps or pushes the row wider than the popover.
         .lineLimit(1)
-        .fixedSize()
+        .truncationMode(.tail)
         .font(.system(size: 8, weight: .bold))
         .foregroundStyle(.white)
         .padding(.horizontal, 5)

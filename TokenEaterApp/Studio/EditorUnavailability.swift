@@ -49,16 +49,15 @@ extension EditorUnavailability {
         for kind: MenuBarSegmentKind,
         settings: SettingsStore,
         usage: UsageStore,
-        codex: CodexUsageStore,
-        work: UsageStore? = nil
+        codex: CodexUsageStore
     ) -> EditorUnavailability? {
         guard !MenuBarSegmentAvailability.isAvailable(
-            kind, settings: settings, usage: usage, codex: codex, work: work
+            kind, settings: settings, usage: usage, codex: codex
         ) else { return nil }
         return reason(
             provider: kind.provider,
             isPlanFact: isPlanFact(kind),
-            settings: settings, usage: usage, codex: codex, work: work
+            settings: settings, usage: usage, codex: codex
         )
     }
 
@@ -67,11 +66,10 @@ extension EditorUnavailability {
         for kind: PopoverElementKind,
         settings: SettingsStore,
         usage: UsageStore,
-        codex: CodexUsageStore,
-        work: UsageStore? = nil
+        codex: CodexUsageStore
     ) -> EditorUnavailability? {
         guard !PopoverMetricResolver.isVisible(
-            kind, usage: usage, codex: codex, settings: settings, work: work
+            kind, usage: usage, codex: codex, settings: settings
         ) else { return nil }
         // Pinned chrome since 5.13, never drawn from the composition. A copy
         // left in a layout by an older build is not a gap the user has to fix,
@@ -80,7 +78,7 @@ extension EditorUnavailability {
         return reason(
             provider: kind.provider,
             isPlanFact: isPlanFact(kind),
-            settings: settings, usage: usage, codex: codex, work: work
+            settings: settings, usage: usage, codex: codex
         )
     }
 
@@ -89,8 +87,7 @@ extension EditorUnavailability {
         isPlanFact: Bool,
         settings: SettingsStore,
         usage: UsageStore,
-        codex: CodexUsageStore,
-        work: UsageStore?
+        codex: CodexUsageStore
     ) -> EditorUnavailability {
         if let provider {
             guard settings.activeProviders.contains(provider) else {
@@ -104,7 +101,7 @@ extension EditorUnavailability {
         // landed. Before that the honest answer is that we do not know yet,
         // which is also what a Claude-only machine sees for every Codex
         // segment while the first refresh is in flight.
-        guard hasFetched(provider, usage: usage, codex: codex, work: work) else { return .noDataYet }
+        guard hasFetched(provider, usage: usage, codex: codex) else { return .noDataYet }
         guard isPlanFact, let provider else { return .noDataYet }
         return .notOnPlan(provider)
     }
@@ -112,12 +109,10 @@ extension EditorUnavailability {
     private static func hasFetched(
         _ provider: MetricProvider?,
         usage: UsageStore,
-        codex: CodexUsageStore,
-        work: UsageStore?
+        codex: CodexUsageStore
     ) -> Bool {
         switch provider {
         case .claude: return usage.lastUpdate != nil
-        case .claudeWork: return work?.lastUpdate != nil
         case .codex: return codex.lastUpdate != nil
         case nil: return usage.lastUpdate != nil || codex.lastUpdate != nil
         }
