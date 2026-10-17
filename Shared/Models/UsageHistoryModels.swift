@@ -37,22 +37,27 @@ enum HistoryRange: String, CaseIterable, Codable, Sendable {
 // MARK: - Model classification
 
 /// Coarse model identity used for chart colouring + filter chips. Fable is the
-/// Mythos-class tier above Opus and gets its own family; Opus 4.8/4.7/4.6 are
-/// kept distinct (the user might run several back-to-back), Sonnet/Haiku
-/// collapse all minor versions, anything unrecognised lands in `.other`.
+/// Mythos-class tier above Opus and gets its own family; Opus 5.5/5/4.8/4.7/4.6
+/// and Sonnet 5.5/5 are kept distinct (the user might run several
+/// back-to-back), Fable, Haiku and pre-5 Sonnet collapse all their versions,
+/// anything unrecognised lands in `.other`.
 struct ModelKind: RawRepresentable, CaseIterable, Codable, Hashable, Sendable {
     let rawValue: String
 
     static let fable = Self(rawValue: "fable")
+    static let opus55 = Self(rawValue: "opus55")
     static let opus5 = Self(rawValue: "opus5")
     static let opus48 = Self(rawValue: "opus48")
     static let opus47 = Self(rawValue: "opus47")
     static let opus46 = Self(rawValue: "opus46")
+    static let sonnet55 = Self(rawValue: "sonnet55")
     static let sonnet5 = Self(rawValue: "sonnet5")
     static let sonnet = Self(rawValue: "sonnet")
     static let haiku = Self(rawValue: "haiku")
     static let other = Self(rawValue: "other")
-    static let allCases: [Self] = [.fable, .opus5, .opus48, .opus47, .opus46, .sonnet5, .sonnet, .haiku, .other]
+    static let allCases: [Self] = [
+        .fable, .opus55, .opus5, .opus48, .opus47, .opus46, .sonnet55, .sonnet5, .sonnet, .haiku, .other,
+    ]
 
     var isCodex: Bool { rawValue.hasPrefix("codex:") }
 
@@ -74,12 +79,17 @@ struct ModelKind: RawRepresentable, CaseIterable, Codable, Hashable, Sendable {
     init(rawModel: String) {
         let lower = rawModel.lowercased()
         if lower.contains("fable") {
-            // Fable 5 (and any future Fable minor) maps to the Fable family.
+            // Every Fable release ("claude-fable-5", "claude-fable-5-1", any
+            // future minor) maps to the single Fable kind.
             self = .fable
+        } else if lower.contains("opus-5-5") || lower.contains("opus-5.5") {
+            // Checked before the plain "opus-5" below, which it contains.
+            self = .opus55
         } else if lower.contains("opus-5") || lower.contains("opus-4-8") || lower.contains("opus-4.8") {
-            // The Claude 5 generation drops the minor suffix ("claude-opus-5"),
-            // so a plain "opus-5" check is enough and cannot collide with the
-            // 4.x checks below ("opus-4-5" does not contain "opus-5") (#259).
+            // Claude 5 shipped without a minor suffix ("claude-opus-5"), so a
+            // plain "opus-5" check is enough and cannot collide with the 4.x
+            // checks below ("opus-4-5" does not contain "opus-5") (#259). A
+            // 5.x minor without its own case above lands here too.
             self = lower.contains("opus-5") ? .opus5 : .opus48
         } else if lower.contains("opus-4-7") || lower.contains("opus-4.7") {
             self = .opus47
@@ -87,13 +97,15 @@ struct ModelKind: RawRepresentable, CaseIterable, Codable, Hashable, Sendable {
             self = .opus46
         } else if lower.contains("opus-4") {
             // A 4.x minor without an explicit case above stays in its own
-            // generation instead of inflating the Opus 5 bucket.
+            // generation instead of inflating a Claude 5 bucket.
             self = .opus48
         } else if lower.contains("opus") {
             // Bare "opus" alias and any unversioned Opus string map to the
             // current shipping version. Future versions need their own
             // explicit case above to get a distinct label and color.
-            self = .opus5
+            self = .opus55
+        } else if lower.contains("sonnet-5-5") || lower.contains("sonnet-5.5") {
+            self = .sonnet55
         } else if lower.contains("sonnet-5") {
             self = .sonnet5
         } else if lower.contains("sonnet") {
@@ -107,29 +119,33 @@ struct ModelKind: RawRepresentable, CaseIterable, Codable, Hashable, Sendable {
 
     var displayName: String {
         switch self {
-        case .fable:   return "Fable 5"
-        case .opus5:   return "Opus 5"
-        case .opus48:  return "Opus 4.8"
-        case .opus47:  return "Opus 4.7"
-        case .opus46:  return "Opus 4.6"
-        case .sonnet5: return "Sonnet 5"
-        case .sonnet:  return "Sonnet"
-        case .haiku:   return "Haiku"
-        default:      return isCodex ? family.displayName : "Other"
+        // One kind covers every Fable release, so the label names no version
+        // (Haiku and pre-5 Sonnet work the same way).
+        case .fable:    return "Fable"
+        case .opus55:   return "Opus 5.5"
+        case .opus5:    return "Opus 5"
+        case .opus48:   return "Opus 4.8"
+        case .opus47:   return "Opus 4.7"
+        case .opus46:   return "Opus 4.6"
+        case .sonnet55: return "Sonnet 5.5"
+        case .sonnet5:  return "Sonnet 5"
+        case .sonnet:   return "Sonnet"
+        case .haiku:    return "Haiku"
+        default:        return isCodex ? family.displayName : "Other"
         }
     }
 
-    /// Family used by the filter chips. Opus 5, 4.8, 4.7 and 4.6 fold into
-    /// `.opus` since users typically think "Opus" not "Opus 5 vs 4.8"; Sonnet 5
-    /// folds into `.sonnet` the same way. Fable is its own family (no
-    /// minor-version split yet).
+    /// Family used by the filter chips. Opus 5.5, 5, 4.8, 4.7 and 4.6 fold
+    /// into `.opus` since users typically think "Opus" not "Opus 5.5 vs 5";
+    /// Sonnet 5.5 and 5 fold into `.sonnet` the same way. Fable is its own
+    /// family (no minor-version split yet).
     var family: ModelFamily {
         switch self {
-        case .fable:                            return .fable
-        case .opus5, .opus48, .opus47, .opus46: return .opus
-        case .sonnet5, .sonnet:                 return .sonnet
-        case .haiku:                            return .haiku
-        default:                               return isCodex ? ModelFamily(rawValue: rawValue) : .other
+        case .fable:                                     return .fable
+        case .opus55, .opus5, .opus48, .opus47, .opus46: return .opus
+        case .sonnet55, .sonnet5, .sonnet:               return .sonnet
+        case .haiku:                                     return .haiku
+        default:                                         return isCodex ? ModelFamily(rawValue: rawValue) : .other
         }
     }
 
@@ -138,7 +154,7 @@ struct ModelKind: RawRepresentable, CaseIterable, Codable, Hashable, Sendable {
     /// `stackOrderContainsEveryCase` test guards completeness (the array is not
     /// compiler-checked for missing cases).
     static var stackOrder: [ModelKind] {
-        [.haiku, .opus46, .opus47, .opus48, .opus5, .fable, .sonnet, .sonnet5, .other]
+        [.haiku, .opus46, .opus47, .opus48, .opus5, .opus55, .fable, .sonnet, .sonnet5, .sonnet55, .other]
     }
 }
 
@@ -374,7 +390,13 @@ struct HistoryCache: Codable, Sendable {
     /// accepted: legacy rows whose JSONL says just "opus" relabel from
     /// Opus 4.8 to Opus 5 in the re-scan (the bare alias carries no era, and
     /// the fallback tracks the current shipping version by design).
-    static let currentVersion = 4
+    /// v4: active tokens started counting cache writes, so caches holding the
+    /// old input + output totals are re-scanned.
+    /// v5: the Claude 5.5 generation. Caches that bucketed `claude-opus-5-5`
+    /// under `.opus5` and `claude-sonnet-5-5` under `.sonnet5` are re-scanned
+    /// into the new `.opus55` / `.sonnet55` cases. Same accepted side effect
+    /// as v3: bare "opus" rows relabel to the new current version, Opus 5.5.
+    static let currentVersion = 5
     static let empty = HistoryCache(version: currentVersion, entries: [:])
 
     /// True when this cache was written by the current schema. The loader
