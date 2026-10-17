@@ -256,6 +256,48 @@ struct AccountsStoreTests {
         #expect(main.displayName() == nil)
     }
 
+    @Test("an added account has insights of its own, and removing it deletes its history cache")
+    func historyFollowsTheAccount() throws {
+        let defaults = cleanDefaults()
+        let cache = FileManager.default.temporaryDirectory.appendingPathComponent("history-cache.acct-h-\(UUID().uuidString).json")
+        try Data("{}".utf8).write(to: cache)
+        let main = UsageStore(
+            repository: MockUsageRepository(),
+            tokenProvider: MockTokenProvider(),
+            sharedFileService: MockSharedFileService(),
+            notificationService: MockNotificationService(),
+            sessionSamplesKey: "AccountsStoreTests.main",
+            reloadWidgets: {}
+        )
+        let store = AccountsStore(mainStore: main, defaults: defaults, home: home, notifications: MockNotificationService()) { record in
+            let file = MockSharedFileService()
+            let usage = UsageStore(
+                repository: MockUsageRepository(),
+                tokenProvider: MockTokenProvider(),
+                sharedFileService: file,
+                notificationService: MockNotificationService(),
+                sessionSamplesKey: AccountsStore.sessionSamplesKey(for: record.id),
+                reloadWidgets: {}
+            )
+            let history = ClaudeHistoryRoot(
+                account: record.id,
+                projectsURL: URL(fileURLWithPath: record.configDir ?? "/").appendingPathComponent("projects"),
+                cacheURL: cache
+            )
+            return AccountRuntime(store: usage, sharedFile: file, history: history)
+        }
+        store.add(extra("h"))
+        let id = AccountID(rawValue: "acct-h")
+
+        #expect(store.insightsStore(for: .main) == nil)
+        let insights = try #require(store.insightsStore(for: id))
+        #expect(store.insightsStore(for: id) === insights)
+
+        store.remove(id)
+        #expect(!FileManager.default.fileExists(atPath: cache.path))
+        #expect(store.insightsStore(for: id) == nil)
+    }
+
     @Test("the main account cannot be removed")
     func mainNotRemovable() {
         let defaults = cleanDefaults()

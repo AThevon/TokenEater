@@ -649,6 +649,8 @@
 "history.range.30d" = "30j";
 "history.range.90d" = "90j";
 "history.filter.all" = "Tous";
+"history.accounts.all" = "Tous les comptes";
+"history.accounts.help" = "Les comptes Claude que l'Historique additionne. Codex reste compté dans tous les cas.";
 "history.hero.label" = "TOKENS ACTIFS";
 "history.hero.deltaSuffix" = "vs %@";
 "history.hero.active" = "actifs";

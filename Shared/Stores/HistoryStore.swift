@@ -34,6 +34,18 @@ final class HistoryStore: ObservableObject {
         }
     }
 
+    /// The one Claude account History reads, or nil for every tracked
+    /// account added together. Claude mode sets it to the account on screen;
+    /// in All, the account chips do, once two accounts are tracked. A change
+    /// reloads, since each account's transcripts live in their own folder.
+    @Published var accountFilter: AccountID? = nil {
+        didSet {
+            guard oldValue != accountFilter else { return }
+            service = serviceFactory(accountFilter)
+            reload()
+        }
+    }
+
     /// Active tab of the chart card (Tokens / Projects / Sessions / Cache).
     /// Lives in the store (hoisted in `MainAppView`) so the choice survives
     /// navigating away from History and back.
@@ -79,11 +91,24 @@ final class HistoryStore: ObservableObject {
 
     // MARK: - Wiring
 
-    private let service: SessionHistoryServiceProtocol
+    private let serviceFactory: (AccountID?) -> SessionHistoryServiceProtocol
+    private var service: SessionHistoryServiceProtocol
     private var loadTask: Task<Void, Never>?
 
-    init(service: SessionHistoryServiceProtocol = CombinedSessionHistoryService()) {
-        self.service = service
+    /// - Parameter serviceFactory: the history for one account, or for all
+    ///   of them with nil. Every tracked account's folder by default.
+    init(
+        serviceFactory: @escaping (AccountID?) -> SessionHistoryServiceProtocol = {
+            CombinedSessionHistoryService(accountFilter: $0)
+        }
+    ) {
+        self.serviceFactory = serviceFactory
+        self.service = serviceFactory(nil)
+    }
+
+    /// One fixed service whatever the account filter, for tests.
+    convenience init(service: SessionHistoryServiceProtocol) {
+        self.init(serviceFactory: { _ in service })
     }
 
     // MARK: - Public

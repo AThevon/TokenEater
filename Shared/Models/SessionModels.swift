@@ -93,3 +93,11 @@ struct ClaudeConfigRoot: Equatable, Sendable {
         self.init(account: account, projectsURL: scope.projectsURL(home: home), sessionsURL: scope.sessionsURL(home: home))
     }
 }
+
+/// One Claude account's transcripts as History reads them: the folder they
+/// sit in and the cache file kept for it.
+struct ClaudeHistoryRoot: Equatable, Sendable {
+    let account: AccountID
+    let projectsURL: URL
+    let cacheURL: URL
+}

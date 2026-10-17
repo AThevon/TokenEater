@@ -169,6 +169,127 @@ struct CombinedHistoryTests {
         #expect(bucket.cacheHitRate == 0.65)
     }
 
+    // MARK: - Claude accounts
+
+    /// Two Claude config folders with one transcript each: the main
+    /// account's 100 active tokens on /main-repo, Work's 40 on /work-repo.
+    private struct TwoRoots {
+        let base: URL
+        let main: ClaudeHistoryRoot
+        let work: ClaudeHistoryRoot
+        func cleanup() { try? FileManager.default.removeItem(at: base) }
+    }
+
+    private func makeTwoRoots() throws -> TwoRoots {
+        let fm = FileManager.default
+        let base = fm.temporaryDirectory.appendingPathComponent("te-accounts-\(UUID().uuidString)")
+        let timestamp = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-60))
+        func root(_ name: String, account: AccountID, cwd: String, input: Int) throws -> ClaudeHistoryRoot {
+            let projects = base.appendingPathComponent("\(name)/projects")
+            let dir = projects.appendingPathComponent("-repo")
+            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            let session = "\(account.rawValue)-session"
+            let line = """
+            {"timestamp":"\(timestamp)","type":"assistant","sessionId":"\(session)","cwd":"\(cwd)","message":{"model":"claude-opus-5","usage":{"input_tokens":\(input),"output_tokens":0}}}
+            """
+            try line.write(to: dir.appendingPathComponent("\(session).jsonl"), atomically: true, encoding: .utf8)
+            return ClaudeHistoryRoot(
+                account: account,
+                projectsURL: projects,
+                cacheURL: base.appendingPathComponent("history-cache\(account.storageSuffix).json")
+            )
+        }
+        return TwoRoots(
+            base: base,
+            main: try root(".claude", account: .main, cwd: "/main-repo", input: 100),
+            work: try root(".claude-work", account: AccountID(rawValue: "acct-work"), cwd: "/work-repo", input: 40)
+        )
+    }
+
+    private func total(_ service: SessionHistoryServiceProtocol) async throws -> Int {
+        try await service.loadHistory(range: .sevenDays).reduce(0) { $0 + $1.totalActive }
+    }
+
+    @Test("History adds every tracked account up, and narrows to one on request")
+    func accountsSumAndFilter() async throws {
+        let roots = try makeTwoRoots()
+        defer { roots.cleanup() }
+        let both: @Sendable () -> [ClaudeHistoryRoot] = { [roots.main, roots.work] }
+        let service = { (filter: AccountID?) in
+            CombinedSessionHistoryService(claudeRoots: both, accountFilter: filter, isCodexEnabled: { false })
+        }
+
+        #expect(try await total(service(nil)) == 140)
+        #expect(try await total(service(AccountID(rawValue: "acct-work"))) == 40)
+        #expect(try await total(service(.main)) == 100)
+
+        let projects = try await service(nil).loadHistory(range: .sevenDays).first?.tokensByProject
+        #expect(projects?["/main-repo"] == 100)
+        #expect(projects?["/work-repo"] == 40)
+    }
+
+    @Test("each account's folder keeps its own history cache")
+    func accountsKeepTheirCaches() async throws {
+        let roots = try makeTwoRoots()
+        defer { roots.cleanup() }
+        let service = CombinedSessionHistoryService(
+            claudeRoots: { [roots.main, roots.work] },
+            isCodexEnabled: { false }
+        )
+        _ = try await service.loadHistory(range: .sevenDays)
+
+        let mainCache = try String(contentsOf: roots.main.cacheURL, encoding: .utf8)
+        let workCache = try String(contentsOf: roots.work.cacheURL, encoding: .utf8)
+        #expect(mainCache.contains("main-session.jsonl"))
+        #expect(!mainCache.contains("acct-work-session"))
+        #expect(workCache.contains("acct-work-session.jsonl"))
+        #expect(!workCache.contains("main-session"))
+    }
+
+    @Test("an account's previous-period total adds into Claude's")
+    func accountsPreviousTotals() async throws {
+        let service = CombinedSessionHistoryService(
+            claude: Stub(previous: 20),
+            codex: Stub(previous: 30, provider: .codex),
+            isCodexEnabled: { true }
+        )
+        #expect(try await service.loadPreviousPeriodActiveTokens(range: .sevenDays) == [.claude: 20, .codex: 30])
+    }
+
+    @Test("the main account's cache keeps its historical name, an added one gets its own")
+    func cacheNames() {
+        #expect(SessionHistoryService.cacheURL(for: .main).lastPathComponent == "history-cache.json")
+        #expect(SessionHistoryService.cacheURL(for: AccountID(rawValue: "acct-x")).lastPathComponent
+                == "history-cache.acct-x.json")
+    }
+
+    @Test("History reloads with the account the filter names")
+    @MainActor func storeReloadsWithFilter() async throws {
+        let day = Calendar.current.startOfDay(for: Date())
+        var asked: [AccountID?] = []
+        let store = HistoryStore(serviceFactory: { filter in
+            asked.append(filter)
+            let tokens = filter == nil ? 140 : 40
+            return CombinedSessionHistoryService(
+                claude: Stub(buckets: [self.bucket(day, .opus5, tokens)]),
+                codex: Stub(),
+                isCodexEnabled: { false }
+            )
+        })
+        store.reload()
+        for _ in 0..<200 where !store.hasLoadedOnce { try await Task.sleep(nanoseconds: 5_000_000) }
+        #expect(store.summary.totalActive == 140)
+
+        store.accountFilter = AccountID(rawValue: "acct-work")
+        for _ in 0..<200 where store.summary.totalActive != 40 { try await Task.sleep(nanoseconds: 5_000_000) }
+        #expect(store.summary.totalActive == 40)
+        #expect(asked == [nil, AccountID(rawValue: "acct-work")])
+
+        // Setting the same account again does not rebuild anything.
+        store.accountFilter = AccountID(rawValue: "acct-work")
+        #expect(asked.count == 2)
+    }
+
     // MARK: - Helpers
 
     private func bucket(_ date: Date, _ model: ModelKind, _ tokens: Int) -> HistoryBucket {

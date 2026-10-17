@@ -17,7 +17,13 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
     /// Cache file path. Same dir as the shared usage file so it's easy
     /// to nuke during dev. Falls back to `NSHomeDirectory()` when the
     /// user domain isn't fully resolved (some CI / sandboxed envs).
-    private static var cacheURL: URL {
+    private static var cacheURL: URL { cacheURL(for: .main) }
+
+    /// The cache of one Claude account's transcripts: `history-cache.json`
+    /// for the main account, as it has always been, and
+    /// `history-cache.acct-<uuid>.json` for an added one, so two folders
+    /// never prune each other's entries. Paths and token counts only.
+    static func cacheURL(for account: AccountID) -> URL {
         let support = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)
             .first
@@ -25,7 +31,7 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
                 .appendingPathComponent("Library/Application Support", isDirectory: true)
         return support
             .appendingPathComponent("com.tokeneater.shared", isDirectory: true)
-            .appendingPathComponent("history-cache.json")
+            .appendingPathComponent("history-cache\(account.storageSuffix).json")
     }
 
     /// Where the main Claude account keeps its transcripts: `<dir>/projects`

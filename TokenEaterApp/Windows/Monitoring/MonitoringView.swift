@@ -24,8 +24,10 @@ struct MonitoringView: View {
     var embeddedAccount: AccountID? = nil
 
     /// Lightweight 7d daily-buckets store for the back-of-card stats.
-    /// Loaded once on appear, refreshed if older than 60s. Owned by
-    /// `MainAppView` so the cache survives navigation between spaces.
+    /// Loaded once on appear, refreshed if older than 60s. The main
+    /// account's is owned by `MainAppView` so the cache survives navigation
+    /// between spaces; an added account's lives on its `AccountRuntime`, and
+    /// reads that account's own folder.
     @ObservedObject var insightsStore: MonitoringInsightsStore
 
     @State private var lastUpdateText = ""
@@ -45,6 +47,7 @@ struct MonitoringView: View {
                 ProviderStatusNotice(provider: .claude)
                 blocks(for: .claude)
             }
+            .onAppear { insightsStore.warmIfStale() }
         } else {
             page
         }
@@ -106,6 +109,9 @@ struct MonitoringView: View {
             }
         }
         .onAppear { insightsStore.warmIfStale() }
+        // Claude mode moving to another account hands this page that
+        // account's insights; the view stays, so appear does not fire again.
+        .onChange(of: ObjectIdentifier(insightsStore)) { _, _ in insightsStore.warmIfStale() }
         .onChange(of: usageStore.lastUpdate) { _, _ in refreshLastUpdateText() }
     }
 
@@ -230,7 +236,10 @@ struct MonitoringView: View {
         switch column {
         case .claude(let account) where !account.isMain:
             if let store = accountsStore.usageStore(for: account) {
-                MonitoringView(embeddedAccount: account, insightsStore: insightsStore)
+                MonitoringView(
+                    embeddedAccount: account,
+                    insightsStore: accountsStore.insightsStore(for: account) ?? insightsStore
+                )
                     .environmentObject(store)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .transition(.glanceCard)
@@ -245,11 +254,10 @@ struct MonitoringView: View {
         }
     }
 
-    /// The local history behind the LIVE back of the glance card and the
-    /// insights on the tiles' backs belongs to the main account for now, so
-    /// another account's column leaves them out rather than show the main
-    /// account's under its name.
-    private var showsMainAccountExtras: Bool { heroAccount.isMain }
+    /// The live sessions on the back of the glance card come from the main
+    /// account's folder for now, so another account's card leaves them out
+    /// rather than show the main account's under its name.
+    private var showsLiveSessions: Bool { heroAccount.isMain }
 
     /// Renders one provider's blocks, in the order Studio put them.
     @ViewBuilder
@@ -732,7 +740,7 @@ struct MonitoringView: View {
             // from SessionStore (kept in sync by the overlay watcher),
             // which watches the main account's sessions: another account's
             // card shows its pacing alone.
-            if showsMainAccountExtras {
+            if showsLiveSessions {
                 VStack(alignment: .trailing, spacing: 6) {
                     Text("LIVE")
                         .font(DS.Typography.micro)
@@ -828,7 +836,7 @@ struct MonitoringView: View {
             pacingMargin: Double(settingsStore.pacingMargin),
             smartProfile: settingsStore.smartColorProfile,
             themeStore: themeStore,
-            insights: hasRichBack(tileId: tile.id) && showsMainAccountExtras
+            insights: hasRichBack(tileId: tile.id)
                 ? insightsStore.snapshot(for: tileFamily(for: tile.id))
                 : nil,
             insightsLoaded: insightsStore.hasLoaded

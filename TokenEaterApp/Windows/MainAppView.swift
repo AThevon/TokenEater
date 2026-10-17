@@ -115,7 +115,7 @@ struct MainAppView: View {
                     // Claude mode on an added account: the dashboard reads
                     // that account's store. Only the dashboard: Settings and
                     // Studio keep the main account's.
-                    MonitoringView(insightsStore: insightsStore)
+                    MonitoringView(insightsStore: dashboardInsights)
                         .environmentObject(dashboardStore)
                 case .history:
                     HistoryView(store: historyStore)
@@ -224,6 +224,17 @@ struct MainAppView: View {
               settingsStore.runningClaudeAccountIDs.contains(focused),
               let store = accountsStore.usageStore(for: focused) else { return usageStore }
         return store
+    }
+
+    /// The insights behind the dashboard's tiles, from the same account as
+    /// `dashboardStore`: an added account's own folder in Claude mode on it,
+    /// the main account's otherwise.
+    private var dashboardInsights: MonitoringInsightsStore {
+        let focused = settingsStore.focusedClaudeAccount
+        guard settingsStore.activeProviderMode == .claude, !focused.isMain,
+              settingsStore.runningClaudeAccountIDs.contains(focused),
+              let insights = accountsStore.insightsStore(for: focused) else { return insightsStore }
+        return insights
     }
 
     /// The one-shot Studio discovery bubble: upgrading users only (fresh

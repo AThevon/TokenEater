@@ -20,10 +20,36 @@ protocol AccountsStoreProtocol: AnyObject {
 }
 
 /// What an added account runs on.
-struct AccountRuntime {
+@MainActor
+final class AccountRuntime {
     let store: UsageStore
     /// Its own `shared-acct-<uuid>.json`, next to `shared.json`.
     let sharedFile: SharedFileServiceProtocol
+    /// Its transcripts (`<dir>/projects`) and their own history cache. Nil
+    /// only for runtimes built in tests without a folder.
+    let history: ClaudeHistoryRoot?
+
+    init(store: UsageStore, sharedFile: SharedFileServiceProtocol, history: ClaudeHistoryRoot? = nil) {
+        self.store = store
+        self.sharedFile = sharedFile
+        self.history = history
+    }
+
+    /// The 7-day insights behind its dashboard column (the tiles' backs),
+    /// read from its own folder. Built on first use: an account whose column
+    /// is never drawn never parses its history.
+    lazy var insights: MonitoringInsightsStore = {
+        guard let history else {
+            return MonitoringInsightsStore(service: CombinedSessionHistoryService(
+                claudeRoots: { [] },
+                isCodexEnabled: { false }
+            ))
+        }
+        return MonitoringInsightsStore(service: SessionHistoryService(
+            rootURL: history.projectsURL,
+            cacheURL: history.cacheURL
+        ))
+    }()
 }
 
 /// Owns the tracked Claude accounts and one `UsageStore` per added account.
@@ -142,6 +168,12 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
         id.isMain ? mainStore : runtimes[id]?.store
     }
 
+    /// An added account's dashboard insights. Nil for the main account,
+    /// whose insights `MainAppView` owns.
+    func insightsStore(for id: AccountID) -> MonitoringInsightsStore? {
+        id.isMain ? nil : runtimes[id]?.insights
+    }
+
     /// Every Claude store, main first, then the added accounts in display
     /// order. What the settings sinks walk.
     var allStores: [UsageStore] {
@@ -175,7 +207,12 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
             sessionSamplesKey: sessionSamplesKey(for: record.id),
             reloadWidgets: {}
         )
-        return AccountRuntime(store: store, sharedFile: file)
+        let history = ClaudeHistoryRoot(
+            account: record.id,
+            projectsURL: record.scope.projectsURL(home: ClaudeConfigDirResolver.realHome()),
+            cacheURL: SessionHistoryService.cacheURL(for: record.id)
+        )
+        return AccountRuntime(store: store, sharedFile: file, history: history)
     }
 
     static func sessionSamplesKey(for id: AccountID) -> String {
@@ -421,7 +458,7 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
     }
 
     /// Stops tracking an added account for good: its record, its store, its
-    /// pacing samples and its shared file go. Claude Code's own login is
+    /// pacing samples, its shared file, its history cache and its alerts go. Claude Code's own login is
     /// never touched.
     func remove(_ id: AccountID) {
         guard !id.isMain, let index = records.firstIndex(where: { $0.id == id }) else { return }
@@ -439,6 +476,9 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
         }
         if let url = runtime?.sharedFile.fileURL {
             try? FileManager.default.removeItem(at: url)
+        }
+        if let cache = runtime?.history?.cacheURL {
+            try? FileManager.default.removeItem(at: cache)
         }
         notifications.purge(account: id, includingDelivered: true)
         persist()

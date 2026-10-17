@@ -61,9 +61,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         historyWidgetStore.start()
-        // The sparkline sums the main account's transcripts; when its folder
-        // moves (#294), the next five-minute pass would be too late.
-        accountsStore.mainScopeChanged
+        // The sparkline sums every tracked account's transcripts; when the
+        // main account's folder moves (#294) or an account comes or goes,
+        // the next five-minute pass would be too late.
+        Publishers.Merge(
+            accountsStore.mainScopeChanged.map { _ in () },
+            accountsStore.$records.map { $0.map(\.id) }.removeDuplicates().dropFirst().map { _ in () }
+        )
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in
                 guard let store = self?.historyWidgetStore else { return }
