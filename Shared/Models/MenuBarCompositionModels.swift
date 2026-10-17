@@ -466,3 +466,18 @@ extension MenuBarSegmentKind {
         }
     }
 }
+
+// MARK: - Adding from the editor
+
+extension MenuBarSegment {
+    /// A new segment as the Studio editor adds it: the kind's first style,
+    /// and the account of the group it was picked from. Only a Claude kind of
+    /// an added account carries an account (see `PopoverElement.added`).
+    static func added(kind: MenuBarSegmentKind, account: AccountID?) -> MenuBarSegment {
+        MenuBarSegment(
+            kind: kind,
+            style: kind.allowedStyles.first ?? .text,
+            account: kind.provider == .claude && account?.isMain == false ? account : nil
+        )
+    }
+}

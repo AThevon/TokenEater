@@ -611,3 +611,24 @@ extension PopoverElementWidth {
         }
     }
 }
+
+// MARK: - Adding from the editor
+
+extension PopoverElement {
+    /// A new element as the Studio editor adds it: the kind's first style at
+    /// its default width, the reset line on for the two windows that have
+    /// one, and the account of the group it was picked from. Only a Claude
+    /// kind of an added account carries an account; the main account and
+    /// every other kind leave it unset, which is what the mode's default
+    /// reads anyway and keeps a layout portable between accounts.
+    static func added(kind: PopoverElementKind, account: AccountID?) -> PopoverElement {
+        let style = kind.allowedStyles.first ?? .utilityRow
+        return PopoverElement(
+            kind: kind,
+            style: style,
+            width: style.defaultWidth,
+            options: PopoverElementOptions(showReset: kind == .session || kind == .weekly),
+            account: kind.provider == .claude && account?.isMain == false ? account : nil
+        )
+    }
+}

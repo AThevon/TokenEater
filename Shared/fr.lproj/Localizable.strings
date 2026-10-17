@@ -749,6 +749,11 @@
 "editor.unavailable.scope" = "absent de la disposition %@";
 "editor.unavailable.plan" = "pas inclus dans votre offre %@";
 "editor.unavailable.noData" = "aucune donnée pour l'instant";
+"editor.unavailable.accountPaused" = "masqué tant que %@ est en pause";
+"editor.unavailable.accountGone" = "son compte n'est plus suivi";
+"menuBar.editor.tooWide" = "Une barre de menus aussi large peut passer sous l'encoche sur les petits écrans";
+"editor.add.accountGroup" = "Claude · %@";
+"editor.pick.account" = "Compte";
 "popover.editor.saveTemplate" = "Enregistrer comme template";
 "popover.editor.saveTemplate.short" = "Enregistrer";
 "popover.editor.saveTemplate.message" = "Enregistre la composition actuelle pour la réappliquer plus tard.";

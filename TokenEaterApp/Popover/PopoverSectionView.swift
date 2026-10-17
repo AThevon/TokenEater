@@ -9,6 +9,7 @@ struct PopoverSectionView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var usageStore: UsageStore
+    @EnvironmentObject private var accountsStore: AccountsStore
 
     @State private var selectedElementID: UUID?
     @State private var showSaveDialog = false
@@ -304,23 +305,18 @@ struct PopoverSectionView: View {
             // with one "Codex" bucket tacked on made Claude the default and
             // OpenAI the exception, and with a third provider it would stop
             // scaling entirely. Derived from the kinds themselves, so a new
-            // provider brings its own sections.
+            // provider brings its own sections. With several Claude accounts
+            // in All, each account is a group of its own, and what is added
+            // there reads that account.
             ForEach(scopedProviders) { provider in
-                let metrics = PopoverElementKind.allCases.filter {
-                    $0.provider == provider && $0.family == .usage
-                }
-                let pacing = PopoverElementKind.allCases.filter {
-                    $0.provider == provider && $0.family == .pacing
-                }
-                if !metrics.isEmpty {
-                    Section(pickerSectionTitle(provider, "popover.editor.family.metrics")) {
-                        ForEach(metrics) { addButton(for: $0) }
+                if provider == .claude && showsAccountGroups {
+                    ForEach(settingsStore.activeClaudeAccounts) { account in
+                        Menu(String(format: String(localized: "editor.add.accountGroup"), account.name)) {
+                            familySections(provider, account: account.id, titled: false)
+                        }
                     }
-                }
-                if !pacing.isEmpty {
-                    Section(pickerSectionTitle(provider, "popover.editor.family.pacing")) {
-                        ForEach(pacing) { addButton(for: $0) }
-                    }
+                } else {
+                    familySections(provider, account: nil, titled: true)
                 }
             }
             Section(String(localized: "popover.editor.family.utilities")) {
@@ -332,6 +328,37 @@ struct PopoverSectionView: View {
                 addButton(for: .quitButton)
             }
         }
+    }
+
+    /// One provider's metrics then pacing elements, for one account when
+    /// `account` is set. `titled` prefixes the provider's name when there is
+    /// another one to tell it from; inside an account's own group the group
+    /// already says whose.
+    @ViewBuilder
+    private func familySections(_ provider: MetricProvider, account: AccountID?, titled: Bool) -> some View {
+        let metrics = PopoverElementKind.allCases.filter {
+            $0.provider == provider && $0.family == .usage
+        }
+        let pacing = PopoverElementKind.allCases.filter {
+            $0.provider == provider && $0.family == .pacing
+        }
+        if !metrics.isEmpty {
+            Section(titled ? pickerSectionTitle(provider, "popover.editor.family.metrics") : String(localized: "popover.editor.family.metrics")) {
+                ForEach(metrics) { addButton(for: $0, account: account) }
+            }
+        }
+        if !pacing.isEmpty {
+            Section(titled ? pickerSectionTitle(provider, "popover.editor.family.pacing") : String(localized: "popover.editor.family.pacing")) {
+                ForEach(pacing) { addButton(for: $0, account: account) }
+            }
+        }
+    }
+
+    /// Accounts are picked per element in All only: Claude mode edits one
+    /// account's own layout, where an element with no account reads that
+    /// account and the layout stays portable.
+    private var showsAccountGroups: Bool {
+        settingsStore.activeProviderMode == .all && settingsStore.showsAccountMarkers
     }
 
     /// The providers this scope can actually render. Offering the other one's
@@ -351,15 +378,15 @@ struct PopoverSectionView: View {
     }
 
     @ViewBuilder
-    private func addButton(for kind: PopoverElementKind) -> some View {
+    private func addButton(for kind: PopoverElementKind, account: AccountID? = nil) -> some View {
         // Not disabled when unavailable: a user can pre-place a metric the
         // account does not have yet (Extra Credits, Fable) so their
         // layout is future-proof - the render-time gate keeps it hidden until
         // the account actually gains the data, at which point it appears on
         // its own. The label says why it would not draw yet.
-        let blocked = unavailability(kind)
+        let blocked = unavailability(PopoverElement.added(kind: kind, account: account))
         Button {
-            addElement(kind)
+            addElement(kind, account: account)
         } label: {
             Label(
                 blocked.map { "\(kind.localizedLabel) (\($0.label))" } ?? kind.localizedLabel,
@@ -371,20 +398,14 @@ struct PopoverSectionView: View {
     /// Why this kind would draw nothing, or nil when it draws. Asked of the
     /// renderer's own gate, so the menu and the popover cannot disagree about
     /// what an account has.
-    private func unavailability(_ kind: PopoverElementKind) -> EditorUnavailability? {
+    private func unavailability(_ element: PopoverElement) -> EditorUnavailability? {
         EditorUnavailability.reason(
-            for: kind, settings: settingsStore, usage: usageStore, codex: codexStore
+            for: element, settings: settingsStore, accounts: accountsStore, usage: usageStore, codex: codexStore
         )
     }
 
-    private func addElement(_ kind: PopoverElementKind) {
-        let style = kind.allowedStyles.first ?? .utilityRow
-        let element = PopoverElement(
-            kind: kind,
-            style: style,
-            width: style.defaultWidth,
-            options: PopoverElementOptions(showReset: kind == .session || kind == .weekly)
-        )
+    private func addElement(_ kind: PopoverElementKind, account: AccountID?) {
+        let element = PopoverElement.added(kind: kind, account: account)
         // Insert at the top: the new element lands where the user is looking
         // (right under the add button), not below the fold of a long list.
         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
@@ -596,6 +617,7 @@ private struct ElementListEditor: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var usageStore: UsageStore
+    @EnvironmentObject private var accountsStore: AccountsStore
 
     @Binding var selectedElementID: UUID?
     @State private var draggingID: UUID?
@@ -620,8 +642,11 @@ private struct ElementListEditor: View {
                 element: element,
                 isSelected: selectedElementID == element.id,
                 isDragging: draggingID == element.id,
-                unavailable: unavailability(element.kind),
+                unavailable: unavailability(element),
                 canDisable: canDisable(element),
+                account: accountMark(for: element),
+                accountChoices: settingsStore.activeClaudeAccounts,
+                onAccount: { id in mutate(element.id) { $0.account = id.isMain ? nil : id } },
                 onSelect: {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
                         selectedElementID = (selectedElementID == element.id) ? nil : element.id
@@ -662,8 +687,12 @@ private struct ElementListEditor: View {
     // the "keep one element visible" guard, and must stay freely removable.
     // That covers a Fable arc after a plan downgrade, a plan badge with no
     // known plan, and every Codex kind in a Claude-scoped layout.
-    private func isAvailable(_ kind: PopoverElementKind) -> Bool {
-        PopoverMetricResolver.isVisible(kind, usage: usageStore, codex: codexStore, settings: settingsStore)
+    private func isAvailable(_ element: PopoverElement) -> Bool {
+        guard let store = EditorUnavailability.store(
+            declared: element.account, provider: element.kind.provider,
+            settings: settingsStore, accounts: accountsStore, fallback: usageStore
+        ) else { return false }
+        return PopoverMetricResolver.isVisible(element.kind, usage: store, codex: codexStore, settings: settingsStore)
     }
 
     /// The same answer as `isAvailable`, with the reason attached, for the
@@ -671,10 +700,19 @@ private struct ElementListEditor: View {
     /// account" covered a plan that has no such window, a provider switched
     /// off and a fetch that has not happened, which are three different
     /// things to do about it.
-    private func unavailability(_ kind: PopoverElementKind) -> EditorUnavailability? {
+    private func unavailability(_ element: PopoverElement) -> EditorUnavailability? {
         EditorUnavailability.reason(
-            for: kind, settings: settingsStore, usage: usageStore, codex: codexStore
+            for: element, settings: settingsStore, accounts: accountsStore, usage: usageStore, codex: codexStore
         )
+    }
+
+    /// The account a Claude row belongs to, for its dot and its account
+    /// menu, in All once two accounts run. Nil everywhere else.
+    private func accountMark(for element: PopoverElement) -> ClaudeAccountSummary? {
+        guard element.kind.provider == .claude,
+              settingsStore.activeProviderMode == .all,
+              settingsStore.showsAccountMarkers else { return nil }
+        return settingsStore.claudeAccount(element.account ?? .main)
     }
 
     /// Whether hiding or deleting this element is allowed. The guard counts
@@ -687,9 +725,9 @@ private struct ElementListEditor: View {
     /// refresh).
     private func canDisable(_ element: PopoverElement) -> Bool {
         if element.isHidden { return true }
-        guard isAvailable(element.kind) else { return true }
+        guard isAvailable(element) else { return true }
         let availableVisible = settingsStore.popoverComposition.visibleElements
-            .filter { isAvailable($0.kind) }
+            .filter { isAvailable($0) }
         return availableVisible.count > 1
     }
 
@@ -743,6 +781,10 @@ private struct ElementRow: View {
     let isDragging: Bool
     let unavailable: EditorUnavailability?
     let canDisable: Bool
+    /// The Claude account the row reads, once there are several to pick from.
+    let account: ClaudeAccountSummary?
+    let accountChoices: [ClaudeAccountSummary]
+    let onAccount: (AccountID) -> Void
     let onSelect: () -> Void
     let onToggleHidden: () -> Void
     let onDelete: () -> Void
@@ -765,11 +807,17 @@ private struct ElementRow: View {
                     .frame(width: 16)
 
                 VStack(alignment: .leading, spacing: 1) {
-                    KindLabel(
-                        provider: element.kind.provider,
-                        text: element.kind.localizedLabel,
-                        color: element.isHidden ? .white.opacity(0.35) : .white.opacity(0.9)
-                    )
+                    HStack(spacing: 5) {
+                        if let account {
+                            AccountDot(colorHex: account.colorHex, size: 7)
+                                .opacity(element.isHidden || account.isPaused ? 0.4 : 1)
+                        }
+                        KindLabel(
+                            provider: element.kind.provider,
+                            text: element.kind.localizedLabel,
+                            color: element.isHidden ? .white.opacity(0.35) : .white.opacity(0.9)
+                        )
+                    }
                     if let unavailable {
                         Text(unavailable.label)
                             .font(.system(size: 9))
@@ -804,8 +852,11 @@ private struct ElementRow: View {
 
             // Style / width / options controls. Only rendered when the kind
             // offers a real choice, to keep utility rows lightweight.
-            if element.kind.allowedStyles.count > 1 || element.style.allowedWidths.count > 1 {
+            if account != nil || element.kind.allowedStyles.count > 1 || element.style.allowedWidths.count > 1 {
                 HStack(spacing: 8) {
+                    if let account {
+                        AccountPickerMenu(current: account, choices: accountChoices, onPick: onAccount)
+                    }
                     if element.kind.allowedStyles.count > 1 {
                         styleMenu
                     }

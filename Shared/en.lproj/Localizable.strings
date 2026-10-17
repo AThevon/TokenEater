@@ -749,6 +749,11 @@
 "editor.unavailable.scope" = "not part of the %@ layout";
 "editor.unavailable.plan" = "not on your %@ plan";
 "editor.unavailable.noData" = "no data yet";
+"editor.unavailable.accountPaused" = "hidden while %@ is paused";
+"editor.unavailable.accountGone" = "its account is no longer tracked";
+"menuBar.editor.tooWide" = "A menu bar this wide can slide under the notch on smaller screens";
+"editor.add.accountGroup" = "Claude · %@";
+"editor.pick.account" = "Account";
 "popover.editor.saveTemplate" = "Save as template";
 "popover.editor.saveTemplate.short" = "Save current";
 "popover.editor.saveTemplate.message" = "Saves the current composition so you can reapply it later.";
