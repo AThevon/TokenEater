@@ -27,6 +27,9 @@ struct ProviderHeroFace: View {
     let resetDate: Date?
 
     @EnvironmentObject private var themeStore: ThemeStore
+    /// Overrides the provider's name in the label, for the second Claude
+    /// account ("Claude W"), which draws with Claude's provider.
+    var name: String? = nil
     @Environment(\.glowIntensity) private var glowIntensity
 
     var body: some View {
@@ -39,7 +42,7 @@ struct ProviderHeroFace: View {
                     ProviderGlyph(provider: provider, size: 11)
                         .foregroundStyle(gaugeColor)
                         .dsGlow(gaugeColor, radius: 4, opacity: 0.6)
-                    Text(provider.displayName.uppercased() + " · " + windowLabel.uppercased())
+                    Text((name ?? provider.displayName).uppercased() + " · " + windowLabel.uppercased())
                         .font(DS.Typography.micro)
                         .tracking(1.5)
                         .foregroundStyle(DS.Palette.textSecondary)

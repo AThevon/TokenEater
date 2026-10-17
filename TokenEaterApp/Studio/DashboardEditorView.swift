@@ -97,7 +97,7 @@ struct DashboardEditorView: View {
                 // Marks, not prose. "Claude only" becomes "Claude, OpenAI and
                 // Gemini only" at four providers; a row of glyphs stays a row
                 // of glyphs however many there are.
-                if entry.block.providers.count < MetricProvider.allCases.count {
+                if !entry.block.providers.isSuperset(of: MetricProvider.vendors) {
                     ProviderSupportBadge(
                         providers: entry.block.providers,
                         describes: entry.block.localizedName,

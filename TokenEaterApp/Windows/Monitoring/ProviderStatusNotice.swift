@@ -59,7 +59,7 @@ struct ProviderStatusNotice: View {
     /// it no longer recovers by itself, and the notice says what to do (#268).
     private var errorMessage: String? {
         switch provider {
-        case .claude:
+        case .claude, .claudeWork:
             if usageStore.errorState == .tokenUnavailable, let since = usageStore.loginExpiredSince {
                 let headline = String(format: String(localized: "error.login.expired"),
                                       since.formatted(.relative(presentation: .named)))

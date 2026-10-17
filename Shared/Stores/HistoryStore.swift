@@ -67,7 +67,7 @@ final class HistoryStore: ObservableObject {
     var availableFamilies: [ModelFamily] {
         let codex = activeFamilies.filter(\.isCodex).sorted { $0.rawValue < $1.rawValue }
         switch providerMode.provider {
-        case .claude: return ModelFamily.allCases
+        case .claude, .claudeWork: return ModelFamily.allCases
         case .codex:  return codex
         case nil:     return ModelFamily.allCases + codex
         }

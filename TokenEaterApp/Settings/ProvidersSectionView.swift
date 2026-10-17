@@ -75,6 +75,8 @@ struct ProvidersSectionView: View {
                 }
                 resultLine(codexResult?.message, success: codexResult?.success ?? false)
 
+                ExtraAccountsSettingsCard()
+
                 // App-level, not provider-level: it reports on the whole
                 // install, and sitting inside one provider's card implied it
                 // only covered that one.
@@ -128,42 +130,12 @@ struct ProvidersSectionView: View {
         }
     }
 
-    /// Unbind and rebind, for a connection a stale cache has broken. Quieter
-    /// than the check button on purpose: it is the answer when checking has
-    /// already failed, not the first thing to reach for. People were
-    /// reinstalling the app, and losing every setting with it, for want of
-    /// this button (#268).
-    @ViewBuilder
     private func resetButton(isRunning: Bool, action: @escaping () -> Void) -> some View {
-        HStack(spacing: 6) {
-            if isRunning {
-                ProgressView().controlSize(.small).tint(DS.Palette.textSecondary)
-            }
-            Button(action: action) {
-                Text("settings.providers.reset")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(DS.Palette.textTertiary)
-                    .padding(.horizontal, DS.Spacing.sm)
-                    .padding(.vertical, 5)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(isRunning)
-            .opacity(isRunning ? 0.5 : 1)
-            .help(String(localized: "settings.providers.reset.hint"))
-        }
+        providerResetButton(isRunning: isRunning, action: action)
     }
 
-    @ViewBuilder
     private func checkButton(isRunning: Bool, action: @escaping () -> Void) -> some View {
-        HStack(spacing: 6) {
-            if isRunning {
-                ProgressView().controlSize(.small).tint(DS.Palette.textSecondary)
-            }
-            darkButton("settings.providers.check", action: action)
-                .disabled(isRunning)
-                .opacity(isRunning ? 0.5 : 1)
-        }
+        providerCheckButton(isRunning: isRunning, action: action)
     }
 
     /// Results sit under the card rather than inside it, so a card never
@@ -273,5 +245,48 @@ struct ProvidersSectionView: View {
             codexResult = await codexStore.testConnection()
             isTestingCodex = false
         }
+    }
+}
+
+// MARK: - Connection buttons
+
+// File-level so every provider card, including the extra Claude accounts,
+// draws the same pair.
+
+/// Unbind and rebind, for a connection a stale cache has broken. Quieter
+/// than the check button on purpose: it is the answer when checking has
+/// already failed, not the first thing to reach for. People were
+/// reinstalling the app, and losing every setting with it, for want of
+/// this button (#268).
+@ViewBuilder
+func providerResetButton(isRunning: Bool, action: @escaping () -> Void) -> some View {
+    HStack(spacing: 6) {
+        if isRunning {
+            ProgressView().controlSize(.small).tint(DS.Palette.textSecondary)
+        }
+        Button(action: action) {
+            Text("settings.providers.reset")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(DS.Palette.textTertiary)
+                .padding(.horizontal, DS.Spacing.sm)
+                .padding(.vertical, 5)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isRunning)
+        .opacity(isRunning ? 0.5 : 1)
+        .help(String(localized: "settings.providers.reset.hint"))
+    }
+}
+
+@ViewBuilder
+func providerCheckButton(isRunning: Bool, action: @escaping () -> Void) -> some View {
+    HStack(spacing: 6) {
+        if isRunning {
+            ProgressView().controlSize(.small).tint(DS.Palette.textSecondary)
+        }
+        darkButton("settings.providers.check", action: action)
+            .disabled(isRunning)
+            .opacity(isRunning ? 0.5 : 1)
     }
 }

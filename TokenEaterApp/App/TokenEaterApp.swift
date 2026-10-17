@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var updateStore: UpdateStore!
     var sessionStore: SessionStore!
     var vendorStatusStore: VendorStatusStore!
+    var extraAccountsStore: ExtraAccountsStore!
 
     private var statusBarController: StatusBarController?
     private var overlayWindowController: OverlayWindowController?
@@ -45,7 +46,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settingsStore: settingsStore,
             updateStore: updateStore,
             sessionStore: sessionStore,
-            vendorStatusStore: vendorStatusStore
+            vendorStatusStore: vendorStatusStore,
+            extraAccountsStore: extraAccountsStore
         )
         // Apply persisted watcher scan settings before the first tick uses them.
         sessionStore.setScanInterval(settingsStore.watcherScanInterval.seconds)
@@ -104,6 +106,7 @@ struct TokenEaterApp: App {
     private let updateStore: UpdateStore
     private let sessionStore: SessionStore
     private let vendorStatusStore: VendorStatusStore
+    private let extraAccountsStore: ExtraAccountsStore
 
     init() {
         // NSRunningApplication only enumerates the current login session, so this
@@ -131,6 +134,7 @@ struct TokenEaterApp: App {
         self.updateStore = UpdateStore()
         self.sessionStore = SessionStore()
         self.vendorStatusStore = VendorStatusStore()
+        self.extraAccountsStore = ExtraAccountsStore()
 
         NotificationService().setupDelegate()
         appDelegate.historyWidgetStore = historyWidgetStore
@@ -138,6 +142,7 @@ struct TokenEaterApp: App {
         appDelegate.usageStore = usageStore
         appDelegate.themeStore = themeStore
         appDelegate.settingsStore = settingsStore
+        appDelegate.extraAccountsStore = extraAccountsStore
         appDelegate.updateStore = updateStore
         appDelegate.sessionStore = sessionStore
         appDelegate.vendorStatusStore = vendorStatusStore

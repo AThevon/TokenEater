@@ -5,6 +5,9 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
     private static let legacyDirectoryName = "com.tokeneater.shared"
     private static let oldDirectoryName = "com.claudeusagewidget.shared"
     private static let fileName = "shared.json"
+    /// The file this instance reads and writes. A second Claude account keeps
+    /// its own file so it never overwrites the main account's widget data.
+    private let instanceFileName: String
 
     private var realHomeDirectory: String {
         guard let pw = getpwuid(getuid()) else { return NSHomeDirectory() }
@@ -36,7 +39,7 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
     }
 
     private var sharedFileURL: URL {
-        rootDirectoryURL.appendingPathComponent(Self.fileName)
+        rootDirectoryURL.appendingPathComponent(instanceFileName)
     }
 
     private var legacyHomeRelativeFileURL: URL {
@@ -54,8 +57,14 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
     }
 
     init() {
+        instanceFileName = Self.fileName
         migrateFromOldProductName()
         migrateFromGroupContainerToHomeRelative()
+    }
+
+    /// A side file next to `shared.json`, with no migrations.
+    init(fileName: String) {
+        instanceFileName = fileName
     }
 
     // MARK: - Migrations

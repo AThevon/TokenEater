@@ -123,7 +123,7 @@ struct NotificationsSectionView: View {
 
     private func master(_ provider: MetricProvider) -> Binding<Bool> {
         switch provider {
-        case .claude: return $settingsStore.notification.claudeEnabled
+        case .claude, .claudeWork: return $settingsStore.notification.claudeEnabled
         case .codex:  return $settingsStore.notification.codexEnabled
         }
     }

@@ -86,6 +86,7 @@ struct ComposablePopoverView: View {
 /// matchedGeometryEffect approach mounted the same id twice mid-reorder,
 /// which SwiftUI documents as undefined geometry).
 private struct PopoverGrid: View {
+    @EnvironmentObject private var extraAccounts: ExtraAccountsStore
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var settingsStore: SettingsStore
@@ -130,7 +131,7 @@ private struct PopoverGrid: View {
 
     private var visibleElements: [PopoverElement] {
         settingsStore.popoverComposition.visibleElements.filter {
-            PopoverMetricResolver.isVisible($0.kind, usage: usageStore, codex: codexStore, settings: settingsStore)
+            PopoverMetricResolver.isVisible($0.kind, usage: usageStore, codex: codexStore, settings: settingsStore, work: extraAccounts.workUsageStore)
         }
     }
 

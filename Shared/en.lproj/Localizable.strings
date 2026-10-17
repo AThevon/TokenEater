@@ -1070,3 +1070,30 @@
 "dashboard.editor.hint" = "Drag to reorder. Hidden blocks are kept, not deleted.";
 "dashboard.editor.reset" = "Reset order";
 "dashboard.editor.lastBlock" = "The last visible block has to stay visible";
+
+/* Extra Claude accounts */
+"providerMode.claudeWork" = "Claude Work";
+"extraAccounts.title" = "Other Claude accounts";
+"extraAccounts.scan" = "Scan & refresh";
+"extraAccounts.refreshing" = "Refreshing…";
+"extraAccounts.empty" = "No other logins found. Log in to another account with its own config dir, e.g. CLAUDE_CONFIG_DIR=~/.claude-work claude, then press Scan.";
+"extraAccounts.shown" = "Shown in the menu bar and as its own mode";
+"extraAccounts.hidden" = "Hidden";
+"extraAccounts.label" = "Label";
+"extraAccounts.notRead" = "Not read yet";
+"extraAccounts.forget" = "Forget this account (Scan finds it again)";
+"extraAccounts.error.denied" = "Keychain access denied";
+"extraAccounts.error.noLogin" = "No login found. Run Claude Code with this config dir.";
+"extraAccounts.error.expired" = "Login expired. Open Claude Code with this account.";
+"extraAccounts.error.rateLimited" = "Rate limited, will retry";
+"extraAccounts.check" = "Check connection";
+"popoverElement.workSession" = "Session (5h)";
+"popoverElement.workWeekly" = "Weekly";
+"popoverElement.workSessionPacing" = "Session pacing";
+"popoverElement.workWeeklyPacing" = "Weekly pacing";
+"menuBarSegment.workSession" = "Session (5h)";
+"menuBarSegment.workWeekly" = "Weekly";
+"menuBarSegment.workSessionPacing" = "Session pacing";
+"menuBarSegment.workWeeklyPacing" = "Weekly pacing";
+"extraAccounts.name" = "Short name:";
+"extraAccounts.label.help" = "Up to 6 characters, shown in the switcher, the menu bar and the dashboard. Press Return to save.";

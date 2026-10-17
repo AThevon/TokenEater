@@ -71,7 +71,7 @@ struct DashboardCompositionTests {
             #expect(!block.symbolName.isEmpty)
         }
         // Extra Credits is Claude's paid pool; Codex has no equivalent.
-        #expect(DashboardBlock.extraCredits.providers == [.claude])
+        #expect(DashboardBlock.extraCredits.providers == [.claude, .claudeWork])
     }
 
     @Test("An empty stored list falls back rather than rendering nothing")
