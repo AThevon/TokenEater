@@ -286,7 +286,7 @@ struct PopoverSectionView: View {
     /// setting has nothing to govern either.
     @ViewBuilder
     private var providerSwitchToggle: some View {
-        if settingsStore.availableProviderModes.count > 1 {
+        if settingsStore.modeChoices.count > 1 {
             Toggle(isOn: $settingsStore.popoverShowsProviderSwitch) {
                 Text("popover.editor.providerSwitch")
                     .font(.system(size: 11))

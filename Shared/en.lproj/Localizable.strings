@@ -1042,6 +1042,8 @@
 "whatsNew.mode.single" = "Only %@ is on, so there is nothing to switch between. TokenEater shows it directly. Turn the other provider on below and the selector appears here.";
 "mode.help.all" = "Show every provider: dashboard, popover and menu bar";
 "mode.help.one" = "Show only %@: dashboard, popover and menu bar";
+"mode.claudeMenu.help" = "Choose which Claude account to show";
+"mode.claudeMenu.title" = "Claude accounts";
 "studio.scope.label" = "Editing";
 "studio.scope.hint" = "Each mode keeps its own layouts";
 "popover.editor.providerSwitch" = "Provider switch";

@@ -200,14 +200,14 @@ struct ProviderModeTests {
 
         store.claudeEnabled = true
         store.codexEnabled = false
-        #expect(store.availableProviderModes.isEmpty)
+        #expect(store.modeChoices.isEmpty)
 
         store.codexEnabled = true
-        #expect(store.availableProviderModes == [.all, .claude, .codex])
+        #expect(store.modeChoices.map(\.mode) == [.all, .claude, .codex])
 
         // Codex alone offers nothing to switch between either.
         store.claudeEnabled = false
-        #expect(store.availableProviderModes.isEmpty)
+        #expect(store.modeChoices.isEmpty)
     }
 
     // MARK: - Visibility rule
@@ -362,6 +362,79 @@ struct ProviderModeTests {
         store.claudeEnabled = false
         #expect(store.activeClaudeAccounts.isEmpty)
         #expect(store.modeChoices.isEmpty)
+    }
+
+    @Test("The Claude accounts fold into one menu pill from three running accounts")
+    func claudeMenuFromThree() {
+        let main = ModeChoice(mode: .claude, account: .main)
+        let work = ModeChoice(mode: .claude, account: Self.work)
+        let side = ModeChoice(mode: .claude, account: Self.side)
+        let all = ModeChoice(mode: .all)
+        let codex = ModeChoice(mode: .codex)
+        #expect(!ModeChoice.collapsesClaude([]))
+        #expect(!ModeChoice.collapsesClaude([all, main, codex]))
+        #expect(!ModeChoice.collapsesClaude([all, main, work, codex]))
+        #expect(ModeChoice.collapsesClaude([all, main, work, side]))
+        #expect(ModeChoice.collapsesClaude([all, main, work, side, codex]))
+    }
+
+    @Test("Markers start at two running accounts, paused ones and Claude off excluded")
+    func markersNeedTwoRunningAccounts() {
+        let store = makeStore()
+        defer { clean() }
+        store.claudeEnabled = true
+        store.claudeAccounts = [mainSummary]
+        #expect(!store.showsAccountMarkers)
+        store.claudeAccounts = [mainSummary, summary(Self.work, "Work", paused: true)]
+        #expect(!store.showsAccountMarkers)
+        store.claudeAccounts = [mainSummary, summary(Self.work, "Work")]
+        #expect(store.showsAccountMarkers)
+        #expect(store.runningClaudeAccountIDs == [.main, Self.work])
+        store.claudeEnabled = false
+        #expect(!store.showsAccountMarkers)
+        #expect(store.runningClaudeAccountIDs.isEmpty)
+    }
+
+    @Test("A pill is selected when its mode and, for Claude, its account are on screen")
+    func pillSelection() {
+        let store = makeStore()
+        defer { clean() }
+        store.claudeEnabled = true
+        store.codexEnabled = true
+        store.claudeAccounts = [mainSummary, summary(Self.work, "Work")]
+        store.selectScope(.all)
+        #expect(store.isSelected(ModeChoice(mode: .all)))
+        #expect(!store.isSelected(ModeChoice(mode: .claude, account: .main)))
+
+        store.selectScope(.claude, account: Self.work)
+        #expect(store.isSelected(ModeChoice(mode: .claude, account: Self.work)))
+        #expect(!store.isSelected(ModeChoice(mode: .claude, account: .main)))
+        #expect(!store.isSelected(ModeChoice(mode: .all)))
+
+        // Codex keeps the focused account for the way back to Claude, and
+        // no Claude pill reads as selected meanwhile.
+        store.selectScope(.codex)
+        #expect(store.isSelected(ModeChoice(mode: .codex)))
+        #expect(!store.isSelected(ModeChoice(mode: .claude, account: Self.work)))
+        store.selectScope(.all)
+    }
+
+    @Test("An element reads its own running account, else the mode's account")
+    func effectiveAccountRule() {
+        let running: Set<AccountID> = [.main, Self.work]
+        func effective(_ declared: AccountID?, _ mode: ProviderMode, _ focused: AccountID = .main) -> AccountID? {
+            AccountID.effective(declared: declared, mode: mode, focused: focused, running: running)
+        }
+        #expect(effective(nil, .all) == .main)
+        #expect(effective(nil, .claude, Self.work) == Self.work)
+        #expect(effective(nil, .codex, Self.work) == .main)
+        #expect(effective(Self.work, .all) == Self.work)
+        #expect(effective(Self.work, .claude, .main) == Self.work)
+        #expect(effective(.main, .claude, Self.work) == .main)
+        // Paused or removed: drawn nowhere.
+        #expect(effective(Self.side, .all) == nil)
+        // A focus left on an account that stopped falls back to the main one.
+        #expect(effective(nil, .claude, Self.side) == .main)
     }
 
     @Test("Removing an account purges its layouts, its pinned cells and templates, its glance card")

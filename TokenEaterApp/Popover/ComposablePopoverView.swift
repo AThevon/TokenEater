@@ -41,7 +41,7 @@ struct ComposablePopoverView: View {
     /// True only when the switcher actually draws something: it renders
     /// nothing below two providers, and padding around nothing is a gap.
     private var showsSwitcher: Bool {
-        settingsStore.popoverShowsProviderSwitch && settingsStore.availableProviderModes.count > 1
+        settingsStore.popoverShowsProviderSwitch && settingsStore.modeChoices.count > 1
     }
 
     var body: some View {

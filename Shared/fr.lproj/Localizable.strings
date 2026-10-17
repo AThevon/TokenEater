@@ -1042,6 +1042,8 @@
 "whatsNew.mode.single" = "Seul %@ est actif, donc il n'y a rien entre quoi basculer. TokenEater l'affiche directement. Active l'autre provider ci-dessous et le sélecteur apparaît ici.";
 "mode.help.all" = "Afficher tous les providers : tableau de bord, popover et barre de menu";
 "mode.help.one" = "N'afficher que %@ : tableau de bord, popover et barre de menu";
+"mode.claudeMenu.help" = "Choisir le compte Claude à afficher";
+"mode.claudeMenu.title" = "Comptes Claude";
 "studio.scope.label" = "Édition";
 "studio.scope.hint" = "Chaque mode garde ses propres dispositions";
 "popover.editor.providerSwitch" = "Sélecteur de provider";

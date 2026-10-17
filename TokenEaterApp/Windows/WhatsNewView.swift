@@ -115,7 +115,7 @@ struct WhatsNewView: View {
 
             HStack {
                 Spacer()
-                if settingsStore.availableProviderModes.count > 1 {
+                if settingsStore.modeChoices.count > 1 {
                     ProviderModeSwitcher(size: .regular, showsCaption: true)
                 } else {
                     singleProviderNotice
@@ -133,7 +133,7 @@ struct WhatsNewView: View {
                     )
             )
             .animation(reduceMotion ? nil : DS.Motion.easeOut,
-                       value: settingsStore.availableProviderModes.count)
+                       value: settingsStore.modeChoices.count)
 
             Text("whatsNew.mode.hint")
                 .font(.system(size: 11))

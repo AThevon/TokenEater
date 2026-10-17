@@ -100,17 +100,6 @@ final class SettingsStore: ObservableObject {
         return providers
     }
 
-    /// Modes worth offering: All plus one per active provider, and nothing at
-    /// all below two providers, where All and the single provider describe the
-    /// same thing.
-    var availableProviderModes: [ProviderMode] {
-        let providers = activeProviders
-        guard providers.count > 1 else { return [] }
-        return [.all] + providers.compactMap { provider in
-            ProviderMode.allCases.first { $0.provider == provider }
-        }
-    }
-
     @Published var activeProviderMode: ProviderMode = .all {
         didSet {
             guard !isSwitchingScope, oldValue != activeProviderMode else { return }
@@ -149,12 +138,46 @@ final class SettingsStore: ObservableObject {
     }
 
     /// The pills of the mode switcher: All, one per running Claude account,
-    /// Codex. Empty below two, where All already says everything.
+    /// Codex. Empty below two, where All already says everything, so a
+    /// single provider with a single account sees no switcher at all.
     var modeChoices: [ModeChoice] {
         var choices = activeClaudeAccounts.map { ModeChoice(mode: .claude, account: $0.id) }
         if codexEnabled { choices.append(ModeChoice(mode: .codex)) }
         guard choices.count > 1 else { return [] }
         return [ModeChoice(mode: .all)] + choices
+    }
+
+    /// Two or more running Claude accounts. Every surface marks its Claude
+    /// numbers with their account from here on; below it, each one looks
+    /// exactly as it did before accounts existed.
+    var showsAccountMarkers: Bool { activeClaudeAccounts.count >= 2 }
+
+    /// The main account plus every added account that is not paused, empty
+    /// while Claude is off.
+    var runningClaudeAccountIDs: Set<AccountID> {
+        Set(activeClaudeAccounts.map(\.id))
+    }
+
+    func claudeAccount(_ id: AccountID) -> ClaudeAccountSummary? {
+        claudeAccounts.first { $0.id == id }
+    }
+
+    /// Whether a pill of the switcher is the scope on screen.
+    func isSelected(_ choice: ModeChoice) -> Bool {
+        guard choice.mode == activeProviderMode else { return false }
+        guard let account = choice.account else { return true }
+        return account == focusedClaudeAccount
+    }
+
+    /// The account a Claude element or segment reads in the mode on screen,
+    /// nil when the one it names is not running (see `AccountID.effective`).
+    func effectiveAccount(for declared: AccountID?) -> AccountID? {
+        AccountID.effective(
+            declared: declared,
+            mode: activeProviderMode,
+            focused: focusedClaudeAccount,
+            running: runningClaudeAccountIDs
+        )
     }
 
     /// The key suffix of the compositions on screen: the mode's, plus the
@@ -448,7 +471,7 @@ final class SettingsStore: ObservableObject {
     /// the mode filtered for a provider `activeProviders` no longer contained,
     /// and no surface had anything to draw. A mode is a view of what is on, so
     /// it cannot outlive what it was a view of.
-    /// Deliberately not widened to `availableProviderModes`: dropping to a
+    /// Deliberately not widened to `modeChoices`: dropping to a
     /// single provider leaves that provider's mode describing exactly what is
     /// on, so it stands, with its own layout, and the selector simply has
     /// nothing left to offer. Only a mode pointing at a provider that is off

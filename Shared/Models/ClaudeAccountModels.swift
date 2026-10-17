@@ -389,6 +389,42 @@ struct ModeChoice: Hashable, Identifiable, Sendable {
         guard let account else { return mode.rawValue }
         return mode.rawValue + account.storageSuffix
     }
+
+    /// Running Claude accounts from which the switcher folds them into one
+    /// Claude pill that opens a list. Two pills of names still fit the
+    /// 300-point popover next to All and Codex; a third does not.
+    static let claudeMenuThreshold = 3
+
+    /// Whether the Claude accounts of these choices go behind a single pill.
+    static func collapsesClaude(_ choices: [ModeChoice]) -> Bool {
+        choices.filter { $0.mode == .claude }.count >= claudeMenuThreshold
+    }
+}
+
+// MARK: - Resolving an account
+
+extension AccountID {
+    /// The account a Claude element or segment reads:
+    /// - the one it names, when that account is running;
+    /// - nothing when it names one that is paused or removed, so it steps
+    ///   aside like a segment of a provider switched off;
+    /// - otherwise the account the mode shows: the focused one in Claude
+    ///   mode, the main one everywhere else.
+    ///
+    /// `running` is the main account plus every added account that is not
+    /// paused. Codex and neutral kinds never ask.
+    static func effective(
+        declared: AccountID?,
+        mode: ProviderMode,
+        focused: AccountID,
+        running: Set<AccountID>
+    ) -> AccountID? {
+        if let declared {
+            return declared.isMain || running.contains(declared) ? declared : nil
+        }
+        if mode == .claude, running.contains(focused) { return focused }
+        return .main
+    }
 }
 
 // MARK: - Discovery
