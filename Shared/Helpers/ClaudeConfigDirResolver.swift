@@ -54,10 +54,23 @@ enum ClaudeConfigDirResolver {
     /// The Keychain service names Claude Code may have used for this folder,
     /// most likely first and without duplicates: the normalized absolute
     /// path, the same with a trailing slash, the `~/` spelling, then the path
-    /// with symlinks resolved. The default folder has only the base service.
+    /// with symlinks resolved.
+    ///
+    /// The default folder leads with the base service, which is what Claude
+    /// Code uses with `CLAUDE_CONFIG_DIR` unset. Claude Code decides on the
+    /// suffix from whether the variable is set, not from where it points, so
+    /// someone who exports `CLAUDE_CONFIG_DIR=~/.claude` explicitly gets the
+    /// suffixed spellings; they follow as fallbacks.
     static func serviceCandidates(for path: String, home: String) -> [String] {
-        guard !isDefault(path, home: home) else { return [baseService] }
         let normalized = normalize(path, home: home)
+        let suffixed = suffixedCandidates(normalized: normalized, home: home)
+        guard !isDefault(path, home: home) else {
+            return [baseService] + suffixed.filter { $0 != baseService }
+        }
+        return suffixed
+    }
+
+    private static func suffixedCandidates(normalized: String, home: String) -> [String] {
         var inputs = [normalized, normalized + "/"]
         let tilde = displayPath(normalized, home: home)
         if tilde != normalized { inputs.append(tilde) }
@@ -115,6 +128,18 @@ enum ClaudeConfigDirResolver {
             if !taken.contains(candidate.lowercased()) { return candidate }
             index += 1
         }
+    }
+
+    /// An email reduced to what tells two logins apart at a glance: the first
+    /// character, three dots, the domain ("m•••@acme.com"). Settings shows it
+    /// in memory only; it is never stored and never reaches the widget.
+    static func maskEmail(_ email: String) -> String? {
+        let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let first = trimmed.first else { return nil }
+        guard let at = trimmed.lastIndex(of: "@"), at != trimmed.startIndex else {
+            return String(first) + "•••"
+        }
+        return String(first) + "•••" + trimmed[at...]
     }
 
     /// One-way fingerprint of a login's identity. Two folders signed in to

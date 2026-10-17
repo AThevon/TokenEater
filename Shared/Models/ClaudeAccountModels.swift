@@ -390,3 +390,28 @@ struct ModeChoice: Hashable, Identifiable, Sendable {
         return mode.rawValue + account.storageSuffix
     }
 }
+
+// MARK: - Discovery
+
+/// A Claude Code config folder the add-account sheet can offer, as seen
+/// without reading any credential: the folder's own files, and whether a
+/// Keychain item exists under one of the service names Claude Code would
+/// have used for it (asked of the item's attributes, which no ACL guards).
+struct ConfigDirCandidate: Equatable, Identifiable, Sendable {
+    /// Normalized absolute path.
+    let path: String
+    /// The `~/...` spelling shown in the UI.
+    let displayPath: String
+    /// The first service name that has a Keychain item, nil when none does.
+    let matchedService: String?
+    /// `<path>/.credentials.json` exists.
+    let hasCredentialsFile: Bool
+    /// When Claude Code last wrote a transcript there (`<path>/projects`).
+    let lastActivity: Date?
+    /// False for a path that is not a folder (a chosen folder deleted since,
+    /// or a typo).
+    let exists: Bool
+
+    var hasLogin: Bool { matchedService != nil || hasCredentialsFile }
+    var id: String { path }
+}

@@ -196,10 +196,15 @@ struct ClaudeAccountModelsTests {
         #expect(candidates.count == 3)
     }
 
-    @Test("the default folder only has the base service")
+    @Test("the default folder leads with the base service, then its suffixed spellings")
     func defaultFolderService() {
-        #expect(ClaudeConfigDirResolver.serviceCandidates(for: "/Users/tester/.claude", home: home) == ["Claude Code-credentials"])
-        #expect(ClaudeConfigDirResolver.serviceCandidates(for: "~/.claude/", home: home) == ["Claude Code-credentials"])
+        let candidates = ClaudeConfigDirResolver.serviceCandidates(for: "/Users/tester/.claude", home: home)
+        #expect(candidates.first == "Claude Code-credentials")
+        // `CLAUDE_CONFIG_DIR=~/.claude` set explicitly still suffixes the service.
+        #expect(candidates.dropFirst().first == ClaudeConfigDirResolver.service(forHashInput: "/Users/tester/.claude"))
+        #expect(candidates.contains(ClaudeConfigDirResolver.service(forHashInput: "~/.claude")))
+        #expect(Set(candidates).count == candidates.count)
+        #expect(ClaudeConfigDirResolver.serviceCandidates(for: "~/.claude/", home: home) == candidates)
         #expect(ClaudeConfigDirResolver.isDefault("~/.claude", home: home))
         #expect(!ClaudeConfigDirResolver.isDefault("~/.claude-work", home: home))
     }
