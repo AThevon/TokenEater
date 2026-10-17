@@ -17,15 +17,23 @@ struct WhatsNewView: View {
 
     @State private var pane = 0
     private let panes = 3
+    /// Heights of the scroll area and of the pane in it, for the fade that
+    /// says there is more below.
+    @State private var viewportHeight: CGFloat = 0
+    @State private var contentHeight: CGFloat = 0
+    private let fadeHeight: CGFloat = 28
+
+    private var overflows: Bool { contentHeight > viewportHeight + 1 }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
             brandBar
 
-            // The setup step carries the live Claude card, which grows with
-            // every account and can outgrow a short window. Scrolls only when
-            // it has to, so the usual case still reads as a fixed pane.
-            ScrollView(.vertical, showsIndicators: false) {
+            // A short window (the frame is remembered, down to 600x440) cuts
+            // every pane, and the setup step's live Claude card grows with
+            // every account. Scrolls only when it has to, and then says so:
+            // a visible scroller and the last lines fading out.
+            ScrollView(.vertical) {
                 Group {
                     switch pane {
                     case 0: accountsPane
@@ -34,8 +42,34 @@ struct WhatsNewView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .topLeading)
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear.preference(key: WhatsNewContentHeightKey.self, value: proxy.size.height)
+                    }
+                )
+                // Room to scroll the last line clear of the fade.
+                .padding(.bottom, overflows ? fadeHeight : 0)
             }
+            .scrollIndicators(.visible)
             .scrollBounceBehavior(.basedOnSize)
+            .background(
+                GeometryReader { proxy in
+                    Color.clear.preference(key: WhatsNewViewportHeightKey.self, value: proxy.size.height)
+                }
+            )
+            .onPreferenceChange(WhatsNewContentHeightKey.self) { contentHeight = $0 }
+            .onPreferenceChange(WhatsNewViewportHeightKey.self) { viewportHeight = $0 }
+            .mask {
+                VStack(spacing: 0) {
+                    Rectangle()
+                    LinearGradient(
+                        colors: [.black, .black.opacity(overflows ? 0 : 1)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: fadeHeight)
+                }
+            }
             .padding(.top, DS.Spacing.lg)
 
             // A fixed gap under the header with the footer pinned, rather than
@@ -170,6 +204,15 @@ struct WhatsNewView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(panel)
 
+            // Coming straight from 5.x skips the 6.0 screen, and with it the
+            // news that Codex is tracked too.
+            if SettingsStore.predatesCodex(lastSeen: settingsStore.lastSeenVersion) {
+                highlightRow("square.split.2x1", "whatsNew.codex.title", "whatsNew.codex.text")
+                    .padding(DS.Spacing.md)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(panel)
+            }
+
             VStack(alignment: .leading, spacing: 7) {
                 Text("whatsNew.more.title")
                     .textCase(.uppercase)
@@ -199,9 +242,11 @@ struct WhatsNewView: View {
     /// layout, drawn by the renderer the status item uses, with the user's
     /// own theme and Smart Color settings.
     private var menuBarSample: some View {
-        let image = MenuBarRenderer.renderWithHitRects(
+        // Drawn dark like the real bar over its dark backdrop, even in a
+        // light window, or the names and period labels would vanish.
+        let image = MenuBarRenderer.drawnDark(MenuBarRenderer.renderWithHitRects(
             WhatsNewSample.menuBar(theme: themeStore, settings: settingsStore)
-        ).image
+        ).image)
         let scale: CGFloat = 1.5
         return HStack {
             Spacer(minLength: 0)
@@ -224,7 +269,9 @@ struct WhatsNewView: View {
     /// and scaled down whole, so nothing in it truncates or rewraps.
     private func dashboardColumn(_ account: WhatsNewSample.Account) -> some View {
         let faceSize = CGSize(width: 360, height: 190)
-        let scale: CGFloat = 0.7
+        // Two columns fit the narrowest window (600 pt, so 512 inside the
+        // panel): 2 x 360 x 0.68 + 12 = 502.
+        let scale: CGFloat = 0.68
         let window = MonitoringView.ClaudeHeroWindow.session
         let resetDate = Date().addingTimeInterval(account.sessionResetIn)
         let mode = GaugeColorResolver.mode(
@@ -385,6 +432,18 @@ struct WhatsNewView: View {
     private func finish() {
         settingsStore.markWhatsNewSeen()
     }
+}
+
+// MARK: - Scroll measures
+
+private struct WhatsNewContentHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+private struct WhatsNewViewportHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 // MARK: - Sample accounts

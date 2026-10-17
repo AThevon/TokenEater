@@ -168,6 +168,24 @@ enum MenuBarRenderer {
         return data.hasConfig && (!data.hasError || data.isAwaitingRefresh)
     }
 
+    /// `image` as a dark menu bar draws it, whatever the appearance of the
+    /// view showing it. The renderer resolves `labelColor` and
+    /// `secondaryLabelColor` when the image is drawn, so a sample on a dark
+    /// backdrop inside a light window would get dark text on near black.
+    /// SwiftUI's `colorScheme` does not reach an `NSImage`'s drawing handler;
+    /// the drawing appearance does.
+    static func drawnDark(_ image: NSImage) -> NSImage {
+        let dark = NSImage(size: image.size, flipped: false) { rect in
+            let appearance = NSAppearance(named: .darkAqua) ?? NSAppearance.currentDrawing()
+            appearance.performAsCurrentDrawingAppearance {
+                image.draw(in: rect)
+            }
+            return true
+        }
+        dark.isTemplate = false
+        return dark
+    }
+
     /// Composition render that also returns each segment's hit rectangle in the
     /// image's coordinate space. The status item ignores the rects; the editor
     /// preview overlays invisible tap targets from them (click-to-select).

@@ -1062,9 +1062,9 @@
 "whatsNew.accounts.title" = "Several Claude accounts, side by side";
 "whatsNew.accounts.body" = "Track every Claude Code login you use, each with its own name and color. The color only marks the account: the numbers keep their usual colors.";
 "whatsNew.accounts.menuBar.title" = "Menu bar";
-"whatsNew.accounts.menuBar.text" = "Each account's numbers follow its color and name.";
+"whatsNew.accounts.menuBar.text" = "Each account's numbers sit after its colored ring and name.";
 "whatsNew.accounts.surfaces.title" = "Popover and dashboard";
-"whatsNew.accounts.surfaces.text" = "One section or column per account, and one mode pill per account to show just that one.";
+"whatsNew.accounts.surfaces.text" = "One section or column per account, and a mode pill per account (a single menu from three) to show just that one.";
 "whatsNew.accounts.alerts.title" = "Notifications";
 "whatsNew.accounts.alerts.text" = "Each alert names its account, and each account has its own switch.";
 "whatsNew.accounts.widget.title" = "Claude Account widget";
@@ -1084,6 +1084,8 @@
 "whatsNew.login.keychain.text" = "TokenEater no longer reads Claude Code's Keychain item in its own name, so macOS stops asking for access after every token renewal.";
 "whatsNew.login.expired.title" = "Tracking survives an expired login";
 "whatsNew.login.expired.text" = "When Claude Code's Keychain login expires, TokenEater uses a valid copy elsewhere on this Mac if there is one. If it stays expired for over an hour, the popover and the dashboard say so and tell you how to renew it. For a notification too, turn on Credentials expired in Settings > Notifications.";
+"whatsNew.codex.title" = "Codex is tracked too, since 6.0";
+"whatsNew.codex.text" = "TokenEater also follows OpenAI Codex usage, in the menu bar, popover, dashboard, widget, notifications and History. Turn it on or off in Settings > Providers.";
 "whatsNew.more.title" = "Also in this release";
 "whatsNew.more.studio" = "Studio keeps the mode you last edited when you leave it, so the layout you just built stays on screen.";
 "whatsNew.more.history" = "History names Claude Opus 5.5 and Sonnet 5.5 instead of counting them as Opus 5 and Sonnet 5.";

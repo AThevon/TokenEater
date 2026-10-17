@@ -454,6 +454,16 @@ final class SettingsStore: ObservableObject {
         releaseLine(of: lastSeen) != releaseLine(of: current)
     }
 
+    /// Whether `lastSeen` comes from before 6.0, the release that brought
+    /// Codex, so this screen is also the user's first word about it. An empty
+    /// value counts: the key arrived with 6.0, so an install that never
+    /// wrote it upgraded from 5.x (the Settings replay empties it too, where
+    /// one more line does no harm).
+    static func predatesCodex(lastSeen: String) -> Bool {
+        guard let major = lastSeen.split(separator: ".").first.flatMap({ Int($0) }) else { return true }
+        return major < 6
+    }
+
     /// "6.1.2" -> "6.1". Anything after major.minor is a patch.
     static func releaseLine(of version: String) -> String {
         version.split(separator: ".").prefix(2).joined(separator: ".")

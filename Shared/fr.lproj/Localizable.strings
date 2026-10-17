@@ -1062,9 +1062,9 @@
 "whatsNew.accounts.title" = "Plusieurs comptes Claude, côte à côte";
 "whatsNew.accounts.body" = "Suis chaque connexion Claude Code que tu utilises, chacune avec son nom et sa couleur. La couleur sert seulement à repérer le compte : les chiffres gardent leurs couleurs habituelles.";
 "whatsNew.accounts.menuBar.title" = "Barre de menu";
-"whatsNew.accounts.menuBar.text" = "Les chiffres de chaque compte suivent sa couleur et son nom.";
+"whatsNew.accounts.menuBar.text" = "Les chiffres de chaque compte se placent après son anneau de couleur et son nom.";
 "whatsNew.accounts.surfaces.title" = "Popover et dashboard";
-"whatsNew.accounts.surfaces.text" = "Une section ou une colonne par compte, et une pastille de mode par compte pour n'afficher que lui.";
+"whatsNew.accounts.surfaces.text" = "Une section ou une colonne par compte, et une pastille de mode par compte (un menu à partir de trois) pour n'afficher que lui.";
 "whatsNew.accounts.alerts.title" = "Notifications";
 "whatsNew.accounts.alerts.text" = "Chaque alerte nomme son compte, et chaque compte a son propre interrupteur.";
 "whatsNew.accounts.widget.title" = "Widget Compte Claude";
@@ -1075,7 +1075,7 @@
 "whatsNew.sample.work" = "Travail";
 "whatsNew.setup.title" = "Ajoute un compte depuis son dossier de config";
 "whatsNew.setup.body" = "Chaque connexion Claude Code vit dans son propre dossier de config, celui que désigne CLAUDE_CONFIG_DIR. Choisis le dossier, nomme le compte, choisis une couleur. TokenEater ne lit rien avant que tu appuies sur Connecter.";
-"whatsNew.setup.main.title" = "Ta connexion principale dans un dossier perso";
+"whatsNew.setup.main.title" = "Ta connexion principale dans un autre dossier";
 "whatsNew.setup.main.body" = "Tu lances déjà Claude Code avec CLAUDE_CONFIG_DIR ? Fais pointer le compte principal vers ce dossier avec Modifier. Son token, l'historique et les Agent Watchers le suivent.";
 "whatsNew.setup.hint" = "C'est la carte Claude de Réglages > Fournisseurs. Tu peux y revenir quand tu veux.";
 "whatsNew.login.title" = "Une connexion qui tient";
@@ -1084,6 +1084,8 @@
 "whatsNew.login.keychain.text" = "TokenEater ne lit plus l'élément de trousseau de Claude Code en son propre nom, donc macOS arrête de demander l'accès à chaque renouvellement du token.";
 "whatsNew.login.expired.title" = "Le suivi survit à une connexion expirée";
 "whatsNew.login.expired.text" = "Quand la connexion de Claude Code expire dans le trousseau, TokenEater utilise une copie valide ailleurs sur ce Mac s'il y en a une. Si elle reste expirée plus d'une heure, le popover et le dashboard le disent et t'expliquent comment la renouveler. Pour recevoir aussi une notification, active Identifiants expirés dans Réglages > Notifications.";
+"whatsNew.codex.title" = "Codex aussi, depuis la 6.0";
+"whatsNew.codex.text" = "TokenEater suit aussi l'usage d'OpenAI Codex, dans la barre de menu, le popover, le dashboard, le widget, les notifications et l'historique. Active-le ou coupe-le dans Réglages > Fournisseurs.";
 "whatsNew.more.title" = "Aussi dans cette version";
 "whatsNew.more.studio" = "Le Studio garde le dernier mode que tu as modifié quand tu le quittes, donc la disposition que tu viens de créer reste à l'écran.";
 "whatsNew.more.history" = "L'historique nomme Claude Opus 5.5 et Sonnet 5.5 au lieu de les compter comme Opus 5 et Sonnet 5.";

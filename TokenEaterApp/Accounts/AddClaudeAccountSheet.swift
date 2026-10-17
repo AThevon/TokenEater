@@ -523,7 +523,7 @@ struct AddClaudeAccountSheet: View {
     }
 
     private func previewRow(label: String, data: MenuBarRenderer.RenderData) -> some View {
-        let image = MenuBarRenderer.renderWithHitRects(data).image
+        let image = MenuBarRenderer.drawnDark(MenuBarRenderer.renderWithHitRects(data).image)
         let scale: CGFloat = 1.5
         return HStack(spacing: DS.Spacing.xs) {
             Text(label)

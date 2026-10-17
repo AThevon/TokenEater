@@ -157,6 +157,15 @@ struct WhatsNewGateTests {
         #expect(SettingsStore.isNewRelease(lastSeen: "5.13.0", current: "6.1.0"))
     }
 
+    @Test("Only an upgrade from before 6.0 is told about Codex")
+    func codexIntroOnlyFromFiveX() {
+        #expect(SettingsStore.predatesCodex(lastSeen: ""))
+        #expect(SettingsStore.predatesCodex(lastSeen: "5.13.0"))
+        #expect(!SettingsStore.predatesCodex(lastSeen: "6.0.0"))
+        #expect(!SettingsStore.predatesCodex(lastSeen: "6.0.4"))
+        #expect(!SettingsStore.predatesCodex(lastSeen: "6.1.0"))
+    }
+
     @Test("The release line is major.minor")
     func releaseLine() {
         #expect(SettingsStore.releaseLine(of: "6.1.2") == "6.1")
