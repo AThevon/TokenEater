@@ -1153,3 +1153,20 @@
 "accounts.health.retry" = "Réessayer";
 "accounts.health.useThisAccount" = "Utiliser ce compte";
 "accounts.source.keychain" = "trousseau";
+
+/* Comptes Claude : dossier du compte principal (#294) */
+"accounts.status.noLogin" = "Aucune connexion dans ce dossier";
+"accounts.status.expired" = "Connexion expirée";
+"accounts.mainFolder.label" = "Dossier : %@";
+"accounts.mainFolder.change" = "Modifier…";
+"accounts.mainFolder.change.hint" = "Tu utilises CLAUDE_CONFIG_DIR ? Fais pointer le compte principal vers ce dossier.";
+"accounts.mainFolder.title" = "Dossier du compte principal";
+"accounts.mainFolder.subtitle" = "Claude Code garde sa connexion dans le dossier désigné par CLAUDE_CONFIG_DIR, ~/.claude s'il n'est pas défini. Le token, l'historique et les Agent Watchers suivent ce dossier.";
+"accounts.mainFolder.default" = "Par défaut";
+"accounts.mainFolder.custom" = "Personnalisé";
+"accounts.mainFolder.hasLogin" = "Connexion trouvée";
+"accounts.mainFolder.reset" = "Revenir à ~/.claude";
+"accounts.mainFolder.choose.message" = "Choisis le dossier vers lequel pointe ton CLAUDE_CONFIG_DIR.";
+"accounts.mainFolder.note" = "Le changer lit une fois la connexion du nouveau dossier, puis efface les chiffres de l'ancienne.";
+"onboarding.claude.configDir" = "Tu utilises CLAUDE_CONFIG_DIR ? Choisis son dossier";
+"onboarding.claude.configDir.current" = "Dossier : %@ · Modifier";

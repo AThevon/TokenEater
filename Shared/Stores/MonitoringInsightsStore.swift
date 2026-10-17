@@ -64,6 +64,18 @@ final class MonitoringInsightsStore: ObservableObject {
         }
     }
 
+    /// Drops what was loaded, so the next `warmIfStale()` reads again at
+    /// once. Called when the main account's folder moves (#294): the old
+    /// folder's transcripts must not stay on the homepage for a minute.
+    func invalidate() {
+        loadTask?.cancel()
+        loadTask = nil
+        lastLoaded = nil
+        weeklyBuckets = []
+        previousWeekTotal = 0
+        hasLoaded = false
+    }
+
     /// Computes a snapshot of tile insights for a given model family
     /// (or `nil` for all-models, used by the Weekly tile). Returns nil
     /// before data is loaded so the consumer can render a placeholder.

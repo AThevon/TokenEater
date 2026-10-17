@@ -200,4 +200,23 @@ struct OnboardingViewModelTests {
         #expect(vm.codexStatus.isTrackable)
     }
 
+    @Test("each Claude detection asks the factory again, so a moved main folder is followed")
+    func factoryAskedOnEveryCheck() {
+        cleanDefaults()
+        final class Counter { var calls = 0 }
+        let counter = Counter()
+        let vm = OnboardingViewModel(
+            tokenProviderFactory: {
+                counter.calls += 1
+                return MockTokenProvider()
+            },
+            repository: MockUsageRepository(),
+            notificationService: MockNotificationService(),
+            codexAuthStateProvider: { .notInstalled }
+        )
+        let afterInit = counter.calls
+        vm.checkClaudeCode()
+        vm.checkClaudeCode()
+        #expect(counter.calls == afterInit + 2)
+    }
 }

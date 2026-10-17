@@ -149,3 +149,43 @@ struct MonitoringInsightsStoreTests {
         #expect(totals == [100, 0, 0, 0, 0, 0, 50])
     }
 }
+
+@Suite("MonitoringInsightsStore.invalidate")
+@MainActor
+struct MonitoringInsightsInvalidateTests {
+
+    /// Answers one fixed week, counting the loads.
+    private final class FixedHistory: SessionHistoryServiceProtocol, @unchecked Sendable {
+        private let lock = NSLock()
+        private var loads = 0
+        var loadCount: Int { lock.lock(); defer { lock.unlock() }; return loads }
+
+        func loadHistory(range: HistoryRange) async throws -> [HistoryBucket] {
+            lock.lock(); loads += 1; lock.unlock()
+            return [HistoryBucket(
+                date: Date(), tokensByModel: [.sonnet: 1_000], tokensByProject: [:], sessionsCount: 1,
+                inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0
+            )]
+        }
+
+        func loadPreviousPeriodActiveTokens(range: HistoryRange) async throws -> [MetricProvider: Int] { [:] }
+    }
+
+    @Test("invalidating drops the loaded week and lets the next warm read again at once")
+    func invalidateForcesReload() async throws {
+        let service = FixedHistory()
+        let store = MonitoringInsightsStore(service: service)
+        store.warmIfStale()
+        for _ in 0..<200 where !store.hasLoaded { try await Task.sleep(for: .milliseconds(5)) }
+        #expect(store.hasLoaded)
+        store.warmIfStale()
+        #expect(service.loadCount == 1)
+
+        store.invalidate()
+        #expect(!store.hasLoaded)
+        #expect(store.weeklyBuckets.isEmpty)
+        store.warmIfStale()
+        for _ in 0..<200 where !store.hasLoaded { try await Task.sleep(for: .milliseconds(5)) }
+        #expect(service.loadCount == 2)
+    }
+}

@@ -1153,3 +1153,20 @@
 "accounts.health.retry" = "Try again";
 "accounts.health.useThisAccount" = "Use this account";
 "accounts.source.keychain" = "Keychain";
+
+/* Claude accounts: the main account's folder (#294) */
+"accounts.status.noLogin" = "No login in this folder";
+"accounts.status.expired" = "Login expired";
+"accounts.mainFolder.label" = "Folder: %@";
+"accounts.mainFolder.change" = "Change…";
+"accounts.mainFolder.change.hint" = "Using CLAUDE_CONFIG_DIR? Point the main account at that folder.";
+"accounts.mainFolder.title" = "Main account folder";
+"accounts.mainFolder.subtitle" = "Claude Code keeps its login in the folder CLAUDE_CONFIG_DIR points at, ~/.claude when it is not set. The token, History and Agent Watchers follow this folder.";
+"accounts.mainFolder.default" = "Default";
+"accounts.mainFolder.custom" = "Custom";
+"accounts.mainFolder.hasLogin" = "Login found";
+"accounts.mainFolder.reset" = "Back to ~/.claude";
+"accounts.mainFolder.choose.message" = "Choose the folder your CLAUDE_CONFIG_DIR points at.";
+"accounts.mainFolder.note" = "Changing it reads the new folder's login once, then clears the numbers of the previous one.";
+"onboarding.claude.configDir" = "Using CLAUDE_CONFIG_DIR? Choose its folder";
+"onboarding.claude.configDir.current" = "Folder: %@ · Change";

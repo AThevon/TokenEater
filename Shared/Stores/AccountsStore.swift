@@ -417,10 +417,17 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
     /// `~/.claude` with nil (#294). The previous login's numbers are dropped
     /// and its identity forgotten; the next refresh reads the new folder.
     /// Refused when an added account already reads that folder.
+    ///
+    /// The default folder is stored as nil, the 6.0 chain, unless its login
+    /// lives under a suffixed service (someone who exports
+    /// `CLAUDE_CONFIG_DIR=~/.claude`): then it is kept as a folder of its own.
     @discardableResult
-    func setMainScope(configDir: String?, service: String?) -> Bool {
+    func setMainScope(configDir: String?, service: String?, identityDigest: String? = nil) -> Bool {
         var dir = configDir.map { ClaudeConfigDirResolver.normalize($0, home: home) }
-        if let current = dir, ClaudeConfigDirResolver.isDefault(current, home: home) { dir = nil }
+        if let current = dir, ClaudeConfigDirResolver.isDefault(current, home: home),
+           service == nil || service == ClaudeConfigDirResolver.baseService {
+            dir = nil
+        }
         if let dir {
             let taken = records.dropFirst().contains {
                 $0.configDir.map { ClaudeConfigDirResolver.normalize($0, home: home) } == dir
@@ -435,13 +442,87 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
         var main = records[0]
         main.configDir = dir
         main.service = resolvedService
-        main.identityDigest = nil
+        main.identityDigest = identityDigest
         records[0] = main
         persist()
         let scope = main.scope
         mainStore.reconfigure(scope: scope)
         mainScopeChanged.send(scope)
         return true
+    }
+
+    /// Points the main account at a folder the user chose, or back at
+    /// `~/.claude` with nil (#294), after the same checks as `connect`: the
+    /// folder's login is read once and identified, and it is refused when an
+    /// added account already reads that folder or that login. On success the
+    /// store, the file watcher, History and the session scan follow it, and a
+    /// name that was only the old folder's proposal follows too.
+    func setMainConfigDir(
+        _ path: String?,
+        knownService: String? = nil,
+        proxyConfig: ProxyConfig? = nil
+    ) async -> MainFolderResult {
+        let oldFolder = records[0].configDir
+        guard let path else { return moveMainToDefaultChain(from: oldFolder) }
+
+        let folder = ClaudeConfigDirResolver.normalize(path, home: home)
+        let readByAdded = records.dropFirst().contains {
+            $0.configDir.map { ClaudeConfigDirResolver.normalize($0, home: home) } == folder
+        }
+        guard !readByAdded else { return .refused(.alreadyTracked) }
+
+        var service = knownService
+        if service == nil {
+            let scanner = self.scanner
+            service = await Task.detached(priority: .userInitiated) { scanner.inspect(path: folder) }.value.matchedService
+        }
+        // `~/.claude` with its login under the base service is the default
+        // chain itself, Claude Desktop included: no folder scope for it.
+        if ClaudeConfigDirResolver.isDefault(folder, home: home),
+           service == nil || service == ClaudeConfigDirResolver.baseService {
+            return moveMainToDefaultChain(from: oldFolder)
+        }
+        if folder == oldFolder, service == records[0].service {
+            return .moved(records[0].scope)
+        }
+
+        let login: IdentifiedLogin
+        switch await identifyLogin(folder: folder, knownService: service, proxyConfig: proxyConfig) {
+        case .refused(let refusal): return .refused(refusal)
+        case .identified(let identified): login = identified
+        }
+        if let owner = records.dropFirst().first(where: { $0.identityDigest == login.digest }) {
+            return .refused(.duplicate(of: owner.summary))
+        }
+        guard setMainScope(configDir: folder, service: login.service, identityDigest: login.digest) else {
+            return .refused(.alreadyTracked)
+        }
+        reproposeMainName(from: oldFolder)
+        return .moved(records[0].scope)
+    }
+
+    private func moveMainToDefaultChain(from oldFolder: String?) -> MainFolderResult {
+        guard oldFolder != nil else { return .moved(.defaultChain) }
+        setMainScope(configDir: nil, service: nil)
+        reproposeMainName(from: oldFolder)
+        return .moved(.defaultChain)
+    }
+
+    /// Follows the folder with the main account's name, but only when that
+    /// name was the one proposed for the previous folder: a name the user
+    /// chose stays.
+    private func reproposeMainName(from oldFolder: String?) {
+        let others = records.dropFirst().map(\.name)
+        let defaultFolder = ClaudeConfigDirResolver.defaultDirectory(home: home)
+        let oldProposal = ClaudeConfigDirResolver.proposedName(forConfigDir: oldFolder ?? defaultFolder, existing: others)
+        guard records[0].name == oldProposal else { return }
+        let newProposal = ClaudeConfigDirResolver.proposedName(
+            forConfigDir: records[0].configDir ?? defaultFolder,
+            existing: others
+        )
+        guard newProposal != records[0].name else { return }
+        records[0].name = newProposal
+        persist()
     }
 
     // MARK: - Identity

@@ -634,8 +634,14 @@ struct ConnectFailureView: View {
         )
     }
 
-    private var message: String {
-        switch result {
+    private var message: String { result.userMessage }
+    private var command: String? { result.command }
+}
+
+extension AccountConnectResult {
+    /// What to tell the user about a refused connection.
+    var userMessage: String {
+        switch self {
         case .ready:
             return ""
         case .noLogin:
@@ -655,8 +661,9 @@ struct ConnectFailureView: View {
         }
     }
 
-    private var command: String? {
-        switch result {
+    /// The command that fixes it, when running one does.
+    var command: String? {
+        switch self {
         case .noLogin(let command), .expired(let command): return command
         default: return nil
         }

@@ -61,6 +61,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         historyWidgetStore.start()
+        // The sparkline sums the main account's transcripts; when its folder
+        // moves (#294), the next five-minute pass would be too late.
+        accountsStore.mainScopeChanged
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let store = self?.historyWidgetStore else { return }
+                Task { @MainActor in await store.refresh() }
+            }
+            .store(in: &cancellables)
 
         updateStore.checkBrewMigration()
         updateStore.checkForUpdates()

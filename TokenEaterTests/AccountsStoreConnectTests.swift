@@ -263,4 +263,93 @@ struct AccountsStoreConnectTests {
         #expect(sut.store.commit(pending, name: "Work", colorHex: "#6366F1") == nil)
         #expect(sut.store.records.count == 2)
     }
+    // MARK: - Main account folder (#294)
+
+    private let perso = "/Users/tester/.claude-perso"
+    private let persoService = "Claude Code-credentials-5eedf00d"
+
+    @Test("moving the main account checks the folder's login, then follows it everywhere")
+    func mainFolderMoves() async {
+        let sut = makeSUT()
+        var announced: [CredentialScope] = []
+        let cancellable = sut.store.mainScopeChanged.sink { announced.append($0) }
+        defer { cancellable.cancel() }
+
+        let result = await sut.store.setMainConfigDir("~/.claude-perso", knownService: persoService)
+        let expected = CredentialScope.configDir(path: perso, service: persoService)
+        #expect(result == .moved(expected))
+        #expect(sut.providers.made.count == 1)
+        #expect(sut.providers.made[0].provider.currentTokenCallCount == 1)
+        #expect(sut.mainProvider.reconfigureCallCount == 1)
+        #expect(sut.mainProvider.lastScope == expected)
+        #expect(announced == [expected])
+        #expect(sut.store.records[0].identityDigest == workDigest)
+        // "Claude" was only the default folder's proposal, so it follows.
+        #expect(sut.store.records[0].name == "Perso")
+        #expect(AccountsStore.loadRecords(from: sut.defaults)[0].configDir == perso)
+    }
+
+    @Test("a name the user chose stays when the main folder moves")
+    func mainFolderKeepsChosenName() async {
+        let sut = makeSUT()
+        sut.store.update(.main) { $0.name = "Maya" }
+        _ = await sut.store.setMainConfigDir(perso, knownService: persoService)
+        #expect(sut.store.records[0].name == "Maya")
+    }
+
+    @Test("going back to ~/.claude restores the default chain without reading anything")
+    func mainFolderBackToDefault() async {
+        let sut = makeSUT()
+        _ = await sut.store.setMainConfigDir(perso, knownService: persoService)
+        #expect(await sut.store.setMainConfigDir(nil) == .moved(.defaultChain))
+        #expect(sut.store.records[0].configDir == nil)
+        #expect(sut.store.records[0].service == nil)
+        #expect(sut.store.records[0].name == "Claude")
+        #expect(sut.mainProvider.lastScope == .defaultChain)
+        #expect(sut.providers.made.count == 1)
+
+        // Picking ~/.claude itself, with its login under the base service, is the same.
+        _ = await sut.store.setMainConfigDir(perso, knownService: persoService)
+        let back = await sut.store.setMainConfigDir("~/.claude", knownService: ClaudeConfigDirResolver.baseService)
+        #expect(back == .moved(.defaultChain))
+        #expect(sut.store.records[0].configDir == nil)
+    }
+
+    @Test("~/.claude with a suffixed login is kept as a folder of its own")
+    func mainFolderExplicitDefault() async {
+        let sut = makeSUT()
+        let suffixed = ClaudeConfigDirResolver.service(forHashInput: "/Users/tester/.claude")
+        let result = await sut.store.setMainConfigDir("/Users/tester/.claude", knownService: suffixed)
+        #expect(result == .moved(.configDir(path: "/Users/tester/.claude", service: suffixed)))
+        #expect(sut.store.records[0].configDir == "/Users/tester/.claude")
+    }
+
+    @Test("the main account cannot take an added account's login or folder")
+    func mainFolderRefusesAddedAccount() async {
+        let sut = makeSUT()
+        let side = ClaudeAccountRecord(
+            id: AccountID(rawValue: "acct-side"),
+            configDir: "/Users/tester/.claude-side",
+            service: "Claude Code-credentials-5eed5eed",
+            name: "Side",
+            colorHex: "#22D3EE",
+            identityDigest: workDigest
+        )
+        sut.store.add(side)
+        #expect(await sut.store.setMainConfigDir("~/.claude-side") == .refused(.alreadyTracked))
+        let duplicate = await sut.store.setMainConfigDir(perso, knownService: persoService)
+        #expect(duplicate == .refused(.duplicate(of: sut.store.record(for: side.id)!.summary)))
+        #expect(sut.mainProvider.reconfigureCallCount == 0)
+        #expect(sut.store.records[0].configDir == nil)
+    }
+
+    @Test("an expired login in the new folder changes nothing")
+    func mainFolderRefusesExpired() async {
+        let sut = makeSUT()
+        sut.api.stubbedProfileError = APIError.tokenExpired(endpoint: "/api/oauth/profile", statusCode: 401)
+        let result = await sut.store.setMainConfigDir(perso, knownService: persoService)
+        #expect(result == .refused(.expired(command: "CLAUDE_CONFIG_DIR=~/.claude-perso claude")))
+        #expect(sut.mainProvider.reconfigureCallCount == 0)
+        #expect(sut.defaults.data(forKey: ClaudeAccountsStorage.defaultsKey) == nil)
+    }
 }

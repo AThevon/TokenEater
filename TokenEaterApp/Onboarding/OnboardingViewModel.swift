@@ -122,18 +122,31 @@ final class OnboardingViewModel: ObservableObject {
     }
 
     private let codexAuthStateProvider: () -> CodexAuthState
-    private let tokenProvider: TokenProviderProtocol
+    /// Builds the main account's provider. Asked again on every detection,
+    /// so pointing the main account at a custom config folder from the
+    /// Claude card (#294) is followed by the next check and the next connect.
+    private let makeTokenProvider: () -> TokenProviderProtocol
+    private var tokenProvider: TokenProviderProtocol
     private let repository: UsageRepositoryProtocol
     private let notificationService: NotificationServiceProtocol
     private let settingsStore: SettingsStore
 
+    /// `tokenProvider` pins one provider for good (tests); without it,
+    /// `tokenProviderFactory` (the main account's provider by default) is
+    /// asked each time.
     init(
-        tokenProvider: TokenProviderProtocol = TokenProvider.forMainAccount(),
+        tokenProvider: TokenProviderProtocol? = nil,
+        tokenProviderFactory: (() -> TokenProviderProtocol)? = nil,
         repository: UsageRepositoryProtocol = UsageRepository(),
         notificationService: NotificationServiceProtocol = NotificationService(),
         settingsStore: SettingsStore? = nil,
         codexAuthStateProvider: @escaping () -> CodexAuthState = { CodexAuthReader().authState() }
     ) {
+        let factory: () -> TokenProviderProtocol = tokenProviderFactory
+            ?? tokenProvider.map { pinned in { pinned } }
+            ?? { TokenProvider.forMainAccount() }
+        let tokenProvider = factory()
+        self.makeTokenProvider = factory
         self.codexAuthStateProvider = codexAuthStateProvider
         self.codexStatus = codexAuthStateProvider()
         self.tokenProvider = tokenProvider
@@ -185,6 +198,7 @@ final class OnboardingViewModel: ObservableObject {
 
     func checkClaudeCode() {
         claudeCodeStatus = .checking
+        tokenProvider = makeTokenProvider()
         // Detect a token source OFF the main thread: hasTokenSource() can shell
         // out to /usr/bin/security, which may block for up to the reader's
         // watchdog timeout on macOS 26 (see #217). Running it on the main thread

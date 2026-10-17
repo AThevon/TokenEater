@@ -125,7 +125,11 @@ struct ProvidersSectionView: View {
             VStack(alignment: .leading, spacing: DS.Spacing.xs) {
                 ForEach(accountsStore.records) { record in
                     if let store = accountsStore.usageStore(for: record.id) {
-                        ClaudeAccountRow(record: record, store: store)
+                        if record.id.isMain {
+                            ClaudeAccountRow(record: record, store: store) { MainConfigDirRow() }
+                        } else {
+                            ClaudeAccountRow(record: record, store: store)
+                        }
                     }
                 }
                 addAccountLink
@@ -133,8 +137,11 @@ struct ProvidersSectionView: View {
             }
             .padding(.top, 4)
         } else {
-            addAccountLink
-                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 6) {
+                MainConfigDirRow()
+                addAccountLink
+            }
+            .padding(.top, 2)
         }
     }
 
@@ -221,6 +228,13 @@ struct ProvidersSectionView: View {
             return status
         }
         if usageStore.errorState == .tokenUnavailable {
+            // A custom main folder (#294) with no usable login is not "no
+            // Claude Code": say what the folder lacks instead.
+            if accountsStore.mainRecord.configDir != nil {
+                return usageStore.tokenDiagnostic.source == nil
+                    ? String(localized: "accounts.status.noLogin")
+                    : String(localized: "accounts.status.expired")
+            }
             return String(localized: "codex.status.notInstalled.claude")
         }
         if !usageStore.hasConfig {
