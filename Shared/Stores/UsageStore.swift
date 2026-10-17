@@ -69,6 +69,10 @@ final class UsageStore: ObservableObject {
     @Published var planType: PlanType = .unknown
     @Published var rateLimitTier: String?
     @Published var organizationName: String?
+    /// The login's email as "m•••@acme.com", for telling accounts apart in
+    /// Settings. Memory only: never persisted, never in a shared file or the
+    /// diagnostic report.
+    @Published private(set) var maskedEmail: String?
     @Published private(set) var lastUsage: UsageResponse?
     /// Snapshot of the most recent API failure for the diagnostic report.
     /// Cleared on every successful refresh.
@@ -178,6 +182,10 @@ final class UsageStore: ObservableObject {
     /// The token whose login the gate last accepted. A rotation (a new token
     /// for the same folder) is checked again before its numbers are written.
     private var verifiedToken: String?
+
+    /// The identity digest of the last profile fetched, for `AccountsStore`
+    /// to compare a newly connected folder against.
+    private(set) var lastIdentityDigest: String?
 
     /// Where this store's token may come from.
     var credentialScope: CredentialScope { tokenProvider.scope }
@@ -574,13 +582,30 @@ final class UsageStore: ObservableObject {
         planType = PlanType(from: profile.account, organization: profile.organization)
         rateLimitTier = profile.organization?.rateLimitTier
         organizationName = profile.organization?.name
+        let masked = ClaudeConfigDirResolver.maskEmail(profile.account.email)
+        if masked != maskedEmail { maskedEmail = masked }
         lastProfileFetch = Date()
         let digest = ClaudeConfigDirResolver.identityDigest(
             accountUUID: profile.account.uuid,
             organizationUUID: profile.organization?.uuid
         )
+        lastIdentityDigest = digest
         onIdentityDigest?(digest)
         return digest
+    }
+
+    /// The digest of the login this store reads, fetching its profile only
+    /// when none was fetched yet. Connecting another folder needs it to
+    /// refuse a second copy of this account. Nil when there is no token or
+    /// the profile cannot be fetched; the identity gate catches a duplicate
+    /// later in that case.
+    func ensureIdentityDigest() async -> String? {
+        if let lastIdentityDigest { return lastIdentityDigest }
+        guard let token = tokenProvider.currentToken() else { return nil }
+        guard let profile = try? await repository.fetchProfile(token: token, proxyConfig: proxyConfig) else {
+            return nil
+        }
+        return applyProfile(profile)
     }
 
     /// Whether this store's scope holds any login at all. Attributes only for
@@ -630,6 +655,8 @@ final class UsageStore: ObservableObject {
         planType = .unknown
         rateLimitTier = nil
         organizationName = nil
+        maskedEmail = nil
+        lastIdentityDigest = nil
         fiveHourReset = ""
         fiveHourResetAbsolute = ""
         sevenDayReset = ""

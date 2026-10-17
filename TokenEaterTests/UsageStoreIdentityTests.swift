@@ -30,6 +30,34 @@ struct UsageStoreIdentityTests {
 
     final class ReloadCounter { var count = 0 }
 
+    @Test("the identity digest is fetched once, then answered from memory")
+    func ensureIdentityDigest() async {
+        let sut = makeSUT()
+        sut.repo.stubbedProfile = .fixture(accountUUID: "a-uuid", orgUUID: "o-uuid", email: "lea@studio.fr")
+        let expected = ClaudeConfigDirResolver.identityDigest(accountUUID: "a-uuid", organizationUUID: "o-uuid")
+        #expect(await sut.store.ensureIdentityDigest() == expected)
+        #expect(await sut.store.ensureIdentityDigest() == expected)
+        #expect(sut.repo.fetchProfileCallCount == 1)
+        #expect(sut.store.maskedEmail == "l•••@studio.fr")
+    }
+
+    @Test("no token, no profile, no digest")
+    func ensureIdentityDigestWithoutToken() async {
+        let sut = makeSUT(token: nil)
+        #expect(await sut.store.ensureIdentityDigest() == nil)
+        #expect(sut.repo.fetchProfileCallCount == 0)
+    }
+
+    @Test("moving to another folder forgets the previous login's identity and email")
+    func reconfigureForgetsIdentity() async {
+        let sut = makeSUT()
+        _ = await sut.store.ensureIdentityDigest()
+        #expect(sut.store.maskedEmail != nil)
+        sut.store.reconfigure(scope: .configDir(path: "/Users/x/.claude-y", service: "Claude Code-credentials-00000000"))
+        #expect(sut.store.maskedEmail == nil)
+        #expect(sut.store.lastIdentityDigest == nil)
+    }
+
     @Test("without a gate a refresh never fetches the profile")
     func noGateNoProfile() async {
         let sut = makeSUT()

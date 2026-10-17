@@ -59,19 +59,35 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
     /// account is 0) and `count` the number of accounts, for staggering.
     var configureStore: ((UsageStore, ClaudeAccountRecord, _ index: Int, _ count: Int) -> Void)?
 
+    /// Finds candidate folders for the add-account sheet and the main
+    /// account's folder picker. Never called on its own.
+    let scanner: ClaudeConfigDirScannerProtocol
+
+    typealias ConnectTokenProviderFactory = @Sendable (CredentialScope) -> TokenProviderProtocol
+
     private let defaults: UserDefaults
     private let home: String
     private let makeRuntime: @MainActor (ClaudeAccountRecord) -> AccountRuntime
+    /// Builds the one-off provider `connect` reads a folder's login with.
+    private let makeConnectTokenProvider: ConnectTokenProviderFactory
+    /// Fetches the profile that identifies a login before it is added.
+    private let apiClient: APIClientProtocol
 
     init(
         mainStore: UsageStore,
         defaults: UserDefaults = .standard,
         home: String = ClaudeConfigDirResolver.realHome(),
+        scanner: ClaudeConfigDirScannerProtocol? = nil,
+        makeConnectTokenProvider: ConnectTokenProviderFactory? = nil,
+        apiClient: APIClientProtocol = APIClient(),
         makeRuntime: @escaping @MainActor (ClaudeAccountRecord) -> AccountRuntime = AccountsStore.liveRuntime
     ) {
         self.mainStore = mainStore
         self.defaults = defaults
         self.home = home
+        self.scanner = scanner ?? ClaudeConfigDirScanner(home: home)
+        self.makeConnectTokenProvider = makeConnectTokenProvider ?? { TokenProvider(scope: $0, home: home) }
+        self.apiClient = apiClient
         self.makeRuntime = makeRuntime
         let loaded = Self.loadRecords(from: defaults)
         self.records = loaded
@@ -149,6 +165,160 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
             guard let store = runtimes[record.id]?.store else { continue }
             configureStore?(store, record, index, count)
         }
+    }
+
+    /// The folders the tracked accounts read, normalized, the main account's
+    /// default folder included. The scanner leaves them out.
+    var trackedPaths: Set<String> {
+        Set(records.map { record in
+            ClaudeConfigDirResolver.normalize(
+                record.configDir ?? ClaudeConfigDirResolver.defaultDirectory(home: home),
+                home: home
+            )
+        })
+    }
+
+    // MARK: - Connecting
+
+    /// Reads a folder's login once and identifies it, without adding
+    /// anything. The only credential read of the whole add flow happens
+    /// here: `/usr/bin/security` on the folder's exact service, then the
+    /// folder's `.credentials.json`; Claude Desktop is never consulted. No
+    /// usage is fetched before `commit`.
+    ///
+    /// `knownService` is the service the scanner found an item under, when it
+    /// did; without it the folder is inspected first (attributes only).
+    func connect(
+        configDir: String,
+        knownService: String? = nil,
+        proxyConfig: ProxyConfig? = nil
+    ) async -> AccountConnectResult {
+        let folder = ClaudeConfigDirResolver.normalize(configDir, home: home)
+        guard !isTracked(folder: folder) else { return .alreadyTracked }
+
+        let login: IdentifiedLogin
+        switch await identifyLogin(folder: folder, knownService: knownService, proxyConfig: proxyConfig) {
+        case .refused(let refusal): return refusal
+        case .identified(let identified): login = identified
+        }
+
+        // A second copy of the main account can only be refused if the main
+        // account's identity is known; with one account it is kept in memory
+        // as profiles come in, and fetched here when none came yet.
+        var mainDigest = records[0].identityDigest
+        if mainDigest == nil {
+            mainDigest = await mainStore.ensureIdentityDigest()
+        }
+        guard !isTracked(folder: folder) else { return .alreadyTracked }
+        if mainDigest == login.digest {
+            return .duplicate(of: records[0].summary)
+        }
+        if let owner = records.first(where: { $0.identityDigest == login.digest }) {
+            return .duplicate(of: owner.summary)
+        }
+
+        return .ready(PendingAccount(
+            configDir: folder,
+            service: login.service,
+            digest: login.digest,
+            plan: login.plan,
+            organizationName: login.organizationName,
+            maskedEmail: login.maskedEmail,
+            proposedName: ClaudeConfigDirResolver.proposedName(forConfigDir: folder, existing: records.map(\.name)),
+            proposedColorHex: AccountPalette.nextColor(excluding: records.map(\.colorHex))
+        ))
+    }
+
+    /// Adds a connected folder under the name and colour the user chose, and
+    /// starts it. From here on two or more accounts are tracked, so every
+    /// store checks its login before writing. Nil when the folder or its
+    /// login got tracked in the meantime.
+    @discardableResult
+    func commit(_ pending: PendingAccount, name: String, colorHex: String) -> ClaudeAccountRecord? {
+        guard !records.contains(where: { $0.identityDigest == pending.digest }) else { return nil }
+        let record = ClaudeAccountRecord(
+            id: .makeExtra(),
+            configDir: pending.configDir,
+            service: pending.service,
+            name: AccountNameRules.sanitize(name, fallback: pending.proposedName),
+            colorHex: AccountPalette.normalizedHex(colorHex) ?? pending.proposedColorHex,
+            isPaused: false,
+            notificationsEnabled: true,
+            identityDigest: pending.digest,
+            addedAt: Date()
+        )
+        guard add(record) else { return nil }
+        return self.record(for: record.id)
+    }
+
+    /// A login read and identified for a folder.
+    struct IdentifiedLogin: Sendable {
+        let service: String
+        let digest: String
+        let plan: PlanType
+        let organizationName: String?
+        let maskedEmail: String?
+    }
+
+    enum LoginIdentification: Sendable {
+        case identified(IdentifiedLogin)
+        case refused(AccountConnectResult)
+    }
+
+    /// The read-then-profile step shared by `connect` and the main account's
+    /// folder change. One `currentToken()` off the main thread, one profile
+    /// call; the token goes no further than this function.
+    func identifyLogin(
+        folder: String,
+        knownService: String?,
+        proxyConfig: ProxyConfig?
+    ) async -> LoginIdentification {
+        let command = ClaudeConfigDirResolver.loginCommand(forConfigDir: folder, home: home)
+        let service: String
+        if let knownService {
+            service = knownService
+        } else {
+            let scanner = self.scanner
+            let inspected = await Task.detached(priority: .userInitiated) { scanner.inspect(path: folder) }.value
+            service = inspected.matchedService
+                ?? ClaudeConfigDirResolver.serviceCandidates(for: folder, home: home).first
+                ?? ClaudeConfigDirResolver.service(forHashInput: folder)
+        }
+
+        let provider = makeConnectTokenProvider(.configDir(path: folder, service: service))
+        let read = await Task.detached(priority: .userInitiated) {
+            (token: provider.currentToken(), diagnostic: provider.tokenDiagnostic)
+        }.value
+        guard let token = read.token else {
+            switch read.diagnostic.keychainFailure {
+            case .accessDenied: return .refused(.accessDenied)
+            case .timedOut: return .refused(.timedOut)
+            default: return .refused(.noLogin(command: command))
+            }
+        }
+
+        let profile: ProfileResponse
+        do {
+            profile = try await apiClient.fetchProfile(token: token, proxyConfig: proxyConfig)
+        } catch let error as APIError {
+            switch error {
+            case .tokenExpired, .noToken: return .refused(.expired(command: command))
+            default: return .refused(.network(error.localizedDescription))
+            }
+        } catch {
+            return .refused(.network(error.localizedDescription))
+        }
+
+        return .identified(IdentifiedLogin(
+            service: service,
+            digest: ClaudeConfigDirResolver.identityDigest(
+                accountUUID: profile.account.uuid,
+                organizationUUID: profile.organization?.uuid
+            ),
+            plan: PlanType(from: profile.account, organization: profile.organization),
+            organizationName: profile.organization?.name,
+            maskedEmail: ClaudeConfigDirResolver.maskEmail(profile.account.email)
+        ))
     }
 
     // MARK: - Changes

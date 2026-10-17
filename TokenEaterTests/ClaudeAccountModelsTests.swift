@@ -237,6 +237,15 @@ struct ClaudeAccountModelsTests {
         #expect(ClaudeConfigDirResolver.proposedName(forConfigDir: "/Volumes/Data/company", existing: []) == "Company")
     }
 
+    @Test("an email is masked to its first character and its domain")
+    func maskEmail() {
+        #expect(ClaudeConfigDirResolver.maskEmail("maya@acme.com") == "m•••@acme.com")
+        #expect(ClaudeConfigDirResolver.maskEmail("  Z@x.io ") == "Z•••@x.io")
+        #expect(ClaudeConfigDirResolver.maskEmail("noatsign") == "n•••")
+        #expect(ClaudeConfigDirResolver.maskEmail("@acme.com") == "@•••")
+        #expect(ClaudeConfigDirResolver.maskEmail("") == nil)
+    }
+
     @Test("the identity digest is stable and carries no uuid in clear")
     func identityDigest() {
         let account = "8a3c1f2e-0000-4000-8000-123456789abc"

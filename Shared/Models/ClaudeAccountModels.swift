@@ -415,3 +415,49 @@ struct ConfigDirCandidate: Equatable, Identifiable, Sendable {
     var hasLogin: Bool { matchedService != nil || hasCredentialsFile }
     var id: String { path }
 }
+
+// MARK: - Connecting
+
+/// A folder whose login was read and identified, waiting for the user to name
+/// it. The plan, organization and masked email live in memory only, for the
+/// sheet; none of them is ever persisted.
+struct PendingAccount: Equatable, Sendable {
+    /// Normalized absolute path.
+    let configDir: String
+    /// The Keychain service the login was read from, or would be.
+    let service: String
+    let digest: String
+    let plan: PlanType
+    let organizationName: String?
+    let maskedEmail: String?
+    let proposedName: String
+    let proposedColorHex: String
+}
+
+/// What connecting a folder found. Everything but `.ready` is refused, and
+/// says why in terms the user can act on.
+enum AccountConnectResult: Equatable, Sendable {
+    case ready(PendingAccount)
+    /// Neither a Keychain item nor a `.credentials.json` for this exact path.
+    case noLogin(command: String)
+    /// `security` exit 45: macOS refused the read.
+    case accessDenied
+    /// The 3s watchdog fired before `security` answered.
+    case timedOut
+    /// The login exists but Anthropic refused it. Without a profile there is
+    /// no telling whose account it is, so it cannot be added yet.
+    case expired(command: String)
+    /// The folder signs in to an account that is already tracked.
+    case duplicate(of: ClaudeAccountSummary)
+    /// The folder itself is already tracked.
+    case alreadyTracked
+    case network(String)
+}
+
+/// What pointing the main account at a folder did (#294).
+enum MainFolderResult: Equatable, Sendable {
+    /// The main account now reads this scope.
+    case moved(CredentialScope)
+    /// Nothing changed, for this reason.
+    case refused(AccountConnectResult)
+}
