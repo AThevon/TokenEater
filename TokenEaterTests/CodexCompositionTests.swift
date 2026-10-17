@@ -163,6 +163,7 @@ struct CodexCompositionTests {
             fablePct: 0, hasFable: false, fableResetDate: nil,
             outageActive: false, outageHealth: .healthy, nextPollSeconds: nil,
             extraCreditsPct: 0, hasExtraCredits: false, extraCreditsUncappedSpend: nil,
+            extraCreditsUncappedHasSpend: false,
             codexSession: codexSession, codexWeekly: codexWeekly,
             visibleProviders: [.claude, .codex]
         )

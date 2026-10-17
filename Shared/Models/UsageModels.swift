@@ -349,6 +349,13 @@ struct ExtraUsage: Codable, Equatable {
             usedCredits ?? 0, currencyCode: currency, locale: Locale(identifier: "en_US")
         )
     }
+
+    /// The pool is uncapped and real money has been spent on it this month.
+    /// Picks the colour of the amount on every surface (see
+    /// `ThemeColors.uncappedSpendColor`): neutral at zero, warning once spent.
+    var hasUncappedSpend: Bool {
+        isUncapped && (usedCredits ?? 0) > 0
+    }
 }
 
 // MARK: - Cached Usage (for offline support)
