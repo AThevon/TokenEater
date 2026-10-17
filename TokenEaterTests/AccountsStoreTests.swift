@@ -175,6 +175,9 @@ struct AccountsStoreTests {
         try Data("{}".utf8).write(to: url)
         file.fileURL = url
         UserDefaults.standard.set(Data("[]".utf8), forKey: AccountsStore.sessionSamplesKey(for: id))
+        UserDefaults.standard.set(true, forKey: "claudeTokenAlertSent.acct-rm")
+        UserDefaults.standard.set(true, forKey: "claudeTokenAlertSent.acct-rmx")
+        defer { UserDefaults.standard.removeObject(forKey: "claudeTokenAlertSent.acct-rmx") }
 
         var removed: [AccountID] = []
         let cancellable = sut.store.accountRemoved.sink { removed.append($0) }
@@ -184,6 +187,9 @@ struct AccountsStoreTests {
         #expect(sut.store.records.map(\.id) == [.main])
         #expect(sut.store.runtimes[id] == nil)
         #expect(UserDefaults.standard.data(forKey: AccountsStore.sessionSamplesKey(for: id)) == nil)
+        #expect(UserDefaults.standard.object(forKey: "claudeTokenAlertSent.acct-rm") == nil)
+        // Another account whose id merely starts the same is left alone.
+        #expect(UserDefaults.standard.bool(forKey: "claudeTokenAlertSent.acct-rmx"))
         #expect(!FileManager.default.fileExists(atPath: url.path))
         #expect(removed == [id])
         #expect(AccountsStore.loadRecords(from: defaults).map(\.id) == [.main])

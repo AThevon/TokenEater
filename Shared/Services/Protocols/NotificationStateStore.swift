@@ -39,21 +39,31 @@ protocol NotificationStateStore: AnyObject {
 
 final class UserDefaultsNotificationStateStore: NotificationStateStore {
     private let defaults: UserDefaults
-    init(defaults: UserDefaults = .standard) { self.defaults = defaults }
+    /// Appended to every key, the fixed ones included, so each Claude account
+    /// keeps its own escalation and token-alert state. Empty for the main
+    /// account, whose keys stay exactly the ones the app has always written.
+    private let keySuffix: String
 
-    func hasBaseline(forKey key: String) -> Bool { defaults.object(forKey: key) != nil }
-    func lastLevel(forKey key: String) -> Int { defaults.integer(forKey: key) }
-    func setLastLevel(_ value: Int, forKey key: String) { defaults.set(value, forKey: key) }
-    func lastPacing(forKey key: String) -> String? { defaults.string(forKey: key) }
-    func setLastPacing(_ value: String, forKey key: String) { defaults.set(value, forKey: key) }
-    func lastResetsAt(forKey key: String) -> Date? { defaults.object(forKey: key) as? Date }
-    func setLastResetsAt(_ date: Date, forKey key: String) { defaults.set(date, forKey: key) }
-    func tokenAlertSent() -> Bool { defaults.bool(forKey: "claudeTokenAlertSent") }
-    func setTokenAlertSent(_ sent: Bool) { defaults.set(sent, forKey: "claudeTokenAlertSent") }
-    func loginExpiredAlertedFor() -> Date? { defaults.object(forKey: "lastLoginExpiredEpisode") as? Date }
-    func setLoginExpiredAlertedFor(_ expiresAt: Date) { defaults.set(expiresAt, forKey: "lastLoginExpiredEpisode") }
-    func lastUtilization(forKey key: String) -> Double? { defaults.object(forKey: key) as? Double }
-    func setLastUtilization(_ value: Double, forKey key: String) { defaults.set(value, forKey: key) }
-    func codexTokenExpiredFiredAt() -> Date? { defaults.object(forKey: "lastCodexTokenExpiredFiredAt") as? Date }
-    func setCodexTokenExpiredFiredAt(_ date: Date) { defaults.set(date, forKey: "lastCodexTokenExpiredFiredAt") }
+    init(defaults: UserDefaults = .standard, keySuffix: String = "") {
+        self.defaults = defaults
+        self.keySuffix = keySuffix
+    }
+
+    private func k(_ key: String) -> String { key + keySuffix }
+
+    func hasBaseline(forKey key: String) -> Bool { defaults.object(forKey: k(key)) != nil }
+    func lastLevel(forKey key: String) -> Int { defaults.integer(forKey: k(key)) }
+    func setLastLevel(_ value: Int, forKey key: String) { defaults.set(value, forKey: k(key)) }
+    func lastPacing(forKey key: String) -> String? { defaults.string(forKey: k(key)) }
+    func setLastPacing(_ value: String, forKey key: String) { defaults.set(value, forKey: k(key)) }
+    func lastResetsAt(forKey key: String) -> Date? { defaults.object(forKey: k(key)) as? Date }
+    func setLastResetsAt(_ date: Date, forKey key: String) { defaults.set(date, forKey: k(key)) }
+    func tokenAlertSent() -> Bool { defaults.bool(forKey: k("claudeTokenAlertSent")) }
+    func setTokenAlertSent(_ sent: Bool) { defaults.set(sent, forKey: k("claudeTokenAlertSent")) }
+    func loginExpiredAlertedFor() -> Date? { defaults.object(forKey: k("lastLoginExpiredEpisode")) as? Date }
+    func setLoginExpiredAlertedFor(_ expiresAt: Date) { defaults.set(expiresAt, forKey: k("lastLoginExpiredEpisode")) }
+    func lastUtilization(forKey key: String) -> Double? { defaults.object(forKey: k(key)) as? Double }
+    func setLastUtilization(_ value: Double, forKey key: String) { defaults.set(value, forKey: k(key)) }
+    func codexTokenExpiredFiredAt() -> Date? { defaults.object(forKey: k("lastCodexTokenExpiredFiredAt")) as? Date }
+    func setCodexTokenExpiredFiredAt(_ date: Date) { defaults.set(date, forKey: k("lastCodexTokenExpiredFiredAt")) }
 }

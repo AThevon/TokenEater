@@ -121,15 +121,17 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
 
     /// The recipe for an added account: its own shared file (no migrations,
     /// no identity in it), its own folder-scoped token provider, its own
-    /// pacing samples, and no reload of the widgets, none of which reads its
-    /// file.
+    /// pacing samples and notification state, and no reload of the widgets,
+    /// none of which reads its file.
     static func liveRuntime(_ record: ClaudeAccountRecord) -> AccountRuntime {
         let file = SharedFileService(fileName: "shared-\(record.id.rawValue).json")
         let store = UsageStore(
             repository: UsageRepository(apiClient: APIClient(), sharedFileService: file),
             tokenProvider: TokenProvider(scope: record.scope),
             sharedFileService: file,
-            notificationService: NotificationService(),
+            notificationService: NotificationService(
+                stateStore: UserDefaultsNotificationStateStore(keySuffix: record.id.storageSuffix)
+            ),
             sessionSamplesKey: sessionSamplesKey(for: record.id),
             reloadWidgets: {}
         )
@@ -226,8 +228,13 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
         runtime?.store.identityGate = nil
         records.remove(at: index)
         runtimes.removeValue(forKey: id)
-        // Where `UsageStore` keeps them.
-        UserDefaults.standard.removeObject(forKey: Self.sessionSamplesKey(for: id))
+        // Everything kept under the account's suffix in the app's defaults,
+        // where `UsageStore` and the notification state live: its pacing
+        // samples, its alert state, its own layouts.
+        let standard = UserDefaults.standard
+        for key in standard.dictionaryRepresentation().keys where key.hasSuffix(id.storageSuffix) {
+            standard.removeObject(forKey: key)
+        }
         if let url = runtime?.sharedFile.fileURL {
             try? FileManager.default.removeItem(at: url)
         }
