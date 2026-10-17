@@ -754,6 +754,11 @@ final class StatusBarController: NSObject {
     @objc private func contextRefresh() {
         Task { await usageStore.refresh(force: true) }
         Task { await codexStore.refresh(force: true) }
+        // Every running added account too: the bar shows them all.
+        guard settingsStore.claudeEnabled else { return }
+        for store in accountsStore.runningExtraStores {
+            Task { await store.refresh(force: true) }
+        }
     }
 
     @objc private func contextOpenDashboard() {
