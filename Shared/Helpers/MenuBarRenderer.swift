@@ -329,7 +329,7 @@ enum MenuBarRenderer {
 
     /// Composite an outage glyph + mm:ss countdown ahead of the normal content.
     /// When usage data isn't usable (no config / usage error), show the badge
-    /// alone — avoids compositing a template logo into a coloured image.
+    /// alone, which avoids compositing a template logo into a coloured image.
     private static func renderWithOutageBadge(_ data: RenderData) -> NSImage {
         let badge = renderOutageBadgeImage(data)
         guard hasUsableMetrics(data) else { return badge }
