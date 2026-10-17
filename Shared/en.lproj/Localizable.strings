@@ -1112,7 +1112,7 @@
 
 /* Claude accounts: adding one */
 "accounts.add.link" = "Track another Claude account…";
-"accounts.add.link.hint" = "Follow a second Claude Code login, kept in its own config folder (CLAUDE_CONFIG_DIR).";
+"accounts.add.link.hint" = "Follow another Claude Code login, kept in its own config folder (CLAUDE_CONFIG_DIR).";
 "accounts.add.title" = "Track another Claude account";
 "accounts.add.subtitle" = "Pick the folder Claude Code keeps this login in, the one you pass as CLAUDE_CONFIG_DIR. Nothing is read until you connect.";
 "accounts.add.folders" = "Config folders";
@@ -1134,9 +1134,10 @@
 "accounts.connect.noLogin" = "There is no login for this exact folder. Open Claude Code on it, run /login, then connect again.";
 "accounts.connect.accessDenied" = "macOS refused access to this account's Keychain item. Connect again and choose Always Allow.";
 "accounts.connect.timedOut" = "The Keychain did not answer in time. Connect again.";
-"accounts.connect.expired" = "This login has expired, so there is no telling whose account it is. Open Claude Code on this folder, run /login, then connect again.";
+"accounts.connect.expired" = "This login has expired, so there is no telling whose account it is. Run the command below once in a terminal, then try again.";
 "accounts.connect.duplicate" = "This folder signs in to the same account as %@, which is already tracked.";
 "accounts.connect.alreadyTracked" = "This folder is already tracked.";
+"accounts.connect.mainUnidentified" = "Your main account's login could not be identified (expired, rate-limited or offline), so this one cannot be checked against it. Try again in a moment.";
 "accounts.connect.network" = "Could not reach Anthropic to identify this login: %@";
 "accounts.command.copy" = "Copy";
 "accounts.command.copied" = "Copied";
@@ -1175,8 +1176,8 @@
 "accounts.health.upToDate" = "Up to date · %@";
 "accounts.health.paused" = "Paused";
 "accounts.health.paused.numbers" = "Paused · %d%% / %d%% at %@";
-"accounts.health.expired" = "Login expired. Open Claude Code on this folder, then run /login.";
-"accounts.health.expired.since" = "Login expired %@. Open Claude Code on this folder, then run /login.";
+"accounts.health.expired" = "Login expired. Run the command below once in a terminal, and tracking resumes on its own.";
+"accounts.health.expired.since" = "Login expired %@. Run the command below once in a terminal, and tracking resumes on its own.";
 "accounts.health.accessDenied" = "macOS refused access to this account's Keychain item.";
 "accounts.health.timedOut" = "The Keychain did not answer in time.";
 "accounts.health.noLogin" = "No login for this exact folder.";

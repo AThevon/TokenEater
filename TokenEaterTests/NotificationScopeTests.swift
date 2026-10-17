@@ -275,20 +275,38 @@ struct NotificationScopeTests {
         muted.notificationsEnabled = false
         let base = toggles()
 
-        #expect(base.scoped(to: main).claudeEnabled)
-        #expect(!base.scoped(to: muted).claudeEnabled)
-        // An account unknown to the list (removed meanwhile) keeps the default.
-        #expect(base.scoped(to: nil).claudeEnabled)
+        #expect(base.scoped(to: main, tracksSeveralAccounts: true).claudeEnabled)
+        #expect(!base.scoped(to: muted, tracksSeveralAccounts: true).claudeEnabled)
+        // An account removed while a refresh was out sends nothing.
+        #expect(!base.scoped(to: nil, tracksSeveralAccounts: true).claudeEnabled)
+        #expect(!base.scoped(to: nil, tracksSeveralAccounts: false).claudeEnabled)
         // Everything else is the same bundle.
-        #expect(base.scoped(to: muted).trackFiveHour == base.trackFiveHour)
-        #expect(base.scoped(to: muted).codex == base.codex)
+        #expect(base.scoped(to: muted, tracksSeveralAccounts: true).trackFiveHour == base.trackFiveHour)
+        #expect(base.scoped(to: muted, tracksSeveralAccounts: true).codex == base.codex)
+    }
+
+    @Test("back to one account, a switch left off no longer mutes the main account")
+    func singleAccountIgnoresSwitch() {
+        var main = record("main", name: "Perso")
+        main.notificationsEnabled = false
+        let base = toggles()
+        #expect(!base.scoped(to: main, tracksSeveralAccounts: true).claudeEnabled)
+        #expect(base.scoped(to: main, tracksSeveralAccounts: false).claudeEnabled)
+
+        let center = MockNotificationCenter()
+        let state = MockNotificationStateStore()
+        state.levels["lastLevel_fiveHour"] = UsageLevel.orange.rawValue
+        let service = NotificationService(center: center, stateStore: state)
+        evaluate(service, fiveHour: 96, toggles: base.scoped(to: main, tracksSeveralAccounts: false))
+        #expect(!center.addedIDs.isEmpty)
     }
 
     @Test("the Claude master off silences every account")
     func claudeMasterWins() {
         let base = toggles(claudeEnabled: false)
-        #expect(!base.scoped(to: record("main", name: "Perso")).claudeEnabled)
-        #expect(!base.scoped(to: record("acct-x", name: "Work", dir: "/Users/tester/.claude-work")).claudeEnabled)
+        #expect(!base.scoped(to: record("main", name: "Perso"), tracksSeveralAccounts: true).claudeEnabled)
+        #expect(!base.scoped(to: record("main", name: "Perso"), tracksSeveralAccounts: false).claudeEnabled)
+        #expect(!base.scoped(to: record("acct-x", name: "Work", dir: "/Users/tester/.claude-work"), tracksSeveralAccounts: true).claudeEnabled)
     }
 
     @Test("a muted account sends nothing and drops its own reminders")
@@ -300,7 +318,7 @@ struct NotificationScopeTests {
         var muted = record("acct-x", name: "Work", dir: "/Users/tester/.claude-work")
         muted.notificationsEnabled = false
 
-        evaluate(service, fiveHour: 96, toggles: toggles().scoped(to: muted))
+        evaluate(service, fiveHour: 96, toggles: toggles().scoped(to: muted, tracksSeveralAccounts: true))
 
         #expect(center.addedIDs.isEmpty)
         #expect(center.removedIDs == ["reminder_session.acct-x", "reminder_weekly.acct-x"])

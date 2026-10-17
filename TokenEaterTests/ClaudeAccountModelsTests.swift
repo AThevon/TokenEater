@@ -101,6 +101,37 @@ struct ClaudeAccountModelsTests {
         #expect(records[0].name == "Perso")
     }
 
+    @Test("an added account on ~/.claude is dropped while the main account reads it")
+    func storageDropsSecondCopyOfDefaultFolder() {
+        let json = Data("""
+        [{"id":"main","name":"Perso"},
+         {"id":"acct-1","configDir":"/Users/tester/.claude"},
+         {"id":"acct-2","configDir":"/Users/tester/.claude-work/"}]
+        """.utf8)
+        let records = ClaudeAccountsStorage.decode(json, home: "/Users/tester")
+        #expect(records.map(\.id.rawValue) == ["main", "acct-2"])
+
+        // Once the main account lives elsewhere, ~/.claude is free.
+        let moved = Data("""
+        [{"id":"main","configDir":"/Users/tester/.claude-perso"},
+         {"id":"acct-1","configDir":"/Users/tester/.claude"}]
+        """.utf8)
+        #expect(ClaudeAccountsStorage.decode(moved, home: "/Users/tester").map(\.id.rawValue) == ["main", "acct-1"])
+    }
+
+    @Test("the first three colours an account gets are far apart on the wheel")
+    func paletteFirstChoicesAreDistinct() throws {
+        var used: [String] = []
+        for _ in 0..<3 { used.append(AccountPalette.nextColor(excluding: used)) }
+        let hues = try used.map { try #require(AccountPalette.hue(of: $0)) }
+        for i in 0..<hues.count {
+            for j in (i + 1)..<hues.count {
+                #expect(AccountPalette.hueDistance(hues[i], hues[j]) >= 30, "\(used[i]) vs \(used[j])")
+            }
+        }
+        #expect(abs((AccountPalette.hue(of: "#5B8DEF") ?? 0) - 219.7) < 1)
+    }
+
     @Test("a record's scope is the default chain without a folder, the folder's service with one")
     func recordScope() {
         #expect(ClaudeAccountRecord.defaultMain().scope == .defaultChain)
@@ -148,7 +179,7 @@ struct ClaudeAccountModelsTests {
     @Test("the next colour is the first preset nobody uses, cycling when all are taken")
     func paletteNextColor() {
         #expect(AccountPalette.nextColor(excluding: []) == "#5B8DEF")
-        #expect(AccountPalette.nextColor(excluding: ["#5b8def"]) == "#6366F1")
+        #expect(AccountPalette.nextColor(excluding: ["#5b8def"]) == "#F472B6")
         #expect(AccountPalette.nextColor(excluding: AccountPalette.presets) == AccountPalette.presets[0])
         #expect(AccountPalette.normalizedHex("22d3ee") == "#22D3EE")
         #expect(AccountPalette.normalizedHex("#12345") == nil)

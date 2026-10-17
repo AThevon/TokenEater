@@ -83,9 +83,21 @@ extension NotificationToggles {
     /// with the Claude sub-master also off when the user silenced that
     /// account. Thresholds, events and offsets stay global; only the switch
     /// is per account. Codex and the vendor alerts never go through here.
-    func scoped(to record: ClaudeAccountRecord?) -> NotificationToggles {
+    ///
+    /// The switch lives on a card Settings shows only while several accounts
+    /// are tracked, so it only counts then: back to one account, a switch
+    /// left off there cannot mute every Claude alert with nothing on screen
+    /// to turn it back on. A record that is gone (an account removed while
+    /// one of its refreshes was out) sends nothing.
+    func scoped(to record: ClaudeAccountRecord?, tracksSeveralAccounts: Bool) -> NotificationToggles {
         var copy = self
-        copy.claudeEnabled = claudeEnabled && (record?.notificationsEnabled ?? true)
+        guard let record else {
+            copy.claudeEnabled = false
+            return copy
+        }
+        if tracksSeveralAccounts {
+            copy.claudeEnabled = claudeEnabled && record.notificationsEnabled
+        }
         return copy
     }
 }

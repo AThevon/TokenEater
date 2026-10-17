@@ -242,7 +242,7 @@ enum ClaudeAccountsStorage {
 
     /// The stored list, cleaned: the main account first and exactly once,
     /// unreadable entries dropped, duplicate ids and duplicate folders dropped.
-    static func decode(_ data: Data?) -> [ClaudeAccountRecord] {
+    static func decode(_ data: Data?, home: String = ClaudeConfigDirResolver.realHome()) -> [ClaudeAccountRecord] {
         var records: [ClaudeAccountRecord] = []
         if let data,
            let decoded = try? JSONDecoder().decode([Lossy<ClaudeAccountRecord>].self, from: data) {
@@ -250,12 +250,15 @@ enum ClaudeAccountsStorage {
         }
         let main = records.first(where: { $0.id.isMain }) ?? .defaultMain()
         var seenIDs: Set<AccountID> = [.main]
-        var seenDirs: Set<String> = main.configDir.map { [$0] } ?? []
+        // The main account without a folder of its own reads `~/.claude`, so
+        // an added account on that folder would be a second copy of it.
+        let mainDir = main.configDir ?? ClaudeConfigDirResolver.defaultDirectory(home: home)
+        var seenDirs: Set<String> = [ClaudeConfigDirResolver.normalize(mainDir, home: home)]
         var result = [main]
         for record in records where !record.id.isMain {
             // An added account always has a folder of its own: without one it
             // would read the main account's login.
-            guard let dir = record.configDir,
+            guard let dir = record.configDir.map({ ClaudeConfigDirResolver.normalize($0, home: home) }),
                   !seenIDs.contains(record.id),
                   !seenDirs.contains(dir) else { continue }
             seenIDs.insert(record.id)
@@ -269,8 +272,11 @@ enum ClaudeAccountsStorage {
         try? JSONEncoder().encode(records)
     }
 
-    static func load(from defaults: UserDefaults) -> [ClaudeAccountRecord] {
-        decode(defaults.data(forKey: defaultsKey))
+    static func load(
+        from defaults: UserDefaults,
+        home: String = ClaudeConfigDirResolver.realHome()
+    ) -> [ClaudeAccountRecord] {
+        decode(defaults.data(forKey: defaultsKey), home: home)
     }
 
     /// The main account's scope, for the services built before any store
@@ -286,18 +292,50 @@ enum ClaudeAccountsStorage {
 /// The account's identity colour. It marks the account (a dot, a section
 /// header, a mode pill) and never tints a value: risk colour stays on the
 /// numbers (Smart Color and the thresholds, see `docs/design/COLORING.md`).
-/// The presets avoid the greens, ambers, oranges and reds that risk uses.
+/// The presets avoid the greens, ambers, oranges and reds that risk uses,
+/// and come in the order that keeps the first accounts furthest apart: a
+/// 6-point dot is all that tells two accounts apart in the menu bar, so the
+/// second and third accounts never get a neighbour of the main account's
+/// blue. The first stays the main account's decoding default.
 enum AccountPalette {
     static let presets: [String] = [
         "#5B8DEF", // blue
-        "#6366F1", // indigo
-        "#8B7CF6", // violet
-        "#C084FC", // lilac
         "#F472B6", // pink
         "#22D3EE", // cyan
+        "#C084FC", // lilac
+        "#6366F1", // indigo
+        "#8B7CF6", // violet
         "#D6B88A", // sand
         "#94A3B8", // slate
     ]
+
+    /// The hue of a `#RRGGBB` colour in degrees, nil when it is not one.
+    static func hue(of hex: String) -> Double? {
+        guard let normalized = normalizedHex(hex),
+              let value = Int(normalized.dropFirst(), radix: 16) else { return nil }
+        let r = Double((value >> 16) & 0xFF) / 255
+        let g = Double((value >> 8) & 0xFF) / 255
+        let b = Double(value & 0xFF) / 255
+        let maxC = max(r, g, b), minC = min(r, g, b)
+        let delta = maxC - minC
+        guard delta > 0 else { return 0 }
+        var h: Double
+        if maxC == r {
+            h = (g - b) / delta
+        } else if maxC == g {
+            h = (b - r) / delta + 2
+        } else {
+            h = (r - g) / delta + 4
+        }
+        h *= 60
+        return h < 0 ? h + 360 : h
+    }
+
+    /// Distance between two hues on the colour wheel, 0 to 180 degrees.
+    static func hueDistance(_ a: Double, _ b: Double) -> Double {
+        let d = abs(a - b).truncatingRemainder(dividingBy: 360)
+        return d > 180 ? 360 - d : d
+    }
 
     /// The first preset no tracked account uses yet, cycling once all eight
     /// are taken.
@@ -361,6 +399,9 @@ enum IdentityVerdict: Equatable, Sendable {
     case belongsTo(AccountID)
     /// The folder now signs in to an identity no tracked account has.
     case changed(newDigest: String)
+    /// The account is no longer tracked (removed while a check was out):
+    /// nothing may be written for it.
+    case untracked
 }
 
 enum IdentityState: Equatable, Sendable {
@@ -652,6 +693,10 @@ enum AccountConnectResult: Equatable, Sendable {
     case duplicate(of: ClaudeAccountSummary)
     /// The folder itself is already tracked.
     case alreadyTracked
+    /// The main account has a login, but whose it is could not be learned
+    /// (expired, rate-limited, offline), so a duplicate of it could not be
+    /// ruled out.
+    case mainUnidentified
     case network(String)
 }
 

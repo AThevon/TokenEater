@@ -20,27 +20,27 @@ struct UsageRepositoryTests {
         return (repo, api, sharedFile)
     }
 
-    // MARK: - refreshUsage
+    // MARK: - fetchUsage / saveUsage
 
-    @Test("refreshUsage calls API and writes to shared file on success")
-    func refreshUsageCallsAPIAndWritesToSharedFile() async throws {
+    @Test("fetchUsage calls the API and writes nothing")
+    func fetchUsageWritesNothing() async throws {
         let (repo, api, sharedFile) = makeSUT()
         api.stubbedUsage = .fixture(fiveHourUtil: 42)
 
-        let response = try await repo.refreshUsage(token: "tok-123", proxyConfig: nil)
+        let response = try await repo.fetchUsage(token: "tok-123", proxyConfig: nil)
 
         #expect(api.fetchCallCount == 1)
-        #expect(sharedFile.updateAfterSyncCallCount == 1)
+        #expect(sharedFile.updateAfterSyncCallCount == 0)
         #expect(response.fiveHour?.utilization == 42)
     }
 
-    @Test("refreshUsage throws API errors through")
-    func refreshUsageThrowsAPIErrors() async {
+    @Test("fetchUsage throws API errors through")
+    func fetchUsageThrowsAPIErrors() async {
         let (repo, api, _) = makeSUT()
         api.stubbedError = APIError.invalidResponse(endpoint: "/api/oauth/usage")
 
         do {
-            _ = try await repo.refreshUsage(token: "tok", proxyConfig: nil)
+            _ = try await repo.fetchUsage(token: "tok", proxyConfig: nil)
             Issue.record("Expected APIError.invalidResponse")
         } catch let error as APIError {
             guard case .invalidResponse = error else {
@@ -52,14 +52,11 @@ struct UsageRepositoryTests {
         }
     }
 
-    @Test("refreshUsage does not write to shared file on failure")
-    func refreshUsageDoesNotWriteOnFailure() async {
-        let (repo, api, sharedFile) = makeSUT()
-        api.stubbedError = APIError.tokenExpired(endpoint: "/api/oauth/usage", statusCode: 401)
-
-        _ = try? await repo.refreshUsage(token: "tok", proxyConfig: nil)
-
-        #expect(sharedFile.updateAfterSyncCallCount == 0)
+    @Test("saveUsage writes the usage to the shared file")
+    func saveUsageWrites() {
+        let (repo, _, sharedFile) = makeSUT()
+        repo.saveUsage(.fixture(fiveHourUtil: 42), fetchedAt: Date())
+        #expect(sharedFile.updateAfterSyncCallCount == 1)
     }
 
     // MARK: - fetchProfile

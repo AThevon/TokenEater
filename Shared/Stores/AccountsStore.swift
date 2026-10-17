@@ -38,18 +38,32 @@ final class AccountRuntime {
     /// The 7-day insights behind its dashboard column (the tiles' backs),
     /// read from its own folder. Built on first use: an account whose column
     /// is never drawn never parses its history.
-    lazy var insights: MonitoringInsightsStore = {
-        guard let history else {
-            return MonitoringInsightsStore(service: CombinedSessionHistoryService(
+    var insights: MonitoringInsightsStore {
+        if let builtInsights { return builtInsights }
+        let built: MonitoringInsightsStore
+        if let history {
+            built = MonitoringInsightsStore(service: SessionHistoryService(
+                rootURL: history.projectsURL,
+                cacheURL: history.cacheURL
+            ))
+        } else {
+            built = MonitoringInsightsStore(service: CombinedSessionHistoryService(
                 claudeRoots: { [] },
                 isCodexEnabled: { false }
             ))
         }
-        return MonitoringInsightsStore(service: SessionHistoryService(
-            rootURL: history.projectsURL,
-            cacheURL: history.cacheURL
-        ))
-    }()
+        builtInsights = built
+        return built
+    }
+
+    private var builtInsights: MonitoringInsightsStore?
+
+    /// Stops everything the account runs, for good: its store, and the
+    /// insights load if one was started.
+    func retire() {
+        store.retire()
+        builtInsights?.invalidate()
+    }
 }
 
 /// Owns the tracked Claude accounts and one `UsageStore` per added account.
@@ -146,7 +160,7 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
             AccountsStore.liveRuntime(record, notificationScope: labels.scope(for: record.id))
         }
         self.makeRuntime = runtimeMaker
-        let loaded = Self.loadRecords(from: defaults)
+        let loaded = Self.loadRecords(from: defaults, home: home)
         labels.update(loaded, home: home)
         self.records = loaded
         var runtimes: [AccountID: AccountRuntime] = [:]
@@ -167,8 +181,11 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
 
     // MARK: - Reading
 
-    nonisolated static func loadRecords(from defaults: UserDefaults) -> [ClaudeAccountRecord] {
-        ClaudeAccountsStorage.load(from: defaults)
+    nonisolated static func loadRecords(
+        from defaults: UserDefaults,
+        home: String = ClaudeConfigDirResolver.realHome()
+    ) -> [ClaudeAccountRecord] {
+        ClaudeAccountsStorage.load(from: defaults, home: home)
     }
 
     var mainRecord: ClaudeAccountRecord { records[0] }
@@ -286,11 +303,18 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
         }
 
         // A second copy of the main account can only be refused if the main
-        // account's identity is known; with one account it is kept in memory
-        // as profiles come in, and fetched here when none came yet.
-        var mainDigest = records[0].identityDigest
+        // account's identity is known. From two accounts it is pinned. With
+        // one, the main account follows whatever login is active, so the one
+        // in memory may be a cswap old: it is read again, here. When the main
+        // account has a login but no answer comes for it (expired, 429,
+        // network), the connection is refused rather than risk a duplicate
+        // that would freeze the main account in a conflict.
+        var mainDigest = tracksMultipleAccounts ? records[0].identityDigest : nil
         if mainDigest == nil {
-            mainDigest = await mainStore.ensureIdentityDigest()
+            mainDigest = await mainStore.freshIdentityDigest()
+        }
+        if mainDigest == nil, await mainStore.detectTokenSource() {
+            return .mainUnidentified
         }
         guard !isTracked(folder: folder) else { return .alreadyTracked }
         if mainDigest == login.digest {
@@ -485,8 +509,9 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
     func remove(_ id: AccountID) {
         guard !id.isMain, let index = records.firstIndex(where: { $0.id == id }) else { return }
         let runtime = runtimes[id]
-        runtime?.store.stopAutoRefresh()
-        runtime?.store.identityGate = nil
+        // Stopped for good before anything is purged: a refresh still out
+        // would otherwise write the file, the samples or an alert back.
+        runtime?.retire()
         records.remove(at: index)
         runtimes.removeValue(forKey: id)
         // Everything kept under the account's suffix in the app's defaults,
@@ -523,12 +548,12 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
            service == nil || service == ClaudeConfigDirResolver.baseService {
             dir = nil
         }
-        if let dir {
-            let taken = records.dropFirst().contains {
-                $0.configDir.map { ClaudeConfigDirResolver.normalize($0, home: home) } == dir
-            }
-            guard !taken else { return false }
-        }
+        // Nil is `~/.claude`, which an added account may read too.
+        let readFolder = dir ?? ClaudeConfigDirResolver.normalize(
+            ClaudeConfigDirResolver.defaultDirectory(home: home),
+            home: home
+        )
+        guard !readByAdded(readFolder) else { return false }
         let resolvedService = dir.map { folder in
             (service?.isEmpty == false ? service : nil)
                 ?? ClaudeConfigDirResolver.serviceCandidates(for: folder, home: home).first
@@ -558,13 +583,10 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
         proxyConfig: ProxyConfig? = nil
     ) async -> MainFolderResult {
         let oldFolder = records[0].configDir
-        guard let path else { return moveMainToDefaultChain(from: oldFolder) }
+        guard let path else { return await moveMainToDefaultChain(from: oldFolder, proxyConfig: proxyConfig) }
 
         let folder = ClaudeConfigDirResolver.normalize(path, home: home)
-        let readByAdded = records.dropFirst().contains {
-            $0.configDir.map { ClaudeConfigDirResolver.normalize($0, home: home) } == folder
-        }
-        guard !readByAdded else { return .refused(.alreadyTracked) }
+        guard !readByAdded(folder) else { return .refused(.alreadyTracked) }
 
         var service = knownService
         if service == nil {
@@ -575,7 +597,7 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
         // chain itself, Claude Desktop included: no folder scope for it.
         if ClaudeConfigDirResolver.isDefault(folder, home: home),
            service == nil || service == ClaudeConfigDirResolver.baseService {
-            return moveMainToDefaultChain(from: oldFolder)
+            return await moveMainToDefaultChain(from: oldFolder, proxyConfig: proxyConfig)
         }
         if folder == oldFolder, service == records[0].service {
             return .moved(records[0].scope)
@@ -596,11 +618,50 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
         return .moved(records[0].scope)
     }
 
-    private func moveMainToDefaultChain(from oldFolder: String?) -> MainFolderResult {
+    /// Back to `~/.claude` and the default chain. Refused like any other
+    /// folder when an added account already reads `~/.claude`, or, once
+    /// several accounts are tracked, when the login there is one of them.
+    /// That login is read the way `connect` reads a folder's: the base
+    /// service and `~/.claude/.credentials.json`, never Claude Desktop, so
+    /// it costs no prompt. No login there is no duplicate: the move goes on.
+    private func moveMainToDefaultChain(
+        from oldFolder: String?,
+        proxyConfig: ProxyConfig?
+    ) async -> MainFolderResult {
         guard oldFolder != nil else { return .moved(.defaultChain) }
+        let defaultFolder = ClaudeConfigDirResolver.normalize(
+            ClaudeConfigDirResolver.defaultDirectory(home: home),
+            home: home
+        )
+        guard !readByAdded(defaultFolder) else { return .refused(.alreadyTracked) }
+        if tracksMultipleAccounts {
+            switch await identifyLogin(
+                folder: defaultFolder,
+                knownService: ClaudeConfigDirResolver.baseService,
+                proxyConfig: proxyConfig
+            ) {
+            case .identified(let login):
+                if let owner = records.dropFirst().first(where: { $0.identityDigest == login.digest }) {
+                    return .refused(.duplicate(of: owner.summary))
+                }
+            case .refused(.noLogin):
+                break
+            case .refused(let refusal):
+                return .refused(refusal)
+            }
+            guard records[0].configDir != nil else { return .moved(.defaultChain) }
+            guard !readByAdded(defaultFolder) else { return .refused(.alreadyTracked) }
+        }
         setMainScope(configDir: nil, service: nil)
         reproposeMainName(from: oldFolder)
         return .moved(.defaultChain)
+    }
+
+    /// Whether an added account reads this (normalized) folder.
+    private func readByAdded(_ folder: String) -> Bool {
+        records.dropFirst().contains {
+            $0.configDir.map { ClaudeConfigDirResolver.normalize($0, home: home) } == folder
+        }
     }
 
     /// Follows the folder with the main account's name, but only when that
@@ -623,15 +684,16 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
     // MARK: - Identity
 
     /// The verdict on a login digest for an account:
+    /// - an account that is no longer tracked: refused, nothing is written;
     /// - another tracked account's digest: it belongs to that account;
     /// - this account has none yet: accepted, and kept;
     /// - its own digest: accepted;
     /// - anything else: the folder now signs in to someone new.
     func identityVerdict(for digest: String, account id: AccountID) -> IdentityVerdict {
+        guard let index = records.firstIndex(where: { $0.id == id }) else { return .untracked }
         if let other = records.first(where: { $0.id != id && $0.identityDigest == digest }) {
             return .belongsTo(other.id)
         }
-        guard let index = records.firstIndex(where: { $0.id == id }) else { return .accepted }
         guard let known = records[index].identityDigest else {
             records[index].identityDigest = digest
             persist()
@@ -670,7 +732,7 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
         for store in [(AccountID.main, mainStore)] + runtimes.map({ ($0.key, $0.value.store) }) {
             let id = store.0
             store.1.identityGate = { [weak self] digest in
-                self?.identityVerdict(for: digest, account: id) ?? .accepted
+                self?.identityVerdict(for: digest, account: id) ?? .untracked
             }
         }
     }

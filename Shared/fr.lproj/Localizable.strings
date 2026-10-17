@@ -1112,7 +1112,7 @@
 
 /* Comptes Claude : ajout */
 "accounts.add.link" = "Suivre un autre compte Claude…";
-"accounts.add.link.hint" = "Suivre une deuxième connexion Claude Code, rangée dans son propre dossier de config (CLAUDE_CONFIG_DIR).";
+"accounts.add.link.hint" = "Suivre une autre connexion Claude Code, rangée dans son propre dossier de config (CLAUDE_CONFIG_DIR).";
 "accounts.add.title" = "Suivre un autre compte Claude";
 "accounts.add.subtitle" = "Choisis le dossier où Claude Code garde cette connexion, celui que tu passes en CLAUDE_CONFIG_DIR. Rien n'est lu avant Connecter.";
 "accounts.add.folders" = "Dossiers de config";
@@ -1131,12 +1131,13 @@
 "accounts.add.keychainNote" = "macOS peut demander une fois l'accès à l'élément de trousseau de ce compte. Choisis Toujours autoriser.";
 "accounts.add.cancel" = "Annuler";
 "accounts.add.connect" = "Connecter";
-"accounts.connect.noLogin" = "Aucune connexion pour ce dossier exact. Ouvre Claude Code dessus, lance /login, puis connecte à nouveau.";
-"accounts.connect.accessDenied" = "macOS a refusé l'accès à l'élément de trousseau de ce compte. Connecte à nouveau et choisis Toujours autoriser.";
-"accounts.connect.timedOut" = "Le trousseau n'a pas répondu à temps. Connecte à nouveau.";
-"accounts.connect.expired" = "Cette connexion a expiré, impossible de savoir à quel compte elle appartient. Ouvre Claude Code sur ce dossier, lance /login, puis connecte à nouveau.";
+"accounts.connect.noLogin" = "Aucune connexion pour ce dossier exact. Ouvre Claude Code dessus, lance /login, puis réessaie.";
+"accounts.connect.accessDenied" = "macOS a refusé l'accès à l'élément de trousseau de ce compte. Réessaie et choisis Toujours autoriser.";
+"accounts.connect.timedOut" = "Le trousseau n'a pas répondu à temps. Réessaie.";
+"accounts.connect.expired" = "Cette connexion a expiré, impossible de savoir à quel compte elle appartient. Lance la commande ci-dessous une fois dans un terminal, puis réessaie.";
 "accounts.connect.duplicate" = "Ce dossier se connecte au même compte que %@, déjà suivi.";
 "accounts.connect.alreadyTracked" = "Ce dossier est déjà suivi.";
+"accounts.connect.mainUnidentified" = "Impossible d'identifier la connexion de ton compte principal (expirée, limitée ou hors ligne), donc impossible de vérifier que celle-ci est différente. Réessaie dans un moment.";
 "accounts.connect.network" = "Impossible de joindre Anthropic pour identifier cette connexion : %@";
 "accounts.command.copy" = "Copier";
 "accounts.command.copied" = "Copié";
@@ -1171,12 +1172,12 @@
 "accounts.remove.title" = "Retirer %@ ?";
 "accounts.remove.action" = "Retirer";
 "accounts.remove.message" = "Ses dispositions, son historique de rythme et ses chiffres en cache sont supprimés. Claude Code et sa connexion ne sont pas touchés.";
-"accounts.health.checking" = "Connexion…";
+"accounts.health.checking" = "Connexion en cours…";
 "accounts.health.upToDate" = "À jour · %@";
 "accounts.health.paused" = "En pause";
 "accounts.health.paused.numbers" = "En pause · %d%% / %d%% à %@";
-"accounts.health.expired" = "Connexion expirée. Ouvre Claude Code avec ce dossier, puis lance /login.";
-"accounts.health.expired.since" = "Connexion expirée %@. Ouvre Claude Code avec ce dossier, puis lance /login.";
+"accounts.health.expired" = "Connexion expirée. Lance la commande ci-dessous une fois dans un terminal, et le suivi reprend tout seul.";
+"accounts.health.expired.since" = "Connexion expirée %@. Lance la commande ci-dessous une fois dans un terminal, et le suivi reprend tout seul.";
 "accounts.health.accessDenied" = "macOS a refusé l'accès à l'élément de trousseau de ce compte.";
 "accounts.health.timedOut" = "Le trousseau n'a pas répondu à temps.";
 "accounts.health.noLogin" = "Aucune connexion pour ce dossier exact.";

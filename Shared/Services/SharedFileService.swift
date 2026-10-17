@@ -251,6 +251,14 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         save(data)
     }
 
+    func clearUsage() {
+        var data = loadFresh()
+        guard data.cachedUsage != nil || data.lastSyncDate != nil else { return }
+        data.cachedUsage = nil
+        data.lastSyncDate = nil
+        save(data)
+    }
+
     func updateTheme(_ theme: ThemeColors, thresholds: UsageThresholds) {
         var data = loadFresh()
         data.theme = theme

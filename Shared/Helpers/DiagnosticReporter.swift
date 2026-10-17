@@ -168,6 +168,7 @@ enum DiagnosticReporter {
         case .pending: return "pending"
         case .conflict(.belongsTo): return "conflict (another tracked account)"
         case .conflict(.changed): return "conflict (new login)"
+        case .conflict(.untracked): return "conflict (account no longer tracked)"
         case .conflict(.accepted): return "verified"
         }
     }

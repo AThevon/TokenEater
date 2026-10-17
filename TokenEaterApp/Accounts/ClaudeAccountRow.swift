@@ -285,7 +285,7 @@ struct ClaudeAccountRow<FolderLine: View>: View {
                     return String(format: String(localized: "accounts.health.mainMoved.source"), name, Self.label(for: source))
                 }
                 return String(format: String(localized: "accounts.health.sameAs"), name)
-            case .changed, .accepted:
+            case .changed, .accepted, .untracked:
                 return String(localized: "accounts.health.changed")
             }
         }

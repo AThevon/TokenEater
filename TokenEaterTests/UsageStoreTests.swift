@@ -960,7 +960,7 @@ struct UsageStoreTests {
         // The underlying Keychain token rotates to account B.
         tokenProvider.tokenDidChange = true
 
-        let rotated = store.reconcileTokenIfChanged()
+        let rotated = await store.reconcileTokenIfChanged()
 
         #expect(rotated == true)
         #expect(store.retryAfterDate == nil)
@@ -969,11 +969,11 @@ struct UsageStoreTests {
     }
 
     @Test("reconcileTokenIfChanged is a no-op when the token is unchanged")
-    func reconcileTokenIfChangedNoChange() {
+    func reconcileTokenIfChangedNoChange() async {
         let (store, _, tokenProvider, _, _) = makeSUT()
         tokenProvider.tokenDidChange = false
 
-        let rotated = store.reconcileTokenIfChanged()
+        let rotated = await store.reconcileTokenIfChanged()
 
         #expect(rotated == false)
         #expect(store.currentSpeed == .normal)

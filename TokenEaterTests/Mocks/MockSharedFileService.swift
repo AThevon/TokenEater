@@ -45,6 +45,14 @@ final class MockSharedFileService: SharedFileServiceProtocol, @unchecked Sendabl
         _lastSyncDate = syncDate
     }
 
+    var clearUsageCallCount = 0
+
+    func clearUsage() {
+        clearUsageCallCount += 1
+        _cachedUsage = nil
+        _lastSyncDate = nil
+    }
+
     func updateTheme(_ theme: ThemeColors, thresholds: UsageThresholds) {
         updateThemeCallCount += 1
         _theme = theme

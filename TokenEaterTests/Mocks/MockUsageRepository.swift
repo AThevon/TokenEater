@@ -12,11 +12,21 @@ final class MockUsageRepository: UsageRepositoryProtocol {
     var testConnectionCallCount = 0
     var lastToken: String?
 
-    func refreshUsage(token: String, proxyConfig: ProxyConfig?) async throws -> UsageResponse {
+    /// Runs inside `fetchUsage` before it answers, for a test to change
+    /// the store's situation while the call is out.
+    var onFetchUsage: (() async -> Void)?
+    var saveCallCount = 0
+
+    func fetchUsage(token: String, proxyConfig: ProxyConfig?) async throws -> UsageResponse {
         refreshCallCount += 1
         lastToken = token
+        await onFetchUsage?()
         if let error = stubbedError { throw error }
         return stubbedUsage ?? UsageResponse()
+    }
+
+    func saveUsage(_ usage: UsageResponse, fetchedAt: Date) {
+        saveCallCount += 1
     }
 
     func fetchProfile(token: String, proxyConfig: ProxyConfig?) async throws -> ProfileResponse {

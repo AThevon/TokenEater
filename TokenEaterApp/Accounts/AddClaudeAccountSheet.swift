@@ -659,6 +659,8 @@ extension AccountConnectResult {
             return String(format: String(localized: "accounts.connect.duplicate"), other.name)
         case .alreadyTracked:
             return String(localized: "accounts.connect.alreadyTracked")
+        case .mainUnidentified:
+            return String(localized: "accounts.connect.mainUnidentified")
         case .network(let detail):
             return String(format: String(localized: "accounts.connect.network"), detail)
         }

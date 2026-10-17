@@ -483,7 +483,10 @@ final class StatusBarController: NSObject {
     /// for Claude when the user switched that account's alerts off in
     /// Settings > Notifications.
     private func makeNotificationToggles(for account: AccountID) -> NotificationToggles {
-        makeNotificationToggles().scoped(to: accountsStore.record(for: account))
+        makeNotificationToggles().scoped(
+            to: accountsStore.record(for: account),
+            tracksSeveralAccounts: accountsStore.tracksMultipleAccounts
+        )
     }
 
     /// Single source of truth for the notification-toggle bundle, shared by the

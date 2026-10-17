@@ -18,6 +18,10 @@ protocol SharedFileServiceProtocol: Sendable {
 
     func invalidateCache()
     func updateAfterSync(usage: CachedUsage, syncDate: Date)
+    /// Forgets the cached usage and its sync date, keeping the theme, the
+    /// preferences and the accounts index. For an account that now reads
+    /// another login: its previous numbers must not come back from the file.
+    func clearUsage()
     func updateTheme(_ theme: ThemeColors, thresholds: UsageThresholds)
     func updateSmartColorEnabled(_ enabled: Bool)
     func updateSmartColorProfile(_ profile: SmartColorProfile)

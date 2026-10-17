@@ -12,13 +12,15 @@ final class UsageRepository: UsageRepositoryProtocol, @unchecked Sendable {
         self.sharedFileService = sharedFileService
     }
 
-    func refreshUsage(token: String, proxyConfig: ProxyConfig?) async throws -> UsageResponse {
-        let usage = try await apiClient.fetchUsage(token: token, proxyConfig: proxyConfig)
+    func fetchUsage(token: String, proxyConfig: ProxyConfig?) async throws -> UsageResponse {
+        try await apiClient.fetchUsage(token: token, proxyConfig: proxyConfig)
+    }
+
+    func saveUsage(_ usage: UsageResponse, fetchedAt: Date) {
         sharedFileService.updateAfterSync(
-            usage: CachedUsage(usage: usage, fetchDate: Date()),
-            syncDate: Date()
+            usage: CachedUsage(usage: usage, fetchDate: fetchedAt),
+            syncDate: fetchedAt
         )
-        return usage
     }
 
     func fetchProfile(token: String, proxyConfig: ProxyConfig?) async throws -> ProfileResponse {

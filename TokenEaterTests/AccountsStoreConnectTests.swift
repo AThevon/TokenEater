@@ -190,12 +190,42 @@ struct AccountsStoreConnectTests {
         #expect(sut.store.records[0].identityDigest == workDigest)
     }
 
-    @Test("a known main identity is not fetched again")
-    func mainDigestNotRefetched() async {
+    @Test("with one account the main identity is read fresh at every connect, the sources first")
+    func mainDigestReadFresh() async {
         let sut = makeSUT()
         _ = await sut.store.connect(configDir: work, knownService: workService)
         _ = await sut.store.connect(configDir: work, knownService: workService)
-        #expect(sut.mainRepo.fetchProfileCallCount == 1)
+        #expect(sut.mainRepo.fetchProfileCallCount == 2)
+        #expect(sut.mainProvider.refreshTokenIfChangedCallCount == 2)
+    }
+
+    @Test("a cswap since the last profile is caught: the new main login is refused as a duplicate")
+    func mainDigestFollowsCswap() async {
+        let sut = makeSUT()
+        _ = await sut.store.mainStore.freshIdentityDigest()
+        // The main login moves to the work account with no event.
+        sut.mainRepo.stubbedProfile = .fixture(accountUUID: "work-uuid", orgUUID: "work-org")
+        let result = await sut.store.connect(configDir: work, knownService: workService)
+        #expect(result == .duplicate(of: sut.store.records[0].summary))
+    }
+
+    @Test("a main login that cannot be identified refuses the connection")
+    func mainUnidentified() async {
+        let sut = makeSUT()
+        sut.mainRepo.stubbedProfileError = APIError.networkError(endpoint: "/api/oauth/profile", underlying: "offline")
+        #expect(await sut.store.connect(configDir: work, knownService: workService) == .mainUnidentified)
+        #expect(sut.store.records.count == 1)
+    }
+
+    @Test("a main account with no login at all does not block a connection")
+    func mainWithoutLogin() async {
+        let sut = makeSUT()
+        sut.mainProvider.token = nil
+        sut.mainProvider._hasTokenSource = false
+        guard case .ready = await sut.store.connect(configDir: work, knownService: workService) else {
+            Issue.record("expected ready")
+            return
+        }
     }
 
     @Test("a second copy of an added account is refused with its name")
@@ -314,6 +344,59 @@ struct AccountsStoreConnectTests {
         let back = await sut.store.setMainConfigDir("~/.claude", knownService: ClaudeConfigDirResolver.baseService)
         #expect(back == .moved(.defaultChain))
         #expect(sut.store.records[0].configDir == nil)
+    }
+
+    @Test("going back to ~/.claude is refused when an added account reads it")
+    func mainFolderBackRefusedWhenTaken() async {
+        let sut = makeSUT()
+        _ = await sut.store.setMainConfigDir(perso, knownService: persoService)
+        let onDefault = ClaudeAccountRecord(
+            id: AccountID(rawValue: "acct-default"),
+            configDir: "/Users/tester/.claude",
+            service: ClaudeConfigDirResolver.baseService,
+            name: "Old",
+            colorHex: "#22D3EE",
+            identityDigest: "old"
+        )
+        #expect(sut.store.add(onDefault))
+        #expect(await sut.store.setMainConfigDir(nil) == .refused(.alreadyTracked))
+        #expect(sut.store.records[0].configDir == perso)
+    }
+
+    @Test("going back to ~/.claude is refused when its login is an added account's")
+    func mainFolderBackRefusedForDuplicate() async {
+        let sut = makeSUT()
+        _ = await sut.store.setMainConfigDir(perso, knownService: persoService)
+        let side = ClaudeAccountRecord(
+            id: AccountID(rawValue: "acct-side"),
+            configDir: "/Users/tester/.claude-side",
+            service: "Claude Code-credentials-5eed5eed",
+            name: "Side",
+            colorHex: "#22D3EE",
+            identityDigest: workDigest
+        )
+        sut.store.add(side)
+        let result = await sut.store.setMainConfigDir(nil)
+        #expect(result == .refused(.duplicate(of: sut.store.record(for: side.id)!.summary)))
+        #expect(sut.store.records[0].configDir == perso)
+        // Read like a folder: the base service, never Claude Desktop.
+        #expect(sut.providers.made.last?.scope == .configDir(path: "/Users/tester/.claude", service: ClaudeConfigDirResolver.baseService))
+    }
+
+    @Test("going back to ~/.claude with no login there goes on")
+    func mainFolderBackWithoutLogin() async {
+        let sut = makeSUT()
+        _ = await sut.store.setMainConfigDir(perso, knownService: persoService)
+        sut.store.add(ClaudeAccountRecord(
+            id: AccountID(rawValue: "acct-side"),
+            configDir: "/Users/tester/.claude-side",
+            service: "Claude Code-credentials-5eed5eed",
+            name: "Side",
+            colorHex: "#22D3EE",
+            identityDigest: "side"
+        ))
+        sut.providers.next = { MockTokenProvider() }
+        #expect(await sut.store.setMainConfigDir(nil) == .moved(.defaultChain))
     }
 
     @Test("~/.claude with a suffixed login is kept as a folder of its own")
