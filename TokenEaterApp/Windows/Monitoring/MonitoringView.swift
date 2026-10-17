@@ -38,6 +38,8 @@ struct MonitoringView: View {
     @State private var heroFlipped: Bool = false
     @State private var heroBlurProgress: CGFloat = 0
     @State private var heroFlipping: Bool = false
+    /// The width the columns share, measured, so they can wrap two by two.
+    @State private var columnsWidth: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.glowIntensity) private var glowIntensity
 
@@ -64,26 +66,7 @@ struct MonitoringView: View {
                 // without anything coordinating them. The order and the
                 // visibility come from Studio.
                 if isComparing {
-                    if columns.count == 2 {
-                        HStack(alignment: .top, spacing: DS.Spacing.md) {
-                            ForEach(columns) { column in
-                                columnView(column)
-                            }
-                        }
-                    } else {
-                        // Three columns and more (several Claude accounts):
-                        // as many abreast as the window holds, stacking under
-                        // each other when it narrows.
-                        LazyVGrid(
-                            columns: [GridItem(.adaptive(minimum: 300), spacing: DS.Spacing.md, alignment: .top)],
-                            alignment: .leading,
-                            spacing: DS.Spacing.md
-                        ) {
-                            ForEach(columns) { column in
-                                columnView(column)
-                            }
-                        }
-                    }
+                    comparison
                 } else if let column = columns.first {
                     VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                         ProviderStatusNotice(provider: column.provider)
@@ -226,6 +209,41 @@ struct MonitoringView: View {
     /// is always part of a comparison.
     private var isComparing: Bool {
         embeddedAccount != nil || columns.count > 1
+    }
+
+    /// The All comparison: the columns two by two at most, never three
+    /// abreast, stacking one per row when the window is too narrow for two.
+    /// One or two columns stay side by side as they did in 6.0.
+    private var comparison: some View {
+        let rows = MonitoringColumns.rows(columns, availableWidth: columnsWidth, spacing: DS.Spacing.md)
+        let sideBySide = rows.contains { $0.count > 1 }
+        return VStack(alignment: .leading, spacing: DS.Spacing.md) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                HStack(alignment: .top, spacing: DS.Spacing.md) {
+                    ForEach(row) { column in
+                        columnView(column)
+                    }
+                    // A last row with one column left keeps it the width of
+                    // the columns above, so a column reads the same in every
+                    // row and its cards never spread to the full page.
+                    if sideBySide && row.count < MonitoringColumns.maxPerRow {
+                        Color.clear
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 0)
+                    }
+                }
+            }
+        }
+        .environment(\.dashboardTilesPerRow, MetricsGridLayout.maxPerRow(sideBySide: sideBySide))
+        .environment(\.dashboardColumnHeaded, columnsAreHeaded)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { columnsWidth = geo.size.width }
+                    .onChange(of: geo.size.width) { _, width in columnsWidth = width }
+            }
+        )
     }
 
     /// One column of the All comparison. The main account and Codex draw
@@ -394,7 +412,7 @@ struct MonitoringView: View {
             ForEach(windows) { window in
                 CodexPacingCard(
                     pacing: window.pacing!,
-                    windowLabel: labelled(window.kind.heroLabel(for: window.windowDuration), for: .codex),
+                    windowLabel: labelled(codexPacingLabel(window), for: .codex),
                     isSession: window.kind == .session
                 )
             }
@@ -403,12 +421,24 @@ struct MonitoringView: View {
                 ForEach(windows) { window in
                     CodexPacingCard(
                         pacing: window.pacing!,
-                        windowLabel: labelled(window.kind.heroLabel(for: window.windowDuration), for: .codex),
+                        windowLabel: labelled(codexPacingLabel(window), for: .codex),
                         isSession: window.kind == .session
                     )
                     .frame(maxWidth: .infinity)
                 }
             }
+        }
+    }
+
+    /// "Session pacing", "Weekly pacing", like Claude's cards. The bare
+    /// window name read exactly like the window's own tile once no provider
+    /// prefix stood in front of it (a headed column, Codex mode).
+    private func codexPacingLabel(_ window: CodexWindowSnapshot) -> String {
+        switch window.kind {
+        case .session: return String(localized: "pacing.session.label")
+        case .weekly: return String(localized: "pacing.weekly.label")
+        case .other:
+            return window.kind.heroLabel(for: window.windowDuration) + " · " + String(localized: "pacing.label")
         }
     }
 
@@ -427,10 +457,25 @@ struct MonitoringView: View {
         return codexStore.windows.min { $0.windowDuration < $1.windowDuration }
     }
 
-    /// One rule for every card label on this page: name the provider when
-    /// there is another one on screen, never when there is not.
+    /// True when each column has a header naming it, which is the case once
+    /// several Claude accounts share the page. The cards under it then carry
+    /// no name of their own: the header sits right above every column, in
+    /// whichever row it lands, and "WORK · WEEKLY" under "Work" only cost
+    /// the label its room.
+    private var columnsAreHeaded: Bool {
+        isComparing && settingsStore.showsAccountMarkers
+    }
+
+    /// The name a card label starts with: the provider's when there is
+    /// another one on screen and no header says whose column it is, as in
+    /// 6.0; none otherwise.
+    private func labelPrefix(for provider: MetricProvider) -> String? {
+        isComparing && !columnsAreHeaded ? columnName(for: provider) : nil
+    }
+
+    /// One rule for every card label on this page, see `labelPrefix`.
     private func labelled(_ base: String, for provider: MetricProvider) -> String {
-        isComparing ? columnName(for: provider) + " · " + base : base
+        labelPrefix(for: provider).map { $0 + " · " + base } ?? base
     }
 
     /// The name a card label gives its column: the provider, or once two
@@ -448,9 +493,10 @@ struct MonitoringView: View {
         return settingsStore.claudeAccount(heroAccount)?.name
     }
 
+    /// A tile keeps the name apart, so it can drop it when it runs short.
     private func labelled(_ tile: TileDescriptor, for provider: MetricProvider) -> TileDescriptor {
         var copy = tile
-        copy.label = labelled(tile.label, for: provider)
+        copy.prefix = labelPrefix(for: provider)
         return copy
     }
 
@@ -710,7 +756,7 @@ struct MonitoringView: View {
                     ProviderGlyph(provider: .claude, size: 11)
                         .foregroundStyle(gaugeColor)
                         .dsGlow(gaugeColor, radius: 4, opacity: 0.6)
-                    Text(columnName(for: .claude).uppercased() + " · PACING")
+                    Text(columnsAreHeaded ? "PACING" : columnName(for: .claude).uppercased() + " · PACING")
                         .font(DS.Typography.micro)
                         .tracking(1.5)
                         .foregroundStyle(DS.Palette.textSecondary)
@@ -832,15 +878,10 @@ struct MonitoringView: View {
         // API bucket exists), so a fixed grid left an empty trailing cell when
         // the count was not a multiple of 3. Each row's tiles stretch to fill
         // the full width, so there is never a hole regardless of tile count.
-        let rows = MetricsGridLayout.rows(tiles)
-        return VStack(spacing: DS.Spacing.sm) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                HStack(spacing: DS.Spacing.sm) {
-                    ForEach(row, id: \.id) { tile in
-                        metricTile(tile)
-                    }
-                }
-            }
+        // Two per row at most in a column that shares the page, see
+        // `DashboardTileGrid`.
+        DashboardTileGrid(tiles: tiles) { tile in
+            metricTile(tile)
         }
     }
 
@@ -848,6 +889,7 @@ struct MonitoringView: View {
         MetricTile(
             id: tile.id,
             label: tile.label,
+            labelPrefix: tile.prefix,
             icon: tile.icon,
             pct: tile.pct,
             resetText: tile.resetText,

@@ -52,4 +52,49 @@ struct MonitoringColumnsTests {
         #expect(MonitoringColumns.Column.codex.id == "codex")
         #expect(MonitoringColumns.Column.claude(Self.work).provider == .claude)
     }
+
+    // MARK: - Rows
+
+    private static let third = AccountID(rawValue: "acct-third")
+
+    private func rowShape(_ columns: [MonitoringColumns.Column], width: CGFloat) -> [[MonitoringColumns.Column]] {
+        MonitoringColumns.rows(columns, availableWidth: width, spacing: 16)
+    }
+
+    @Test("One or two columns stay on one row at any width, as in 6.0")
+    func twoColumnsNeverWrap() {
+        #expect(rowShape([], width: 900).isEmpty)
+        #expect(rowShape([.claude(.main)], width: 300) == [[.claude(.main)]])
+        #expect(rowShape([.claude(.main), .codex], width: 300) == [[.claude(.main), .codex]])
+        #expect(rowShape([.claude(.main), .codex], width: 2000) == [[.claude(.main), .codex]])
+        #expect(rowShape([.claude(.main), .claude(Self.work)], width: 544) == [[.claude(.main), .claude(Self.work)]])
+    }
+
+    @Test("From three columns, never more than two per row, Codex last")
+    func neverThreeAbreast() {
+        let columns: [MonitoringColumns.Column] = [.claude(.main), .claude(Self.work), .claude(Self.side), .codex]
+        for width: CGFloat in [844, 1044, 1344, 3000] {
+            let rows = rowShape(columns, width: width)
+            #expect(rows.allSatisfy { $0.count <= 2 })
+            #expect(rows == [[.claude(.main), .claude(Self.work)], [.claude(Self.side), .codex]])
+        }
+        let three: [MonitoringColumns.Column] = [.claude(.main), .claude(Self.work), .codex]
+        #expect(rowShape(three, width: 1344) == [[.claude(.main), .claude(Self.work)], [.codex]])
+        let five: [MonitoringColumns.Column] = [.claude(.main), .claude(Self.work), .claude(Self.side), .claude(Self.third), .codex]
+        #expect(rowShape(five, width: 1344).map(\.count) == [2, 2, 1])
+        #expect(rowShape(five, width: 1344).last == [.codex])
+    }
+
+    @Test("Several columns stack one per row when two would be too narrow")
+    func narrowStacks() {
+        let columns: [MonitoringColumns.Column] = [.claude(.main), .claude(Self.work), .codex]
+        let threshold = MonitoringColumns.minimumSideBySideWidth * 2 + 16
+        #expect(rowShape(columns, width: threshold).map(\.count) == [2, 1])
+        #expect(rowShape(columns, width: threshold - 1).map(\.count) == [1, 1, 1])
+        // The window's content at 600 and 760 pt.
+        #expect(rowShape(columns, width: 544).map(\.count) == [1, 1, 1])
+        #expect(rowShape(columns, width: 704).map(\.count) == [1, 1, 1])
+        // Not measured yet: stacked rather than squeezed.
+        #expect(rowShape(columns, width: 0).map(\.count) == [1, 1, 1])
+    }
 }

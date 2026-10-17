@@ -10,11 +10,16 @@ struct TileDescriptor {
     let resetText: String?
     let resetDate: Date?
     let windowDuration: TimeInterval
+    /// The column's name ("Claude", "Codex") when the tile has to say whose
+    /// it is, dropped first when the tile runs short of room.
+    var prefix: String? = nil
 }
 
 struct MetricTile: View {
     let id: String
     var label: String
+    /// See `TileDescriptor.prefix`.
+    var labelPrefix: String? = nil
     let icon: String
     let pct: Int
     let resetText: String?
@@ -95,11 +100,7 @@ struct MetricTile: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(color.opacity(0.8))
                     .frame(width: 14)
-                Text(label.uppercased())
-                    .font(DS.Typography.micro)
-                    .tracking(1.2)
-                    .foregroundStyle(DS.Palette.textSecondary)
-                    .lineLimit(1)
+                tileLabel(suffix: nil)
                 Spacer(minLength: 0)
             }
 
@@ -132,25 +133,12 @@ struct MetricTile: View {
 
             Group {
                 if let resetText, !resetText.isEmpty {
-                    HStack(spacing: 5) {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(DS.Palette.textTertiary)
-                        Text(String(localized: "dashboard.hero.resetsIn").uppercased())
-                            .font(.system(size: 8, weight: .bold))
-                            .tracking(1)
-                            .foregroundStyle(DS.Palette.textTertiary)
-                        Text(resetText)
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
-                            .foregroundStyle(DS.Palette.textSecondary)
-                        if let resetDate {
-                            Text("·")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(DS.Palette.textTertiary.opacity(0.5))
-                            Text(absoluteResetText(date: resetDate))
-                                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                .foregroundStyle(DS.Palette.textSecondary)
-                        }
+                    // Sheds the "resets in" words, then the clock time, before
+                    // anything would truncate.
+                    ViewThatFits(in: .horizontal) {
+                        resetLine(resetText, words: true, absolute: true)
+                        resetLine(resetText, words: false, absolute: true)
+                        resetLine(resetText, words: false, absolute: false)
                     }
                 } else {
                     Text(" ")
@@ -160,6 +148,53 @@ struct MetricTile: View {
             }
             .lineLimit(1)
         }
+    }
+
+    /// The tile's label, with the column's name in front while it fits and
+    /// without it once it does not. The name is what goes first: the tile's
+    /// place under its column's hero still says whose it is.
+    private func tileLabel(suffix: String?) -> some View {
+        let tail = suffix.map { " · " + $0 } ?? ""
+        return ViewThatFits(in: .horizontal) {
+            if let labelPrefix {
+                tileLabelText(labelPrefix + " · " + label + tail)
+            }
+            tileLabelText(label + tail)
+        }
+    }
+
+    private func tileLabelText(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(DS.Typography.micro)
+            .tracking(1.2)
+            .foregroundStyle(DS.Palette.textSecondary)
+            .lineLimit(1)
+    }
+
+    private func resetLine(_ resetText: String, words: Bool, absolute: Bool) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(DS.Palette.textTertiary)
+            if words {
+                Text(String(localized: "dashboard.hero.resetsIn").uppercased())
+                    .font(.system(size: 8, weight: .bold))
+                    .tracking(1)
+                    .foregroundStyle(DS.Palette.textTertiary)
+            }
+            Text(resetText)
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(DS.Palette.textSecondary)
+            if absolute, let resetDate {
+                Text("·")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(DS.Palette.textTertiary.opacity(0.5))
+                Text(absoluteResetText(date: resetDate))
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(DS.Palette.textSecondary)
+            }
+        }
+        .lineLimit(1)
     }
 
     /// "16:32" for sub-day windows (5h), "Tue 16:32" for multi-day
@@ -186,11 +221,7 @@ struct MetricTile: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(color.opacity(0.8))
                     .frame(width: 14)
-                Text("\(label.uppercased()) · 7D")
-                    .font(DS.Typography.micro)
-                    .tracking(1.2)
-                    .foregroundStyle(DS.Palette.textSecondary)
-                    .lineLimit(1)
+                tileLabel(suffix: "7D")
                 Spacer(minLength: 0)
                 if let delta = insights?.deltaPercent {
                     Text(String(format: "%+.0f%%", delta))

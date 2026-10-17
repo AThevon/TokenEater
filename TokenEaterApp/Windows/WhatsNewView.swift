@@ -313,6 +313,8 @@ struct WhatsNewView: View {
                 resetDate: resetDate,
                 name: account.name
             )
+            // The header above names the account, as on the dashboard.
+            .environment(\.dashboardColumnHeaded, true)
             .padding(DS.Spacing.lg)
             .frame(width: faceSize.width, height: faceSize.height)
             .background(
