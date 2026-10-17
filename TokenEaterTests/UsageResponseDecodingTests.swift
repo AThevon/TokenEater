@@ -49,6 +49,18 @@ struct UsageResponseDecodingTests {
         #expect(extra.percent == 0)
     }
 
+    /// Enabled with no monthly limit is uncapped: surfaces show the spend, not 0 %.
+    /// The real payload from an org seat: `is_enabled` true, no `monthly_limit`.
+    @Test("ExtraUsage.isUncapped when enabled with no limit")
+    func extraUncapped() throws {
+        let json = #"{"is_enabled": true, "used_credits": 2049, "currency": "USD"}"#
+        let extra = try JSONDecoder().decode(ExtraUsage.self, from: Data(json.utf8))
+        #expect(extra.isUncapped)
+        #expect(extra.percent == 0)
+        #expect(!ExtraUsage(isEnabled: true, monthlyLimit: 1000, usedCredits: 0, utilization: 0, currency: "AUD", disabledReason: nil).isUncapped)
+        #expect(!ExtraUsage(isEnabled: false, monthlyLimit: nil, usedCredits: 0, utilization: nil, currency: "USD", disabledReason: "out_of_credits").isUncapped)
+    }
+
     /// Unfamiliar top-level keys (new server-side codenames) must not break decoding.
     @Test("unknown top-level keys are ignored")
     func unknownKeysIgnored() throws {
