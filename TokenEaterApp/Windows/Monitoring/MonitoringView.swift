@@ -266,24 +266,19 @@ struct MonitoringView: View {
     @ViewBuilder
     private func columnHeader(_ column: MonitoringColumns.Column) -> some View {
         if settingsStore.showsAccountMarkers {
-            HStack(spacing: DS.Spacing.xs) {
-                switch column {
-                case .claude(let account):
-                    let summary = settingsStore.claudeAccount(account)
-                    AccountDot(colorHex: summary?.colorHex ?? AccountPalette.presets[0], size: 8)
-                    Text(summary?.name ?? MetricProvider.claude.displayName)
-                        .lineLimit(1)
-                        .help(summary?.name ?? "")
-                case .codex:
+            switch column {
+            case .claude(let account):
+                let summary = settingsStore.claudeAccount(account)
+                DashboardColumnHeader(
+                    accountName: summary?.name ?? MetricProvider.claude.displayName,
+                    colorHex: summary?.colorHex ?? AccountPalette.presets[0]
+                )
+            case .codex:
+                DashboardColumnHeader(title: MetricProvider.codex.displayName) {
                     ProviderGlyph(provider: .codex, size: 9)
                         .foregroundStyle(DS.Palette.textTertiary)
-                    Text(MetricProvider.codex.displayName)
-                        .lineLimit(1)
                 }
             }
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(DS.Palette.textSecondary)
-            .frame(height: 14)
         }
     }
 
