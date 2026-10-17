@@ -39,10 +39,11 @@ enum TokenSource: String, Codable, Equatable, Sendable {
     case keychainCLI
     case credentialsFile
     case claudeDesktop
-    case keychainDirect
 
-    /// True for the two sources that read the live Keychain item.
-    var isKeychain: Bool { self == .keychainCLI || self == .keychainDirect }
+    /// True for the one source that reads the live Keychain item. A direct
+    /// native read used to be a second one; it prompted in TokenEater's name
+    /// on every refresh tick and is gone (#225).
+    var isKeychain: Bool { self == .keychainCLI }
 
     var reportLabel: String { rawValue }
 }
@@ -56,11 +57,28 @@ struct TokenDiagnostic: Equatable, Sendable {
     /// the shadowed-item case (#268): the read works around it, and the count
     /// is what lets a diagnostic report say so.
     var matchingKeychainItems: Int = 0
-    /// Expiry of the Keychain token, when one was read. Past means Claude Code
-    /// has not run in a while: the app reads that item, it never refreshes it.
+    /// Expiry of the token in use, whichever source it came from, when that
+    /// source records one.
     var tokenExpiresAt: Date?
+    /// Expiry of the Keychain token, when one was read, even when it was
+    /// passed over for a fresher one. Past means Claude Code has not run in a
+    /// while: the app reads that item, it never refreshes it.
+    var keychainExpiresAt: Date?
 
     static let unknown = TokenDiagnostic(source: nil, keychainFailure: nil)
+
+    /// True when the Keychain held a login but it had expired, and another
+    /// source supplied a token instead. That is Claude Desktop keeping
+    /// `.credentials.json` alive while the CLI's Keychain item went stale.
+    var passedOverExpiredKeychain: Bool {
+        guard let source, !source.isKeychain else { return false }
+        return TokenExpiryPolicy.isExpired(keychainExpiresAt)
+    }
+
+    /// The expiry that says how long the login has been dead. The token in
+    /// use when its source records one; otherwise the Keychain's, which is
+    /// the login Claude Code renews and the one the advice is about.
+    var loginExpiresAt: Date? { tokenExpiresAt ?? keychainExpiresAt }
 
     /// True when a token is in use, it came from a file, and the Keychain read
     /// was blocked rather than absent. That is the combination that produces

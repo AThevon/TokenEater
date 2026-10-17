@@ -17,16 +17,9 @@ final class CredentialsFileReader: CredentialsFileReaderProtocol, @unchecked Sen
         self.filePath = filePath
     }
 
-    func readToken() -> String? {
-        guard let data = FileManager.default.contents(atPath: filePath),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let oauth = json["claudeAiOauth"] as? [String: Any],
-              let token = oauth["accessToken"] as? String,
-              !token.isEmpty
-        else {
-            return nil
-        }
-        return token
+    func readCredential() -> ClaudeCredential? {
+        guard let data = FileManager.default.contents(atPath: filePath) else { return nil }
+        return ClaudeCredential.parse(data)
     }
 
     func tokenExists() -> Bool {

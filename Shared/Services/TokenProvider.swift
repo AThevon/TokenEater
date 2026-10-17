@@ -22,8 +22,21 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
 
     var tokenDiagnostic: TokenDiagnostic { diagnostic }
 
-    /// Closure type for reading from the Keychain. `silent` = use kSecUseAuthenticationUISkip.
-    typealias KeychainTokenReader = (_ silent: Bool) -> String?
+    /// Whether this launch already tried to re-derive the Claude Desktop key
+    /// from "Claude Safe Storage". That read goes through TokenEater's own
+    /// identity too, and `kSecUseAuthenticationUISkip` does not keep it quiet
+    /// either, so it gets one try per launch rather than one per refresh tick.
+    /// Only `resetConnection()`, an explicit user action, re-arms it.
+    private var safeStorageRebootstrapAttempted = false
+
+    /// Reads Claude Code's Keychain item with TokenEater's own identity, the
+    /// one read that makes macOS name TokenEater in its "wants to access"
+    /// dialog. There is no silent form of it: `kSecUseAuthenticationUISkip`
+    /// does not suppress that ACL prompt, and Claude Code resets the item's
+    /// ACL on every token rotation, so an "Always Allow" given to TokenEater
+    /// lasts only until the next one. Only `bootstrap()` calls it, never an
+    /// automatic path (#225).
+    typealias KeychainTokenReader = () -> String?
 
     init(
         securityCLIReader: SecurityCLIReaderProtocol = SecurityCLIReader(),
@@ -41,12 +54,19 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
 
     var isBootstrapped: Bool { true }
 
+    /// Onboarding's "is Claude Code here" check. It answers from the
+    /// Keychain item's attributes, which no ACL guards, rather than from its
+    /// data: reading the token is `currentToken()`'s job a step later, and
+    /// reading it here too doubled the reads a fresh install makes. The
+    /// `security` read at the end only runs when the listing saw no item, so
+    /// a listing that comes back empty on some setup cannot hide a working
+    /// login behind a "not installed" card.
     func hasTokenSource() -> Bool {
         if cachedToken != nil { return true }
-        if securityCLIReader.readToken() != nil { return true }
+        if securityCLIReader.hasCredentialItem() { return true }
         if credentialsFileReader.readToken() != nil { return true }
         if configReader.readEncryptedToken() != nil { return true }
-        if keychainReader(true) != nil { return true }
+        if securityCLIReader.readToken() != nil { return true }
         return false
     }
 
@@ -60,9 +80,15 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     /// 2. `.credentials.json` (legacy Claude Code fallback - still present on Linux/Windows and
     ///    on very old macOS Claude Code installs)
     /// 3. Claude Desktop `config.json` decryption (for users without Claude Code CLI at all)
-    /// 4. Direct `SecItemCopyMatching` (last resort - the Claude Code Keychain ACL doesn't
-    ///    whitelist us directly, so trying it earlier would trip the ACL access prompt; kept
-    ///    for defence-in-depth as a silent read)
+    ///
+    /// A token known to be expired gives way to the next source that holds a
+    /// live one, and is used only when none does (see `readFromSources`).
+    ///
+    /// There is no fourth source. A direct `SecItemCopyMatching` read used to
+    /// close the list "as a silent read", but it was never silent, and with
+    /// `refreshTokenIfChanged()` running the list on every auto-refresh tick
+    /// it put a TokenEater-named Keychain prompt on a timer whenever the
+    /// `security` read failed (#225).
     func currentToken() -> String? {
         if let token = cachedToken { return token }
         let token = readFromSources()
@@ -72,46 +98,78 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
 
     /// Reads the token from all sources in priority order, bypassing the
     /// in-memory cache. Returns the freshest token currently on the system.
-    private func readFromSources() -> String? {
+    ///
+    /// Priority alone is not enough: the Keychain item is only renewed when
+    /// the Claude Code CLI runs, and someone who works in the Claude desktop
+    /// app can leave it expired for a day while Desktop's embedded engine
+    /// keeps `.credentials.json` current (anthropics/claude-code#94464). So
+    /// the first source whose token is not known to be expired wins, and an
+    /// expired one is used only when nothing better exists, which keeps the
+    /// 401 path and its diagnostic working (#268). Nothing here writes or
+    /// refreshes anything.
+    private func readFromSources(now: Date = Date()) -> String? {
         let keychain = securityCLIReader.read()
         let items = keychain.matchingItems
-
-        if let token = keychain.token {
-            logger.info("Token read via /usr/bin/security")
-            diagnostic = TokenDiagnostic(
-                source: .keychainCLI,
-                keychainFailure: nil,
-                matchingKeychainItems: items,
-                tokenExpiresAt: keychain.expiresAt
-            )
-            return token
-        }
         // The failure is carried through the fall-through rather than logged
         // and dropped, so the caller can tell a machine that keeps its
         // credentials in a file from one whose live token we were refused.
         let keychainFailure = keychain.failure
-        logger.info("security read failed: \(keychainFailure?.rawValue ?? "unknown", privacy: .public)")
 
-        if let token = credentialsFileReader.readToken() {
-            diagnostic = TokenDiagnostic(source: .credentialsFile, keychainFailure: keychainFailure, matchingKeychainItems: items)
-            return token
+        func record(_ source: TokenSource?, _ credential: ClaudeCredential?) {
+            diagnostic = TokenDiagnostic(
+                source: source,
+                keychainFailure: keychainFailure,
+                matchingKeychainItems: items,
+                tokenExpiresAt: credential?.expiresAt,
+                keychainExpiresAt: keychain.token != nil ? keychain.expiresAt : nil
+            )
         }
 
-        if let token = tokenFromConfigJSON() {
-            diagnostic = TokenDiagnostic(source: .claudeDesktop, keychainFailure: keychainFailure, matchingKeychainItems: items)
-            return token
+        // The first expired token met, kept in case nothing fresher turns up.
+        var expired: (source: TokenSource, credential: ClaudeCredential)?
+
+        if let token = keychain.token {
+            let credential = ClaudeCredential(token: token, expiresAt: keychain.expiresAt)
+            guard TokenExpiryPolicy.isExpired(credential.expiresAt, now: now) else {
+                logger.info("Token read via /usr/bin/security")
+                record(.keychainCLI, credential)
+                return token
+            }
+            logger.info("Keychain token expired; looking for a fresher source")
+            expired = (.keychainCLI, credential)
+        } else {
+            logger.info("security read failed: \(keychainFailure?.rawValue ?? "unknown", privacy: .public)")
         }
 
-        // Direct native read last, and only as a silent read: the Claude Code
-        // Keychain ACL whitelists /usr/bin/security, not us, so reaching this
-        // earlier (or non-silently) would trip the "wants to access" ACL prompt.
-        if let token = keychainReader(true) {
-            logger.info("Token read from Keychain (silent)")
-            diagnostic = TokenDiagnostic(source: .keychainDirect, keychainFailure: keychainFailure, matchingKeychainItems: items)
-            return token
+        if let credential = credentialsFileReader.readCredential() {
+            if !TokenExpiryPolicy.isExpired(credential.expiresAt, now: now) {
+                record(.credentialsFile, credential)
+                return credential.token
+            }
+            expired = expired ?? (.credentialsFile, credential)
         }
 
-        diagnostic = TokenDiagnostic(source: nil, keychainFailure: keychainFailure, matchingKeychainItems: items)
+        // Re-deriving the Claude Desktop key can prompt in TokenEater's name,
+        // so the search for a fresher token only uses a key already cached.
+        // Only the plain fall-through, with no token anywhere else, may try
+        // it, exactly as before.
+        if let credential = tokenFromConfigJSON(mayRederiveKey: expired == nil) {
+            if expired == nil || !TokenExpiryPolicy.isExpired(credential.expiresAt, now: now) {
+                record(.claudeDesktop, credential)
+                return credential.token
+            }
+        }
+
+        if let expired {
+            record(expired.source, expired.credential)
+            return expired.credential.token
+        }
+
+        // No direct native read of the Keychain item here, on purpose: this
+        // runs on launch, wake and every refresh tick, and that read prompts
+        // in TokenEater's name (#225). A failed `security` read is reported
+        // through the diagnostic instead.
+        record(nil, nil)
         return nil
     }
 
@@ -136,19 +194,28 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
         return false
     }
 
-    /// Try to decrypt config.json. If key is missing, attempt silent re-bootstrap.
-    private func tokenFromConfigJSON() -> String? {
+    /// Decrypts Claude Desktop's config.json with the cached key. Without a
+    /// working key it re-derives one from "Claude Safe Storage", at most once
+    /// per launch: that Keychain read can show a TokenEater-named dialog, and
+    /// this path runs on every refresh tick, so retrying it here would bring
+    /// back the recurring prompt of #225 for Claude Desktop users. A caller
+    /// that already holds a token passes `mayRederiveKey: false`, so looking
+    /// for a fresher one never costs a prompt.
+    private func tokenFromConfigJSON(mayRederiveKey: Bool) -> ClaudeCredential? {
         guard let encrypted = configReader.readEncryptedToken() else { return nil }
 
         if decryptionService.hasEncryptionKey,
-           let token = decryptFromConfigJSON(encrypted) {
-            return token
+           let credential = decryptFromConfigJSON(encrypted) {
+            return credential
         }
 
+        guard mayRederiveKey, !safeStorageRebootstrapAttempted else { return nil }
+        safeStorageRebootstrapAttempted = true
+
         if decryptionService.trySilentRebootstrap(),
-           let token = decryptFromConfigJSON(encrypted) {
-            logger.info("Token recovered via silent re-bootstrap of decryption key")
-            return token
+           let credential = decryptFromConfigJSON(encrypted) {
+            logger.info("Token recovered by re-deriving the Claude Desktop decryption key")
+            return credential
         }
 
         return nil
@@ -164,7 +231,8 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     /// Forgets everything the app learned about the connection and reads it
     /// again from scratch: the in-memory token and the cached Claude Desktop
     /// decryption key, which survives a relaunch and can outlive the account
-    /// it was derived for.
+    /// it was derived for. Being a click rather than a timer, it also allows
+    /// one more attempt at re-deriving that key.
     ///
     /// It touches nothing the user configured, which is the whole point of
     /// the request behind it: people were reinstalling the app, and losing
@@ -172,13 +240,14 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     func resetConnection() -> String? {
         cachedToken = nil
         diagnostic = .unknown
+        safeStorageRebootstrapAttempted = false
         decryptionService.clearCachedKey()
         logger.info("Connection reset: caches dropped, re-reading sources")
         return currentToken()
     }
 
     func bootstrap() throws {
-        if let token = keychainReader(false) {
+        if let token = keychainReader() {
             cachedToken = token
             logger.info("Bootstrap succeeded via interactive Keychain read")
         }
@@ -192,16 +261,13 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
 
     // MARK: - Keychain (static, no instance state)
 
-    private static func defaultKeychainReader(silent: Bool) -> String? {
-        var query: [String: Any] = [
+    private static func defaultKeychainReader() -> String? {
+        let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "Claude Code-credentials",
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
-        if silent {
-            query[kSecUseAuthenticationUI as String] = kSecUseAuthenticationUISkip
-        }
 
         var result: AnyObject?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
@@ -219,28 +285,27 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
 
     // MARK: - Config.json Decryption (fallback)
 
-    private func decryptFromConfigJSON(_ encrypted: String) -> String? {
+    private func decryptFromConfigJSON(_ encrypted: String) -> ClaudeCredential? {
         do {
             let data = try decryptionService.decrypt(encrypted)
-            return Self.extractToken(from: data)
+            return Self.extractCredential(from: data)
         } catch {
             return nil
         }
     }
 
-    private static func extractToken(from data: Data) -> String? {
+    /// The expiry is read when the payload carries one, in either shape, so a
+    /// dead Desktop token is not preferred over a dead Keychain one.
+    private static func extractCredential(from data: Data) -> ClaudeCredential? {
+        if let credential = ClaudeCredential.parse(data) { return credential }
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return nil
-        }
-        if let oauth = json["claudeAiOauth"] as? [String: Any],
-           let token = oauth["accessToken"] as? String, !token.isEmpty {
-            return token
         }
         for (_, value) in json {
             if let entry = value as? [String: Any],
                let token = entry["token"] as? String,
                token.hasPrefix("sk-ant-") {
-                return token
+                return ClaudeCredential(token: token, expiresAt: ClaudeCredential.expiry(from: entry["expiresAt"]))
             }
         }
         return nil

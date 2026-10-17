@@ -21,7 +21,15 @@ final class UsageStore: ObservableObject {
     @Published var sessionSamples: [PacingSample] = []
     @Published var lastUpdate: Date?
     @Published var isLoading = false
-    @Published var errorState: AppErrorState = .none
+    @Published var errorState: AppErrorState = .none {
+        didSet {
+            // The expired-login escalation only means something while the
+            // token is the problem; any other outcome ends the episode.
+            if errorState != .tokenUnavailable, loginExpiredSince != nil {
+                loginExpiredSince = nil
+            }
+        }
+    }
     @Published var hasConfig = false
 
     /// Set when an unauthorized response is explained by something other than
@@ -31,6 +39,17 @@ final class UsageStore: ObservableObject {
 
     /// Where the token in use came from, for the diagnostic report.
     var tokenDiagnostic: TokenDiagnostic { tokenProvider.tokenDiagnostic }
+
+    /// When the Claude Code login expired, once it has been expired for over
+    /// an hour with nothing renewing it (`TokenExpiryPolicy`). The calm
+    /// "waiting" state is right for the routine lag before the next CLI run,
+    /// but someone who works in the Claude desktop app may not run the CLI
+    /// for a day, and the app used to sit calm over frozen numbers all that
+    /// time (#268). Set, it turns the popover and the dashboard notice into
+    /// an actionable explanation. Nil whenever the app is not in
+    /// `.tokenUnavailable`, and when `authFailureHint` already names a
+    /// different cause.
+    @Published private(set) var loginExpiredSince: Date?
     @Published var opusPct: Int = 0
     @Published var coworkPct: Int = 0
     @Published var fablePct: Int = 0
@@ -176,6 +195,7 @@ final class UsageStore: ObservableObject {
         guard let token = tokenProvider.currentToken() else {
             hasConfig = false
             errorState = .tokenUnavailable
+            updateLoginExpiry()
             return
         }
         hasConfig = true
@@ -224,8 +244,14 @@ final class UsageStore: ObservableObject {
                 // The retry above already re-read the sources, so the
                 // diagnostic describes the token that just failed.
                 authFailureHint = tokenProvider.tokenDiagnostic.authFailureHint
+                let now = Date()
+                updateLoginExpiry(now: now)
                 if let toggles = notifTogglesProvider?() {
-                    notificationService.notifyTokenExpired(toggles: toggles)
+                    if let since = loginExpiredSince {
+                        notificationService.notifyLoginExpired(since: since, toggles: toggles)
+                    } else if !isWithinRefreshLag(now: now) {
+                        notificationService.notifyTokenExpired(toggles: toggles)
+                    }
                 }
             case .rateLimited(let retryAfter, _, _):
                 currentSpeed = .slow
@@ -258,6 +284,28 @@ final class UsageStore: ObservableObject {
             )
             errorState = .networkError
         }
+    }
+
+    /// Re-evaluates `loginExpiredSince` against the token in use. Called each
+    /// time a refresh lands in `.tokenUnavailable`, which the auto-refresh
+    /// tick does every few minutes, so the state flips once the hour is up
+    /// without needing an event of its own.
+    private func updateLoginExpiry(now: Date = Date()) {
+        let since = errorState == .tokenUnavailable && authFailureHint == nil
+            ? TokenExpiryPolicy.staleSince(expiresAt: tokenProvider.tokenDiagnostic.loginExpiresAt, now: now)
+            : nil
+        // Assigned only on change: this runs on every failing tick, and each
+        // write to a published property repaints every surface observing it.
+        if since != loginExpiredSince { loginExpiredSince = since }
+    }
+
+    /// The token expired recently and nothing else explains the 401: the
+    /// ordinary wait for Claude Code's next run, during which the app stays
+    /// quiet rather than alerting about something that fixes itself.
+    private func isWithinRefreshLag(now: Date) -> Bool {
+        authFailureHint == nil
+            && loginExpiredSince == nil
+            && TokenExpiryPolicy.isExpired(tokenProvider.tokenDiagnostic.loginExpiresAt, now: now)
     }
 
     /// Only refreshes if lastUpdate is older than 120 seconds (for wake handler)
@@ -447,6 +495,7 @@ final class UsageStore: ObservableObject {
         }
         retryAfterDate = nil
         consecutiveRateLimits = 0
+        notificationService.endTokenAlertEpisode()
         WidgetReloader.scheduleReload()
         evaluateNotifications(usage: usage)
     }
