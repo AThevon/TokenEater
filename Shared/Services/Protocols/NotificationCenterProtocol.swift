@@ -9,6 +9,9 @@ protocol NotificationCenterProtocol {
     func authorizationStatus() async -> UNAuthorizationStatus
     func add(_ request: UNNotificationRequest)
     func removePending(identifiers: [String])
+    /// Takes banners already shown out of Notification Center, for an
+    /// account that is no longer tracked.
+    func removeDelivered(identifiers: [String])
 }
 
 final class LiveNotificationCenter: NotificationCenterProtocol {
@@ -23,5 +26,8 @@ final class LiveNotificationCenter: NotificationCenterProtocol {
     func add(_ request: UNNotificationRequest) { center.add(request) }
     func removePending(identifiers: [String]) {
         center.removePendingNotificationRequests(withIdentifiers: identifiers)
+    }
+    func removeDelivered(identifiers: [String]) {
+        center.removeDeliveredNotifications(withIdentifiers: identifiers)
     }
 }

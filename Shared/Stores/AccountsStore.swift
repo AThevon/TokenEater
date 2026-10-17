@@ -40,7 +40,9 @@ struct AccountRuntime {
 /// them in `StatusBarController.observeStoreChanges`.
 @MainActor
 final class AccountsStore: ObservableObject, AccountsStoreProtocol {
-    @Published private(set) var records: [ClaudeAccountRecord]
+    @Published private(set) var records: [ClaudeAccountRecord] {
+        didSet { notificationLabels.update(records, home: home) }
+    }
     /// Added accounts only, paused ones included (they keep their last
     /// numbers on screen in Settings).
     @Published private(set) var runtimes: [AccountID: AccountRuntime]
@@ -68,6 +70,11 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
     private let defaults: UserDefaults
     private let home: String
     private let makeRuntime: @MainActor (ClaudeAccountRecord) -> AccountRuntime
+    /// What each account's alerts call it, readable from the notification
+    /// services whatever thread they post from.
+    private let notificationLabels: AccountNotificationLabels
+    /// Clears a paused or removed account's alerts.
+    private let notifications: NotificationServiceProtocol
     /// Builds the one-off provider `connect` reads a folder's login with.
     private let makeConnectTokenProvider: ConnectTokenProviderFactory
     /// Fetches the profile that identifies a login before it is added.
@@ -80,20 +87,28 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
         scanner: ClaudeConfigDirScannerProtocol? = nil,
         makeConnectTokenProvider: ConnectTokenProviderFactory? = nil,
         apiClient: APIClientProtocol = APIClient(),
-        makeRuntime: @escaping @MainActor (ClaudeAccountRecord) -> AccountRuntime = AccountsStore.liveRuntime
+        notifications: NotificationServiceProtocol? = nil,
+        makeRuntime: (@MainActor (ClaudeAccountRecord) -> AccountRuntime)? = nil
     ) {
+        let labels = AccountNotificationLabels()
+        self.notificationLabels = labels
         self.mainStore = mainStore
         self.defaults = defaults
         self.home = home
         self.scanner = scanner ?? ClaudeConfigDirScanner(home: home)
         self.makeConnectTokenProvider = makeConnectTokenProvider ?? { TokenProvider(scope: $0, home: home) }
         self.apiClient = apiClient
-        self.makeRuntime = makeRuntime
+        self.notifications = notifications ?? NotificationService()
+        let runtimeMaker = makeRuntime ?? { record in
+            AccountsStore.liveRuntime(record, notificationScope: labels.scope(for: record.id))
+        }
+        self.makeRuntime = runtimeMaker
         let loaded = Self.loadRecords(from: defaults)
+        labels.update(loaded, home: home)
         self.records = loaded
         var runtimes: [AccountID: AccountRuntime] = [:]
         for record in loaded where !record.id.isMain {
-            runtimes[record.id] = makeRuntime(record)
+            runtimes[record.id] = runtimeMaker(record)
         }
         self.runtimes = runtimes
 
@@ -135,18 +150,27 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
 
     // MARK: - Runtime
 
+    /// The scope the account's alerts post under: its suffixed identifiers
+    /// and thread, its name once two accounts run, its folder's login command.
+    /// The main account's service takes it from here too, once this store
+    /// exists.
+    func notificationScope(for id: AccountID) -> NotificationScope {
+        notificationLabels.scope(for: id)
+    }
+
     /// The recipe for an added account: its own shared file (no migrations,
     /// no identity in it), its own folder-scoped token provider, its own
-    /// pacing samples and notification state, and no reload of the widgets,
-    /// none of which reads its file.
-    static func liveRuntime(_ record: ClaudeAccountRecord) -> AccountRuntime {
+    /// pacing samples, notification state and alert identifiers, and no
+    /// reload of the widgets, none of which reads its file.
+    static func liveRuntime(_ record: ClaudeAccountRecord, notificationScope: NotificationScope) -> AccountRuntime {
         let file = SharedFileService(fileName: "shared-\(record.id.rawValue).json")
         let store = UsageStore(
             repository: UsageRepository(apiClient: APIClient(), sharedFileService: file),
             tokenProvider: TokenProvider(scope: record.scope),
             sharedFileService: file,
             notificationService: NotificationService(
-                stateStore: UserDefaultsNotificationStateStore(keySuffix: record.id.storageSuffix)
+                stateStore: UserDefaultsNotificationStateStore(keySuffix: record.id.storageSuffix),
+                scope: notificationScope
             ),
             sessionSamplesKey: sessionSamplesKey(for: record.id),
             reloadWidgets: {}
@@ -383,6 +407,9 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
               records[index].isPaused != paused else { return }
         records[index].isPaused = paused
         persist()
+        // A paused account is not refreshed, so nothing would ever move its
+        // pending reset reminders again: they go now.
+        if paused { notifications.purge(account: id, includingDelivered: false) }
         guard let store = runtimes[id]?.store else { return }
         if paused { store.stopAutoRefresh() }
         configureStore?(store, records[index], index, records.count)
@@ -408,6 +435,7 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
         if let url = runtime?.sharedFile.fileURL {
             try? FileManager.default.removeItem(at: url)
         }
+        notifications.purge(account: id, includingDelivered: true)
         persist()
         installIdentityGates()
         accountRemoved.send(id)
@@ -584,5 +612,61 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
 
     private func persist() {
         defaults.set(ClaudeAccountsStorage.encode(records), forKey: ClaudeAccountsStorage.defaultsKey)
+    }
+}
+
+/// What each Claude account's alerts call it, kept as a locked snapshot of
+/// the account list so a notification service can read it from whatever
+/// thread it posts on without reaching into a main-actor store.
+///
+/// The rule is the one every surface follows: names appear once two accounts
+/// run, so a single account's alerts read exactly as they always have. The
+/// login command appears whenever the account lives in its own folder, the
+/// main one included when it was moved there (#294).
+final class AccountNotificationLabels: @unchecked Sendable {
+    private struct Label {
+        let name: String
+        let loginCommand: String?
+    }
+
+    private let lock = NSLock()
+    private var labels: [AccountID: Label] = [:]
+    private var namesShown = false
+
+    func update(_ records: [ClaudeAccountRecord], home: String) {
+        var next: [AccountID: Label] = [:]
+        for record in records {
+            next[record.id] = Label(
+                name: record.name,
+                loginCommand: record.configDir.map {
+                    ClaudeConfigDirResolver.loginCommand(forConfigDir: $0, home: home)
+                }
+            )
+        }
+        let shown = records.filter { !$0.isPaused }.count >= 2
+        lock.lock()
+        labels = next
+        namesShown = shown
+        lock.unlock()
+    }
+
+    func name(for id: AccountID) -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return namesShown ? labels[id]?.name : nil
+    }
+
+    func loginCommand(for id: AccountID) -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        return labels[id]?.loginCommand
+    }
+
+    func scope(for id: AccountID) -> NotificationScope {
+        NotificationScope(
+            account: id,
+            displayName: { [weak self] in self?.name(for: id) },
+            loginCommand: { [weak self] in self?.loginCommand(for: id) }
+        )
     }
 }

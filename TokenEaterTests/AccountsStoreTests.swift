@@ -23,7 +23,8 @@ struct AccountsStoreTests {
     private func makeStore(
         defaults: UserDefaults,
         mainProvider: MockTokenProvider = MockTokenProvider(),
-        mainRepo: MockUsageRepository = MockUsageRepository()
+        mainRepo: MockUsageRepository = MockUsageRepository(),
+        notifications: MockNotificationService = MockNotificationService()
     ) -> (store: AccountsStore, main: UsageStore, mainProvider: MockTokenProvider, runtimes: Runtimes) {
         let main = UsageStore(
             repository: mainRepo,
@@ -34,7 +35,7 @@ struct AccountsStoreTests {
             reloadWidgets: {}
         )
         let runtimes = Runtimes()
-        let store = AccountsStore(mainStore: main, defaults: defaults, home: home) { record in
+        let store = AccountsStore(mainStore: main, defaults: defaults, home: home, notifications: notifications) { record in
             let provider = MockTokenProvider()
             let file = MockSharedFileService()
             let usage = UsageStore(
@@ -193,6 +194,49 @@ struct AccountsStoreTests {
         #expect(!FileManager.default.fileExists(atPath: url.path))
         #expect(removed == [id])
         #expect(AccountsStore.loadRecords(from: defaults).map(\.id) == [.main])
+    }
+
+    @Test("a pause drops the account's pending reminders; a removal sweeps its banners too")
+    func notificationsFollowPauseAndRemoval() {
+        let defaults = cleanDefaults()
+        let notifications = MockNotificationService()
+        let sut = makeStore(defaults: defaults, notifications: notifications)
+        sut.store.add(extra("n"))
+        let id = AccountID(rawValue: "acct-n")
+
+        sut.store.setPaused(true, for: id)
+        #expect(notifications.purges.map(\.account) == [id])
+        #expect(notifications.purges.map(\.includingDelivered) == [false])
+
+        // Resuming leaves its alerts alone.
+        sut.store.setPaused(false, for: id)
+        #expect(notifications.purges.count == 1)
+
+        sut.store.remove(id)
+        #expect(notifications.purges.map(\.account) == [id, id])
+        #expect(notifications.purges.last?.includingDelivered == true)
+    }
+
+    @Test("an account's alerts are named once two accounts run, never before")
+    func notificationScopeNames() {
+        let defaults = cleanDefaults()
+        let sut = makeStore(defaults: defaults)
+        let main = sut.store.notificationScope(for: .main)
+        #expect(main.displayName() == nil)
+        #expect(main.loginCommand() == nil)
+
+        sut.store.add(extra("a", name: "Work"))
+        let a = AccountID(rawValue: "acct-a")
+        #expect(main.displayName() == "Claude")
+        #expect(sut.store.notificationScope(for: a).displayName() == "Work")
+        #expect(sut.store.notificationScope(for: a).loginCommand() == "CLAUDE_CONFIG_DIR=~/.claude-a claude")
+
+        // A rename reaches the next alert through the same scope.
+        sut.store.update(a) { $0.name = "Job" }
+        #expect(sut.store.notificationScope(for: a).displayName() == "Job")
+
+        sut.store.setPaused(true, for: a)
+        #expect(main.displayName() == nil)
     }
 
     @Test("the main account cannot be removed")

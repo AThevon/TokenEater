@@ -401,6 +401,38 @@ struct ModeChoice: Hashable, Identifiable, Sendable {
     }
 }
 
+// MARK: - Notifications
+
+/// Which Claude account a notification service speaks for, and how its alerts
+/// name it. The main account's scope with nothing to say produces exactly the
+/// identifiers, subtitle and thread the app has always used.
+///
+/// The two closures are read when an alert is built, not when the service is
+/// made, so a rename, a second account appearing or the main account moving to
+/// another folder (#294) reach the next banner without rebuilding anything.
+struct NotificationScope: Sendable {
+    let account: AccountID
+    /// The account's name, for the subtitle and the body, or nil to keep the
+    /// alerts anonymous (a single running account).
+    let displayName: @Sendable () -> String?
+    /// The command that renews the account's login when it lives in its own
+    /// config folder (`CLAUDE_CONFIG_DIR=~/.claude-work claude`), or nil for
+    /// `~/.claude`, whose alert says to run `claude`.
+    let loginCommand: @Sendable () -> String?
+
+    init(
+        account: AccountID,
+        displayName: @escaping @Sendable () -> String? = { nil },
+        loginCommand: @escaping @Sendable () -> String? = { nil }
+    ) {
+        self.account = account
+        self.displayName = displayName
+        self.loginCommand = loginCommand
+    }
+
+    static let main = NotificationScope(account: .main)
+}
+
 // MARK: - Resolving an account
 
 extension AccountID {

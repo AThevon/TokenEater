@@ -139,9 +139,18 @@ struct TokenEaterApp: App {
         self.codexStore = CodexUsageStore()
         // The main account's store reads the folder the user chose for it,
         // `~/.claude` unless they chose another one (#294).
-        let usageStore = UsageStore(tokenProvider: TokenProvider.forMainAccount())
+        let mainNotifications = NotificationService()
+        let usageStore = UsageStore(
+            tokenProvider: TokenProvider.forMainAccount(),
+            notificationService: mainNotifications
+        )
         self.usageStore = usageStore
-        self.accountsStore = AccountsStore(mainStore: usageStore)
+        let accountsStore = AccountsStore(mainStore: usageStore)
+        self.accountsStore = accountsStore
+        // The main account's alerts keep their historical identifiers and
+        // only name the account once a second one runs; the scope that knows
+        // when exists once the account list does.
+        mainNotifications.scope = accountsStore.notificationScope(for: .main)
         self.themeStore = ThemeStore()
         self.settingsStore = SettingsStore()
         self.updateStore = UpdateStore()

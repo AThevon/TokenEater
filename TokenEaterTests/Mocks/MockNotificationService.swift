@@ -88,4 +88,10 @@ final class MockNotificationService: NotificationServiceProtocol {
     func checkVendorHealth(_ status: VendorStatus, toggles: NotificationToggles) {
         vendorHealthChecks.append((status, toggles))
     }
+
+    var purges: [(account: AccountID, includingDelivered: Bool)] = []
+
+    func purge(account: AccountID, includingDelivered: Bool) {
+        purges.append((account, includingDelivered))
+    }
 }

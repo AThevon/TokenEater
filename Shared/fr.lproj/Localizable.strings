@@ -244,6 +244,8 @@
 "notif.body.token" = "TokenEater ne peut pas utiliser la connexion Claude Code enregistrée. Ouvre le popover de la barre des menus pour voir pourquoi";
 "notif.title.login.expired" = "Connexion Claude Code expirée";
 "notif.body.login.expired" = "TokenEater ne fait que la lire. Lance « claude » une fois dans un terminal, ou ouvre Claude Code, pour la renouveler";
+"notif.body.login.expired.dir" = "TokenEater ne fait que la lire. Lance « %@ » une fois dans un terminal pour la renouveler";
+"notif.body.account.prefix" = "%1$@ : %2$@";
 
 "notif.title.pacing.hot" = "Surchauffe";
 "notif.body.pacing.hot" = "Largement en avance, lève le pied";

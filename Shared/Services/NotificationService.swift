@@ -130,13 +130,22 @@ private enum Surface: String {
 final class NotificationService: NotificationServiceProtocol {
     private let center: NotificationCenterProtocol
     private let state: NotificationStateStore
+    /// The Claude account this service speaks for. Its suffix goes on every
+    /// Claude identifier and thread, and its name in the subtitle, so two
+    /// accounts crossing the same threshold post two banners instead of one
+    /// replacing the other. Settable after init because the main account's
+    /// service exists before the account list that names it. Codex and
+    /// vendor alerts ignore it.
+    var scope: NotificationScope
 
     init(
         center: NotificationCenterProtocol = LiveNotificationCenter(),
-        stateStore: NotificationStateStore = UserDefaultsNotificationStateStore()
+        stateStore: NotificationStateStore = UserDefaultsNotificationStateStore(),
+        scope: NotificationScope = .main
     ) {
         self.center = center
         self.state = stateStore
+        self.scope = scope
     }
 
     func setupDelegate() {
@@ -164,14 +173,62 @@ final class NotificationService: NotificationServiceProtocol {
     /// under the title; the thread identifier is what makes Notification
     /// Center stack a provider's alerts together instead of interleaving two
     /// providers' windows in one undifferentiated pile.
-    private func content(for provider: MetricProvider?) -> UNMutableNotificationContent {
+    ///
+    /// A Claude alert carries the account it is about: its thread is the
+    /// account's own (`claude.acct-<uuid>`), and once two accounts run, its
+    /// subtitle names it ("Claude · Work"). The main account alone reads
+    /// "Claude" in the "claude" thread, as it always has.
+    private func content(for provider: MetricProvider?, scoped: Bool = true) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         content.sound = .default
         if let provider {
             content.subtitle = provider.displayName
             content.threadIdentifier = provider.rawValue
+            if scoped, provider == .claude {
+                content.threadIdentifier += scope.account.storageSuffix
+                if let name = scope.displayName() {
+                    content.subtitle = "\(provider.displayName) · \(name)"
+                }
+            }
         }
         return content
+    }
+
+    /// A Claude identifier as this service's account posts it: unchanged for
+    /// the main account, suffixed with `.acct-<uuid>` for an added one.
+    private func claudeID(_ base: String) -> String {
+        base + scope.account.storageSuffix
+    }
+
+    /// The identifier of a surface's alert. Only Claude surfaces belong to an
+    /// account; Codex ones keep their historical identifiers.
+    private func surfaceID(_ base: String, _ surface: Surface) -> String {
+        surface.provider == .claude ? claudeID(base) : base
+    }
+
+    /// Every identifier an account's Claude alerts can use, pending reminders
+    /// included. What `purge` sweeps, so a removed account leaves nothing
+    /// behind in Notification Center.
+    static func claudeIdentifiers(for account: AccountID) -> [String] {
+        let surfaces: [Surface] = [.fiveHour, .weekly, .sonnet, .fable]
+        let bases = surfaces.flatMap { ["escalation_\($0.rawValue)", "recovery_\($0.rawValue)"] }
+            + [PacingZone.hot, .warning].map { "pacing_claude_\($0.rawValue)" }
+            + ["escalation_extra", "recovery_extra", "reminder_session", "reminder_weekly", "token_expired"]
+        return bases.map { $0 + account.storageSuffix }
+    }
+
+    func purge(account: AccountID, includingDelivered: Bool) {
+        let ids = Self.claudeIdentifiers(for: account)
+        center.removePending(identifiers: ids)
+        if includingDelivered { center.removeDelivered(identifiers: ids) }
+    }
+
+    /// Prefixes an account-specific body with the account's name once
+    /// several accounts run ("Work: ..."), so the line that says what to do
+    /// also says where.
+    private func named(_ body: String) -> String {
+        guard let name = scope.displayName() else { return body }
+        return String(format: NSLocalizedString("notif.body.account.prefix", comment: ""), name, body)
     }
 
     // MARK: - Main evaluation
@@ -190,7 +247,7 @@ final class NotificationService: NotificationServiceProtocol {
         // we skip every per-event check (and also drop any pending scheduled
         // reminders so a switch-back doesn't fire stale ones).
         guard toggles.masterEnabled, toggles.claudeEnabled else {
-            center.removePending(identifiers: ["reminder_session", "reminder_weekly"])
+            center.removePending(identifiers: [claudeID("reminder_session"), claudeID("reminder_weekly")])
             return
         }
 
@@ -302,14 +359,14 @@ final class NotificationService: NotificationServiceProtocol {
         let content = content(for: surface.provider)
         content.title = title(for: surface, level: level, pacing: pacing, paceDriven: paceDriven)
         content.body = body(for: surface, level: level, snapshot: snapshot, pacing: pacing, paceDriven: paceDriven)
-        send(id: "escalation_\(surface.rawValue)", content: content)
+        send(id: surfaceID("escalation_\(surface.rawValue)", surface), content: content)
     }
 
     private func notifyRecovery(surface: Surface, snapshot: MetricSnapshot) {
         let content = content(for: surface.provider)
         content.title = NSLocalizedString("notif.title.\(surface.bodyFamily).green", comment: "")
         content.body = recoveryBody(surface: surface, resetsAt: snapshot.resetsAt)
-        send(id: "recovery_\(surface.rawValue)", content: content)
+        send(id: surfaceID("recovery_\(surface.rawValue)", surface), content: content)
     }
 
     // MARK: - Pacing transitions
@@ -350,7 +407,7 @@ final class NotificationService: NotificationServiceProtocol {
         let content = content(for: surface.provider)
         content.title = NSLocalizedString("notif.title.pacing.\(zone.rawValue)", comment: "")
         content.body = NSLocalizedString("notif.body.pacing.\(zone.rawValue)", comment: "")
-        send(id: "pacing_\(surface.provider.rawValue)_\(zone.rawValue)", content: content)
+        send(id: surfaceID("pacing_\(surface.provider.rawValue)_\(zone.rawValue)", surface), content: content)
     }
 
     // MARK: - Extra credits
@@ -370,12 +427,12 @@ final class NotificationService: NotificationServiceProtocol {
             let extraKey = level == .red ? "red" : "orange"
             content.title = NSLocalizedString("notif.title.extra.\(extraKey)", comment: "")
             content.body = String(format: NSLocalizedString("notif.body.extra.\(extraKey)", comment: ""), pct)
-            send(id: "escalation_extra", content: content)
+            send(id: claudeID("escalation_extra"), content: content)
         case .green where previous > .green && toggles.sendRecovery:
             let content = content(for: .claude)
             content.title = String(localized: "notif.title.extra.green")
             content.body = String(localized: "notif.body.extra.green")
-            send(id: "recovery_extra", content: content)
+            send(id: claudeID("recovery_extra"), content: content)
         default:
             return
         }
@@ -535,14 +592,14 @@ final class NotificationService: NotificationServiceProtocol {
 
         if current == .healthy {
             guard toggles.vendorRestored else { return }
-            let content = content(for: .claude)
+            let content = content(for: .claude, scoped: false)
             content.title = NSLocalizedString("notif.title.status.\(status.vendor.rawValue).restored", comment: "")
             content.body = NSLocalizedString("notif.body.status.\(status.vendor.rawValue).restored", comment: "")
             send(id: "vendor_restored_\(status.vendor.rawValue)", content: content)
         } else {
             guard toggles.vendorDegraded else { return }
             let levelKey = current == .down ? "down" : "degraded"
-            let content = content(for: .claude)
+            let content = content(for: .claude, scoped: false)
             content.title = NSLocalizedString("notif.title.status.\(status.vendor.rawValue).\(levelKey)", comment: "")
             // Prefer the live incident headline; fall back to generic copy.
             if let incident = status.activeIncidents.first {
@@ -568,8 +625,8 @@ final class NotificationService: NotificationServiceProtocol {
 
         let content = content(for: .claude)
         content.title = String(localized: "notif.title.token")
-        content.body = String(localized: "notif.body.token")
-        send(id: "token_expired", content: content)
+        content.body = named(String(localized: "notif.body.token"))
+        send(id: claudeID("token_expired"), content: content)
     }
 
     func endTokenAlertEpisode() {
@@ -589,8 +646,13 @@ final class NotificationService: NotificationServiceProtocol {
 
         let content = content(for: .claude)
         content.title = String(localized: "notif.title.login.expired")
-        content.body = String(localized: "notif.body.login.expired")
-        send(id: "token_expired", content: content)
+        // A login kept in its own folder is renewed by launching Claude Code
+        // on that folder, so the alert hands over that exact command.
+        let renew = scope.loginCommand().map {
+            String(format: NSLocalizedString("notif.body.login.expired.dir", comment: ""), $0)
+        } ?? String(localized: "notif.body.login.expired")
+        content.body = named(renew)
+        send(id: claudeID("token_expired"), content: content)
     }
 
     // MARK: - Reset reminders (scheduled)
@@ -602,7 +664,7 @@ final class NotificationService: NotificationServiceProtocol {
     ) {
         // Cancel previous schedules so a moving target doesn't pile up. Also
         // the way a muted provider loses its pending reminders.
-        center.removePending(identifiers: ["reminder_session", "reminder_weekly"])
+        center.removePending(identifiers: [claudeID("reminder_session"), claudeID("reminder_weekly")])
         guard toggles.masterEnabled, toggles.claudeEnabled else { return }
 
         if toggles.resetReminderSession,
@@ -611,7 +673,7 @@ final class NotificationService: NotificationServiceProtocol {
             let duration = formatReminderDuration(minutes: toggles.resetReminderSessionOffsetMinutes)
             let titleTemplate = NSLocalizedString("notif.title.reminder.session", comment: "")
             schedule(
-                id: "reminder_session",
+                id: claudeID("reminder_session"),
                 title: String(format: titleTemplate, duration),
                 body: NSLocalizedString("notif.body.reminder.session", comment: ""),
                 fireDate: target,
@@ -624,7 +686,7 @@ final class NotificationService: NotificationServiceProtocol {
             let duration = formatReminderDuration(minutes: toggles.resetReminderWeeklyOffsetMinutes)
             let titleTemplate = NSLocalizedString("notif.title.reminder.weekly", comment: "")
             schedule(
-                id: "reminder_weekly",
+                id: claudeID("reminder_weekly"),
                 title: String(format: titleTemplate, duration),
                 body: NSLocalizedString("notif.body.reminder.weekly", comment: ""),
                 fireDate: target,

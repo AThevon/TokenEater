@@ -63,7 +63,8 @@ struct AccountsStoreConnectTests {
                 providers.made.append((scope, provider))
                 return provider
             },
-            apiClient: api
+            apiClient: api,
+            notifications: MockNotificationService()
         ) { record in
             let file = MockSharedFileService()
             let usage = UsageStore(

@@ -244,6 +244,8 @@
 "notif.body.token" = "TokenEater can't use the saved Claude Code login. Open the menu bar popover to see why";
 "notif.title.login.expired" = "Claude Code login expired";
 "notif.body.login.expired" = "TokenEater only reads it. Run \"claude\" once in a terminal, or open Claude Code, to renew it";
+"notif.body.login.expired.dir" = "TokenEater only reads it. Run \"%@\" once in a terminal to renew it";
+"notif.body.account.prefix" = "%1$@: %2$@";
 
 "notif.title.pacing.hot" = "Burning hot";
 "notif.body.pacing.hot" = "Way ahead of pace, pump the brakes";
