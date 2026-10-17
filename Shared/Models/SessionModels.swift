@@ -66,6 +66,11 @@ struct ClaudeSession: Identifiable, Sendable {
     /// Ratio 0.0 - 1.0 of the context window consumed. Nil when context data
     /// isn't available yet. The `activeSessionsTrait` UI uses this to drive
     /// the per-tile progress indicator on both Frost and Neon themes.
+    /// The Claude account whose config folder the session runs in, set by
+    /// the scan from the folder that declared it. Nil for sessions built
+    /// outside the scan (previews, tests), read as the main account.
+    var account: AccountID? = nil
+
     var contextFraction: Double? {
         guard let tokens = contextTokens, let max = contextMax, max > 0 else { return nil }
         return min(Double(tokens) / Double(max), 1.0)

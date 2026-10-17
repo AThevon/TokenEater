@@ -346,8 +346,10 @@ final class StatusBarController: NSObject {
     }
 
     /// Points the credential watcher and the Agent Watchers scan at the
-    /// folders the Claude accounts read. Paused accounts are left out: they
-    /// read nothing, so a change to their login has nothing to wake.
+    /// folders the Claude accounts read. The watcher leaves paused accounts
+    /// out: they read nothing, so a change to their login has nothing to
+    /// wake. The scan keeps them: a session running in a paused account's
+    /// folder is still a session on this Mac.
     private func applyClaudeSources() {
         let home = ClaudeConfigDirResolver.realHome()
         let main = accountsStore.mainRecord.scope
@@ -360,7 +362,9 @@ final class StatusBarController: NSObject {
             includeDesktopConfig: main.includesClaudeDesktop,
             extras: extras
         )
-        sessionStore.setRoots([ClaudeConfigRoot(account: .main, scope: main, home: home)])
+        sessionStore.setRoots(accountsStore.records.map { record in
+            ClaudeConfigRoot(account: record.id, scope: record.scope, home: home)
+        })
     }
 
     private func bootstrapRefresh() {

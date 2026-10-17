@@ -254,10 +254,6 @@ struct MonitoringView: View {
         }
     }
 
-    /// The live sessions on the back of the glance card come from the main
-    /// account's folder for now, so another account's card leaves them out
-    /// rather than show the main account's under its name.
-    private var showsLiveSessions: Bool { heroAccount.isMain }
 
     /// Renders one provider's blocks, in the order Studio put them.
     @ViewBuilder
@@ -738,42 +734,39 @@ struct MonitoringView: View {
             // Right column: live session activity. Sessions count is the
             // headline number; top model fills the line below. Pulls
             // from SessionStore (kept in sync by the overlay watcher),
-            // which watches the main account's sessions: another account's
-            // card shows its pacing alone.
-            if showsLiveSessions {
-                VStack(alignment: .trailing, spacing: 6) {
-                    Text("LIVE")
-                        .font(DS.Typography.micro)
-                        .tracking(1.2)
-                        .foregroundStyle(DS.Palette.textTertiary)
+            // narrowed to the sessions running in this card's account folder.
+            VStack(alignment: .trailing, spacing: 6) {
+                Text("LIVE")
+                    .font(DS.Typography.micro)
+                    .tracking(1.2)
+                    .foregroundStyle(DS.Palette.textTertiary)
 
-                    let count = sessionStore.activeSessions.count
-                    Text("\(count)")
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
-                        .foregroundStyle(count > 0 ? DS.Palette.textPrimary : DS.Palette.textTertiary)
-                        .monospacedDigit()
-                        .contentTransition(.numericText(value: Double(count)))
-                        .animation(DS.Motion.springLiquid, value: count)
-                    Text(count == 1 ? "active session" : "active sessions")
-                        .font(.system(size: 9, weight: .medium))
-                        .tracking(0.8)
-                        .foregroundStyle(DS.Palette.textTertiary)
-                        .textCase(.uppercase)
+                let count = sessionStore.activeSessions(for: heroAccount).count
+                Text("\(count)")
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .foregroundStyle(count > 0 ? DS.Palette.textPrimary : DS.Palette.textTertiary)
+                    .monospacedDigit()
+                    .contentTransition(.numericText(value: Double(count)))
+                    .animation(DS.Motion.springLiquid, value: count)
+                Text(count == 1 ? "active session" : "active sessions")
+                    .font(.system(size: 9, weight: .medium))
+                    .tracking(0.8)
+                    .foregroundStyle(DS.Palette.textTertiary)
+                    .textCase(.uppercase)
 
-                    if let topModel = sessionStore.topActiveModelName {
-                        HStack(spacing: 5) {
-                            Circle()
-                                .fill(gaugeColor)
-                                .frame(width: 5, height: 5)
-                            Text(topModel)
-                                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                .foregroundStyle(DS.Palette.textSecondary)
-                        }
-                        .padding(.top, 2)
+                if let topModel = sessionStore.topActiveModelName(for: heroAccount) {
+                    HStack(spacing: 5) {
+                        Circle()
+                            .fill(gaugeColor)
+                            .frame(width: 5, height: 5)
+                        Text(topModel)
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(DS.Palette.textSecondary)
                     }
+                    .padding(.top, 2)
                 }
-                .frame(width: 160, height: 160)
             }
+            .frame(width: 160, height: 160)
         }
     }
 

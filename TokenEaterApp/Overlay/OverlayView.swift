@@ -26,7 +26,13 @@ struct OverlayView: View {
             ForEach(Array(displayedSessions.enumerated()), id: \.element.id) { index, session in
                 let prox = proximity(for: index, in: displayedSessions)
 
-                SessionTraitView(session: session, proximity: prox, scale: scale, leftSide: leftSide) {
+                SessionTraitView(
+                    session: session,
+                    proximity: prox,
+                    scale: scale,
+                    leftSide: leftSide,
+                    accountColorHex: accountColorHex(for: session)
+                ) {
                     teleportToSession(session)
                 }
                 .animation(
@@ -66,6 +72,14 @@ struct OverlayView: View {
                     overlayState.contentOffset = contentOffset
                 }
         )
+    }
+
+    /// The session's account colour once two Claude accounts run, so a
+    /// watcher says which login it is spending. Nil below that: one account
+    /// needs no marking, and the cards stay as they were.
+    private func accountColorHex(for session: ClaudeSession) -> String? {
+        guard settingsStore.showsAccountMarkers else { return nil }
+        return settingsStore.claudeAccount(session.account ?? .main)?.colorHex
     }
 
     // MARK: - Dock-like proximity

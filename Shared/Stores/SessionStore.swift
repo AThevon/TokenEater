@@ -36,7 +36,23 @@ final class SessionStore: ObservableObject {
     /// (non-dead) Claude Code sessions. Nil when no sessions are tracked or
     /// none reported a model. Moved out of MonitoringView so it is unit-tested.
     var topActiveModelName: String? {
-        let kinds = activeSessions.compactMap { $0.model }.map { ModelKind(rawModel: $0) }
+        Self.topModelName(in: activeSessions)
+    }
+
+    /// The active sessions running in one Claude account's config folder. A
+    /// session the scan did not attribute counts as the main account's.
+    func activeSessions(for account: AccountID) -> [ClaudeSession] {
+        activeSessions.filter { ($0.account ?? .main) == account }
+    }
+
+    /// `topActiveModelName` for one account's sessions, for that account's
+    /// dashboard card.
+    func topActiveModelName(for account: AccountID) -> String? {
+        Self.topModelName(in: activeSessions(for: account))
+    }
+
+    private static func topModelName(in sessions: [ClaudeSession]) -> String? {
+        let kinds = sessions.compactMap { $0.model }.map { ModelKind(rawModel: $0) }
         guard !kinds.isEmpty else { return nil }
         let counts = Dictionary(grouping: kinds, by: { $0 }).mapValues { $0.count }
         return counts.max { $0.value < $1.value }?.key.displayName
@@ -88,7 +104,8 @@ final class SessionStore: ObservableObject {
     }
 
     /// Point the scan at the Claude config folders in use, the main
-    /// account's first, so a custom `CLAUDE_CONFIG_DIR` is followed (#294).
+    /// account's first, so a custom `CLAUDE_CONFIG_DIR` is followed (#294)
+    /// and every added account's sessions are watched too.
     func setRoots(_ roots: [ClaudeConfigRoot]) {
         monitorService.setRoots(roots)
     }
