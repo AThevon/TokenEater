@@ -117,7 +117,7 @@ private struct GaugeRingCell: View {
     var body: some View {
         let unscaled = snapshot.unscaledValue != nil
         let color = unscaled
-            ? PopoverCellPalette.unscaled
+            ? PopoverColors.unscaled(hasSpend: snapshot.unscaledHasSpend, theme: themeStore)
             : PopoverColors.gauge(
                 pct: snapshot.pct, resetDate: snapshot.resetDate,
                 windowDuration: snapshot.windowDuration,
@@ -128,6 +128,8 @@ private struct GaugeRingCell: View {
             windowDuration: snapshot.windowDuration,
             theme: themeStore, settings: settingsStore
         )
+        // An uncapped pool with nothing spent: neutral, so drawn without glow.
+        let quiet = unscaled && !snapshot.unscaledHasSpend
         // An amount is wider than "67%": keep it inside the ring's hole.
         let innerWidth = ringSize - 2 * max(ringSize * 0.08, 4) - 4
 
@@ -150,9 +152,9 @@ private struct GaugeRingCell: View {
                         snapshot.valueText,
                         font: .system(size: 11, weight: .black, design: .rounded),
                         color: color,
-                        // Plain information, so no halo: a glow would make the
-                        // amount louder than the threshold-coloured gauges.
-                        glowRadius: unscaled ? 0 : 2
+                        // Nothing spent is plain information, so no halo: a
+                        // glow would make $0 louder than the coloured gauges.
+                        glowRadius: quiet ? 0 : 2
                     )
                     .modifier(UnscaledFit(active: unscaled, width: innerWidth))
                 } else {
@@ -161,7 +163,7 @@ private struct GaugeRingCell: View {
                             snapshot.valueText,
                             font: .system(size: valueFontSize, weight: .black, design: .rounded),
                             color: color,
-                            glowRadius: unscaled ? 0 : (width == .full ? 4 : 3)
+                            glowRadius: quiet ? 0 : (width == .full ? 4 : 3)
                         )
                         .modifier(UnscaledFit(active: unscaled, width: innerWidth))
                         ProviderMetricLabel(provider: snapshot.provider, text: snapshot.label)
@@ -240,7 +242,7 @@ private struct ChipCell: View {
     var body: some View {
         let unscaled = snapshot.unscaledValue != nil
         let color = unscaled
-            ? PopoverCellPalette.unscaled
+            ? PopoverColors.unscaled(hasSpend: snapshot.unscaledHasSpend, theme: themeStore)
             : PopoverColors.gauge(
                 pct: snapshot.pct, resetDate: snapshot.resetDate,
                 windowDuration: snapshot.windowDuration,
@@ -318,7 +320,7 @@ private struct ArcCell: View {
                     .font(.system(size: 38, weight: .black, design: .rounded))
                     .foregroundStyle(color)
                     .modifier(UnscaledFit(active: isUnscaled, width: nil))
-                    .dsGlow(color, radius: 10, opacity: isUnscaled ? 0 : 0.35)
+                    .dsGlow(color, radius: 10, opacity: isUnscaled && !snapshot.unscaledHasSpend ? 0 : 0.35)
                 Text(label.uppercased())
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.5))
@@ -353,7 +355,7 @@ private struct ArcCell: View {
         case .resetCountdown:
             return PopoverCellPalette.countdown
         case .percent:
-            if isUnscaled { return PopoverCellPalette.unscaled }
+            if isUnscaled { return PopoverColors.unscaled(hasSpend: snapshot.unscaledHasSpend, theme: themeStore) }
             return PopoverColors.gauge(
                 pct: snapshot.pct, resetDate: snapshot.resetDate,
                 windowDuration: snapshot.windowDuration,
@@ -469,7 +471,9 @@ private struct BigTextCell: View {
         case .resetCountdown:
             return PopoverCellPalette.countdown
         case .percent:
-            if snapshot.unscaledValue != nil { return PopoverCellPalette.unscaled }
+            if snapshot.unscaledValue != nil {
+                return PopoverColors.unscaled(hasSpend: snapshot.unscaledHasSpend, theme: themeStore)
+            }
             return PopoverColors.gauge(
                 pct: snapshot.pct, resetDate: snapshot.resetDate,
                 windowDuration: snapshot.windowDuration,
@@ -748,8 +752,9 @@ enum PopoverCellPalette {
     static let countdown = Color(red: 0.99, green: 0.90, blue: 0.54)
 
     /// Neutral tint for a value with no scale (Extra Credits with no monthly
-    /// limit): plain information, not a threshold colour, since there is no
-    /// limit to be close to.
+    /// limit) while nothing is spent: plain information, since there is no
+    /// limit to be close to. Once money is spent the cell switches to the
+    /// warning colour (`PopoverColors.unscaled`).
     static let unscaled = DS.Palette.textPrimary
 }
 

@@ -105,7 +105,8 @@ struct UsageWidgetView: View {
                         resetDate: nil,
                         windowDuration: 0,
                         smartEnabled: false,
-                        unscaledValue: spend
+                        unscaledValue: spend,
+                        unscaledHasSpend: extra.hasUncappedSpend
                     )
                 }
             }
@@ -186,8 +187,9 @@ struct UsageWidgetView: View {
                 // bar fall back to the static threshold colour. `displayText`
                 // shows spend rather than the raw "%", which reads better for a
                 // monetary pool.
-                // No monthly limit: the compact amount in the neutral colour
-                // over a dotted bar, as in the app, rather than an empty bar.
+                // No monthly limit: the compact amount over a dotted bar, as in
+                // the app, rather than an empty bar. Neutral at $0, the warning
+                // colour once something is spent.
                 LargeUsageBarView(
                     icon: "creditcard.fill",
                     label: String(localized: "widget.extra"),
@@ -198,7 +200,8 @@ struct UsageWidgetView: View {
                     // No reset window → Smart Color can't project; use the
                     // static threshold ladder so EC matches the app's colour.
                     smartEnabled: false,
-                    unscaled: extra.isUncapped
+                    unscaled: extra.isUncapped,
+                    unscaledHasSpend: extra.hasUncappedSpend
                 )
             }
 
@@ -316,6 +319,15 @@ struct CircularUsageView: View {
     /// An amount with no scale (Extra Credits with no monthly limit): shown
     /// in place of the percentage, over a dotted track instead of a 0 % ring.
     var unscaledValue: String? = nil
+    /// Whether that amount is above zero: neutral text colour at zero, the
+    /// theme's warning colour once spent (`ThemeColors.uncappedSpendColor`).
+    var unscaledHasSpend: Bool = false
+
+    private var unscaledColor: Color {
+        theme.uncappedSpendColor(
+            hasSpend: unscaledHasSpend, thresholds: thresholds, neutral: Color(hex: theme.widgetText)
+        )
+    }
 
     private var ringGradient: LinearGradient {
         if smartEnabled {
@@ -334,11 +346,11 @@ struct CircularUsageView: View {
         VStack(spacing: 5) {
             ZStack {
                 if let unscaledValue {
-                    DottedRing(lineWidth: 4.5, color: Color(hex: theme.widgetText))
+                    DottedRing(lineWidth: 4.5, color: unscaledColor)
                     Text(unscaledValue)
                         .font(.system(size: 12, weight: .black, design: .rounded))
                         .monospacedDigit()
-                        .foregroundStyle(Color(hex: theme.widgetText))
+                        .foregroundStyle(unscaledColor)
                         .lineLimit(1)
                         .minimumScaleFactor(0.5)
                         .padding(.horizontal, 6)
@@ -506,10 +518,13 @@ struct LargeUsageBarView: View {
     var smartProfile: SmartColorProfile = WidgetTheme.smartColorProfile
     var theme: ThemeColors = WidgetTheme.theme
     var thresholds: UsageThresholds = WidgetTheme.thresholds
-    /// The value has no scale (Extra Credits with no monthly limit): neutral
-    /// text colour and a dotted track instead of a threshold colour and a
-    /// 0 % bar.
+    /// The value has no scale (Extra Credits with no monthly limit): a dotted
+    /// track instead of a 0 % bar, and a colour set by the money spent rather
+    /// than a threshold (see `unscaledHasSpend`).
     var unscaled: Bool = false
+    /// With `unscaled`: neutral text colour while nothing is spent, the
+    /// theme's warning colour once something is.
+    var unscaledHasSpend: Bool = false
 
     private var barGradient: LinearGradient {
         if let color = colorOverride {
@@ -530,7 +545,11 @@ struct LargeUsageBarView: View {
     }
 
     private var accentColor: Color {
-        if unscaled { return Color(hex: theme.widgetText) }
+        if unscaled {
+            return theme.uncappedSpendColor(
+                hasSpend: unscaledHasSpend, thresholds: thresholds, neutral: Color(hex: theme.widgetText)
+            )
+        }
         if let color = colorOverride { return color }
         if smartEnabled {
             return theme.smartGaugeColor(

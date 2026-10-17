@@ -54,9 +54,12 @@ enum MenuBarRenderer {
         let extraCreditsPct: Int
         let hasExtraCredits: Bool
         /// The amount spent when the Extra Credits pool has no monthly limit.
-        /// Non-nil replaces the always-0 percentage with that amount, drawn in
-        /// a neutral tint; nil (a limit is set) keeps the percentage.
+        /// Non-nil replaces the always-0 percentage with that amount; nil (a
+        /// limit is set) keeps the percentage.
         let extraCreditsUncappedSpend: String?
+        /// Whether that uncapped amount is above zero: neutral at zero, the
+        /// warning gauge colour once spent. Ignored while a limit is set.
+        let extraCreditsUncappedHasSpend: Bool
         /// Nested rather than flattened into ten more fields: `RenderData` is
         /// the Equatable key of the render cache, and a nested Equatable value
         /// keeps that comparison honest without widening the struct further.
@@ -151,7 +154,15 @@ enum MenuBarRenderer {
     /// (e.g. the Extra Credits pool) has nothing to project against, so it
     /// falls back to the static warning/critical threshold ladder. This is the
     /// rule that keeps Extra Credits coloured identically in the menu bar, the
-    /// popover, the dashboard and the widgets. Internal (not private) so the
+    /// popover, the dashboard and the widgets.
+    ///
+    /// One exception, on every one of those surfaces: a pool with no monthly
+    /// limit has no percentage to put on the ladder (it is always 0), so it
+    /// shows the amount spent instead, coloured by money rather than by
+    /// threshold: neutral while nothing is spent, the theme's warning gauge
+    /// colour once something is. That amount never reaches this function; the
+    /// menu bar colours it with `uncappedSpendColor`, the SwiftUI surfaces
+    /// with `ThemeColors.uncappedSpendColor`. Internal (not private) so the
     /// windowless-fallback rule is unit-testable in isolation; `now` is
     /// injectable for deterministic tests.
     static func gaugeColor(
@@ -179,6 +190,21 @@ enum MenuBarRenderer {
             )
         }
         return themeColors.gaugeNSColor(for: Double(pct), thresholds: thresholds)
+    }
+
+    /// The colour of the amount an uncapped Extra Credits segment draws in
+    /// place of its percentage: `labelColor` while nothing is spent, the
+    /// theme's warning gauge colour once something is (the rule of the
+    /// dashboard card, the popover and the widgets). Monochrome stays
+    /// monochrome. Internal so the rule is unit-testable on its own.
+    static func uncappedSpendColor(
+        hasSpend: Bool,
+        monochrome: Bool,
+        themeColors: ThemeColors,
+        thresholds: UsageThresholds
+    ) -> NSColor {
+        guard hasSpend, !monochrome else { return .labelColor }
+        return themeColors.gaugeNSColor(for: Double(thresholds.warningPercent), thresholds: thresholds)
     }
 
     private static func colorForZone(_ zone: PacingZone, data: RenderData) -> NSColor {
@@ -416,13 +442,19 @@ enum MenuBarRenderer {
         let value = usageValue(kind, data: data)
         let label = usageLabel(kind, data: data)
         // Extra Credits with no monthly limit: the amount spent stands where
-        // the always-0 percentage would, in every style, in the neutral
-        // `labelColor` (the colour monochrome uses) since there is no limit
-        // for a threshold colour to measure against. Everything else, the
-        // capped pool included, draws its percentage through the same path.
+        // the always-0 percentage would, in every style. With no limit there
+        // is no threshold to measure against, so the colour follows the money
+        // (`uncappedSpendColor`): neutral at zero, the warning gauge colour
+        // once something is spent. Everything else, the capped pool included,
+        // draws its percentage through the same path.
         let spend = kind == .extraCredits ? data.extraCreditsUncappedSpend : nil
         let color = spend != nil
-            ? NSColor.labelColor
+            ? uncappedSpendColor(
+                hasSpend: data.extraCreditsUncappedHasSpend,
+                monochrome: data.menuBarMonochrome,
+                themeColors: data.themeColors,
+                thresholds: data.thresholds
+            )
             : colorForPct(value, resetDate: usageResetDate(kind, data: data), windowDuration: usageWindow(kind, data: data), data: data)
         let valueText = spend ?? "\(value)%"
 

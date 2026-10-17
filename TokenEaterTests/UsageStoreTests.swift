@@ -192,6 +192,7 @@ struct UsageStoreTests {
         #expect(store.hasExtraCredits == true)
         #expect(store.extraCreditsPct == 0)
         #expect(store.extraCreditsUncappedSpend == "$20.49")
+        #expect(store.extraCreditsUncappedHasSpend == true)
     }
 
     @Test("a capped pool keeps its percentage and exposes no spend")
@@ -203,6 +204,7 @@ struct UsageStoreTests {
         await store.refresh()
 
         #expect(store.extraCreditsUncappedSpend == nil)
+        #expect(store.extraCreditsUncappedHasSpend == false)
     }
 
     @Test("a disabled extra-credits pool is not surfaced")

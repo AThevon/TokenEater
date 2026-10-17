@@ -85,6 +85,10 @@ final class UsageStore: ObservableObject {
     /// is always 0, so the menu bar and the popover show this instead.
     var extraCreditsUncappedSpend: String? { extraUsage?.uncappedSpendText }
 
+    /// Whether that uncapped amount is above zero, which turns it from the
+    /// neutral colour to the warning colour (see `ExtraUsage.hasUncappedSpend`).
+    var extraCreditsUncappedHasSpend: Bool { extraUsage?.hasUncappedSpend == true }
+
     var pacingMargin: Int = 10
     /// Workweek pacing schedule (from settings). Wired by StatusBarController.
     /// Drives whether off-days count toward the expected pace.

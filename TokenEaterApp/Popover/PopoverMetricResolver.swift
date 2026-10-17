@@ -24,10 +24,14 @@ enum PopoverMetricResolver {
         var provider: MetricProvider? = nil
         /// Set when the metric has no scale to measure against: Extra Credits
         /// with no monthly limit, whose percentage is always 0. Cells show
-        /// this amount instead of the percentage, in a neutral tint, and draw
-        /// an open dotted track rather than a 0 % fill that would read as
-        /// "nothing spent". Nil for everything else, which renders as before.
+        /// this amount instead of the percentage and draw an open dotted
+        /// track rather than a 0 % fill that would read as "nothing spent".
+        /// Nil for everything else, which renders as before.
         var unscaledValue: String? = nil
+        /// Whether `unscaledValue` is above zero. It picks the cell colour:
+        /// neutral at zero, the theme's warning gauge colour once spent
+        /// (`PopoverColors.unscaled`).
+        var unscaledHasSpend: Bool = false
         /// Says in words why `unscaledValue` replaced the percentage, for the
         /// cells with room for a caption and as a tooltip on the others.
         var unscaledNote: String? = nil
@@ -100,6 +104,7 @@ enum PopoverMetricResolver {
                 windowDuration: 0,
                 provider: .claude,
                 unscaledValue: usage.extraCreditsUncappedSpend,
+                unscaledHasSpend: usage.extraCreditsUncappedHasSpend,
                 unscaledNote: usage.extraCreditsUncappedSpend == nil
                     ? nil : String(localized: "dashboard.extra.uncapped")
             )

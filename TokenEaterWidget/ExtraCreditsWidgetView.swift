@@ -8,8 +8,10 @@ import WidgetKit
 // Enterprise) whose primary signal is overage spend rather than the
 // 5h / 7d quotas. The pool has no reset window, so colouring is purely
 // threshold-based (no Smart Color risk model). With no monthly limit there is
-// no threshold either: the widget shows the amount spent in the neutral text
-// colour over a dotted track, like the app does, instead of a 0 % gauge.
+// no threshold either: the widget shows the amount spent over a dotted track,
+// like the app does, instead of a 0 % gauge. That amount follows the app's
+// rule (`ThemeColors.uncappedSpendColor`): the neutral text colour while
+// nothing is spent, the theme's warning colour once something is.
 // =====================================================================
 
 struct ExtraCreditsWidgetView: View {
@@ -47,17 +49,18 @@ struct ExtraCreditsWidgetView: View {
         let color = theme.gaugeColor(for: Double(pct), thresholds: thresholds)
         let gradient = theme.gaugeGradient(for: Double(pct), thresholds: thresholds)
         let spend = extra.uncappedSpendText
+        let spendColor = uncappedColor(extra)
 
         return VStack(spacing: 0) {
             WidgetHeader("widget.extra")
             Spacer(minLength: 8)
             ZStack {
                 if let spend {
-                    DottedRing(lineWidth: WidgetTokens.ringSmall, color: neutral)
+                    DottedRing(lineWidth: WidgetTokens.ringSmall, color: spendColor)
                     Text(spend)
                         .font(WidgetTokens.heroSmall)
                         .monospacedDigit()
-                        .foregroundStyle(neutral)
+                        .foregroundStyle(spendColor)
                         .lineLimit(1)
                         .minimumScaleFactor(0.4)
                         .padding(.horizontal, WidgetTokens.ringSmall + 6)
@@ -97,9 +100,10 @@ struct ExtraCreditsWidgetView: View {
     private func mediumContent(_ extra: ExtraUsage) -> some View {
         let pct = extra.percent
         let spend = extra.uncappedSpendText
-        // Uncapped: the amount is the hero, so it takes the neutral text
-        // colour and there is no "used / limit" figure to repeat beside it.
-        let color = spend == nil ? theme.gaugeColor(for: Double(pct), thresholds: thresholds) : neutral
+        // Uncapped: the amount is the hero, coloured by the money spent rather
+        // than a threshold, and there is no "used / limit" figure to repeat
+        // beside it.
+        let color = spend == nil ? theme.gaugeColor(for: Double(pct), thresholds: thresholds) : uncappedColor(extra)
         let gradient = theme.gaugeGradient(
             for: Double(pct), thresholds: thresholds, startPoint: .leading, endPoint: .trailing
         )
@@ -129,7 +133,7 @@ struct ExtraCreditsWidgetView: View {
             }
 
             if spend != nil {
-                DottedBar(lineWidth: 6, color: neutral)
+                DottedBar(lineWidth: 6, color: color)
                     .frame(height: 6)
             } else {
                 GeometryReader { geo in
@@ -171,8 +175,13 @@ struct ExtraCreditsWidgetView: View {
 
     // MARK: - Helpers
 
-    /// The widget's plain text colour, for the uncapped amount and captions.
+    /// The widget's plain text colour, for captions and an uncapped $0.
     private var neutral: Color { Color(hex: theme.widgetText) }
+
+    /// The uncapped amount's colour: neutral at zero, warning once spent.
+    private func uncappedColor(_ extra: ExtraUsage) -> Color {
+        theme.uncappedSpendColor(hasSpend: extra.hasUncappedSpend, thresholds: thresholds, neutral: neutral)
+    }
 
     /// "$180 / $500" with a limit, otherwise just the spend ("$180").
     private func amountText(_ extra: ExtraUsage) -> String {

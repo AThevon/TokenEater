@@ -66,6 +66,7 @@ extension MenuBarRenderer.RenderData {
             extraCreditsPct: usage.extraCreditsPct,
             hasExtraCredits: usage.hasExtraCredits,
             extraCreditsUncappedSpend: usage.extraCreditsUncappedSpend,
+            extraCreditsUncappedHasSpend: usage.extraCreditsUncappedHasSpend,
             codexSession: codexSegment(.session),
             codexWeekly: codexSegment(.weekly),
             visibleProviders: Set(settings.activeProviders.filter { settings.activeProviderMode.shows($0) })
