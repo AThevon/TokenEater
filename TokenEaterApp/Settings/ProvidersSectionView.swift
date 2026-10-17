@@ -7,11 +7,14 @@ import SwiftUI
 /// question "so what do I get" becomes live, and answering it three screens
 /// away in a help page is how the app ended up feeling like it did something
 /// different depending on the provider without ever saying so.
-/// The two provider cards on their own, for hosts that bring their own
-/// framing: the what's-new step, which already explains itself above them.
+/// The provider cards on their own, for hosts that bring their own framing:
+/// the what's-new step, which already explains itself above them and may
+/// only need Claude's card.
 struct ProvidersSectionProviders: View {
+    var showsCodex: Bool = true
+
     var body: some View {
-        ProvidersSectionView(showsCoverage: false)
+        ProvidersSectionView(showsCoverage: false, showsCodex: showsCodex)
     }
 }
 
@@ -19,6 +22,9 @@ struct ProvidersSectionView: View {
     /// Settings shows the matrix under the cards; the what's-new step has its
     /// own pane for it and would be repeating itself.
     var showsCoverage: Bool = true
+    /// The 6.1 what's-new step is about Claude accounts; Codex's card there
+    /// would be a second subject on a screen that has one.
+    var showsCodex: Bool = true
 
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var usageStore: UsageStore
@@ -70,20 +76,22 @@ struct ProvidersSectionView: View {
                     .padding(.horizontal, DS.Spacing.xs)
                 }
 
-                ProviderCard(
-                    provider: .codex,
-                    name: "OpenAI Codex",
-                    isEnabled: settingsStore.codexEnabled,
-                    isLive: settingsStore.codexEnabled
-                        && codexStore.authState.isTrackable
-                        && !codexStore.authState.isExpired(),
-                    status: codexStore.connectionStatus,
-                    lockedReason: lockedReason(for: .codex),
-                    enabled: $settingsStore.codexEnabled
-                ) {
-                    codexActions
+                if showsCodex {
+                    ProviderCard(
+                        provider: .codex,
+                        name: "OpenAI Codex",
+                        isEnabled: settingsStore.codexEnabled,
+                        isLive: settingsStore.codexEnabled
+                            && codexStore.authState.isTrackable
+                            && !codexStore.authState.isExpired(),
+                        status: codexStore.connectionStatus,
+                        lockedReason: lockedReason(for: .codex),
+                        enabled: $settingsStore.codexEnabled
+                    ) {
+                        codexActions
+                    }
+                    resultLine(codexResult?.message, success: codexResult?.success ?? false)
                 }
-                resultLine(codexResult?.message, success: codexResult?.success ?? false)
 
                 // App-level, not provider-level: it reports on the whole
                 // install, and sitting inside one provider's card implied it

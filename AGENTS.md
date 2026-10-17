@@ -300,7 +300,7 @@ The app writes usage and pacing margin to `codex.json` next to `shared.json`. Th
 
 Classify windows by `limit_window_seconds`, never by primary/secondary position: a weekly-only plan uses the primary window for its week. Idle windows slide their reset time, so reset alerts must go through `CodexResetDetector`. The dedicated quota-reset alert is Codex-only; Claude keeps its recovery notification behavior.
 
-Keep widget `kind` strings stable. The six Claude widgets that follow the main account have provider-prefixed gallery names, `ClaudeAccountWidget` ("Claude Account") shows whichever tracked Claude account Edit Widget picks, and `CodexUsageWidget` is a separate small/medium widget. Since 6.0 Codex has menu bar segments, popover metrics, dashboard blocks, notifications and History like Claude; Agent Watchers stay Claude-only, since they read Claude Code's own processes and Codex has no equivalent. `ProviderCapability` is the one declaration of what each feature does on each provider: change it there, and the badges, the Coverage page and the what's-new matrix follow.
+Keep widget `kind` strings stable. The six Claude widgets that follow the main account have provider-prefixed gallery names, `ClaudeAccountWidget` ("Claude Account") shows whichever tracked Claude account Edit Widget picks, and `CodexUsageWidget` is a separate small/medium widget. Since 6.0 Codex has menu bar segments, popover metrics, dashboard blocks, notifications and History like Claude; Agent Watchers stay Claude-only, since they read Claude Code's own processes and Codex has no equivalent. `ProviderCapability` is the one declaration of what each feature does on each provider: change it there, and the badges and the Coverage page follow.
 
 ## Gotchas and known traps
 

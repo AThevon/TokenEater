@@ -442,10 +442,21 @@ final class SettingsStore: ObservableObject {
     /// what's-new screen turns into something people learn to dismiss blind.
     var needsWhatsNew: Bool {
         guard hasCompletedOnboarding else { return false }
-        func minorOf(_ version: String) -> String {
-            version.split(separator: ".").prefix(2).joined(separator: ".")
-        }
-        return minorOf(lastSeenVersion) != minorOf(Self.currentVersion)
+        return Self.isNewRelease(lastSeen: lastSeenVersion, current: Self.currentVersion)
+    }
+
+    /// Whether `current` is a release line (major.minor) the user has not
+    /// seen yet. Pure, so the 6.0.x to 6.1.x upgrade can be tested without a
+    /// bundle carrying that version. An empty `lastSeen` (an install older
+    /// than the key, or the Settings button that replays the screen) always
+    /// counts as new.
+    static func isNewRelease(lastSeen: String, current: String) -> Bool {
+        releaseLine(of: lastSeen) != releaseLine(of: current)
+    }
+
+    /// "6.1.2" -> "6.1". Anything after major.minor is a patch.
+    static func releaseLine(of version: String) -> String {
+        version.split(separator: ".").prefix(2).joined(separator: ".")
     }
 
     func markWhatsNewSeen() {

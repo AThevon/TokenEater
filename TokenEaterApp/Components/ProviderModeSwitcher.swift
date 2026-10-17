@@ -57,8 +57,8 @@ struct ProviderModeSwitcher: View {
     /// Off in the window bar: a line that appears and disappears under the
     /// pills shifts the whole row every time the mode changes, and a sentence
     /// you read once becomes noise on a control you use every day. The
-    /// Coverage page in Settings is where that answer lives; the what's-new
-    /// step is where it is worth saying out loud.
+    /// Coverage page in Settings is where that answer lives. The 6.0
+    /// what's-new step was the place it was worth saying out loud.
     var showsCaption: Bool = false
 
     private var choices: [ModeChoice] { settingsStore.modeChoices }

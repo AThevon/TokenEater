@@ -2,14 +2,16 @@ import SwiftUI
 
 /// The whole capability declaration, rendered.
 ///
-/// One component, two hosts: the Coverage section in Settings, and the first
-/// pane of the what's-new window. The rows come from `ProviderCapability`, so
-/// this is never a list someone has to remember to update.
+/// Hosted by the Coverage section in Settings; the 6.0 what's-new screen
+/// used it too, hence the animated, headingless variant. The rows come from
+/// `ProviderCapability`, so this is never a list someone has to remember to
+/// update.
 struct CoverageMatrixView: View {
-    /// The what's-new pane animates the rows in; Settings shows them at rest.
+    /// Rows cascade in for a host that presents the matrix (the 6.0
+    /// what's-new pane did); Settings shows them at rest.
     var animated: Bool = false
-    /// The pane's own title already says what this is, so it repeats itself
-    /// there. Settings needs the heading, having no title above it.
+    /// Off for a host whose own title already says what this is. Settings
+    /// needs the heading, having no title above it.
     var showsHeading: Bool = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
