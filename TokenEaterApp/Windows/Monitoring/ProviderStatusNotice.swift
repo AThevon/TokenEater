@@ -63,7 +63,7 @@ struct ProviderStatusNotice: View {
             if usageStore.errorState == .tokenUnavailable, let since = usageStore.loginExpiredSince {
                 let headline = String(format: String(localized: "error.login.expired"),
                                       since.formatted(.relative(presentation: .named)))
-                return headline + ". " + String(localized: "error.login.expired.hint")
+                return headline + ". " + usageStore.loginExpiredHint
             }
             guard !usageStore.isAwaitingRefresh else { return nil }
             switch usageStore.errorState {

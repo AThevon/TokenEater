@@ -171,6 +171,7 @@
 "error.banner.waiting" = "En attente du rafraîchissement par Claude Code";
 "error.login.expired" = "Votre connexion Claude Code a expiré %@";
 "error.login.expired.hint" = "TokenEater ne fait que lire cette connexion, il ne la renouvelle jamais. Lancez « claude » une fois dans un terminal, ou ouvrez Claude Code, et le suivi reprend tout seul.";
+"error.login.expired.hint.dir" = "TokenEater ne fait que lire cette connexion, il ne la renouvelle jamais. Lancez « %@ » une fois dans un terminal, et le suivi reprend tout seul.";
 "error.banner.apiunavailable" = "API usage throttle par Anthropic";
 "error.banner.apiunavailable.hint" = "C'est une limite de débit côté Anthropic (leur API usage), pas votre token ni votre configuration. Rien à corriger de votre côté - TokenEater réessaie tout seul et se met à jour dès que la limite se lève (bug connu : anthropics/claude-code#31637).";
 "error.banner.apiunavailable.settings" = "C'est côté Anthropic (leur API usage), pas votre token ni votre configuration. TokenEater réessaie automatiquement et repart dès que la limite se lève.";

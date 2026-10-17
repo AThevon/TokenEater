@@ -190,6 +190,29 @@ final class UsageStore: ObservableObject {
     /// Where this store's token may come from.
     var credentialScope: CredentialScope { tokenProvider.scope }
 
+    /// What renews this store's login once it has expired, for the popover
+    /// banner and the dashboard notice.
+    var loginExpiredHint: String {
+        Self.loginExpiredHint(scope: credentialScope, home: ClaudeConfigDirResolver.realHome())
+    }
+
+    /// A plain `claude` renews only the login of `~/.claude`, so a config
+    /// folder (an added account, or the main account moved there, #294) is
+    /// named in the command. The default chain keeps the 6.0 wording.
+    nonisolated static func loginExpiredHint(scope: CredentialScope, home: String) -> String {
+        guard let command = renewCommand(scope: scope, home: home) else {
+            return String(localized: "error.login.expired.hint")
+        }
+        return String(format: String(localized: "error.login.expired.hint.dir"), command)
+    }
+
+    /// The command that renews a config folder's login, nil for the default
+    /// chain, where a plain `claude` or the Claude desktop app does it.
+    nonisolated static func renewCommand(scope: CredentialScope, home: String) -> String? {
+        guard case .configDir(let path, _) = scope else { return nil }
+        return ClaudeConfigDirResolver.loginCommand(forConfigDir: path, home: home)
+    }
+
     init(
         repository: UsageRepositoryProtocol = UsageRepository(),
         tokenProvider: TokenProviderProtocol = TokenProvider.forMainAccount(),

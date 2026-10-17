@@ -171,6 +171,7 @@
 "error.banner.waiting" = "Waiting for Claude Code to refresh";
 "error.login.expired" = "Your Claude Code login expired %@";
 "error.login.expired.hint" = "TokenEater only reads this login and never renews it. Run \"claude\" once in a terminal, or open Claude Code, and tracking resumes on its own.";
+"error.login.expired.hint.dir" = "TokenEater only reads this login and never renews it. Run \"%@\" once in a terminal, and tracking resumes on its own.";
 "error.banner.apiunavailable" = "Usage API throttled by Anthropic";
 "error.banner.apiunavailable.hint" = "This is a rate limit on Anthropic's usage API, not your token or setup. Nothing for you to fix - TokenEater keeps retrying and refreshes as soon as the limit clears (known issue: anthropics/claude-code#31637).";
 "error.banner.apiunavailable.settings" = "This is on Anthropic's side (their usage API), not your token or setup. TokenEater retries automatically and recovers when the limit clears.";

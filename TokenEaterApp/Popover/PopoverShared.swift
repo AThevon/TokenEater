@@ -159,7 +159,7 @@ struct PopoverErrorBanner: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.85))
                     .fixedSize(horizontal: false, vertical: true)
-                Text(String(localized: "error.login.expired.hint"))
+                Text(usageStore.loginExpiredHint)
                     .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.55))
                     .fixedSize(horizontal: false, vertical: true)
