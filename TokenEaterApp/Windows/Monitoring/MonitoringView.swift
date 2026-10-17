@@ -15,6 +15,13 @@ struct MonitoringView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var sessionStore: SessionStore
     @EnvironmentObject private var vendorStatusStore: VendorStatusStore
+    @EnvironmentObject private var accountsStore: AccountsStore
+
+    /// Set when this view draws one added Claude account as a column of the
+    /// All dashboard: only that account's Claude blocks, over the account's
+    /// own `UsageStore`, which the caller injects into the environment. No
+    /// header and no scroll view, since the page around it has both.
+    var embeddedAccount: AccountID? = nil
 
     /// Lightweight 7d daily-buckets store for the back-of-card stats.
     /// Loaded once on appear, refreshed if older than 60s. Owned by
@@ -33,6 +40,17 @@ struct MonitoringView: View {
     @Environment(\.glowIntensity) private var glowIntensity
 
     var body: some View {
+        if embeddedAccount != nil {
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                ProviderStatusNotice(provider: .claude)
+                blocks(for: .claude)
+            }
+        } else {
+            page
+        }
+    }
+
+    private var page: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
                 header
@@ -124,8 +142,16 @@ struct MonitoringView: View {
         var duration: TimeInterval { self == .session ? 5 * 3600 : 7 * 86_400 }
     }
 
+    /// The account whose glance card this view draws: the embedded one, the
+    /// one Claude mode is focused on, or the main account.
+    private var heroAccount: AccountID {
+        if let embeddedAccount { return embeddedAccount }
+        return settingsStore.activeProviderMode == .claude ? settingsStore.focusedClaudeAccount : .main
+    }
+
     var claudeHeroWindow: ClaudeHeroWindow {
-        settingsStore.heroWindow(for: .claude).flatMap(ClaudeHeroWindow.init(rawValue:)) ?? .session
+        settingsStore.heroWindow(for: .claude, account: heroAccount)
+            .flatMap(ClaudeHeroWindow.init(rawValue:)) ?? .session
     }
 
     /// The window picker lives in a context menu rather than on the card.
@@ -135,18 +161,19 @@ struct MonitoringView: View {
     @ViewBuilder
     private func heroWindowMenu(for provider: MetricProvider, options: [(id: String, label: String)]) -> some View {
         Section(String(localized: "dashboard.hero.window.menu")) {
+            let account = provider == .claude ? heroAccount : .main
             Button {
-                settingsStore.setHeroWindow(nil, for: provider)
+                settingsStore.setHeroWindow(nil, for: provider, account: account)
             } label: {
                 Label(String(localized: "dashboard.hero.window.auto"),
-                      systemImage: settingsStore.heroWindow(for: provider) == nil ? "checkmark" : "")
+                      systemImage: settingsStore.heroWindow(for: provider, account: account) == nil ? "checkmark" : "")
             }
             ForEach(options, id: \.id) { option in
                 Button {
-                    settingsStore.setHeroWindow(option.id, for: provider)
+                    settingsStore.setHeroWindow(option.id, for: provider, account: account)
                 } label: {
                     Label(option.label,
-                          systemImage: settingsStore.heroWindow(for: provider) == option.id ? "checkmark" : "")
+                          systemImage: settingsStore.heroWindow(for: provider, account: account) == option.id ? "checkmark" : "")
                 }
             }
         }
@@ -320,7 +347,16 @@ struct MonitoringView: View {
     /// One rule for every card label on this page: name the provider when
     /// there is another one on screen, never when there is not.
     private func labelled(_ base: String, for provider: MetricProvider) -> String {
-        isComparing ? provider.displayName + " · " + base : base
+        isComparing ? columnName(for: provider) + " · " + base : base
+    }
+
+    /// The name a card label gives its column: the provider, or for an
+    /// embedded account's column that account's own name, since it draws
+    /// with Claude's provider.
+    private func columnName(for provider: MetricProvider) -> String {
+        guard provider == .claude, let embeddedAccount,
+              let record = accountsStore.record(for: embeddedAccount) else { return provider.displayName }
+        return record.name
     }
 
     private func labelled(_ tile: TileDescriptor, for provider: MetricProvider) -> TileDescriptor {
@@ -572,7 +608,8 @@ struct MonitoringView: View {
             gaugeGradient: gaugeGradient,
             zone: zone,
             resetText: resetText,
-            resetDate: resetDate
+            resetDate: resetDate,
+            name: embeddedAccount == nil ? nil : columnName(for: .claude)
         )
     }
 
@@ -592,7 +629,7 @@ struct MonitoringView: View {
                     ProviderGlyph(provider: .claude, size: 11)
                         .foregroundStyle(gaugeColor)
                         .dsGlow(gaugeColor, radius: 4, opacity: 0.6)
-                    Text(MetricProvider.claude.displayName.uppercased() + " · PACING")
+                    Text(columnName(for: .claude).uppercased() + " · PACING")
                         .font(DS.Typography.micro)
                         .tracking(1.5)
                         .foregroundStyle(DS.Palette.textSecondary)
