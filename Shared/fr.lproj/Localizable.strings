@@ -1119,3 +1119,37 @@
 "accounts.details.preview.off" = "La barre des menus reste telle quelle. Le popover reçoit quand même une section compacte, et Studio pourra ajouter le compte à la barre des menus plus tard.";
 "accounts.details.back" = "Retour";
 "accounts.details.done" = "Terminer";
+
+/* Comptes Claude : gestion */
+"accounts.card.count" = "%d comptes";
+"accounts.card.paused" = "%d en pause";
+"accounts.row.main" = "Principal";
+"accounts.row.tracking" = "Suivi. Coupe pour mettre ce compte en pause : aucune lecture, aucune requête, ses derniers chiffres restent.";
+"accounts.row.paused.help" = "En pause. Active pour suivre ce compte à nouveau.";
+"accounts.row.edit" = "Nom et couleur…";
+"accounts.row.remove" = "Retirer…";
+"accounts.row.more" = "Plus";
+"accounts.remove.title" = "Retirer %@ ?";
+"accounts.remove.action" = "Retirer";
+"accounts.remove.message" = "Ses dispositions, son historique de rythme et ses chiffres en cache sont supprimés. Claude Code et sa connexion ne sont pas touchés.";
+"accounts.health.checking" = "Connexion…";
+"accounts.health.upToDate" = "À jour · %@";
+"accounts.health.paused" = "En pause";
+"accounts.health.paused.numbers" = "En pause · %d%% / %d%% à %@";
+"accounts.health.expired" = "Connexion expirée. Ouvre Claude Code avec ce dossier, puis lance /login.";
+"accounts.health.expired.since" = "Connexion expirée %@. Ouvre Claude Code avec ce dossier, puis lance /login.";
+"accounts.health.accessDenied" = "macOS a refusé l'accès à l'élément de trousseau de ce compte.";
+"accounts.health.timedOut" = "Le trousseau n'a pas répondu à temps.";
+"accounts.health.noLogin" = "Aucune connexion pour ce dossier exact.";
+"accounts.health.folderMissing" = "Dossier introuvable.";
+"accounts.health.rateLimited" = "Anthropic limite les requêtes, le prochain rafraîchissement réessaiera.";
+"accounts.health.network" = "Impossible de joindre Anthropic.";
+"accounts.health.identityPending" = "Vérification du compte de cette connexion.";
+"accounts.health.anotherAccount" = "un autre compte";
+"accounts.health.mainMoved" = "Ta connexion principale pointe maintenant vers %@. Rien ne s'affiche sous ce nom tant qu'elle n'est pas revenue.";
+"accounts.health.mainMoved.source" = "Ta connexion principale pointe maintenant vers %@ (source : %@). Rien ne s'affiche sous ce nom tant qu'elle n'est pas revenue.";
+"accounts.health.sameAs" = "Ce dossier se connecte maintenant à %@, déjà suivi.";
+"accounts.health.changed" = "Ce dossier se connecte maintenant à un autre compte.";
+"accounts.health.retry" = "Réessayer";
+"accounts.health.useThisAccount" = "Utiliser ce compte";
+"accounts.source.keychain" = "trousseau";

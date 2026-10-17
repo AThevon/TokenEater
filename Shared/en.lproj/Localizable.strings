@@ -1119,3 +1119,37 @@
 "accounts.details.preview.off" = "The menu bar stays as it is. The popover still gets a compact section, and Studio can add the account to the menu bar later.";
 "accounts.details.back" = "Back";
 "accounts.details.done" = "Done";
+
+/* Claude accounts: managing them */
+"accounts.card.count" = "%d accounts";
+"accounts.card.paused" = "%d paused";
+"accounts.row.main" = "Main";
+"accounts.row.tracking" = "Tracked. Turn off to pause this account: no read, no request, its last numbers stay.";
+"accounts.row.paused.help" = "Paused. Turn on to track this account again.";
+"accounts.row.edit" = "Name and colour…";
+"accounts.row.remove" = "Remove…";
+"accounts.row.more" = "More";
+"accounts.remove.title" = "Remove %@?";
+"accounts.remove.action" = "Remove";
+"accounts.remove.message" = "Its layouts, pacing history and cached numbers are deleted. Claude Code and its login are not touched.";
+"accounts.health.checking" = "Connecting…";
+"accounts.health.upToDate" = "Up to date · %@";
+"accounts.health.paused" = "Paused";
+"accounts.health.paused.numbers" = "Paused · %d%% / %d%% at %@";
+"accounts.health.expired" = "Login expired. Open Claude Code on this folder, then run /login.";
+"accounts.health.expired.since" = "Login expired %@. Open Claude Code on this folder, then run /login.";
+"accounts.health.accessDenied" = "macOS refused access to this account's Keychain item.";
+"accounts.health.timedOut" = "The Keychain did not answer in time.";
+"accounts.health.noLogin" = "No login for this exact folder.";
+"accounts.health.folderMissing" = "Folder not found.";
+"accounts.health.rateLimited" = "Anthropic is throttling requests, the next refresh will try again.";
+"accounts.health.network" = "Could not reach Anthropic.";
+"accounts.health.identityPending" = "Checking which account this login belongs to.";
+"accounts.health.anotherAccount" = "another account";
+"accounts.health.mainMoved" = "Your main login now points to %@. Nothing is shown under this name until it is back.";
+"accounts.health.mainMoved.source" = "Your main login now points to %@ (source: %@). Nothing is shown under this name until it is back.";
+"accounts.health.sameAs" = "This folder now signs in to %@, which is already tracked.";
+"accounts.health.changed" = "This folder now signs in to another account.";
+"accounts.health.retry" = "Try again";
+"accounts.health.useThisAccount" = "Use this account";
+"accounts.source.keychain" = "Keychain";

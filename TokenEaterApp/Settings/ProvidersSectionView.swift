@@ -54,7 +54,7 @@ struct ProvidersSectionView: View {
                     claudeAccountsFooter
                 }
                 resultLine(claudeMessage, success: claudeSucceeded)
-                if usageStore.errorState == .rateLimited {
+                if usageStore.errorState == .rateLimited, !tracksSeveralAccounts {
                     Label {
                         Text("error.banner.apiunavailable.settings").font(.system(size: 11))
                     } icon: {
@@ -121,9 +121,26 @@ struct ProvidersSectionView: View {
     /// it always was, plus this one quiet line.
     @ViewBuilder
     private var claudeAccountsFooter: some View {
-        addAccountLink
-            .padding(.top, 2)
+        if tracksSeveralAccounts {
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                ForEach(accountsStore.records) { record in
+                    if let store = accountsStore.usageStore(for: record.id) {
+                        ClaudeAccountRow(record: record, store: store)
+                    }
+                }
+                addAccountLink
+                    .padding(.top, 2)
+            }
+            .padding(.top, 4)
+        } else {
+            addAccountLink
+                .padding(.top, 2)
+        }
     }
+
+    /// From two accounts each one gets its own row, with its own actions;
+    /// the card itself only says how many there are.
+    private var tracksSeveralAccounts: Bool { accountsStore.records.count >= 2 }
 
     private var addAccountLink: some View {
         Button {
@@ -145,9 +162,11 @@ struct ProvidersSectionView: View {
     /// Two words for one idea is how a settings screen stops looking designed.
     @ViewBuilder
     private var claudeActions: some View {
-        HStack(spacing: 6) {
-            resetButton(isRunning: isResettingClaude, action: resetClaude)
-            checkButton(isRunning: isRedetecting, action: redetectClaude)
+        if !tracksSeveralAccounts {
+            HStack(spacing: 6) {
+                resetButton(isRunning: isResettingClaude, action: resetClaude)
+                checkButton(isRunning: isRedetecting, action: redetectClaude)
+            }
         }
     }
 
@@ -193,6 +212,14 @@ struct ProvidersSectionView: View {
     }
 
     private var claudeStatus: String {
+        if tracksSeveralAccounts {
+            let paused = accountsStore.records.filter(\.isPaused).count
+            var status = String(format: String(localized: "accounts.card.count"), accountsStore.records.count)
+            if paused > 0 {
+                status += " · " + String(format: String(localized: "accounts.card.paused"), paused)
+            }
+            return status
+        }
         if usageStore.errorState == .tokenUnavailable {
             return String(localized: "codex.status.notInstalled.claude")
         }

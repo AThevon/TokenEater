@@ -461,3 +461,84 @@ enum MainFolderResult: Equatable, Sendable {
     /// Nothing changed, for this reason.
     case refused(AccountConnectResult)
 }
+
+// MARK: - Health
+
+/// Where one Claude account stands, in the terms Settings shows it. Worked
+/// out from what the account's store and token provider already know; it
+/// never depends on `hasConfig`, which only says a token was read once.
+enum AccountHealth: Equatable, Sendable {
+    /// Started, nothing back yet.
+    case checking
+    case upToDate(Date)
+    /// Not tracked for now: no read, no call. The last numbers stay, dated.
+    case paused(lastUpdate: Date?)
+    /// A login exists and Anthropic refuses it. TokenEater never renews a
+    /// login (#268): the user reopens Claude Code on the folder.
+    case loginExpired(since: Date?, command: String)
+    case accessDenied
+    case timedOut
+    /// Nothing to read for this exact folder.
+    case noLogin(command: String)
+    case folderMissing
+    case rateLimited
+    case network
+    /// Two or more accounts: the login's profile could not be fetched yet,
+    /// so nothing is written until it is.
+    case identityPending
+    /// The login no longer belongs to this account. `otherName` names the
+    /// tracked account it belongs to; `source` says where the main account's
+    /// token came from, since that is what moved.
+    case identityConflict(IdentityVerdict, otherName: String?, source: TokenSource?)
+
+    static func resolve(
+        errorState: AppErrorState,
+        diagnostic: TokenDiagnostic,
+        loginExpiredSince: Date?,
+        identityState: IdentityState,
+        isPaused: Bool,
+        lastUpdate: Date?,
+        folderExists: Bool,
+        command: String,
+        names: [AccountID: String]
+    ) -> AccountHealth {
+        if isPaused { return .paused(lastUpdate: lastUpdate) }
+        if !folderExists { return .folderMissing }
+        if case .conflict(let verdict) = identityState {
+            var other: String?
+            if case .belongsTo(let id) = verdict { other = names[id] }
+            return .identityConflict(verdict, otherName: other, source: diagnostic.source)
+        }
+        switch errorState {
+        case .tokenUnavailable:
+            // A token read from a file while the live Keychain item was
+            // refused is the Keychain's problem, not an expired login (#273).
+            if diagnostic.source == nil || diagnostic.isStaleFallback {
+                switch diagnostic.keychainFailure {
+                case .accessDenied: return .accessDenied
+                case .timedOut: return .timedOut
+                default:
+                    if diagnostic.source == nil { return .noLogin(command: command) }
+                }
+            }
+            return .loginExpired(since: loginExpiredSince ?? diagnostic.loginExpiresAt, command: command)
+        case .rateLimited:
+            return .rateLimited
+        case .networkError:
+            return .network
+        case .none:
+            break
+        }
+        if identityState == .pending { return .identityPending }
+        guard let lastUpdate else { return .checking }
+        return .upToDate(lastUpdate)
+    }
+
+    /// Something the user should look at.
+    var needsAttention: Bool {
+        switch self {
+        case .checking, .upToDate, .paused, .identityPending: return false
+        default: return true
+        }
+    }
+}
