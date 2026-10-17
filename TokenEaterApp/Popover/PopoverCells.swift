@@ -115,47 +115,73 @@ private struct GaugeRingCell: View {
     let showReset: Bool
 
     var body: some View {
-        let color = PopoverColors.gauge(
-            pct: snapshot.pct, resetDate: snapshot.resetDate,
-            windowDuration: snapshot.windowDuration,
-            theme: themeStore, settings: settingsStore
-        )
+        let unscaled = snapshot.unscaledValue != nil
+        let color = unscaled
+            ? PopoverColors.unscaled(hasSpend: snapshot.unscaledHasSpend, theme: themeStore)
+            : PopoverColors.gauge(
+                pct: snapshot.pct, resetDate: snapshot.resetDate,
+                windowDuration: snapshot.windowDuration,
+                theme: themeStore, settings: settingsStore
+            )
         let gradient = PopoverColors.gaugeGradient(
             pct: snapshot.pct, resetDate: snapshot.resetDate,
             windowDuration: snapshot.windowDuration,
             theme: themeStore, settings: settingsStore
         )
+        // An uncapped pool with nothing spent: neutral, so drawn without glow.
+        let quiet = unscaled && !snapshot.unscaledHasSpend
+        // An amount is wider than "67%": keep it inside the ring's hole.
+        let innerWidth = ringSize - 2 * max(ringSize * 0.08, 4) - 4
 
         VStack(spacing: width == .third ? 4 : 8) {
             ZStack {
-                RingGauge(
-                    percentage: snapshot.pct,
-                    gradient: gradient,
-                    size: ringSize,
-                    glowColor: color,
-                    glowRadius: glowRadius
-                )
+                if unscaled {
+                    DottedRing(lineWidth: max(ringSize * 0.08, 4), color: color)
+                        .frame(width: ringSize, height: ringSize)
+                } else {
+                    RingGauge(
+                        percentage: snapshot.pct,
+                        gradient: gradient,
+                        size: ringSize,
+                        glowColor: color,
+                        glowRadius: glowRadius
+                    )
+                }
                 if width == .third {
                     GlowText(
-                        "\(snapshot.pct)%",
+                        snapshot.valueText,
                         font: .system(size: 11, weight: .black, design: .rounded),
                         color: color,
-                        glowRadius: 2
+                        // Nothing spent is plain information, so no halo: a
+                        // glow would make $0 louder than the coloured gauges.
+                        glowRadius: quiet ? 0 : 2
                     )
+                    .modifier(UnscaledFit(active: unscaled, width: innerWidth))
                 } else {
                     VStack(spacing: 2) {
                         GlowText(
-                            "\(snapshot.pct)%",
+                            snapshot.valueText,
                             font: .system(size: valueFontSize, weight: .black, design: .rounded),
                             color: color,
-                            glowRadius: width == .full ? 4 : 3
+                            glowRadius: quiet ? 0 : (width == .full ? 4 : 3)
                         )
+                        .modifier(UnscaledFit(active: unscaled, width: innerWidth))
                         ProviderMetricLabel(provider: snapshot.provider, text: snapshot.label)
                     }
                 }
             }
             if width == .third {
                 ProviderMetricLabel(provider: snapshot.provider, text: snapshot.label, size: 9)
+            }
+            if let note = snapshot.unscaledNote, width != .third {
+                // Where the reset line would be (Extra Credits has none): say
+                // why an amount stands where a percentage usually does.
+                Text(note)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.35))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             if showReset && !snapshot.resetText.isEmpty {
                 // Only the full-width card has room for the sentence. At half
@@ -179,6 +205,7 @@ private struct GaugeRingCell: View {
         // this the VStack is only as wide as the ring and the layout pins it
         // to the cell's leading edge (visibly off-centre for half / third).
         .frame(maxWidth: .infinity)
+        .unscaledHelp(snapshot.unscaledNote)
     }
 
     private var ringSize: CGFloat {
@@ -213,23 +240,31 @@ private struct ChipCell: View {
     let showReset: Bool
 
     var body: some View {
-        let color = PopoverColors.gauge(
-            pct: snapshot.pct, resetDate: snapshot.resetDate,
-            windowDuration: snapshot.windowDuration,
-            theme: themeStore, settings: settingsStore
-        )
+        let unscaled = snapshot.unscaledValue != nil
+        let color = unscaled
+            ? PopoverColors.unscaled(hasSpend: snapshot.unscaledHasSpend, theme: themeStore)
+            : PopoverColors.gauge(
+                pct: snapshot.pct, resetDate: snapshot.resetDate,
+                windowDuration: snapshot.windowDuration,
+                theme: themeStore, settings: settingsStore
+            )
 
         HStack(spacing: 10) {
-            ZStack {
-                Circle()
-                    .stroke(Color.white.opacity(0.06), lineWidth: 4)
+            if unscaled {
+                DottedRing(lineWidth: 4, color: color)
                     .frame(width: 38, height: 38)
-                Circle()
-                    .trim(from: 0, to: CGFloat(min(max(snapshot.pct, 0), 100)) / 100.0)
-                    .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                    .frame(width: 38, height: 38)
-                    .rotationEffect(.degrees(-90))
-                    .dsGlow(color, radius: 3, opacity: 0.4)
+            } else {
+                ZStack {
+                    Circle()
+                        .stroke(Color.white.opacity(0.06), lineWidth: 4)
+                        .frame(width: 38, height: 38)
+                    Circle()
+                        .trim(from: 0, to: CGFloat(min(max(snapshot.pct, 0), 100)) / 100.0)
+                        .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                        .frame(width: 38, height: 38)
+                        .rotationEffect(.degrees(-90))
+                        .dsGlow(color, radius: 3, opacity: 0.4)
+                }
             }
             VStack(alignment: .leading, spacing: 1) {
                 ProviderMetricLabel(
@@ -237,9 +272,17 @@ private struct ChipCell: View {
                     size: 9, weight: .semibold, uppercased: true,
                     tracking: 0.5, opacity: 0.45
                 )
-                Text("\(snapshot.pct)%")
+                Text(snapshot.valueText)
                     .font(.system(size: 18, weight: .black, design: .rounded))
                     .foregroundStyle(color)
+                    .modifier(UnscaledFit(active: unscaled, width: nil))
+                if let note = snapshot.unscaledNote {
+                    Text(note)
+                        .font(.system(size: 9))
+                        .foregroundStyle(.white.opacity(0.5))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if showReset && !snapshot.resetText.isEmpty {
                     Text(width == .full
                          ? String(format: String(localized: "metric.reset"), snapshot.resetText)
@@ -256,6 +299,7 @@ private struct ChipCell: View {
         }
         .padding(10)
         .popoverCard()
+        .unscaledHelp(snapshot.unscaledNote)
     }
 }
 
@@ -275,7 +319,8 @@ private struct ArcCell: View {
                 Text(displayValue)
                     .font(.system(size: 38, weight: .black, design: .rounded))
                     .foregroundStyle(color)
-                    .dsGlow(color, radius: 10, opacity: 0.35)
+                    .modifier(UnscaledFit(active: isUnscaled, width: nil))
+                    .dsGlow(color, radius: 10, opacity: isUnscaled && !snapshot.unscaledHasSpend ? 0 : 0.35)
                 Text(label.uppercased())
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.5))
@@ -283,11 +328,17 @@ private struct ArcCell: View {
             }
         }
         .frame(height: 150)
+        .unscaledHelp(isUnscaled ? snapshot.unscaledNote : nil)
+    }
+
+    /// The cell shows an amount with no scale (uncapped Extra Credits).
+    private var isUnscaled: Bool {
+        content == .percent && snapshot.unscaledValue != nil
     }
 
     private var displayValue: String {
         switch content {
-        case .percent: return "\(snapshot.pct)%"
+        case .percent: return snapshot.valueText
         case .resetCountdown: return snapshot.resetText.isEmpty ? "-" : snapshot.resetText
         }
     }
@@ -304,6 +355,7 @@ private struct ArcCell: View {
         case .resetCountdown:
             return PopoverCellPalette.countdown
         case .percent:
+            if isUnscaled { return PopoverColors.unscaled(hasSpend: snapshot.unscaledHasSpend, theme: themeStore) }
             return PopoverColors.gauge(
                 pct: snapshot.pct, resetDate: snapshot.resetDate,
                 windowDuration: snapshot.windowDuration,
@@ -342,12 +394,22 @@ private struct ArcCell: View {
                 )
             }
             ZStack {
-                path
-                    .stroke(Color.white.opacity(0.06), style: StrokeStyle(lineWidth: strokeW, lineCap: .round))
-                path
-                    .trim(from: 0, to: progress)
-                    .stroke(color, style: StrokeStyle(lineWidth: strokeW, lineCap: .round))
-                    .dsGlow(color, radius: 8, opacity: 0.5)
+                if isUnscaled {
+                    // No limit, so no fill: an open dotted arc, not a 0 % one.
+                    // Half a circle long, with a dot on each end.
+                    path
+                        .stroke(
+                            color.opacity(DottedTrack.opacity),
+                            style: DottedTrack.style(lineWidth: strokeW, length: .pi * rect.width / 2, closed: false)
+                        )
+                } else {
+                    path
+                        .stroke(Color.white.opacity(0.06), style: StrokeStyle(lineWidth: strokeW, lineCap: .round))
+                    path
+                        .trim(from: 0, to: progress)
+                        .stroke(color, style: StrokeStyle(lineWidth: strokeW, lineCap: .round))
+                        .dsGlow(color, radius: 8, opacity: 0.5)
+                }
             }
         }
     }
@@ -379,6 +441,7 @@ private struct BigTextCell: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 10)
         .popoverCard()
+        .unscaledHelp(content == .percent ? snapshot.unscaledNote : nil)
     }
 
     private var valueFontSize: CGFloat {
@@ -391,7 +454,7 @@ private struct BigTextCell: View {
 
     private var displayValue: String {
         switch content {
-        case .percent: return "\(snapshot.pct)%"
+        case .percent: return snapshot.valueText
         case .resetCountdown: return snapshot.resetText.isEmpty ? "-" : snapshot.resetText
         }
     }
@@ -408,6 +471,9 @@ private struct BigTextCell: View {
         case .resetCountdown:
             return PopoverCellPalette.countdown
         case .percent:
+            if snapshot.unscaledValue != nil {
+                return PopoverColors.unscaled(hasSpend: snapshot.unscaledHasSpend, theme: themeStore)
+            }
             return PopoverColors.gauge(
                 pct: snapshot.pct, resetDate: snapshot.resetDate,
                 windowDuration: snapshot.windowDuration,
@@ -684,6 +750,45 @@ private extension View {
 enum PopoverCellPalette {
     /// Warm yellow used for reset countdown values (same as the old Focus hero).
     static let countdown = Color(red: 0.99, green: 0.90, blue: 0.54)
+
+    /// Neutral tint for a value with no scale (Extra Credits with no monthly
+    /// limit) while nothing is spent: plain information, since there is no
+    /// limit to be close to. Once money is spent the cell switches to the
+    /// warning colour (`PopoverColors.unscaled`).
+    static let unscaled = DS.Palette.textPrimary
+}
+
+private extension View {
+    /// The tooltip on a cell that shows an amount with no scale, so even the
+    /// cells too small for a caption say why there is no percentage.
+    @ViewBuilder
+    func unscaledHelp(_ note: String?) -> some View {
+        if let note {
+            help(note)
+        } else {
+            self
+        }
+    }
+}
+
+/// Lets an amount ("$1,235") shrink to fit where a short percentage always
+/// fit. Inactive, it returns the content untouched, so a percentage cell
+/// lays out exactly as before.
+private struct UnscaledFit: ViewModifier {
+    let active: Bool
+    let width: CGFloat?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if active {
+            content
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+                .frame(maxWidth: width)
+        } else {
+            content
+        }
+    }
 }
 
 /// A metric label with its provider's mark in front of it.

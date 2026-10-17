@@ -7,7 +7,11 @@ import WidgetKit
 // Dedicated widget for the paid Extra Credits pool, for accounts (e.g.
 // Enterprise) whose primary signal is overage spend rather than the
 // 5h / 7d quotas. The pool has no reset window, so colouring is purely
-// threshold-based (no Smart Color risk model).
+// threshold-based (no Smart Color risk model). With no monthly limit there is
+// no threshold either: the widget shows the amount spent over a dotted track,
+// like the app does, instead of a 0 % gauge. That amount follows the app's
+// rule (`ThemeColors.uncappedSpendColor`): the neutral text colour while
+// nothing is spent, the theme's warning colour once something is.
 // =====================================================================
 
 struct ExtraCreditsWidgetView: View {
@@ -44,28 +48,50 @@ struct ExtraCreditsWidgetView: View {
         let pct = extra.percent
         let color = theme.gaugeColor(for: Double(pct), thresholds: thresholds)
         let gradient = theme.gaugeGradient(for: Double(pct), thresholds: thresholds)
+        let spend = extra.uncappedSpendText
+        let spendColor = uncappedColor(extra)
 
         return VStack(spacing: 0) {
             WidgetHeader("widget.extra")
             Spacer(minLength: 8)
             ZStack {
-                Circle()
-                    .stroke(.white.opacity(WidgetTokens.trackOpacity), lineWidth: WidgetTokens.ringSmall)
-                Circle()
-                    .trim(from: 0, to: min(Double(pct), 100) / 100)
-                    .stroke(gradient, style: StrokeStyle(lineWidth: WidgetTokens.ringSmall, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .shadow(color: color.opacity(0.32), radius: 5)
-                HeroPercent(pct)
+                if let spend {
+                    DottedRing(lineWidth: WidgetTokens.ringSmall, color: spendColor)
+                    Text(spend)
+                        .font(WidgetTokens.heroSmall)
+                        .monospacedDigit()
+                        .foregroundStyle(spendColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.4)
+                        .padding(.horizontal, WidgetTokens.ringSmall + 6)
+                } else {
+                    Circle()
+                        .stroke(.white.opacity(WidgetTokens.trackOpacity), lineWidth: WidgetTokens.ringSmall)
+                    Circle()
+                        .trim(from: 0, to: min(Double(pct), 100) / 100)
+                        .stroke(gradient, style: StrokeStyle(lineWidth: WidgetTokens.ringSmall, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .shadow(color: color.opacity(0.32), radius: 5)
+                    HeroPercent(pct)
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 6)
             Spacer(minLength: 8)
-            Text(amountText(extra))
-                .font(WidgetTokens.microMono)
-                .foregroundStyle(Color(hex: theme.widgetText).opacity(WidgetTokens.secondary))
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+            if spend != nil {
+                Text("dashboard.extra.uncapped")
+                    .font(WidgetTokens.micro)
+                    .foregroundStyle(neutral.opacity(WidgetTokens.secondary))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+            } else {
+                Text(amountText(extra))
+                    .font(WidgetTokens.microMono)
+                    .foregroundStyle(neutral.opacity(WidgetTokens.secondary))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
         }
     }
 
@@ -73,7 +99,11 @@ struct ExtraCreditsWidgetView: View {
 
     private func mediumContent(_ extra: ExtraUsage) -> some View {
         let pct = extra.percent
-        let color = theme.gaugeColor(for: Double(pct), thresholds: thresholds)
+        let spend = extra.uncappedSpendText
+        // Uncapped: the amount is the hero, coloured by the money spent rather
+        // than a threshold, and there is no "used / limit" figure to repeat
+        // beside it.
+        let color = spend == nil ? theme.gaugeColor(for: Double(pct), thresholds: thresholds) : uncappedColor(extra)
         let gradient = theme.gaugeGradient(
             for: Double(pct), thresholds: thresholds, startPoint: .leading, endPoint: .trailing
         )
@@ -82,38 +112,49 @@ struct ExtraCreditsWidgetView: View {
             WidgetHeader("widget.extra")
 
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("\(pct)%")
+                Text(spend ?? "\(pct)%")
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(color)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
                 Image(systemName: "creditcard.fill")
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(color.opacity(0.85))
+                    .foregroundStyle(color.opacity(spend == nil ? 0.85 : WidgetTokens.secondary))
                     .baselineOffset(2)
                 Spacer(minLength: 0)
-                Text(amountText(extra))
-                    .font(WidgetTokens.bodyMono)
-                    .foregroundStyle(Color(hex: theme.widgetText).opacity(WidgetTokens.secondary))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
-
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(.white.opacity(WidgetTokens.trackOpacity))
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(gradient)
-                        .frame(width: max(0, geo.size.width * min(Double(pct), 100) / 100))
+                if spend == nil {
+                    Text(amountText(extra))
+                        .font(WidgetTokens.bodyMono)
+                        .foregroundStyle(neutral.opacity(WidgetTokens.secondary))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                 }
             }
-            .frame(height: 6)
+
+            if spend != nil {
+                DottedBar(lineWidth: 6, color: color)
+                    .frame(height: 6)
+            } else {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(.white.opacity(WidgetTokens.trackOpacity))
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(gradient)
+                            .frame(width: max(0, geo.size.width * min(Double(pct), 100) / 100))
+                    }
+                }
+                .frame(height: 6)
+            }
 
             Spacer(minLength: 0)
 
-            Text("dashboard.extra.monthly")
+            Text(spend == nil
+                 ? String(localized: "dashboard.extra.monthly")
+                 : String(localized: "dashboard.extra.uncapped"))
                 .font(WidgetTokens.micro)
-                .foregroundStyle(Color(hex: theme.widgetText).opacity(WidgetTokens.tertiary))
+                .foregroundStyle(neutral.opacity(WidgetTokens.tertiary))
         }
     }
 
@@ -133,6 +174,14 @@ struct ExtraCreditsWidgetView: View {
     }
 
     // MARK: - Helpers
+
+    /// The widget's plain text colour, for captions and an uncapped $0.
+    private var neutral: Color { Color(hex: theme.widgetText) }
+
+    /// The uncapped amount's colour: neutral at zero, warning once spent.
+    private func uncappedColor(_ extra: ExtraUsage) -> Color {
+        theme.uncappedSpendColor(hasSpend: extra.hasUncappedSpend, thresholds: thresholds, neutral: neutral)
+    }
 
     /// "$180 / $500" with a limit, otherwise just the spend ("$180").
     private func amountText(_ extra: ExtraUsage) -> String {

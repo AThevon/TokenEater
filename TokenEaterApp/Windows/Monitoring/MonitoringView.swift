@@ -944,7 +944,16 @@ struct MonitoringView: View {
         // Same threshold ladder + theme palette as the menu bar / popover /
         // widgets. Extra Credits has no reset window, so it never uses Smart
         // Color; the static gauge thresholds keep every surface in agreement.
-        let tint = themeStore.current.gaugeColor(for: Double(pct), thresholds: themeStore.thresholds)
+        // No monthly limit: a percentage of nothing would read as a reassuring
+        // 0 %. Show the amount actually spent instead: neutral while nothing is
+        // spent, in the warning colour once something is.
+        let uncapped = extra.isUncapped
+        let spent = CurrencyFormatter.formatMinorUnits(used, currencyCode: currency, locale: Locale(identifier: "en_US"))
+        let tint: Color = uncapped
+            ? (used > 0
+                ? themeStore.current.gaugeColor(for: Double(themeStore.thresholds.warningPercent), thresholds: themeStore.thresholds)
+                : DS.Palette.textSecondary)
+            : themeStore.current.gaugeColor(for: Double(pct), thresholds: themeStore.thresholds)
 
         return VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             HStack {
@@ -952,7 +961,7 @@ struct MonitoringView: View {
                     .font(DS.Typography.title2)
                     .foregroundStyle(DS.Palette.textPrimary)
                 Spacer()
-                Text("\(pct)%")
+                Text(uncapped ? spent : "\(pct)%")
                     .font(.system(size: 20, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(tint)
@@ -985,9 +994,14 @@ struct MonitoringView: View {
                         .foregroundStyle(DS.Palette.textTertiary)
                 }
             } else {
-                Text(String(localized: "dashboard.extra.noLimit"))
+                // The tile only shows while the pool is enabled, so no limit here
+                // always means uncapped. Where the bar would be: an open dotted
+                // line, the same shape the popover and the widgets draw.
+                DottedBar(lineWidth: 6, color: tint)
+                    .frame(height: 6)
+                Text(String(localized: "dashboard.extra.uncapped"))
                     .font(DS.Typography.label)
-                    .foregroundStyle(DS.Palette.textTertiary)
+                    .foregroundStyle(tint)
             }
         }
         .padding(DS.Spacing.md)

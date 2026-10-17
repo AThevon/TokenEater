@@ -201,6 +201,31 @@ struct ExtraUsage: Codable, Equatable {
         let limit = monthlyLimit ?? 0
         return limit > 0 ? Int((used / limit) * 100) : 0
     }
+
+    /// The pool is on but has no monthly limit, so a percentage means nothing:
+    /// the spend is uncapped. Surfaces show the amount spent instead of 0 %.
+    var isUncapped: Bool {
+        isEnabled && (monthlyLimit ?? 0) <= 0
+    }
+
+    /// What the menu bar and the popover show in place of the percentage when
+    /// the pool is uncapped: the amount spent this month, compact ("$20.49",
+    /// "$1,235"). Nil when a monthly limit gives the percentage its meaning, so
+    /// the capped case keeps drawing exactly what it always has. Pinned to
+    /// en_US like the dashboard card, so every app surface agrees.
+    var uncappedSpendText: String? {
+        guard isUncapped else { return nil }
+        return CurrencyFormatter.formatMinorUnitsCompact(
+            usedCredits ?? 0, currencyCode: currency, locale: Locale(identifier: "en_US")
+        )
+    }
+
+    /// The pool is uncapped and real money has been spent on it this month.
+    /// Picks the colour of the amount on every surface (see
+    /// `ThemeColors.uncappedSpendColor`): neutral at zero, warning once spent.
+    var hasUncappedSpend: Bool {
+        isUncapped && (usedCredits ?? 0) > 0
+    }
 }
 
 // MARK: - Cached Usage (for offline support)

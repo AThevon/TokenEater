@@ -49,6 +49,40 @@ struct UsageResponseDecodingTests {
         #expect(extra.percent == 0)
     }
 
+    /// Enabled with no monthly limit is uncapped: surfaces show the spend, not 0 %.
+    /// The real payload from an org seat: `is_enabled` true, no `monthly_limit`.
+    @Test("ExtraUsage.isUncapped when enabled with no limit")
+    func extraUncapped() throws {
+        let json = #"{"is_enabled": true, "used_credits": 2049, "currency": "USD"}"#
+        let extra = try JSONDecoder().decode(ExtraUsage.self, from: Data(json.utf8))
+        #expect(extra.isUncapped)
+        #expect(extra.percent == 0)
+        #expect(!ExtraUsage(isEnabled: true, monthlyLimit: 1000, usedCredits: 0, utilization: 0, currency: "AUD", disabledReason: nil).isUncapped)
+        #expect(!ExtraUsage(isEnabled: false, monthlyLimit: nil, usedCredits: 0, utilization: nil, currency: "USD", disabledReason: "out_of_credits").isUncapped)
+    }
+
+    /// The text the menu bar and the popover show in place of the percentage:
+    /// present only when uncapped, so the capped case draws what it always did.
+    @Test("ExtraUsage.uncappedSpendText only when uncapped")
+    func uncappedSpendText() {
+        #expect(ExtraUsage.fixture(monthlyLimit: nil, usedCredits: 2049, utilization: nil).uncappedSpendText == "$20.49")
+        #expect(ExtraUsage.fixture(monthlyLimit: 0, usedCredits: 123456, utilization: nil).uncappedSpendText == "$1,235")
+        #expect(ExtraUsage.fixture(monthlyLimit: nil, usedCredits: nil, utilization: nil).uncappedSpendText == "$0.00")
+        #expect(ExtraUsage.fixture(monthlyLimit: 40000, usedCredits: 27000).uncappedSpendText == nil)
+        #expect(ExtraUsage.fixture(isEnabled: false, monthlyLimit: nil, usedCredits: 2049, utilization: nil).uncappedSpendText == nil)
+    }
+
+    /// Picks the uncapped colour: neutral at zero, warning once money is spent.
+    /// A capped or disabled pool never counts, so its colour is untouched.
+    @Test("ExtraUsage.hasUncappedSpend only when uncapped and above zero")
+    func hasUncappedSpend() {
+        #expect(ExtraUsage.fixture(monthlyLimit: nil, usedCredits: 2049, utilization: nil).hasUncappedSpend)
+        #expect(!ExtraUsage.fixture(monthlyLimit: nil, usedCredits: 0, utilization: nil).hasUncappedSpend)
+        #expect(!ExtraUsage.fixture(monthlyLimit: nil, usedCredits: nil, utilization: nil).hasUncappedSpend)
+        #expect(!ExtraUsage.fixture(monthlyLimit: 40000, usedCredits: 27000).hasUncappedSpend)
+        #expect(!ExtraUsage.fixture(isEnabled: false, monthlyLimit: nil, usedCredits: 2049, utilization: nil).hasUncappedSpend)
+    }
+
     /// Unfamiliar top-level keys (new server-side codenames) must not break decoding.
     @Test("unknown top-level keys are ignored")
     func unknownKeysIgnored() throws {

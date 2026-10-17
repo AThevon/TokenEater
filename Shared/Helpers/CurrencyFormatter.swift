@@ -46,4 +46,35 @@ enum CurrencyFormatter {
         return formatter.string(from: NSNumber(value: majorValue))
             ?? "\(code) \(majorValue)"
     }
+
+    /// The menu bar and popover variant of `formatMinorUnits`, built to keep a
+    /// stable width from one refresh to the next. Below 100 major units it
+    /// always shows the currency's fraction digits (`$20.00`, `$20.49`), so a
+    /// round amount does not suddenly drop two characters and shift every
+    /// other menu bar segment. From 100 up it rounds to whole units (`$1,235`
+    /// rather than `$1,234.56`), where the cents only crowd the bar. The
+    /// threshold is tested on the amount once rounded to the minor unit, so
+    /// 9,999.6 cents reads `$100`, exactly like an even 10,000 cents, rather
+    /// than `$100.00`.
+    static func formatMinorUnitsCompact(
+        _ minorUnits: Double,
+        currencyCode: String?,
+        locale: Locale = .current
+    ) -> String {
+        let code = (currencyCode?.isEmpty == false) ? currencyCode! : "USD"
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = code
+        formatter.locale = locale
+        let fractionDigits = formatter.maximumFractionDigits
+        let divisor = pow(10.0, Double(fractionDigits))
+        let majorValue = minorUnits.rounded() / divisor
+
+        let digits = majorValue >= 100 ? 0 : fractionDigits
+        formatter.minimumFractionDigits = digits
+        formatter.maximumFractionDigits = digits
+        let shown = digits == 0 ? majorValue.rounded() : majorValue
+        return formatter.string(from: NSNumber(value: shown))
+            ?? "\(code) \(shown)"
+    }
 }
