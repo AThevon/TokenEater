@@ -489,12 +489,13 @@ private struct MenuBarLivePreview: View {
     @EnvironmentObject private var vendorStatusStore: VendorStatusStore
     @EnvironmentObject private var accountsStore: AccountsStore
 
+    /// The preview draws every running account's numbers, not only the
+    /// main account's in the environment.
+    @StateObject private var accountStores = UsageStoresObserver()
+
     @Binding var selectedSegmentID: UUID?
 
     private let scale: CGFloat = 2
-    /// Past this width the item risks sliding under the notch of a 13 or 14
-    /// inch display once the system's own items are counted.
-    private static let notchSafeWidth: CGFloat = 280
 
     var body: some View {
         let data = MenuBarRenderer.RenderData.live(
@@ -561,8 +562,11 @@ private struct MenuBarLivePreview: View {
                 .multilineTextAlignment(.center)
 
             // Several accounts make a long bar quickly, and the notch of a
-            // small screen hides what does not fit next to it.
-            if rendered.image.size.width > Self.notchSafeWidth {
+            // small screen hides what does not fit next to it. Only said
+            // once account markers are on: a single account's bar looks
+            // and warns exactly as it always did.
+            if settingsStore.showsAccountMarkers,
+               rendered.image.size.width > MenuBarRenderer.notchSafeWidth {
                 Label(String(localized: "menuBar.editor.tooWide"), systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(DS.Palette.semanticWarning.opacity(0.85))
@@ -577,6 +581,7 @@ private struct MenuBarLivePreview: View {
             }
         }
         .frame(maxWidth: .infinity)
+        .followingAccountStores(accountStores, accounts: accountsStore, accountList: settingsStore.claudeAccounts)
     }
 
     /// How each account's run is marked, once two accounts run. Bound to a
@@ -618,6 +623,8 @@ private struct MenuBarSegmentListEditor: View {
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var accountsStore: AccountsStore
+    /// The availability badges read the added accounts' stores too.
+    @StateObject private var accountStores = UsageStoresObserver()
 
     @Binding var selectedSegmentID: UUID?
     @State private var draggingID: UUID?
@@ -631,6 +638,7 @@ private struct MenuBarSegmentListEditor: View {
             }
         }
         .onDrop(of: [.text], delegate: ReorderGapDropDelegate(draggingID: $draggingID))
+        .followingAccountStores(accountStores, accounts: accountsStore, accountList: settingsStore.claudeAccounts)
     }
 
     private var emptyHint: some View {

@@ -144,6 +144,8 @@ private struct StudioMenuBarThumbnail: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var vendorStatusStore: VendorStatusStore
     @EnvironmentObject private var accountsStore: AccountsStore
+    /// The thumbnail draws every running account's numbers.
+    @StateObject private var accountStores = UsageStoresObserver()
 
     var body: some View {
         let data = MenuBarRenderer.RenderData.live(
@@ -173,6 +175,7 @@ private struct StudioMenuBarThumbnail: View {
                 .frame(maxWidth: 96, maxHeight: 18)
         }
         .environment(\.colorScheme, .dark)
+        .followingAccountStores(accountStores, accounts: accountsStore, accountList: settingsStore.claudeAccounts)
     }
 }
 

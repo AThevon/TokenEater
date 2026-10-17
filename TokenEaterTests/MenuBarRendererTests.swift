@@ -649,10 +649,12 @@ struct MenuBarAccountMarkerTests {
         let bar = MenuBarOutageBadgeTests.sampleRenderData(segments: segments)
         #expect(MenuBarRenderer.layoutPlan(bar) == segments.map { .segment($0.id) })
         var marked = twoAccounts(segments)
+        marked.marksLoneAccount = true
         #expect(MenuBarRenderer.renderUncached(marked).size.width > MenuBarRenderer.renderUncached(bar).size.width)
         // Without the markers (one running account) the two are the same bar.
         marked.accountMarkers = [:]
         marked.accountData = [:]
+        marked.marksLoneAccount = false
         #expect(marked == bar)
         #expect(MenuBarRenderer.renderUncached(marked).size == MenuBarRenderer.renderUncached(bar).size)
     }
@@ -664,7 +666,26 @@ struct MenuBarAccountMarkerTests {
             MenuBarSegment(kind: .session, style: .labelValue, account: AccountID(rawValue: "acct-gone")),
         ]
         let bar = twoAccounts(segments)
-        #expect(MenuBarRenderer.layoutPlan(bar) == [.marker(main), .segment(segments[0].id)])
+        // One account left in the bar: nothing to tell apart, no marker.
+        #expect(MenuBarRenderer.layoutPlan(bar) == [.segment(segments[0].id)])
+    }
+
+    @Test("In All, an account kept out of the bar adds no marker to the others")
+    func accountOutOfTheBarAddsNoMarker() {
+        let segments = [
+            MenuBarSegment(kind: .session, style: .labelValue),
+            MenuBarSegment(kind: .weekly, style: .labelValue),
+        ]
+        let bar = twoAccounts(segments)
+        #expect(MenuBarRenderer.layoutPlan(bar) == segments.map { .segment($0.id) })
+        var single = MenuBarOutageBadgeTests.sampleRenderData(segments: segments)
+        single.accountData = bar.accountData
+        #expect(MenuBarRenderer.renderUncached(bar).size == MenuBarRenderer.renderUncached(single).size)
+
+        // Claude mode keeps it: it says which account is on screen.
+        var claudeMode = bar
+        claudeMode.marksLoneAccount = true
+        #expect(MenuBarRenderer.layoutPlan(claudeMode).first == .marker(main))
     }
 
     @Test("Codex and neutral segments end a run, so a split account is marked again")
@@ -673,11 +694,13 @@ struct MenuBarAccountMarkerTests {
             MenuBarSegment(kind: .session, style: .labelValue),
             MenuBarSegment(kind: .serviceStatus, style: .glyph),
             MenuBarSegment(kind: .weekly, style: .labelValue),
+            MenuBarSegment(kind: .session, style: .labelValue, account: work),
         ]
         let bar = twoAccounts(segments)
         #expect(MenuBarRenderer.layoutPlan(bar) == [
             .marker(main), .segment(segments[0].id), .segment(segments[1].id),
             .marker(main), .segment(segments[2].id),
+            .marker(work.rawValue), .segment(segments[3].id),
         ])
     }
 
@@ -686,6 +709,7 @@ struct MenuBarAccountMarkerTests {
         let segments = [MenuBarSegment(kind: .session, style: .valueOnly)]
         var bar = twoAccounts(segments)
         bar.defaultAccount = work.rawValue
+        bar.marksLoneAccount = true
         #expect(MenuBarRenderer.source(for: segments[0], data: bar) == bar.accountData[work.rawValue])
         #expect(MenuBarRenderer.layoutPlan(bar) == [.marker(work.rawValue), .segment(segments[0].id)])
         // An explicit main account still reads the main account.

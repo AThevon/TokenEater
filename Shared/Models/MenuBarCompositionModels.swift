@@ -322,20 +322,34 @@ struct MenuBarComposition: Codable, Equatable {
 
     static let `default` = MenuBarBuiltinTemplate.classic.composition
 
-    /// The layout with an added account's session and weekly segments, put
-    /// right after the last Claude segment so every Claude account reads as
-    /// one run before Codex. They copy the style of the first visible Claude
-    /// usage segment, so the new account looks like the rest of the bar.
-    /// Unchanged when the account already has a segment here.
+    /// The layout with an added account's segments, put right after the
+    /// last Claude segment so every Claude account reads as one run before
+    /// Codex. They copy the main account's visible Claude usage segments,
+    /// kind and style, two at most (the session alone when it shows none),
+    /// so the new account reads like the rest of the bar. From the third
+    /// account in the bar on, only the first of them: next to the notch a
+    /// bar runs out of room fast. Unchanged when the account already has a
+    /// segment here.
     func addingAccountSegments(_ id: AccountID) -> MenuBarComposition {
         guard !id.isMain, !segments.contains(where: { $0.account == id }) else { return self }
-        let style = visibleSegments
-            .first { $0.kind.provider == .claude && $0.kind.family == .usage }?
-            .effectiveStyle ?? .labelValue
-        let added = [
-            MenuBarSegment(kind: .session, style: style, account: id),
-            MenuBarSegment(kind: .weekly, style: style, account: id),
-        ]
+        let mainUsage = visibleSegments.filter {
+            $0.kind.provider == .claude && $0.kind.family == .usage && ($0.account ?? .main).isMain
+        }
+        var models: [MenuBarSegment] = []
+        for segment in mainUsage where !models.contains(where: { $0.kind == segment.kind }) {
+            models.append(segment)
+        }
+        var added = models.prefix(2).map {
+            MenuBarSegment(kind: $0.kind, style: $0.effectiveStyle, account: id)
+        }
+        if added.isEmpty {
+            let style = visibleSegments
+                .first { $0.kind.provider == .claude && $0.kind.family == .usage }?
+                .effectiveStyle ?? .labelValue
+            added = [MenuBarSegment(kind: .session, style: style, account: id)]
+        }
+        let accountsInBar = Set(segments.compactMap(\.account).filter { !$0.isMain })
+        if !accountsInBar.isEmpty { added = Array(added.prefix(1)) }
         var next = self
         let insertAt = segments.lastIndex { $0.kind.provider == .claude }.map { $0 + 1 } ?? segments.count
         next.segments.insert(contentsOf: added, at: insertAt)

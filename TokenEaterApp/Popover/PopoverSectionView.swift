@@ -618,6 +618,8 @@ private struct ElementListEditor: View {
     @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var accountsStore: AccountsStore
+    /// The availability badges read the added accounts' stores too.
+    @StateObject private var accountStores = UsageStoresObserver()
 
     @Binding var selectedElementID: UUID?
     @State private var draggingID: UUID?
@@ -634,6 +636,7 @@ private struct ElementListEditor: View {
         // inherited from the pre-5.9 editor, SwiftUI offers no drag-ended
         // callback for onDrag.
         .onDrop(of: [.text], delegate: ReorderGapDropDelegate(draggingID: $draggingID))
+        .followingAccountStores(accountStores, accounts: accountsStore, accountList: settingsStore.claudeAccounts)
     }
 
     private var elementRows: some View {

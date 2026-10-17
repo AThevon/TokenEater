@@ -1,6 +1,11 @@
 import AppKit
 
 enum MenuBarRenderer {
+    /// Past this width the item risks sliding under the notch of a 13 or 14
+    /// inch display once the system's own items are counted. Studio and the
+    /// add-account sheet warn beyond it.
+    static let notchSafeWidth: CGFloat = 280
+
     struct RenderData: Equatable {
         /// The composable menu bar: ordered segments + per-segment styles.
         /// Drives which segments appear, in what order, and how each is drawn.
@@ -87,6 +92,11 @@ enum MenuBarRenderer {
         /// The account a Claude segment with no account of its own reads: the
         /// one Claude mode is focused on, the main one everywhere else.
         var defaultAccount: String = AccountID.main.rawValue
+        /// Claude mode: the one account on screen keeps its marker, which is
+        /// what says which account it is. Elsewhere a marker only appears
+        /// when the bar shows runs of two accounts or more, so an account
+        /// kept out of the bar does not lengthen it.
+        var marksLoneAccount: Bool = false
         /// Whether this account has a usage snapshot at all. With several
         /// accounts on, one that has none draws "--" in its place instead of
         /// turning the whole bar into the logo.
@@ -401,7 +411,11 @@ enum MenuBarRenderer {
     /// tighter than between two segments, so the mark reads as part of the
     /// run it names rather than as a segment of its own.
     private static let markerGap: CGFloat = 3
-    private static let markerDot: CGFloat = 6
+    /// The marker is a ring, not a disc: the pacing dots next to it are
+    /// filled glyphs coloured by risk, and the account's mark must not read
+    /// as one of them.
+    private static let markerDot: CGFloat = 7
+    private static let markerRingWidth: CGFloat = 2
     private static let markerFont = NSFont.systemFont(ofSize: 10, weight: .semibold)
 
     private struct SegmentVisual {
@@ -446,15 +460,19 @@ enum MenuBarRenderer {
     }
 
     /// What the bar draws, in order: a marker before each run of consecutive
-    /// Claude segments of one account (the main account included) once two
-    /// accounts run, and every drawable segment. A Codex or neutral segment
-    /// ends a run, so an account split around one is marked twice. With a
-    /// single account there is no marker, and the plan is the segments alone.
+    /// Claude segments of one account (the main account included) once the
+    /// bar shows two accounts (or one in Claude mode), and every drawable
+    /// segment. A Codex or neutral segment ends a run, so an account split
+    /// around one is marked twice. With a single account there is no marker,
+    /// and the plan is the segments alone.
     static func layoutPlan(_ data: RenderData) -> [PlannedVisual] {
         var plan: [PlannedVisual] = []
         var run: String?
-        for planned in plannedSegments(data) {
-            if let account = planned.account, account != run, data.accountMarkers[account] != nil {
+        let planned = plannedSegments(data)
+        let shownAccounts = Set(planned.compactMap(\.account))
+        let marks = data.marksLoneAccount || shownAccounts.count >= 2
+        for planned in planned {
+            if marks, let account = planned.account, account != run, data.accountMarkers[account] != nil {
                 plan.append(.marker(account))
             }
             run = planned.account
@@ -919,9 +937,13 @@ enum MenuBarRenderer {
                 withAttributes: attrs
             )
         case .marker(let dot, let name):
+            let inset = markerRingWidth / 2
             let dotRect = NSRect(x: x, y: (imageHeight - markerDot) / 2, width: markerDot, height: markerDot)
-            dot.setFill()
-            NSBezierPath(ovalIn: dotRect).fill()
+                .insetBy(dx: inset, dy: inset)
+            dot.setStroke()
+            let ring = NSBezierPath(ovalIn: dotRect)
+            ring.lineWidth = markerRingWidth
+            ring.stroke()
             if let name {
                 let ts = name.size()
                 name.draw(at: NSPoint(x: x + markerDot + markerGap, y: (imageHeight - ts.height) / 2))

@@ -252,17 +252,24 @@ final class SettingsStore: ObservableObject {
     }
 
     /// Gives a newly added account its place in the All layouts: always a
-    /// compact section in the popover, and its session and weekly segments in
-    /// the menu bar when the user kept "Add to the menu bar" checked. When All
-    /// is not the mode on screen, its stored layout is updated in place and
-    /// the one on screen is left alone. The account's own Claude mode layouts
-    /// are seeded later, on its first visit.
-    func seedAccount(_ id: AccountID, addToMenuBar: Bool) {
+    /// compact section in the popover, and its segments in the menu bar when
+    /// the user kept "Add to the menu bar" checked (`compactLabels` also
+    /// turns the markers to dots only, when the sheet found the bar too wide
+    /// for names). When All is not the mode on screen, its stored layout is
+    /// updated in place and the one on screen is left alone; the sheet then
+    /// switches to All itself. The account's own Claude mode layouts are
+    /// seeded later, on its first visit.
+    func seedAccount(_ id: AccountID, addToMenuBar: Bool, compactLabels: Bool = false) {
         guard !id.isMain else { return }
+        func seeded(_ bar: MenuBarComposition) -> MenuBarComposition {
+            var next = bar.addingAccountSegments(id)
+            if compactLabels { next.accountLabel = .dot }
+            return next
+        }
         if activeProviderMode == .all {
             popoverComposition = popoverComposition.addingAccountSection(id)
             if addToMenuBar {
-                menuBarComposition = menuBarComposition.addingAccountSegments(id)
+                menuBarComposition = seeded(menuBarComposition)
             }
             return
         }
@@ -276,7 +283,7 @@ final class SettingsStore: ObservableObject {
         }
         guard addToMenuBar else { return }
         let menuBarKey = "menuBarComposition" + ProviderMode.all.storageSuffix
-        if let data = try? JSONEncoder().encode(allModeMenuBarComposition.addingAccountSegments(id)) {
+        if let data = try? JSONEncoder().encode(seeded(allModeMenuBarComposition)) {
             defaults.set(data, forKey: menuBarKey)
         }
     }

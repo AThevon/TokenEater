@@ -30,6 +30,21 @@ final class UsageStoresObserver: ObservableObject {
     }
 }
 
+extension View {
+    /// Points `observer` at the running added accounts' stores when the
+    /// view appears and whenever the account list changes. The view owns
+    /// `observer` as a `@StateObject`, so a refresh of any of those stores
+    /// re-renders it.
+    func followingAccountStores(
+        _ observer: UsageStoresObserver,
+        accounts: AccountsStore,
+        accountList: [ClaudeAccountSummary]
+    ) -> some View {
+        onAppear { observer.track(accounts.runningExtraStores) }
+            .onChange(of: accountList) { _, _ in observer.track(accounts.runningExtraStores) }
+    }
+}
+
 extension AccountsStore {
     /// The stores of the running added accounts, in display order. The main
     /// account's store is left out: the views hold it in their environment.

@@ -168,13 +168,13 @@ struct MenuBarCompositionModelsTests {
     }
     // MARK: - Adding an account
 
-    @Test("an added account's segments copy the bar's style and sit after the last Claude segment")
+    @Test("an added account's segments copy the main account's and sit after the last Claude segment")
     func addingAccountSegments() {
         let work = AccountID(rawValue: "acct-work")
         let base = MenuBarComposition(segments: [
             MenuBarSegment(kind: .sessionPacing, style: .dot),
             MenuBarSegment(kind: .session, style: .pill),
-            MenuBarSegment(kind: .weekly, style: .pill),
+            MenuBarSegment(kind: .weekly, style: .valueOnly),
             MenuBarSegment(kind: .codexSession, style: .labelValue),
         ])
         let added = base.addingAccountSegments(work)
@@ -182,17 +182,47 @@ struct MenuBarCompositionModelsTests {
         #expect(added.segments[3].account == work)
         #expect(added.segments[4].account == work)
         #expect(added.segments[3].style == .pill)
-        #expect(added.segments[4].style == .pill)
+        #expect(added.segments[4].style == .valueOnly)
         // Adding twice changes nothing.
         #expect(added.addingAccountSegments(work) == added)
     }
 
-    @Test("with no Claude usage segment to copy, an account gets the label and value style")
+    @Test("a bar that shows only the session gives the new account only the session")
+    func addingAccountSegmentsFollowsKinds() {
+        let work = AccountID(rawValue: "acct-work")
+        let minimalist = MenuBarComposition(segments: [MenuBarSegment(kind: .session, style: .valueOnly)])
+        let added = minimalist.addingAccountSegments(work)
+        #expect(added.segments.map(\.kind) == [.session, .session])
+        #expect(added.segments[1].style == .valueOnly)
+
+        // Never more than two, in the main account's order.
+        let busy = MenuBarComposition(segments: [
+            MenuBarSegment(kind: .weekly, style: .labelValue),
+            MenuBarSegment(kind: .sonnet, style: .labelValue),
+            MenuBarSegment(kind: .session, style: .labelValue),
+        ])
+        #expect(busy.addingAccountSegments(work).segments.suffix(2).map(\.kind) == [.weekly, .sonnet])
+    }
+
+    @Test("from the third account in the bar, one segment each")
+    func addingThirdAccountIsCompact() {
+        let work = AccountID(rawValue: "acct-work")
+        let side = AccountID(rawValue: "acct-side")
+        let base = MenuBarComposition(segments: [
+            MenuBarSegment(kind: .session, style: .labelValue),
+            MenuBarSegment(kind: .weekly, style: .labelValue),
+        ])
+        let two = base.addingAccountSegments(work)
+        let three = two.addingAccountSegments(side)
+        #expect(three.segments.filter { $0.account == side }.map(\.kind) == [.session])
+    }
+
+    @Test("with no Claude usage segment to copy, an account gets the session in the label and value style")
     func addingAccountSegmentsDefaultStyle() {
         let work = AccountID(rawValue: "acct-work")
         let base = MenuBarComposition(segments: [MenuBarSegment(kind: .codexWeekly, style: .valueOnly)])
         let added = base.addingAccountSegments(work)
-        #expect(added.segments.map(\.kind) == [.codexWeekly, .session, .weekly])
+        #expect(added.segments.map(\.kind) == [.codexWeekly, .session])
         #expect(added.segments.dropFirst().allSatisfy { $0.style == .labelValue && $0.account == work })
         #expect(base.addingAccountSegments(.main) == base)
     }

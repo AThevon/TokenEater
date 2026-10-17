@@ -336,7 +336,11 @@ struct AddClaudeAccountSheet: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     sectionLabel("accounts.details.color")
-                    AccountColorPicker(colorHex: $colorHex, taken: accountsStore.records.map(\.colorHex))
+                    AccountColorPicker(
+                        colorHex: $colorHex,
+                        taken: accountsStore.records.map(\.colorHex),
+                        riskColors: themeStore.current.gaugeRiskColors
+                    )
                     Text("accounts.details.color.hint")
                         .font(.system(size: 10))
                         .foregroundStyle(DS.Palette.textTertiary)
@@ -424,19 +428,47 @@ struct AddClaudeAccountSheet: View {
         return facts
     }
 
+    /// The bar before and after the account is added, and whether the
+    /// markers go to dots only. Names are dropped only when the bar would
+    /// hold three accounts or more and would not fit next to the notch
+    /// with them; the bar's other choices stay the user's.
+    private struct AddPreview {
+        let before: MenuBarRenderer.RenderData
+        let after: MenuBarRenderer.RenderData
+        let compactsLabels: Bool
+        var afterWidth: CGFloat { MenuBarRenderer.renderWithHitRects(after).image.size.width }
+    }
+
+    private func addPreview(_ pending: PendingAccount) -> AddPreview {
+        func make(compact: Bool) -> (before: MenuBarRenderer.RenderData, after: MenuBarRenderer.RenderData) {
+            MenuBarRenderer.RenderData.previewAddingAccount(
+                AccountID(rawValue: "acct-preview"),
+                name: AccountNameRules.sanitize(name, fallback: pending.proposedName),
+                colorHex: colorHex,
+                mainName: asksForMainName ? mainName : nil,
+                compactLabels: compact,
+                usage: usageStore,
+                theme: themeStore,
+                settings: settingsStore,
+                vendor: vendorStatusStore,
+                codex: codexStore,
+                accounts: accountsStore
+            )
+        }
+        let full = make(compact: false)
+        let fullPreview = AddPreview(before: full.before, after: full.after, compactsLabels: false)
+        guard addToMenuBar,
+              accountsStore.activeAccountIDs.count + 1 >= 3,
+              full.after.composition.accountLabel == .dotAndName,
+              fullPreview.afterWidth > MenuBarRenderer.notchSafeWidth else { return fullPreview }
+        let compact = make(compact: true)
+        return AddPreview(before: compact.before, after: compact.after, compactsLabels: true)
+    }
+
     private func menuBarChoice(_ pending: PendingAccount) -> some View {
-        let preview = MenuBarRenderer.RenderData.previewAddingAccount(
-            AccountID(rawValue: "acct-preview"),
-            name: AccountNameRules.sanitize(name, fallback: pending.proposedName),
-            colorHex: colorHex,
-            mainName: asksForMainName ? mainName : nil,
-            usage: usageStore,
-            theme: themeStore,
-            settings: settingsStore,
-            vendor: vendorStatusStore,
-            codex: codexStore,
-            accounts: accountsStore
-        )
+        let preview = addPreview(pending)
+        let tooWide = addToMenuBar && preview.afterWidth > MenuBarRenderer.notchSafeWidth
+        let switchesToAll = addToMenuBar && settingsStore.activeProviderMode != .all
         return VStack(alignment: .leading, spacing: DS.Spacing.xs) {
             Toggle(isOn: $addToMenuBar) {
                 Text("accounts.details.addToMenuBar")
@@ -467,6 +499,25 @@ struct AddClaudeAccountSheet: View {
                 .font(.system(size: 10))
                 .foregroundStyle(DS.Palette.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            if switchesToAll {
+                Text("accounts.details.preview.switchesToAll")
+                    .font(.system(size: 10))
+                    .foregroundStyle(DS.Palette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if preview.compactsLabels {
+                Text("accounts.details.preview.compact")
+                    .font(.system(size: 10))
+                    .foregroundStyle(DS.Palette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if tooWide {
+                Label(String(localized: "menuBar.editor.tooWide"), systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(DS.Palette.semanticWarning.opacity(0.9))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .animation(DS.Motion.easeOut, value: addToMenuBar)
     }
@@ -498,6 +549,8 @@ struct AddClaudeAccountSheet: View {
 
     private func finish(_ pending: PendingAccount) {
         let renamesMain = asksForMainName
+        // Measured before the account joins the list, as the preview was.
+        let compactsLabels = addPreview(pending).compactsLabels
         guard let record = accountsStore.commit(pending, name: name, colorHex: colorHex) else {
             failure = .alreadyTracked
             step = .folder
@@ -508,7 +561,12 @@ struct AddClaudeAccountSheet: View {
             // `update` keeps the current name when the field was emptied.
             accountsStore.update(.main) { $0.name = mainName }
         }
-        settingsStore.seedAccount(record.id, addToMenuBar: addToMenuBar)
+        settingsStore.seedAccount(record.id, addToMenuBar: addToMenuBar, compactLabels: compactsLabels)
+        // The account lands in the All layout: a menu bar left in another
+        // mode would not show it at all.
+        if addToMenuBar, settingsStore.activeProviderMode != .all {
+            settingsStore.selectScope(.all)
+        }
         isPresented = false
     }
 
