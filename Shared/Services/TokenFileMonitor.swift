@@ -11,23 +11,35 @@ final class TokenFileMonitor: TokenFileMonitorProtocol {
         let size: UInt64?
     }
 
+    /// Who a watched file belongs to, which decides the publisher it fires.
+    private enum Owner: Hashable {
+        case claudeMain
+        case claudeAccount(AccountID)
+        case codex
+    }
+
     // MARK: - Internal Properties
 
     var tokenChanged: AnyPublisher<Void, Never> { subject.eraseToAnyPublisher() }
     var codexAuthChanged: AnyPublisher<Void, Never> { codexSubject.eraseToAnyPublisher() }
+    var accountTokenChanged: AnyPublisher<AccountID, Never> { accountSubject.eraseToAnyPublisher() }
 
     // MARK: - Private Properties
 
     private let subject = PassthroughSubject<Void, Never>()
     private let codexSubject = PassthroughSubject<Void, Never>()
+    private let accountSubject = PassthroughSubject<AccountID, Never>()
     private let queue = DispatchQueue(label: "com.tokeneater.filemonitor", qos: .utility)
     private let queueKey = DispatchSpecificKey<Bool>()
     private let debounceInterval: TimeInterval
-    private let watchedFiles: [URL]
     private let codexAuthURL: URL
+    /// The files watched and whose they are. Mutated only on `queue`.
+    private var owners: [URL: Owner]
+    private var watchedFiles: [URL] { Array(owners.keys) }
+    private var isMonitoring = false
     private var sources: [URL: DispatchSourceFileSystemObject] = [:]
     private var fingerprints: [URL: Fingerprint] = [:]
-    private var pending: [Bool: DispatchWorkItem] = [:]
+    private var pending: [Owner: DispatchWorkItem] = [:]
 
     // MARK: - Initializers
 
@@ -37,13 +49,44 @@ final class TokenFileMonitor: TokenFileMonitorProtocol {
         let home = homeDirectory ?? URL(fileURLWithPath: getpwuid(getuid()).map {
             String(cString: $0.pointee.pw_dir)
         } ?? NSHomeDirectory())
-        codexAuthURL = (codexHomeURL ?? CodexAuthReader().codexHomeURL)
+        let codexAuthURL = (codexHomeURL ?? CodexAuthReader().codexHomeURL)
             .appendingPathComponent("auth.json")
-        watchedFiles = [
-            home.appendingPathComponent("Library/Application Support/Claude/config.json"),
-            home.appendingPathComponent(".claude/.credentials.json"),
-            codexAuthURL,
+        self.codexAuthURL = codexAuthURL
+        let desktopConfigURL = home.appendingPathComponent("Library/Application Support/Claude/config.json")
+        self.desktopConfigURL = desktopConfigURL
+        owners = [
+            desktopConfigURL: .claudeMain,
+            home.appendingPathComponent(".claude/.credentials.json"): .claudeMain,
+            codexAuthURL: .codex,
         ]
+    }
+
+    /// Claude Desktop's config, watched for the main account while it reads
+    /// the default chain.
+    private let desktopConfigURL: URL
+
+    /// Swaps the Claude credential files watched: the main account's (its
+    /// folder's `.credentials.json`, plus Claude Desktop's config when its
+    /// scope reads it) and each added account's. Codex is unaffected. A file
+    /// that is new to the watch starts from its current state, so swapping
+    /// does not by itself report a change.
+    func setClaudeCredentialFiles(main: URL, includeDesktopConfig: Bool, extras: [AccountID: URL]) {
+        let apply = {
+            var next: [URL: Owner] = [self.codexAuthURL: .codex]
+            for (id, url) in extras where !id.isMain { next[url.standardizedFileURL] = .claudeAccount(id) }
+            next[main.standardizedFileURL] = .claudeMain
+            if includeDesktopConfig { next[self.desktopConfigURL] = .claudeMain }
+            guard next != self.owners else { return }
+            for url in self.owners.keys where next[url] == nil {
+                self.fingerprints.removeValue(forKey: url)
+            }
+            for url in next.keys where self.owners[url] == nil {
+                self.fingerprints[url] = self.fingerprint(url)
+            }
+            self.owners = next
+            if self.isMonitoring { self.reconcileWatches() }
+        }
+        if DispatchQueue.getSpecific(key: queueKey) == true { apply() } else { queue.sync(execute: apply) }
     }
 
     deinit { stopMonitoring() }
@@ -53,6 +96,7 @@ final class TokenFileMonitor: TokenFileMonitorProtocol {
     func startMonitoring() {
         queue.sync {
             stop()
+            isMonitoring = true
             for file in watchedFiles { fingerprints[file] = fingerprint(file) }
             reconcileWatches()
         }
@@ -76,6 +120,7 @@ final class TokenFileMonitor: TokenFileMonitorProtocol {
     }
 
     private func stop() {
+        isMonitoring = false
         for work in pending.values { work.cancel() }
         pending.removeAll()
         for source in sources.values { source.cancel() }
@@ -152,15 +197,24 @@ final class TokenFileMonitor: TokenFileMonitorProtocol {
     }
 
     private func emitChanges() {
-        for file in watchedFiles {
+        for (file, owner) in owners {
             let current = fingerprint(file)
             guard current != fingerprints[file] else { continue }
             fingerprints[file] = current
-            let isCodex = file == codexAuthURL
-            pending[isCodex]?.cancel()
-            let publisher = isCodex ? codexSubject : subject
-            let work = DispatchWorkItem { publisher.send(()) }
-            pending[isCodex] = work
+            pending[owner]?.cancel()
+            let work: DispatchWorkItem
+            switch owner {
+            case .claudeMain:
+                let publisher = subject
+                work = DispatchWorkItem { publisher.send(()) }
+            case .codex:
+                let publisher = codexSubject
+                work = DispatchWorkItem { publisher.send(()) }
+            case .claudeAccount(let id):
+                let publisher = accountSubject
+                work = DispatchWorkItem { publisher.send(id) }
+            }
+            pending[owner] = work
             queue.asyncAfter(deadline: .now() + debounceInterval, execute: work)
         }
     }

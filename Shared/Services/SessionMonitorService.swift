@@ -13,8 +13,9 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
     // race-free despite the @unchecked Sendable conformance.
     private var scanInterval: TimeInterval
     private var projectDirFreshness: TimeInterval
-    private let claudeProjectsDirOverride: URL?
-    private let claudeSessionsDirOverride: URL?
+    /// The config folders scanned, the main account's first. Mutated only on
+    /// `queue` (see `setRoots`), like the interval and the freshness.
+    private var roots: [ClaudeConfigRoot]
     private let processProvider: @Sendable () -> [ClaudeProcessInfo]
 
     // Cross-tick caches (#255). All three are touched only inside `scan()`,
@@ -51,28 +52,19 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
     /// transcript.
     private var parseCache: [String: (stamp: FileStamp, result: JSONLParseResult)] = [:]
 
-    private var claudeProjectsDir: URL {
-        if let override = claudeProjectsDirOverride { return override }
-        let home: String
-        if let pw = getpwuid(getuid()) {
-            home = String(cString: pw.pointee.pw_dir)
-        } else {
-            home = NSHomeDirectory()
-        }
-        return URL(fileURLWithPath: home).appendingPathComponent(".claude/projects")
+    /// The main account's folder: `<dir>/projects` and `<dir>/sessions`.
+    private var mainRoot: ClaudeConfigRoot {
+        roots.first ?? ClaudeConfigRoot(account: .main, scope: .defaultChain)
     }
 
-    private var claudeSessionsDir: URL {
-        if let override = claudeSessionsDirOverride { return override }
-        let home: String
-        if let pw = getpwuid(getuid()) {
-            home = String(cString: pw.pointee.pw_dir)
-        } else {
-            home = NSHomeDirectory()
-        }
-        return URL(fileURLWithPath: home).appendingPathComponent(".claude/sessions")
-    }
+    private var claudeProjectsDir: URL { mainRoot.projectsURL }
 
+    private var claudeSessionsDir: URL { mainRoot.sessionsURL }
+
+    /// - Parameters:
+    ///   - claudeProjectsDirOverride, claudeSessionsDirOverride: fixed folders
+    ///     for the main account (tests). Without them the scan follows the
+    ///     folder the main account is set to, `~/.claude` by default.
     init(
         scanInterval: TimeInterval = 2.0,
         projectDirFreshness: TimeInterval = 30 * 60,
@@ -82,9 +74,34 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
     ) {
         self.scanInterval = scanInterval
         self.projectDirFreshness = projectDirFreshness
-        self.claudeProjectsDirOverride = claudeProjectsDirOverride
-        self.claudeSessionsDirOverride = claudeSessionsDirOverride
+        let main = ClaudeConfigRoot(account: .main, scope: ClaudeAccountsStorage.mainScope())
+        self.roots = [ClaudeConfigRoot(
+            account: .main,
+            projectsURL: claudeProjectsDirOverride ?? main.projectsURL,
+            sessionsURL: claudeSessionsDirOverride ?? main.sessionsURL
+        )]
         self.processProvider = processProvider
+    }
+
+    /// Points the scan at other config folders, the main account's first.
+    /// Every cache is keyed by path, but a listing or a parse that belongs
+    /// to a folder no longer scanned is dropped rather than kept around.
+    func setRoots(_ roots: [ClaudeConfigRoot]) {
+        guard !roots.isEmpty else { return }
+        queue.async { [weak self] in
+            guard let self, self.roots != roots else { return }
+            self.roots = roots
+            self.dirListings.removeAll()
+            self.startedAtCache.removeAll()
+            self.parseCache.removeAll()
+        }
+    }
+
+    /// Returns once every change queued before it (`setRoots`, the interval,
+    /// the visibility) has been applied. For tests that drive `scan()`
+    /// synchronously.
+    func waitForPendingChanges() {
+        queue.sync {}
     }
 
     func startMonitoring() {

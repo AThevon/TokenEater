@@ -270,16 +270,19 @@ struct PopoverErrorBanner: View {
 /// state, so users can paste raw debug context into GitHub issues.
 struct CopyDiagnosticButton: View {
     @EnvironmentObject private var codexStore: CodexUsageStore
-    @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var settingsStore: SettingsStore
+    /// The report always describes the main account first, whatever account
+    /// a surrounding view has put in the environment's `UsageStore`.
+    @EnvironmentObject private var accountsStore: AccountsStore
     @State private var copied = false
 
     var body: some View {
         Button {
             let report = DiagnosticReporter.makeReport(
-                usageStore: usageStore,
+                usageStore: accountsStore.mainStore,
                 settingsStore: settingsStore,
-                codexStore: codexStore
+                codexStore: codexStore,
+                accounts: accountsStore
             )
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()

@@ -324,6 +324,43 @@ final class StatusBarController: NSObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] id in self?.settingsStore.purgeAccount(id) }
             .store(in: &cancellables)
+
+        // The file watcher and the session scan follow the accounts: the
+        // main account's folder (#294) and each running added account's.
+        accountsStore.$records
+            .map { records in records.map { [$0.id.rawValue, $0.configDir ?? "", $0.isPaused ? "p" : ""] } }
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.applyClaudeSources() }
+            .store(in: &cancellables)
+
+        accountsStore.mainScopeChanged
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.applyClaudeSources()
+                guard self.settingsStore.hasCompletedOnboarding, self.settingsStore.claudeEnabled else { return }
+                self.usageStore.reloadConfig(thresholds: self.themeStore.thresholds)
+            }
+            .store(in: &cancellables)
+    }
+
+    /// Points the credential watcher and the Agent Watchers scan at the
+    /// folders the Claude accounts read. Paused accounts are left out: they
+    /// read nothing, so a change to their login has nothing to wake.
+    private func applyClaudeSources() {
+        let home = ClaudeConfigDirResolver.realHome()
+        let main = accountsStore.mainRecord.scope
+        var extras: [AccountID: URL] = [:]
+        for record in accountsStore.records.dropFirst() where !record.isPaused {
+            extras[record.id] = URL(fileURLWithPath: record.scope.credentialsFilePath(home: home))
+        }
+        tokenFileMonitor.setClaudeCredentialFiles(
+            main: URL(fileURLWithPath: main.credentialsFilePath(home: home)),
+            includeDesktopConfig: main.includesClaudeDesktop,
+            extras: extras
+        )
+        sessionStore.setRoots([ClaudeConfigRoot(account: .main, scope: main, home: home)])
     }
 
     private func bootstrapRefresh() {
@@ -350,7 +387,9 @@ final class StatusBarController: NSObject {
         accountsStore.configureAll()
         themeStore.syncToSharedFile()
 
-        // Monitor token files (credentials + config.json) for changes
+        // Monitor token files (credentials + config.json) for changes, in the
+        // folders the accounts actually read.
+        applyClaudeSources()
         tokenFileMonitor.startMonitoring()
         tokenFileMonitor.tokenChanged
             .receive(on: RunLoop.main)
@@ -358,6 +397,17 @@ final class StatusBarController: NSObject {
                 guard let self else { return }
                 self.usageStore.handleTokenChange()
                 Task { await self.usageStore.refresh(force: true) }
+            }
+            .store(in: &cancellables)
+
+        tokenFileMonitor.accountTokenChanged
+            .receive(on: RunLoop.main)
+            .sink { [weak self] id in
+                guard let self, self.settingsStore.claudeEnabled,
+                      let record = self.accountsStore.record(for: id), !record.isPaused,
+                      let store = self.accountsStore.usageStore(for: id) else { return }
+                store.handleTokenChange()
+                Task { await store.refresh(force: true) }
             }
             .store(in: &cancellables)
 

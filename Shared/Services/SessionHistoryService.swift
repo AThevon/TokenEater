@@ -28,17 +28,14 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
             .appendingPathComponent("history-cache.json")
     }
 
-    /// Root scan dir. Real home, not the sandbox container -> we resolve via
-    /// `getpwuid` (same trick used in `SharedFileService` for the widget).
-    private static var projectsURL: URL {
-        let pw = getpwuid(getuid())
-        let home: URL
-        if let home_str = pw?.pointee.pw_dir.flatMap({ String(cString: $0) }), !home_str.isEmpty {
-            home = URL(fileURLWithPath: home_str)
-        } else {
-            home = FileManager.default.homeDirectoryForCurrentUser
-        }
-        return home.appendingPathComponent(".claude/projects", isDirectory: true)
+    /// Where the main Claude account keeps its transcripts: `<dir>/projects`
+    /// of the config folder the user chose for it, `~/.claude/projects` when
+    /// they never chose one (#294). Real home, not the sandbox container, via
+    /// `getpwuid` (same trick as `SharedFileService`). Read on every load,
+    /// so moving the main account to another folder takes effect on the next
+    /// History refresh without rebuilding anything.
+    private static func mainProjectsURL() -> URL {
+        ClaudeAccountsStorage.mainScope().projectsURL(home: ClaudeConfigDirResolver.realHome())
     }
 
     /// 4 files in parallel keeps the work tight without saturating the IO
@@ -58,18 +55,38 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
     }
 
     private let source: Source
-    private let roots: [URL]
+    /// The directories to scan, evaluated at every load. Only the files under
+    /// them are aggregated, so entries the persisted cache still holds for a
+    /// previous root never leak into the totals.
+    private let rootsProvider: @Sendable () -> [URL]
     private let persistedCacheURL: URL
 
-    init(source: Source = .claude, rootURL: URL? = nil, cacheURL: URL? = nil) {
+    /// - Parameters:
+    ///   - rootURL: a fixed root (tests, or a known folder). Without it, Claude
+    ///     follows the main account's config folder and Codex `CODEX_HOME`.
+    ///   - rootsProvider: roots computed at each load, for tests that move
+    ///     the root between two loads. Wins over `rootURL`.
+    init(
+        source: Source = .claude,
+        rootURL: URL? = nil,
+        cacheURL: URL? = nil,
+        rootsProvider: (@Sendable () -> [URL])? = nil
+    ) {
         self.source = source
         switch source {
         case .claude:
-            roots = [rootURL ?? Self.projectsURL]
+            if let rootsProvider {
+                self.rootsProvider = rootsProvider
+            } else if let rootURL {
+                self.rootsProvider = { [rootURL] }
+            } else {
+                self.rootsProvider = { [Self.mainProjectsURL()] }
+            }
             persistedCacheURL = cacheURL ?? Self.cacheURL
         case .codex:
             let home = rootURL ?? CodexAuthReader().codexHomeURL
-            roots = [home.appendingPathComponent("sessions"), home.appendingPathComponent("archived_sessions")]
+            let roots = [home.appendingPathComponent("sessions"), home.appendingPathComponent("archived_sessions")]
+            self.rootsProvider = rootsProvider ?? { roots }
             persistedCacheURL = cacheURL ?? Self.cacheURL.deletingLastPathComponent()
                 .appendingPathComponent("codex-history-cache.json")
         }
@@ -183,7 +200,7 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
         let fm = FileManager.default
         var results: [URL] = []
 
-        for root in roots {
+        for root in rootsProvider() {
             guard let enumerator = fm.enumerator(
                 at: root,
                 includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],

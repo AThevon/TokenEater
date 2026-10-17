@@ -16,4 +16,13 @@ final class MockTokenFileMonitor: TokenFileMonitorProtocol {
     func simulateCodexAuthChange() { codexSubject.send(()) }
 
     func simulateTokenChange() { subject.send(()) }
+
+    private let accountSubject = PassthroughSubject<AccountID, Never>()
+    var accountTokenChanged: AnyPublisher<AccountID, Never> { accountSubject.eraseToAnyPublisher() }
+    func simulateAccountTokenChange(_ id: AccountID) { accountSubject.send(id) }
+
+    var lastClaudeFiles: (main: URL, includeDesktopConfig: Bool, extras: [AccountID: URL])?
+    func setClaudeCredentialFiles(main: URL, includeDesktopConfig: Bool, extras: [AccountID: URL]) {
+        lastClaudeFiles = (main, includeDesktopConfig, extras)
+    }
 }

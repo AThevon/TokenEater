@@ -83,4 +83,74 @@ struct TokenFileMonitorTests {
         try await waitForEvent(claudeEvents, count: 1)
         #expect(codexEvents.value == 0)
     }
+
+    // MARK: - Accounts (#294)
+
+    private final class AccountEvents: @unchecked Sendable {
+        private let lock = NSLock()
+        private var ids: [AccountID] = []
+        var value: [AccountID] { lock.withLock { ids } }
+        func record(_ id: AccountID) { lock.withLock { ids.append(id) } }
+    }
+
+    @Test("a custom main folder is watched instead of ~/.claude")
+    func customMainFolder() async throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let defaultDir = home.appendingPathComponent(".claude")
+        let custom = home.appendingPathComponent(".claude-perso")
+        try FileManager.default.createDirectory(at: defaultDir, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: custom, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+
+        let monitor = TokenFileMonitor(debounceInterval: 0.05, homeDirectory: home, codexHomeURL: home.appendingPathComponent(".codex"))
+        let events = Events()
+        let subscription = monitor.tokenChanged.sink { events.record() }
+        defer { subscription.cancel(); monitor.stopMonitoring() }
+        monitor.setClaudeCredentialFiles(
+            main: custom.appendingPathComponent(".credentials.json"),
+            includeDesktopConfig: false,
+            extras: [:]
+        )
+        monitor.startMonitoring()
+
+        try Data("default login".utf8).write(to: defaultDir.appendingPathComponent(".credentials.json"), options: .atomic)
+        try await Task.sleep(for: .milliseconds(400))
+        #expect(events.value == 0)
+
+        try Data("perso login".utf8).write(to: custom.appendingPathComponent(".credentials.json"), options: .atomic)
+        try await waitForEvent(events, count: 1)
+    }
+
+    @Test("an added account's credentials file reports that account only")
+    func addedAccountFile() async throws {
+        let home = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let main = home.appendingPathComponent(".claude")
+        let work = home.appendingPathComponent(".claude-work")
+        try FileManager.default.createDirectory(at: main, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: home) }
+
+        let monitor = TokenFileMonitor(debounceInterval: 0.05, homeDirectory: home, codexHomeURL: home.appendingPathComponent(".codex"))
+        let mainEvents = Events()
+        let accountEvents = AccountEvents()
+        let a = monitor.tokenChanged.sink { mainEvents.record() }
+        let b = monitor.accountTokenChanged.sink { accountEvents.record($0) }
+        defer { a.cancel(); b.cancel(); monitor.stopMonitoring() }
+        monitor.startMonitoring()
+        // Set while monitoring: the new folder gets its own watch.
+        let id = AccountID(rawValue: "acct-work")
+        monitor.setClaudeCredentialFiles(
+            main: main.appendingPathComponent(".credentials.json"),
+            includeDesktopConfig: true,
+            extras: [id: work.appendingPathComponent(".credentials.json")]
+        )
+
+        try Data("work login".utf8).write(to: work.appendingPathComponent(".credentials.json"), options: .atomic)
+        let deadline = Date().addingTimeInterval(4)
+        while accountEvents.value.isEmpty, Date() < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(accountEvents.value == [id])
+        #expect(mainEvents.value == 0)
+    }
 }

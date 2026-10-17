@@ -264,4 +264,37 @@ struct SessionMonitorCacheTests {
         #expect(second.first?.id == resumedSid)
         #expect(second.first?.transcriptPath?.hasSuffix("-checkout-z/\(resumedSid).jsonl") == true)
     }
+
+    // MARK: - Config roots (#294)
+
+    @Test("moving the scan to another config folder reads that folder's sessions next")
+    func setRootsSwitchesFolder() throws {
+        let first = try makeEnv()
+        let second = try makeEnv()
+        defer { first.cleanup(); second.cleanup() }
+        // Both folders know a session in the same working directory, under a
+        // different id each.
+        let otherId = "dddddddd-0000-4000-8000-000000000009"
+        try FileManager.default.removeItem(at: second.transcript)
+        try idleLine(sessionId: otherId, cwd: first.cwd)
+            .write(to: second.projectDir.appendingPathComponent("\(otherId).jsonl"), atomically: true, encoding: .utf8)
+        try setMtime(Date().addingTimeInterval(-3600), at: first.projectDir)
+        try setMtime(Date().addingTimeInterval(-3600), at: second.projectDir)
+
+        let service = makeService(first, pid: 8100)
+        #expect(scanOnce(service).first?.id == first.sessionId)
+
+        service.setRoots([ClaudeConfigRoot(account: .main, projectsURL: second.projectsDir, sessionsURL: second.sessionsDir)])
+        service.waitForPendingChanges()
+        #expect(scanOnce(service).first?.id == otherId)
+    }
+
+    @Test("a root is built from a scope's folder")
+    func rootFromScope() {
+        let root = ClaudeConfigRoot(account: .main, scope: .configDir(path: "/Volumes/W/claude", service: "S"), home: "/Users/x")
+        #expect(root.projectsURL.path == "/Volumes/W/claude/projects")
+        #expect(root.sessionsURL.path == "/Volumes/W/claude/sessions")
+        let main = ClaudeConfigRoot(account: .main, scope: .defaultChain, home: "/Users/x")
+        #expect(main.sessionsURL.path == "/Users/x/.claude/sessions")
+    }
 }

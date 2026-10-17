@@ -272,6 +272,13 @@ enum ClaudeAccountsStorage {
     static func load(from defaults: UserDefaults) -> [ClaudeAccountRecord] {
         decode(defaults.data(forKey: defaultsKey))
     }
+
+    /// The main account's scope, for the services built before any store
+    /// exists (History, the session scan): the folder the user chose for it,
+    /// or the default chain (#294).
+    static func mainScope(defaults: UserDefaults = .standard) -> CredentialScope {
+        (load(from: defaults).first ?? .defaultMain()).scope
+    }
 }
 
 // MARK: - Names and colours

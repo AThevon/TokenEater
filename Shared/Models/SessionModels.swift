@@ -74,3 +74,22 @@ struct ClaudeSession: Identifiable, Sendable {
     var isStale: Bool { Date().timeIntervalSince(lastUpdate) > 10 }
     var isDead: Bool { processPid == nil && Date().timeIntervalSince(lastUpdate) > 60 }
 }
+
+/// One Claude Code config folder the session scan reads: its transcripts and
+/// its live session registry. The main account's by default, `~/.claude`
+/// unless the user chose another folder for it (#294).
+struct ClaudeConfigRoot: Equatable, Sendable {
+    let account: AccountID
+    let projectsURL: URL
+    let sessionsURL: URL
+
+    init(account: AccountID, projectsURL: URL, sessionsURL: URL) {
+        self.account = account
+        self.projectsURL = projectsURL
+        self.sessionsURL = sessionsURL
+    }
+
+    init(account: AccountID, scope: CredentialScope, home: String = ClaudeConfigDirResolver.realHome()) {
+        self.init(account: account, projectsURL: scope.projectsURL(home: home), sessionsURL: scope.sessionsURL(home: home))
+    }
+}

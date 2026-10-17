@@ -91,4 +91,67 @@ struct SessionHistoryCacheTests {
             #expect(second.entries[path]?.mtime == entry.mtime)
         }
     }
+
+    // MARK: - Main config folder (#294)
+
+    /// Thread-safe holder for the root a provider returns, switched between
+    /// two loads the way moving the main account's folder does.
+    private final class RootBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var url: URL
+        init(_ url: URL) { self.url = url }
+        var value: URL {
+            get { lock.withLock { url } }
+            set { lock.withLock { url = newValue } }
+        }
+    }
+
+    @Test("Moving the root reads only the new folder, even with the old one still cached")
+    func movedRootReadsOnlyTheNewFolder() async throws {
+        let base = try makeRoot()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let first = base.appendingPathComponent("claude-a", isDirectory: true)
+        let second = base.appendingPathComponent("claude-b", isDirectory: true)
+        try FileManager.default.createDirectory(at: first, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: second, withIntermediateDirectories: true)
+        let cacheURL = base.appendingPathComponent("history-cache.json")
+
+        // Recent events, so the 30-day window counts them.
+        let stamp = ISO8601DateFormatter().string(from: Date().addingTimeInterval(-3600))
+        func writeRecent(in root: URL, name: String, session: String) throws {
+            let line = #"{"timestamp":"\#(stamp)","type":"assistant","sessionId":"\#(session)","cwd":"/repo","message":{"model":"claude-opus-5","usage":{"input_tokens":100,"output_tokens":50,"cache_creation_input_tokens":200,"cache_read_input_tokens":650}}}"#
+            try line.write(to: root.appendingPathComponent("\(name).jsonl"), atomically: true, encoding: .utf8)
+        }
+        try writeRecent(in: first, name: "a1", session: "s-a1")
+        try writeRecent(in: first, name: "a2", session: "s-a2")
+        try writeRecent(in: second, name: "b1", session: "s-b1")
+
+        let box = RootBox(first)
+        let service = SessionHistoryService(cacheURL: cacheURL, rootsProvider: { [box.value] })
+
+        let before = try await service.loadHistory(range: .thirtyDays)
+        let beforeTotal = before.reduce(0) { $0 + $1.totalActive }
+        #expect(beforeTotal > 0)
+
+        box.value = second
+        let after = try await service.loadHistory(range: .thirtyDays)
+        let afterTotal = after.reduce(0) { $0 + $1.totalActive }
+        // One identical session instead of two: the old folder's entries,
+        // still in the cache, do not count.
+        #expect(afterTotal * 2 == beforeTotal)
+        #expect(try cachedNames(cacheURL).isSuperset(of: ["a1.jsonl", "a2.jsonl", "b1.jsonl"]))
+    }
+
+    @Test("The main account's scope follows the folder stored for it")
+    func mainScopeFollowsStoredFolder() throws {
+        let defaults = try #require(UserDefaults(suiteName: "SessionHistoryCacheTests.scope"))
+        defaults.removePersistentDomain(forName: "SessionHistoryCacheTests.scope")
+        defer { defaults.removePersistentDomain(forName: "SessionHistoryCacheTests.scope") }
+        #expect(ClaudeAccountsStorage.mainScope(defaults: defaults) == .defaultChain)
+
+        let main = ClaudeAccountRecord(id: .main, configDir: "/Users/x/.claude-perso", service: "S", name: "Perso", colorHex: "#5B8DEF")
+        defaults.set(ClaudeAccountsStorage.encode([main]), forKey: ClaudeAccountsStorage.defaultsKey)
+        let scope = ClaudeAccountsStorage.mainScope(defaults: defaults)
+        #expect(scope.projectsURL(home: "/Users/x").path == "/Users/x/.claude-perso/projects")
+    }
 }

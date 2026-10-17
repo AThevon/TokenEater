@@ -86,4 +86,10 @@ final class SessionStore: ObservableObject {
     func setVisibility(_ seconds: TimeInterval) {
         monitorService.setVisibility(seconds)
     }
+
+    /// Point the scan at the Claude config folders in use, the main
+    /// account's first, so a custom `CLAUDE_CONFIG_DIR` is followed (#294).
+    func setRoots(_ roots: [ClaudeConfigRoot]) {
+        monitorService.setRoots(roots)
+    }
 }
