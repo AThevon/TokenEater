@@ -142,7 +142,7 @@ struct TokenEaterApp: App {
         // The multi-account demo starts or ends here, before any store reads
         // the defaults it snapshots or restores. Without its switch this
         // reads two keys and does nothing else (`DemoMode`).
-        DemoLaunch.prepareAtLaunch()
+        let demoLaunch = DemoLaunch.prepareAtLaunch()
         let demo = DemoMode.isActive
 
         self.historyWidgetStore = HistoryWidgetStore()
@@ -193,6 +193,15 @@ struct TokenEaterApp: App {
         mainNotifications.scope = accountsStore.notificationScope(for: .main)
         self.themeStore = ThemeStore()
         self.settingsStore = SettingsStore()
+        // Just turned on: the demo accounts get their menu bar segments and
+        // popover sections, as the add sheet gives an account it connects.
+        if demoLaunch == .activated {
+            DemoLaunch.seedLayouts(
+                for: accountsStore.records,
+                into: settingsStore,
+                home: ClaudeConfigDirResolver.realHome()
+            )
+        }
         self.updateStore = UpdateStore()
         self.sessionStore = SessionStore()
         self.vendorStatusStore = VendorStatusStore()

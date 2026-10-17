@@ -142,6 +142,9 @@ protocol NotificationServiceProtocol {
     func notifyCodexTokenExpired(toggles: NotificationToggles)
     /// Drops any pending Codex reminder, for when the provider is switched off.
     func cancelCodexReminders()
+    /// Drops every Codex alert, pending and delivered, for when the Codex
+    /// login that sent them is gone (the demo's fake one).
+    func purgeCodexAlerts()
     /// Drops an account's Claude alerts: its pending reminders, and with
     /// `includingDelivered` the banners already in Notification Center. For
     /// an account paused (pending only) or removed (both).

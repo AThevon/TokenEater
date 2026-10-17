@@ -92,6 +92,12 @@ final class MockNotificationService: NotificationServiceProtocol {
         codexRemindersCancelled += 1
     }
 
+    var codexAlertPurges = 0
+
+    func purgeCodexAlerts() {
+        codexAlertPurges += 1
+    }
+
     func checkVendorHealth(_ status: VendorStatus, toggles: NotificationToggles) {
         vendorHealthChecks.append((status, toggles))
     }

@@ -507,6 +507,23 @@ final class NotificationService: NotificationServiceProtocol {
         center.removePending(identifiers: Self.codexReminderIdentifiers)
     }
 
+    /// Every identifier a Codex alert can use, reminders included.
+    static var codexIdentifiers: [String] {
+        let surfaces: [Surface] = [.codexSession, .codexWeekly]
+        return surfaces.flatMap {
+            ["escalation_\($0.rawValue)", "recovery_\($0.rawValue)", "codex_reset_\($0.rawValue)"]
+        }
+            + [PacingZone.hot, .warning].map { "pacing_codex_\($0.rawValue)" }
+            + ["codex_token_expired"]
+            + codexReminderIdentifiers
+    }
+
+    func purgeCodexAlerts() {
+        let ids = Self.codexIdentifiers
+        center.removePending(identifiers: ids)
+        center.removeDelivered(identifiers: ids)
+    }
+
     /// Fires once when a window genuinely rolls over. The decision itself lives
     /// in `CodexResetDetector`; this only persists the two observations it
     /// compares. Its state keys are separate from `checkSurface`'s so the two

@@ -112,8 +112,11 @@ struct DemoModeTests {
         let defaults = UserDefaults(suiteName: Self.suiteName)!
         defaults.removePersistentDomain(forName: Self.suiteName)
         #expect(DemoLaunch.step(defaults: defaults) == .none)
-        #expect(DemoLaunch.prepareAtLaunch(defaults: defaults) == .inactive)
         #expect(defaults.persistentDomain(forName: Self.suiteName)?.isEmpty ?? true)
+        // The launch step reads the app's own defaults, never a suite, and
+        // this process has no switch there.
+        #expect(DemoLaunch.step(defaults: .standard) == .none)
+        #expect(DemoLaunch.prepareAtLaunch() == .inactive)
     }
 
     @Test("the switch set to NO is the same as no switch")
@@ -295,20 +298,105 @@ struct DemoModeTests {
         #expect(ClaudeAccountsStorage.load(from: fixture.defaults, home: home).first?.configDir == nil)
     }
 
-    @Test("a real account added during the demo is not taken for a demo one")
+    @Test("a real account tracked before the demo keeps its files and alerts")
     func cleanupSparesRealAccounts() throws {
-        let fixture = try makeFixture()
+        let real = ClaudeAccountRecord(id: .makeExtra(), configDir: home + "/.claude-work", name: "Work", colorHex: "#22D3EE")
+        let before = [ClaudeAccountRecord.defaultMain(), real]
+        let fixture = try makeFixture(prefs: [ClaudeAccountsStorage.defaultsKey: ClaudeAccountsStorage.encode(before)!])
+        try Data("{}".utf8).write(to: fixture.directory.appendingPathComponent(real.id.sharedFileName))
+        fixture.defaults.set(true, forKey: DemoMode.flagKey)
+        DemoLaunch.prepare(fixture.env)
+        fixture.defaults.removeObject(forKey: DemoMode.flagKey)
+
+        DemoLaunch.prepare(fixture.env)
+
+        #expect(!fixture.notifications.purges.map(\.account).contains(real.id))
+        #expect(files(in: fixture.directory) == [real.id.sharedFileName])
+        #expect(ClaudeAccountsStorage.load(from: fixture.defaults, home: home).map(\.id) == [.main, real.id])
+    }
+
+    @Test("a real account added during the demo goes like a removed one, leaving no file behind")
+    func cleanupRemovesRealAccountAddedDuringDemo() throws {
+        let fixture = try makeFixture(prefs: realPrefs)
         fixture.defaults.set(true, forKey: DemoMode.flagKey)
         DemoLaunch.prepare(fixture.env)
         var records = ClaudeAccountsStorage.load(from: fixture.defaults, home: home)
         let real = ClaudeAccountRecord(id: .makeExtra(), configDir: home + "/.claude-work", name: "Work", colorHex: "#22D3EE")
         records.append(real)
         fixture.defaults.set(ClaudeAccountsStorage.encode(records), forKey: ClaudeAccountsStorage.defaultsKey)
+        fixture.defaults.set(Data([4]), forKey: "sessionPacingSamples" + real.id.storageSuffix)
+        fixture.defaults.set(2, forKey: "lastLevel_fiveHour" + real.id.storageSuffix)
+        for name in [real.id.sharedFileName, "history-cache" + real.id.storageSuffix + ".json"] {
+            try Data("{}".utf8).write(to: fixture.directory.appendingPathComponent(name))
+        }
         fixture.defaults.removeObject(forKey: DemoMode.flagKey)
 
         DemoLaunch.prepare(fixture.env)
 
-        #expect(!fixture.notifications.purges.map(\.account).contains(real.id))
+        #expect(files(in: fixture.directory).isEmpty)
+        #expect(fixture.notifications.purges.contains { $0.account == real.id && $0.includingDelivered })
+        #expect(ClaudeAccountsStorage.load(from: fixture.defaults, home: home).map(\.id) == [.main])
+        #expect(fixture.defaults.object(forKey: "sessionPacingSamples" + real.id.storageSuffix) == nil)
+        #expect(fixture.defaults.object(forKey: "lastLevel_fiveHour" + real.id.storageSuffix) == nil)
+    }
+
+    @Test("what the app lived through during the demo survives it, settings do not")
+    func cleanupKeepsRuntimeState() throws {
+        let prefs = realPrefs.merging([
+            "lastSeenVersion": "6.0.2",
+            "lastLevel_fiveHour": 0,
+            "claudeTokenAlertSent": true,
+        ]) { $1 }
+        let fixture = try makeFixture(prefs: prefs)
+        fixture.defaults.set(true, forKey: DemoMode.flagKey)
+        DemoLaunch.prepare(fixture.env)
+
+        // The real main account crossed a threshold, a login expiry was
+        // alerted, a refresh succeeded, the what's-new screen was closed,
+        // Codex alerted; and a setting changed.
+        let expiry = Date(timeIntervalSince1970: 1_790_100_000)
+        fixture.defaults.set(2, forKey: "lastLevel_fiveHour")
+        fixture.defaults.set(expiry, forKey: "lastLoginExpiredEpisode")
+        fixture.defaults.removeObject(forKey: "claudeTokenAlertSent")
+        fixture.defaults.set(Data([7]), forKey: "sessionPacingSamples")
+        fixture.defaults.set("6.1.0", forKey: "lastSeenVersion")
+        fixture.defaults.set(1, forKey: "lastLevel_codexSession")
+        // A demo account's own state goes with it.
+        fixture.defaults.set(2, forKey: "lastLevel_fiveHour" + DemoFixtures.work.accountID.storageSuffix)
+        fixture.defaults.set(60, forKey: "refreshInterval")
+        fixture.defaults.removeObject(forKey: DemoMode.flagKey)
+
+        DemoLaunch.prepare(fixture.env)
+
+        #expect(fixture.defaults.integer(forKey: "lastLevel_fiveHour") == 2)
+        #expect(fixture.defaults.object(forKey: "lastLoginExpiredEpisode") as? Date == expiry)
+        #expect(fixture.defaults.object(forKey: "claudeTokenAlertSent") == nil)
+        #expect(fixture.defaults.data(forKey: "sessionPacingSamples") == Data([7]))
+        #expect(fixture.defaults.string(forKey: "lastSeenVersion") == "6.1.0")
+        #expect(fixture.defaults.integer(forKey: "lastLevel_codexSession") == 1)
+        #expect(fixture.defaults.object(forKey: "lastLevel_fiveHour" + DemoFixtures.work.accountID.storageSuffix) == nil)
+        #expect(fixture.defaults.integer(forKey: "refreshInterval") == 120)
+        #expect(fixture.defaults.bool(forKey: "codexEnabled") == false)
+        // The fake Codex login's alerts went too, delivered ones included.
+        #expect(fixture.notifications.codexAlertPurges == 1)
+    }
+
+    @Test("the main account's Claude state from a demo folder does not outlive the demo")
+    func cleanupDropsMainStateFromDemoFolder() throws {
+        let fixture = try makeFixture(prefs: realPrefs.merging(["lastLevel_fiveHour": 0]) { $1 })
+        fixture.defaults.set(true, forKey: DemoMode.flagKey)
+        DemoLaunch.prepare(fixture.env)
+        var records = ClaudeAccountsStorage.load(from: fixture.defaults, home: home)
+        records[0].configDir = DemoFixtures.client.folderPath(home: home)
+        fixture.defaults.set(ClaudeAccountsStorage.encode(records), forKey: ClaudeAccountsStorage.defaultsKey)
+        fixture.defaults.set(2, forKey: "lastLevel_fiveHour")
+        fixture.defaults.set("6.1.0", forKey: "lastSeenVersion")
+        fixture.defaults.removeObject(forKey: DemoMode.flagKey)
+
+        DemoLaunch.prepare(fixture.env)
+
+        #expect(fixture.defaults.integer(forKey: "lastLevel_fiveHour") == 0)
+        #expect(fixture.defaults.string(forKey: "lastSeenVersion") == "6.1.0")
     }
 
     // MARK: - The fixtures through the real code

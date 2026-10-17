@@ -75,12 +75,14 @@ enum DemoLaunch {
         }
     }
 
-    /// The app's launch step. The live files and services are only built
-    /// when there is something to do, so an install that never turned the
-    /// demo on reads two keys here and nothing else.
+    /// The app's launch step, on the app's own defaults and files only:
+    /// tests go through `prepare(_:)` with an environment of their own. The
+    /// live files and services are only built when there is something to do,
+    /// so an install that never turned the demo on reads two keys here and
+    /// nothing else.
     @discardableResult
-    static func prepareAtLaunch(defaults: UserDefaults = .standard) -> DemoLaunchOutcome {
-        switch step(defaults: defaults) {
+    static func prepareAtLaunch() -> DemoLaunchOutcome {
+        switch step(defaults: .standard) {
         case .none: return .inactive
         case .resume: return .resumed
         case .activate, .cleanUp: return prepare(.live())
@@ -158,30 +160,73 @@ enum DemoLaunch {
         defaults.set(data, forKey: AccountsStore.sessionSamplesKey(for: fixture.accountID))
     }
 
+    /// Gives the running demo accounts their place in the All layouts, the
+    /// way the add sheet does for an account it connects: a popover section
+    /// and menu bar segments each, in list order, then All on screen. Run
+    /// once the settings exist, right after `activate` and after the demo
+    /// card brings removed demo accounts back. Paused ones get nothing, as
+    /// they leave the menu bar and popover anyway.
+    @MainActor
+    static func seedLayouts(for records: [ClaudeAccountRecord], into settings: SettingsStore, home: String) {
+        let running = records.filter { record in
+            !record.id.isMain && !record.isPaused
+                && DemoFixtures.fixture(forFolder: record.configDir, home: home) != nil
+        }
+        guard !running.isEmpty else { return }
+        for record in running {
+            settings.seedAccount(record.id, addToMenuBar: true)
+        }
+        if settings.activeProviderMode != .all {
+            settings.selectScope(.all)
+        }
+    }
+
     // MARK: - Turning it off
 
-    /// Every fake account goes the way Remove takes an account: its shared
-    /// file, its history cache and its alerts. The widget's accounts index
-    /// and `codex.json` go back to what they were, and last the app's
-    /// defaults are replaced by the snapshot, which also drops the account
-    /// list, the layouts, the samples and every key the demo wrote.
+    /// Every account the snapshot does not hold goes the way Remove takes
+    /// an account: its shared file, its history cache and its alerts. That
+    /// is every fake account, and a real one added during the demo too,
+    /// since its record goes with the snapshot. The fake Codex login's
+    /// alerts go as well. The widget's accounts index and `codex.json` go
+    /// back to what they were, and last the app's defaults are replaced by
+    /// the snapshot, which drops the account list, the layouts and every key
+    /// the demo wrote, but keeps what the app lived through meanwhile
+    /// (`isRuntimeState`): alerts already sent stay sent.
     static func cleanUp(_ env: DemoLaunchEnvironment) {
         let records = ClaudeAccountsStorage.load(from: env.defaults, home: env.home)
+        let snapshotData = env.defaults.data(forKey: DemoMode.snapshotKey)
+        let snapshot = snapshotData.flatMap {
+            try? PropertyListSerialization.propertyList(from: $0, options: [], format: nil) as? [String: Any]
+        }
+
         var ids = Set(DemoFixtures.seeded.map(\.accountID))
         for record in records where DemoFixtures.fixture(forFolder: record.configDir, home: env.home) != nil {
             ids.insert(record.id)
         }
+        if let snapshot {
+            let before = Set(
+                ClaudeAccountsStorage.decode(snapshot[ClaudeAccountsStorage.defaultsKey] as? Data, home: env.home).map(\.id)
+            )
+            for record in records where !before.contains(record.id) {
+                ids.insert(record.id)
+            }
+        }
+        ids.remove(.main)
+
         let fm = FileManager.default
-        for id in ids.sorted(by: { $0.rawValue < $1.rawValue }) where !id.isMain {
+        for id in ids.sorted(by: { $0.rawValue < $1.rawValue }) {
             try? fm.removeItem(at: env.sharedDirectory.appendingPathComponent(id.sharedFileName))
             try? fm.removeItem(at: env.sharedDirectory.appendingPathComponent("history-cache\(id.storageSuffix).json"))
             env.notifications.purge(account: id, includingDelivered: true)
         }
-        // The fake Codex login may have scheduled reset reminders.
-        env.notifications.cancelCodexReminders()
+        // The fake Codex login's alerts, delivered ones included: they carry
+        // Codex's usual identifiers, so nothing else would ever take them
+        // out of Notification Center.
+        env.notifications.purgeCodexAlerts()
         // The main account moved into a demo folder wrote demo numbers to
         // `shared.json`; its real folder comes back with the snapshot.
-        if DemoFixtures.fixture(forFolder: records.first?.configDir, home: env.home) != nil {
+        let mainWasInDemo = DemoFixtures.fixture(forFolder: records.first?.configDir, home: env.home) != nil
+        if mainWasInDemo {
             env.indexFile.clearUsage()
         }
 
@@ -192,11 +237,6 @@ enum DemoLaunch {
             env.indexFile.clearAccountsIndex()
         }
 
-        let snapshotData = env.defaults.data(forKey: DemoMode.snapshotKey)
-        let snapshot = snapshotData.flatMap {
-            try? PropertyListSerialization.propertyList(from: $0, options: [], format: nil) as? [String: Any]
-        }
-
         if env.defaults.bool(forKey: DemoMode.codexFileExistedKey) {
             env.codexFile.clear()
             env.codexFile.updateEnabled(snapshot?["codexEnabled"] as? Bool ?? false)
@@ -204,7 +244,17 @@ enum DemoLaunch {
             try? fm.removeItem(at: env.codexFile.fileURL)
         }
 
-        if let snapshot {
+        if var snapshot {
+            let current = env.defaults.persistentDomain(forName: env.domainName) ?? [:]
+            let keeps = { (key: String) in
+                isRuntimeState(key) && keepsRuntimeState(key, dropping: ids, mainWasInDemo: mainWasInDemo)
+            }
+            for key in snapshot.keys where keeps(key) && current[key] == nil {
+                snapshot.removeValue(forKey: key)
+            }
+            for (key, value) in current where keeps(key) {
+                snapshot[key] = value
+            }
             env.defaults.setPersistentDomain(snapshot, forName: env.domainName)
         } else {
             // No readable snapshot: at least nothing fake stays tracked and
@@ -216,5 +266,53 @@ enum DemoLaunch {
             }
             for key in DemoMode.keys { env.defaults.removeObject(forKey: key) }
         }
+    }
+
+    // MARK: - What the snapshot does not take back
+
+    /// State the app keeps about what already happened, as opposed to what
+    /// the user chose: alert memory, pacing samples, the what's-new and brew
+    /// prompts. Restoring it from the snapshot would replay alerts already
+    /// sent and the what's-new screen already seen, so the cleanup keeps its
+    /// current value. Claude's keys may carry an account's `.acct-<id>`
+    /// suffix; the others are the app's own.
+    static let claudeAccountStateKeys: Set<String> = [
+        "claudeTokenAlertSent", "lastLoginExpiredEpisode", "sessionPacingSamples",
+    ]
+    static let claudeAccountStatePrefixes = ["lastLevel_", "lastResetsAt_", "lastPacing_"]
+    static let appStateKeys: Set<String> = [
+        "lastSeenVersion", "brewMigrationDismissed", "lastCodexTokenExpiredFiredAt",
+    ]
+    /// Checked before Claude's prefixes: Codex's levels share `lastLevel_`.
+    static let appStatePrefixes = [
+        "lastLevel_codex", "lastPacing_codex", "lastResetsAt_codex", "codexResetAt_", "codexUtilization_", "lastVendorHealth_",
+    ]
+
+    /// The key without its account suffix, and that account.
+    private static func split(_ key: String) -> (base: String, account: AccountID) {
+        guard let range = key.range(of: ".acct-") else { return (key, .main) }
+        let raw = String(key[key.index(after: range.lowerBound)...])
+        return (String(key[..<range.lowerBound]), AccountID(rawValue: raw))
+    }
+
+    static func isRuntimeState(_ key: String) -> Bool {
+        let base = split(key).base
+        return appStateKeys.contains(base)
+            || appStatePrefixes.contains(where: base.hasPrefix)
+            || claudeAccountStateKeys.contains(base)
+            || claudeAccountStatePrefixes.contains(where: base.hasPrefix)
+    }
+
+    /// Whether a runtime key's current value outlives the demo: not for an
+    /// account that goes with it, nor for the main account's Claude state
+    /// when it spent the demo on a fake folder, whose numbers it holds.
+    static func keepsRuntimeState(_ key: String, dropping removed: Set<AccountID>, mainWasInDemo: Bool) -> Bool {
+        let (base, account) = split(key)
+        if appStateKeys.contains(base) || appStatePrefixes.contains(where: base.hasPrefix) {
+            return account.isMain
+        }
+        if removed.contains(account) { return false }
+        if account.isMain && mainWasInDemo { return false }
+        return true
     }
 }

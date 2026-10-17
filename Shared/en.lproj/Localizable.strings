@@ -1245,7 +1245,7 @@
 
 /* Multi-account demo (only drawn while `defaults write com.tokeneater.app demo.multiAccount -bool YES` is set) */
 "demo.title" = "Demo mode";
-"demo.subtitle" = "Fake Claude accounts and a fake Codex login, answered from fixtures: no Keychain, no file, no network for them. Your real main account runs as usual next to them.";
+"demo.subtitle" = "Fake Claude accounts and a fake Codex login, answered from fixtures: no Keychain, no file, no network for them. Your real main account runs as usual next to them, and sample alerts are only offered for the fake ones.";
 "demo.account.fake" = "demo";
 "demo.account.real" = "real";
 "demo.notify.threshold" = "Threshold alert";
@@ -1254,5 +1254,5 @@
 "demo.restore" = "Bring back removed demo accounts";
 "demo.turnOff" = "Turn off";
 "demo.turnOff.title" = "Turn off the demo?";
-"demo.turnOff.message" = "TokenEater quits now. At the next launch, every demo account, file and setting goes, and the app is back as it was before the demo started.";
+"demo.turnOff.message" = "TokenEater quits now. At the next launch, every account added during the demo, fake or real, goes with its files and alerts, and your settings go back to how they were before the demo. Alerts already sent stay remembered.";
 "demo.turnOff.action" = "Turn off and quit";

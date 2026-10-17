@@ -11,6 +11,7 @@ struct DemoControlsCard: View {
     @EnvironmentObject private var accountsStore: AccountsStore
     @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var themeStore: ThemeStore
+    @EnvironmentObject private var settingsStore: SettingsStore
 
     @State private var confirmsTurnOff = false
 
@@ -83,17 +84,22 @@ struct DemoControlsCard: View {
                 .font(.system(size: 10))
                 .foregroundStyle(DS.Palette.textTertiary)
             Spacer(minLength: DS.Spacing.xs)
-            smallButton("demo.notify.threshold", systemImage: "gauge.with.dots.needle.67percent") {
-                DemoNotifications.sendThresholdSample(
-                    scope: accountsStore.notificationScope(for: record.id),
-                    thresholds: themeStore.thresholds
-                )
-            }
-            smallButton("demo.notify.expired", systemImage: "key.slash") {
-                DemoNotifications.sendLoginExpiredSample(
-                    scope: accountsStore.notificationScope(for: record.id),
-                    thresholds: themeStore.thresholds
-                )
+            // Only on fake accounts: a sample posted under a real account's
+            // scope would carry its real identifiers, replace a real alert
+            // and outlive the demo.
+            if isDemo {
+                smallButton("demo.notify.threshold", systemImage: "gauge.with.dots.needle.67percent") {
+                    DemoNotifications.sendThresholdSample(
+                        scope: accountsStore.notificationScope(for: record.id),
+                        thresholds: themeStore.thresholds
+                    )
+                }
+                smallButton("demo.notify.expired", systemImage: "key.slash") {
+                    DemoNotifications.sendLoginExpiredSample(
+                        scope: accountsStore.notificationScope(for: record.id),
+                        thresholds: themeStore.thresholds
+                    )
+                }
             }
         }
     }
@@ -130,9 +136,11 @@ struct DemoControlsCard: View {
     }
 
     /// The seeded accounts removed during the demo come back, through the
-    /// same `add` path a connected account takes, with their last numbers.
+    /// same `add` path a connected account takes, with their last numbers
+    /// and their place in the All layouts.
     private func restoreSeeded() {
         let now = Date()
+        var restored: [ClaudeAccountRecord] = []
         for fixture in missingSeeded {
             let record = DemoFixtures.record(for: fixture, home: home, now: now)
             DemoLaunch.seedLastNumbers(
@@ -140,8 +148,9 @@ struct DemoControlsCard: View {
                 file: SharedFileService(fileName: record.id.sharedFileName),
                 startedAt: now
             )
-            accountsStore.add(record)
+            if accountsStore.add(record) { restored.append(record) }
         }
+        DemoLaunch.seedLayouts(for: restored, into: settingsStore, home: home)
     }
 
     /// The switch goes now; the cleanup runs at the next launch, before any

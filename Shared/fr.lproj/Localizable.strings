@@ -1245,7 +1245,7 @@
 
 /* Multi-account demo (only drawn while `defaults write com.tokeneater.app demo.multiAccount -bool YES` is set) */
 "demo.title" = "Mode démo";
-"demo.subtitle" = "Des comptes Claude fictifs et une connexion Codex fictive, servis par des fixtures : ni trousseau, ni fichier, ni réseau pour eux. Votre vrai compte principal tourne normalement à côté.";
+"demo.subtitle" = "Des comptes Claude fictifs et une connexion Codex fictive, servis par des fixtures : ni trousseau, ni fichier, ni réseau pour eux. Ton vrai compte principal tourne normalement à côté, et les alertes d'exemple ne sont proposées que pour les comptes fictifs.";
 "demo.account.fake" = "démo";
 "demo.account.real" = "réel";
 "demo.notify.threshold" = "Alerte de seuil";
@@ -1254,5 +1254,5 @@
 "demo.restore" = "Remettre les comptes démo retirés";
 "demo.turnOff" = "Désactiver";
 "demo.turnOff.title" = "Désactiver la démo ?";
-"demo.turnOff.message" = "TokenEater se ferme maintenant. Au prochain lancement, tous les comptes, fichiers et réglages de la démo disparaissent, et l'app revient à son état d'avant la démo.";
+"demo.turnOff.message" = "TokenEater se ferme maintenant. Au prochain lancement, chaque compte ajouté pendant la démo, fictif ou réel, disparaît avec ses fichiers et ses alertes, et tes réglages reviennent à leur état d'avant la démo. Les alertes déjà envoyées restent mémorisées.";
 "demo.turnOff.action" = "Désactiver et quitter";
