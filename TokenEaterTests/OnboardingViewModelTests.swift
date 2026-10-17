@@ -200,23 +200,32 @@ struct OnboardingViewModelTests {
         #expect(vm.codexStatus.isTrackable)
     }
 
-    @Test("each Claude detection asks the factory again, so a moved main folder is followed")
-    func factoryAskedOnEveryCheck() {
+    @Test("a Claude detection builds a new provider only when the main folder moved")
+    func factoryAskedOnlyWhenScopeMoved() {
         cleanDefaults()
-        final class Counter { var calls = 0 }
-        let counter = Counter()
+        final class State { var calls = 0; var scope: CredentialScope = .defaultChain }
+        let state = State()
         let vm = OnboardingViewModel(
             tokenProviderFactory: {
-                counter.calls += 1
-                return MockTokenProvider()
+                state.calls += 1
+                let provider = MockTokenProvider()
+                provider.lastScope = state.scope
+                return provider
             },
+            mainScope: { state.scope },
             repository: MockUsageRepository(),
             notificationService: MockNotificationService(),
             codexAuthStateProvider: { .notInstalled }
         )
-        let afterInit = counter.calls
+        let afterInit = state.calls
         vm.checkClaudeCode()
         vm.checkClaudeCode()
-        #expect(counter.calls == afterInit + 2)
+        // Same folder: the provider, and its one Claude Desktop key attempt, are kept.
+        #expect(state.calls == afterInit)
+
+        state.scope = .configDir(path: "/Users/tester/.claude-perso", service: "S")
+        vm.checkClaudeCode()
+        vm.checkClaudeCode()
+        #expect(state.calls == afterInit + 1)
     }
 }
