@@ -126,6 +126,16 @@ struct ThemeColors: Codable, Equatable {
         return Color(hex: gaugeNormal)
     }
 
+    /// The colour of the amount an uncapped Extra Credits pool shows in place
+    /// of its percentage. With no monthly limit there is no percentage for the
+    /// threshold ladder to read, so the rule is about money instead: `neutral`
+    /// while nothing is spent, the theme's warning gauge colour once something
+    /// is. The dashboard card, the menu bar, the popover and the widgets all
+    /// follow it, so real money spent is coloured wherever it shows.
+    func uncappedSpendColor(hasSpend: Bool, thresholds: UsageThresholds, neutral: Color) -> Color {
+        hasSpend ? gaugeColor(for: Double(thresholds.warningPercent), thresholds: thresholds) : neutral
+    }
+
     func gaugeGradient(for pct: Double, thresholds: UsageThresholds, startPoint: UnitPoint = .topLeading, endPoint: UnitPoint = .bottomTrailing) -> LinearGradient {
         let base = gaugeColor(for: pct, thresholds: thresholds)
         return LinearGradient(colors: [base, base.lighter()], startPoint: startPoint, endPoint: endPoint)
