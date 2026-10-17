@@ -94,5 +94,6 @@ struct TokenEaterWidgetBundle: WidgetBundle {
         HistorySparklineWidget()
         ExtraCreditsWidget()
         CodexUsageWidget()
+        ClaudeAccountWidget()
     }
 }

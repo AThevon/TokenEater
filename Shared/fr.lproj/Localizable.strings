@@ -1002,6 +1002,23 @@
 "widget.codex.disabled" = "Codex est désactivé dans TokenEater";
 "widget.codex.stale" = "Utilisation non actualisée depuis plus de 15 minutes";
 
+/* Claude account widget: one tracked Claude account, chosen in Edit Widget */
+"widget.gallery.claude.account" = "Compte Claude";
+"widget.description.account" = "Le compte Claude de ton choix. Pose-le une fois par compte, puis choisis chacun dans Modifier le widget.";
+"widget.account.intent.title" = "Compte Claude";
+"widget.account.intent.description" = "Choisis le compte Claude que ce widget affiche.";
+"widget.account.intent.parameter" = "Compte";
+"widget.account.entity" = "Compte Claude";
+"widget.account.main" = "Compte principal";
+"widget.account.paused" = "En pause";
+"widget.account.paused.empty.title" = "Rien de récupéré pour l'instant";
+"widget.account.paused.empty.body" = "Reprends ce compte dans TokenEater pour voir ses chiffres.";
+"widget.account.waiting.title" = "En attente des chiffres";
+"widget.account.waiting.body" = "TokenEater n'a pas encore récupéré ce compte. Vérifie-le dans Réglages > Fournisseurs.";
+"widget.account.removed.title" = "Compte retiré";
+"widget.account.removed.short" = "N'est plus suivi";
+"widget.account.removed.body" = "Modifie le widget pour choisir un autre compte.";
+
 
 "widget.codex.reset.single" = "1 réinitialisation disponible";
 "widget.codex.resets" = "%d réinitialisations disponibles";

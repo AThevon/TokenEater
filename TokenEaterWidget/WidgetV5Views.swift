@@ -46,6 +46,9 @@ enum WidgetTokens {
 struct WidgetHeader<Accessory: View>: View {
     let label: LocalizedStringKey
     let accessory: () -> Accessory
+    /// Set only inside the "Claude · Account" widget: the header then names
+    /// the account. Nil everywhere else, where it draws exactly as before.
+    @Environment(\.widgetAccount) private var account
 
     init(_ label: LocalizedStringKey, @ViewBuilder accessory: @escaping () -> Accessory = { EmptyView() }) {
         self.label = label
@@ -54,15 +57,19 @@ struct WidgetHeader<Accessory: View>: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            Image("WidgetLogo")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 12, height: 12)
-            Text(label)
-                .font(WidgetTokens.header)
-                .tracking(WidgetTokens.headerTracking)
-                .foregroundStyle(Color(hex: WidgetTheme.theme.widgetText).opacity(WidgetTokens.secondary))
-                .textCase(.uppercase)
+            if let account {
+                AccountWidgetHeaderTitle(account: account, label: label)
+            } else {
+                Image("WidgetLogo")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 12, height: 12)
+                Text(label)
+                    .font(WidgetTokens.header)
+                    .tracking(WidgetTokens.headerTracking)
+                    .foregroundStyle(Color(hex: WidgetTheme.theme.widgetText).opacity(WidgetTokens.secondary))
+                    .textCase(.uppercase)
+            }
             Spacer(minLength: 0)
             accessory()
         }

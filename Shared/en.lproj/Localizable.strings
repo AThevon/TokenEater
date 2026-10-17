@@ -1002,6 +1002,23 @@
 "widget.codex.disabled" = "Codex is off in TokenEater";
 "widget.codex.stale" = "Usage has not updated for over 15 minutes";
 
+/* Claude account widget: one tracked Claude account, chosen in Edit Widget */
+"widget.gallery.claude.account" = "Claude Account";
+"widget.description.account" = "One Claude account of your choice. Place it once per account, then pick each one in Edit Widget.";
+"widget.account.intent.title" = "Claude account";
+"widget.account.intent.description" = "Choose which Claude account this widget shows.";
+"widget.account.intent.parameter" = "Account";
+"widget.account.entity" = "Claude account";
+"widget.account.main" = "Main account";
+"widget.account.paused" = "Paused";
+"widget.account.paused.empty.title" = "Nothing fetched yet";
+"widget.account.paused.empty.body" = "Resume this account in TokenEater to see its numbers.";
+"widget.account.waiting.title" = "Waiting for numbers";
+"widget.account.waiting.body" = "TokenEater has not fetched this account yet. Check it in Settings > Providers.";
+"widget.account.removed.title" = "Account removed";
+"widget.account.removed.short" = "No longer tracked";
+"widget.account.removed.body" = "Edit the widget to pick another account.";
+
 
 "widget.codex.reset.single" = "1 reset available";
 "widget.codex.resets" = "%d resets available";

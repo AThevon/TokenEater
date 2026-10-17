@@ -24,14 +24,26 @@ enum WidgetTheme {
 
 struct WidgetBackgroundModifier: ViewModifier {
     var backgroundColor: Color = Color(hex: WidgetTheme.theme.widgetBackground).opacity(0.85)
+    /// Set only inside the "Claude · Account" widget. A paused account's last
+    /// numbers stay readable but recede, over the same background.
+    @Environment(\.widgetAccount) private var account
 
     func body(content: Content) -> some View {
         if #available(macOS 14.0, *) {
-            content.containerBackground(for: .widget) {
+            dimmedIfPaused(content).containerBackground(for: .widget) {
                 backgroundColor
             }
         } else {
-            content.padding().background(backgroundColor)
+            dimmedIfPaused(content).padding().background(backgroundColor)
+        }
+    }
+
+    @ViewBuilder
+    private func dimmedIfPaused(_ content: Content) -> some View {
+        if account?.isPaused == true {
+            content.opacity(WidgetAccountBadge.pausedOpacity)
+        } else {
+            content
         }
     }
 }
