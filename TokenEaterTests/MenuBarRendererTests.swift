@@ -129,6 +129,8 @@ struct MenuBarOutageBadgeTests {
             nextPollSeconds: nextPollSeconds,
             extraCreditsPct: 0,
             hasExtraCredits: false,
+            extraCreditsUncappedSpend: nil,
+            extraCreditsUncappedHasSpend: false,
             codexSession: nil, codexWeekly: nil,
             visibleProviders: [.claude, .codex]
         )
@@ -281,7 +283,10 @@ struct MenuBarExtraCreditsRenderTests {
     private func data(
         segments: [MenuBarSegment] = [MenuBarSegment(kind: .extraCredits, style: .labelValue)],
         hasExtraCredits: Bool = true,
-        extraCreditsPct: Int = 67
+        extraCreditsPct: Int = 67,
+        uncappedSpend: String? = nil,
+        uncappedHasSpend: Bool = false,
+        monochrome: Bool = false
     ) -> MenuBarRenderer.RenderData {
         MenuBarRenderer.RenderData(
             composition: MenuBarComposition(segments: segments),
@@ -291,7 +296,7 @@ struct MenuBarExtraCreditsRenderTests {
             fablePacingDelta: 0, fablePacingZone: .onTrack, hasFablePacing: false,
             hasConfig: true, hasError: false, isAwaitingRefresh: false,
             themeColors: .default, thresholds: .default,
-            menuBarMonochrome: false,
+            menuBarMonochrome: monochrome,
             fiveHourReset: "", fiveHourResetAbsolute: "",
             fiveHourResetDate: nil, sevenDayResetDate: nil, sonnetResetDate: nil,
             hasFiveHourBucket: false,
@@ -301,6 +306,8 @@ struct MenuBarExtraCreditsRenderTests {
             fablePct: 0, hasFable: false, fableResetDate: nil,
             outageActive: false, outageHealth: .healthy, nextPollSeconds: nil,
             extraCreditsPct: extraCreditsPct, hasExtraCredits: hasExtraCredits,
+            extraCreditsUncappedSpend: uncappedSpend,
+            extraCreditsUncappedHasSpend: uncappedHasSpend,
             codexSession: nil, codexWeekly: nil,
             visibleProviders: [.claude, .codex]
         )
@@ -331,6 +338,116 @@ struct MenuBarExtraCreditsRenderTests {
         #expect(image.isTemplate == false)
         #expect(image.size.width > 0)
     }
+
+    /// No monthly limit: the segment draws the amount spent where the
+    /// percentage was. A wider image than the same segment's "0%" proves the
+    /// amount replaced it, in every style that shows a value.
+    @Test("uncapped EC draws the amount spent instead of 0%", arguments: [
+        MenuBarSegmentStyle.labelValue, .valueOnly, .mono, .pill,
+    ])
+    func uncappedDrawsSpend(style: MenuBarSegmentStyle) {
+        let segments = [MenuBarSegment(kind: .extraCredits, style: style)]
+        let percent = MenuBarRenderer.renderUncached(data(segments: segments, extraCreditsPct: 0))
+        let spend = MenuBarRenderer.renderUncached(
+            data(segments: segments, extraCreditsPct: 0, uncappedSpend: "$1,235")
+        )
+        #expect(spend.isTemplate == false)
+        #expect(spend.size.width > percent.size.width)
+    }
+
+    /// A monthly limit keeps the percentage. The data comes from a real
+    /// capped pool ($268 of $400), so it carries no spend text; in monochrome
+    /// (where both paths use `labelColor`) its segment is pixel-identical to
+    /// one whose value text is literally "67%", which proves the capped
+    /// segment prints its percentage and not an amount.
+    @Test("capped EC keeps rendering the percentage", arguments: [
+        MenuBarSegmentStyle.labelValue, .valueOnly, .pill,
+    ])
+    func cappedKeepsPercent(style: MenuBarSegmentStyle) {
+        let pool = ExtraUsage(
+            isEnabled: true, monthlyLimit: 40000, usedCredits: 26800,
+            utilization: nil, currency: "USD", disabledReason: nil
+        )
+        #expect(pool.uncappedSpendText == nil)
+        #expect(pool.percent == 67)
+
+        let segments = [MenuBarSegment(kind: .extraCredits, style: style)]
+        let capped = MenuBarRenderer.renderUncached(data(
+            segments: segments, extraCreditsPct: pool.percent,
+            uncappedSpend: pool.uncappedSpendText, monochrome: true
+        ))
+        let reference = MenuBarRenderer.renderUncached(data(
+            segments: segments, extraCreditsPct: 0,
+            uncappedSpend: "67%", monochrome: true
+        ))
+        #expect(capped.size == reference.size)
+        #expect(capped.tiffRepresentation == reference.tiffRepresentation)
+    }
+
+    /// Uncapped with nothing spent: plain information, the neutral label
+    /// colour, like the dashboard card's $0.
+    @Test("uncapped EC with nothing spent is neutral")
+    func uncappedZeroIsNeutral() {
+        let color = MenuBarRenderer.uncappedSpendColor(
+            hasSpend: false, monochrome: false, themeColors: .default, thresholds: .default
+        )
+        #expect(color == NSColor.labelColor)
+    }
+
+    /// Uncapped with real money spent: the theme's warning gauge colour, the
+    /// one the dashboard card uses, so every surface colours the spend alike.
+    @Test("uncapped EC with money spent takes the warning colour")
+    func uncappedSpentIsWarning() {
+        let thresholds = UsageThresholds.default
+        let color = MenuBarRenderer.uncappedSpendColor(
+            hasSpend: true, monochrome: false, themeColors: .default, thresholds: thresholds
+        )
+        #expect(color == ThemeColors.default.gaugeNSColor(for: Double(thresholds.warningPercent), thresholds: thresholds))
+        #expect(color == NSColor(hex: ThemeColors.default.gaugeWarning))
+        #expect(color != NSColor.labelColor)
+    }
+
+    /// Monochrome stays monochrome for the uncapped spend, like every other
+    /// segment.
+    @Test("uncapped EC spend stays monochrome in monochrome mode")
+    func uncappedSpentMonochrome() {
+        let color = MenuBarRenderer.uncappedSpendColor(
+            hasSpend: true, monochrome: true, themeColors: .default, thresholds: .default
+        )
+        #expect(color == NSColor.labelColor)
+    }
+
+    /// End to end through the renderer: the same amount draws differently
+    /// once it counts as spent (warning colour instead of the label colour),
+    /// in every style, and identically in monochrome.
+    @Test("uncapped EC segment recolours once money is spent", arguments: [
+        MenuBarSegmentStyle.labelValue, .valueOnly, .mono, .pill,
+    ])
+    func uncappedSegmentRecolours(style: MenuBarSegmentStyle) {
+        let segments = [MenuBarSegment(kind: .extraCredits, style: style)]
+        func render(hasSpend: Bool, monochrome: Bool) -> NSImage {
+            MenuBarRenderer.renderUncached(data(
+                segments: segments, extraCreditsPct: 0, uncappedSpend: "$20.49",
+                uncappedHasSpend: hasSpend, monochrome: monochrome
+            ))
+        }
+        let zero = render(hasSpend: false, monochrome: false)
+        let spent = render(hasSpend: true, monochrome: false)
+        #expect(zero.size == spent.size)
+        #expect(zero.tiffRepresentation != spent.tiffRepresentation)
+        #expect(render(hasSpend: false, monochrome: true).tiffRepresentation
+            == render(hasSpend: true, monochrome: true).tiffRepresentation)
+    }
+
+    /// The spend only ever replaces the Extra Credits value, never another
+    /// segment's percentage.
+    @Test("uncapped spend does not leak into other segments")
+    func spendScopedToExtraCredits() {
+        let segments = [MenuBarSegment(kind: .session, style: .labelValue)]
+        let without = MenuBarRenderer.renderUncached(data(segments: segments))
+        let with = MenuBarRenderer.renderUncached(data(segments: segments, uncappedSpend: "$1,235"))
+        #expect(without.tiffRepresentation == with.tiffRepresentation)
+    }
 }
 
 /// Fable pacing 3-state gating (#241 + idle status): absent (no Fable bucket)
@@ -360,7 +477,8 @@ struct MenuBarFablePacingRenderTests {
             pacingMargin: 10,
             fablePct: 0, hasFable: hasFable, fableResetDate: nil,
             outageActive: false, outageHealth: .healthy, nextPollSeconds: nil,
-            extraCreditsPct: 0, hasExtraCredits: false,
+            extraCreditsPct: 0, hasExtraCredits: false, extraCreditsUncappedSpend: nil,
+            extraCreditsUncappedHasSpend: false,
             codexSession: nil, codexWeekly: nil,
             visibleProviders: [.claude, .codex]
         )

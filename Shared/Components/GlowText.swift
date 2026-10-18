@@ -13,10 +13,18 @@ struct GlowText: View {
         self.glowRadius = glowRadius
     }
 
+    /// A `glowRadius` of 0 or less draws plain text, with no shadow pass at
+    /// all (a 0-radius shadow would still thicken the glyph edges).
     var body: some View {
-        Text(text)
-            .font(font)
-            .foregroundStyle(color)
-            .dsGlow(color, radius: glowRadius, opacity: 0.5)
+        if glowRadius > 0 {
+            Text(text)
+                .font(font)
+                .foregroundStyle(color)
+                .dsGlow(color, radius: glowRadius, opacity: 0.5)
+        } else {
+            Text(text)
+                .font(font)
+                .foregroundStyle(color)
+        }
     }
 }

@@ -70,6 +70,43 @@ struct CurrencyFormatterTests {
         #expect(!result.isEmpty)
     }
 
+    // MARK: - Compact (menu bar, popover)
+
+    @Test func compactKeepsCentsBelowOneHundred() {
+        #expect(CurrencyFormatter.formatMinorUnitsCompact(2049, currencyCode: "USD", locale: usLocale) == "$20.49")
+        #expect(CurrencyFormatter.formatMinorUnitsCompact(9950, currencyCode: "USD", locale: usLocale) == "$99.50")
+    }
+
+    /// A round amount keeps its cents below 100, so the menu bar segment does
+    /// not lose two characters (and shift its neighbours) on the next refresh.
+    @Test func compactKeepsAStableWidthBelowOneHundred() {
+        #expect(CurrencyFormatter.formatMinorUnitsCompact(2000, currencyCode: "USD", locale: usLocale) == "$20.00")
+        #expect(CurrencyFormatter.formatMinorUnitsCompact(0, currencyCode: "USD", locale: usLocale) == "$0.00")
+    }
+
+    /// The 100 threshold applies to the amount rounded to the cent: 99.996
+    /// reads like an even 100, not "$100.00".
+    @Test func compactThresholdUsesTheRoundedAmount() {
+        #expect(CurrencyFormatter.formatMinorUnitsCompact(9999.6, currencyCode: "USD", locale: usLocale) == "$100")
+        #expect(CurrencyFormatter.formatMinorUnitsCompact(9999.4, currencyCode: "USD", locale: usLocale) == "$99.99")
+    }
+
+    @Test func compactRoundsToWholeUnitsFromOneHundred() {
+        #expect(CurrencyFormatter.formatMinorUnitsCompact(10000, currencyCode: "USD", locale: usLocale) == "$100")
+        #expect(CurrencyFormatter.formatMinorUnitsCompact(123456, currencyCode: "USD", locale: usLocale) == "$1,235")
+    }
+
+    @Test func compactLeavesZeroDecimalCurrenciesAlone() {
+        let result = CurrencyFormatter.formatMinorUnitsCompact(2049, currencyCode: "JPY", locale: usLocale)
+        #expect(result == CurrencyFormatter.formatMinorUnits(2049, currencyCode: "JPY", locale: usLocale))
+        let small = CurrencyFormatter.formatMinorUnitsCompact(50, currencyCode: "JPY", locale: usLocale)
+        #expect(small == CurrencyFormatter.formatMinorUnits(50, currencyCode: "JPY", locale: usLocale))
+    }
+
+    @Test func compactFallsBackToUSD() {
+        #expect(CurrencyFormatter.formatMinorUnitsCompact(123456, currencyCode: nil, locale: usLocale) == "$1,235")
+    }
+
     // MARK: - Regression: shuhulx report (issue #146)
 
     @Test func extraCreditsBugReproduction() {

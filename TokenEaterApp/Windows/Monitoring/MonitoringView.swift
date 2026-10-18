@@ -995,7 +995,10 @@ struct MonitoringView: View {
                 }
             } else {
                 // The tile only shows while the pool is enabled, so no limit here
-                // always means uncapped.
+                // always means uncapped. Where the bar would be: an open dotted
+                // line, the same shape the popover and the widgets draw.
+                DottedBar(lineWidth: 6, color: tint)
+                    .frame(height: 6)
                 Text(String(localized: "dashboard.extra.uncapped"))
                     .font(DS.Typography.label)
                     .foregroundStyle(tint)

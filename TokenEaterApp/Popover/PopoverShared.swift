@@ -35,6 +35,15 @@ enum PopoverColors {
         )
     }
 
+    /// Colour of an amount with no scale (Extra Credits with no monthly
+    /// limit): neutral while nothing is spent, the theme's warning gauge
+    /// colour once something is, like the dashboard card and the widgets.
+    static func unscaled(hasSpend: Bool, theme: ThemeStore) -> Color {
+        theme.current.uncappedSpendColor(
+            hasSpend: hasSpend, thresholds: theme.thresholds, neutral: PopoverCellPalette.unscaled
+        )
+    }
+
     static func zone(_ zone: PacingZone, theme: ThemeStore) -> Color {
         theme.current.pacingColor(for: zone)
     }

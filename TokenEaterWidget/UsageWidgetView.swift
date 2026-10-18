@@ -95,13 +95,18 @@ struct UsageWidgetView: View {
                     CircularPacingView(pacing: pacing)
                 }
                 if let extra = usage.extraUsage, extra.isEnabled {
+                    // No monthly limit: the ring shows the amount spent over a
+                    // dotted track rather than a 0 % that reads as nothing spent.
+                    let spend = extra.uncappedSpendText
                     CircularUsageView(
                         label: String(localized: "widget.extra"),
-                        resetInfo: extraCreditsAmount(extra),
+                        resetInfo: spend == nil ? extraCreditsAmount(extra) : String(localized: "dashboard.extra.monthly"),
                         utilization: Double(extra.percent),
                         resetDate: nil,
                         windowDuration: 0,
-                        smartEnabled: false
+                        smartEnabled: false,
+                        unscaledValue: spend,
+                        unscaledHasSpend: extra.hasUncappedSpend
                     )
                 }
             }
@@ -182,16 +187,21 @@ struct UsageWidgetView: View {
                 // bar fall back to the static threshold colour. `displayText`
                 // shows spend rather than the raw "%", which reads better for a
                 // monetary pool.
+                // No monthly limit: the compact amount over a dotted bar, as in
+                // the app, rather than an empty bar. Neutral at $0, the warning
+                // colour once something is spent.
                 LargeUsageBarView(
                     icon: "creditcard.fill",
                     label: String(localized: "widget.extra"),
                     resetInfo: "",
                     utilization: Double(extra.percent),
-                    displayText: extraCreditsAmount(extra),
+                    displayText: extra.uncappedSpendText ?? extraCreditsAmount(extra),
                     windowDuration: 0,
                     // No reset window → Smart Color can't project; use the
                     // static threshold ladder so EC matches the app's colour.
-                    smartEnabled: false
+                    smartEnabled: false,
+                    unscaled: extra.isUncapped,
+                    unscaledHasSpend: extra.hasUncappedSpend
                 )
             }
 
@@ -306,6 +316,18 @@ struct CircularUsageView: View {
     var smartProfile: SmartColorProfile = WidgetTheme.smartColorProfile
     var theme: ThemeColors = WidgetTheme.theme
     var thresholds: UsageThresholds = WidgetTheme.thresholds
+    /// An amount with no scale (Extra Credits with no monthly limit): shown
+    /// in place of the percentage, over a dotted track instead of a 0 % ring.
+    var unscaledValue: String? = nil
+    /// Whether that amount is above zero: neutral text colour at zero, the
+    /// theme's warning colour once spent (`ThemeColors.uncappedSpendColor`).
+    var unscaledHasSpend: Bool = false
+
+    private var unscaledColor: Color {
+        theme.uncappedSpendColor(
+            hasSpend: unscaledHasSpend, thresholds: thresholds, neutral: Color(hex: theme.widgetText)
+        )
+    }
 
     private var ringGradient: LinearGradient {
         if smartEnabled {
@@ -323,18 +345,29 @@ struct CircularUsageView: View {
     var body: some View {
         VStack(spacing: 5) {
             ZStack {
-                Circle()
-                    .stroke(.white.opacity(0.08), lineWidth: 4.5)
+                if let unscaledValue {
+                    DottedRing(lineWidth: 4.5, color: unscaledColor)
+                    Text(unscaledValue)
+                        .font(.system(size: 12, weight: .black, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(unscaledColor)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                        .padding(.horizontal, 6)
+                } else {
+                    Circle()
+                        .stroke(.white.opacity(0.08), lineWidth: 4.5)
 
-                Circle()
-                    .trim(from: 0, to: min(utilization, 100) / 100)
-                    .stroke(ringGradient, style: StrokeStyle(lineWidth: 4.5, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
+                    Circle()
+                        .trim(from: 0, to: min(utilization, 100) / 100)
+                        .stroke(ringGradient, style: StrokeStyle(lineWidth: 4.5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
 
-                Text("\(Int(utilization))%")
-                    .font(.system(size: 12, weight: .black, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(Color(hex: theme.widgetText))
+                    Text("\(Int(utilization))%")
+                        .font(.system(size: 12, weight: .black, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(Color(hex: theme.widgetText))
+                }
             }
             .frame(width: 50, height: 50)
 
@@ -485,6 +518,13 @@ struct LargeUsageBarView: View {
     var smartProfile: SmartColorProfile = WidgetTheme.smartColorProfile
     var theme: ThemeColors = WidgetTheme.theme
     var thresholds: UsageThresholds = WidgetTheme.thresholds
+    /// The value has no scale (Extra Credits with no monthly limit): a dotted
+    /// track instead of a 0 % bar, and a colour set by the money spent rather
+    /// than a threshold (see `unscaledHasSpend`).
+    var unscaled: Bool = false
+    /// With `unscaled`: neutral text colour while nothing is spent, the
+    /// theme's warning colour once something is.
+    var unscaledHasSpend: Bool = false
 
     private var barGradient: LinearGradient {
         if let color = colorOverride {
@@ -505,6 +545,11 @@ struct LargeUsageBarView: View {
     }
 
     private var accentColor: Color {
+        if unscaled {
+            return theme.uncappedSpendColor(
+                hasSpend: unscaledHasSpend, thresholds: thresholds, neutral: Color(hex: theme.widgetText)
+            )
+        }
         if let color = colorOverride { return color }
         if smartEnabled {
             return theme.smartGaugeColor(
@@ -544,16 +589,21 @@ struct LargeUsageBarView: View {
                 }
             }
 
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2.5)
-                        .fill(.white.opacity(0.06))
-                    RoundedRectangle(cornerRadius: 2.5)
-                        .fill(barGradient)
-                        .frame(width: max(0, geo.size.width * min(utilization, 100) / 100))
+            if unscaled {
+                DottedBar(lineWidth: 5, color: accentColor)
+                    .frame(height: 5)
+            } else {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2.5)
+                            .fill(.white.opacity(0.06))
+                        RoundedRectangle(cornerRadius: 2.5)
+                            .fill(barGradient)
+                            .frame(width: max(0, geo.size.width * min(utilization, 100) / 100))
+                    }
                 }
+                .frame(height: 5)
             }
-            .frame(height: 5)
         }
     }
 }
