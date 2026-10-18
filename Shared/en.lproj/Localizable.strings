@@ -169,6 +169,8 @@
 "error.banner.reauth.hint" = "Token expired and automatic recovery failed";
 "error.banner.reauth.button" = "Re-authorize";
 "error.banner.waiting" = "Waiting for Claude Code to refresh";
+"error.login.expired" = "Your Claude Code login expired %@";
+"error.login.expired.hint" = "TokenEater only reads this login and never renews it. Run \"claude\" once in a terminal, or open Claude Code, and tracking resumes on its own.";
 "error.banner.apiunavailable" = "Usage API throttled by Anthropic";
 "error.banner.apiunavailable.hint" = "This is a rate limit on Anthropic's usage API, not your token or setup. Nothing for you to fix - TokenEater keeps retrying and refreshes as soon as the limit clears (known issue: anthropics/claude-code#31637).";
 "error.banner.apiunavailable.settings" = "This is on Anthropic's side (their usage API), not your token or setup. TokenEater retries automatically and recovers when the limit clears.";
@@ -238,8 +240,10 @@
 "notif.title.test" = "Hey, you're set";
 "notif.body.test" = "If you see this, notifications work";
 
-"notif.title.token" = "Token's stale";
-"notif.body.token" = "Reconnect to keep tracking";
+"notif.title.token" = "Claude tracking paused";
+"notif.body.token" = "TokenEater can't use the saved Claude Code login. Open the menu bar popover to see why";
+"notif.title.login.expired" = "Claude Code login expired";
+"notif.body.login.expired" = "TokenEater only reads it. Run \"claude\" once in a terminal, or open Claude Code, to renew it";
 
 "notif.title.pacing.hot" = "Burning hot";
 "notif.body.pacing.hot" = "Way ahead of pace, pump the brakes";

@@ -169,6 +169,8 @@
 "error.banner.reauth.hint" = "Token expiré et la récupération automatique a échoué";
 "error.banner.reauth.button" = "Ré-autoriser";
 "error.banner.waiting" = "En attente du rafraîchissement par Claude Code";
+"error.login.expired" = "Votre connexion Claude Code a expiré %@";
+"error.login.expired.hint" = "TokenEater ne fait que lire cette connexion, il ne la renouvelle jamais. Lancez « claude » une fois dans un terminal, ou ouvrez Claude Code, et le suivi reprend tout seul.";
 "error.banner.apiunavailable" = "API usage throttle par Anthropic";
 "error.banner.apiunavailable.hint" = "C'est une limite de débit côté Anthropic (leur API usage), pas votre token ni votre configuration. Rien à corriger de votre côté - TokenEater réessaie tout seul et se met à jour dès que la limite se lève (bug connu : anthropics/claude-code#31637).";
 "error.banner.apiunavailable.settings" = "C'est côté Anthropic (leur API usage), pas votre token ni votre configuration. TokenEater réessaie automatiquement et repart dès que la limite se lève.";
@@ -238,8 +240,10 @@
 "notif.title.test" = "C'est branché";
 "notif.body.test" = "Si tu vois ça, les notifs marchent";
 
-"notif.title.token" = "Token périmé";
-"notif.body.token" = "Reconnecte pour reprendre le suivi";
+"notif.title.token" = "Suivi Claude en pause";
+"notif.body.token" = "TokenEater ne peut pas utiliser la connexion Claude Code enregistrée. Ouvre le popover de la barre des menus pour voir pourquoi";
+"notif.title.login.expired" = "Connexion Claude Code expirée";
+"notif.body.login.expired" = "TokenEater ne fait que la lire. Lance « claude » une fois dans un terminal, ou ouvre Claude Code, pour la renouveler";
 
 "notif.title.pacing.hot" = "Surchauffe";
 "notif.body.pacing.hot" = "Largement en avance, lève le pied";

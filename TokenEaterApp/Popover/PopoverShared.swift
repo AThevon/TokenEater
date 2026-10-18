@@ -57,7 +57,9 @@ struct PopoverErrorBanner: View {
         VStack(alignment: .leading, spacing: 4) {
             switch usageStore.errorState {
             case .tokenUnavailable:
-                if usageStore.isAwaitingRefresh {
+                if let since = usageStore.loginExpiredSince {
+                    loginExpiredContent(since: since)
+                } else if usageStore.isAwaitingRefresh {
                     waitingContent
                 } else {
                     expiredContent
@@ -130,6 +132,48 @@ struct PopoverErrorBanner: View {
             }
             Spacer(minLength: 8)
         }
+    }
+
+    /// What `waitingContent` turns into once the login has been expired for
+    /// over an hour (#268): nothing is renewing it, so say when it expired,
+    /// that TokenEater only reads it, and the one thing that renews it.
+    /// "Retry now" re-reads every source, which picks the login up as soon
+    /// as Claude Code has run.
+    @ViewBuilder private func loginExpiredContent(since: Date) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(String(format: String(localized: "error.login.expired"),
+                            since.formatted(.relative(presentation: .named))))
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(String(localized: "error.login.expired.hint"))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.55))
+                    .fixedSize(horizontal: false, vertical: true)
+                // The numbers above stay on screen, dimmed: say how old they are.
+                if let last = usageStore.lastUpdate {
+                    Text(String(format: String(localized: "error.banner.lastupdate"),
+                                last.formatted(.relative(presentation: .named))))
+                        .font(.system(size: 10))
+                        .foregroundStyle(.white.opacity(0.45))
+                }
+            }
+        }
+        HStack(spacing: 6) {
+            primaryActionButton(
+                title: String(localized: "error.banner.retry.button"),
+                disabled: usageStore.isLoading
+            ) {
+                usageStore.handleTokenChange()
+                Task { await usageStore.refresh(force: true) }
+            }
+            CopyDiagnosticButton()
+        }
+        .padding(.top, 2)
     }
 
     @ViewBuilder private var rateLimitedContent: some View {

@@ -127,6 +127,153 @@ struct UsageStoreTests {
         #expect(store.isAwaitingRefresh == true)
     }
 
+    // MARK: - Expired login escalation (#268)
+
+    /// A store that had data, whose token then came back unauthorized with
+    /// the given expiry recorded by the provider.
+    private func makeExpiredSUT(expiredFor interval: TimeInterval, notifications: Bool = true) async
+        -> (store: UsageStore, repo: MockUsageRepository, tokenProvider: MockTokenProvider, notif: MockNotificationService) {
+        let sut = makeSUT(token: "stale-token")
+        if notifications {
+            let toggles = fixtureToggles()
+            sut.store.notifTogglesProvider = { toggles }
+        }
+        await sut.store.refresh()
+        sut.tokenProvider.tokenDiagnostic = TokenDiagnostic(
+            source: .keychainCLI,
+            keychainFailure: nil,
+            tokenExpiresAt: Date().addingTimeInterval(-interval),
+            keychainExpiresAt: Date().addingTimeInterval(-interval)
+        )
+        sut.repo.stubbedError = APIError.tokenExpired(endpoint: "/api/oauth/usage", statusCode: 401)
+        await sut.store.refresh(force: true)
+        return (sut.store, sut.repo, sut.tokenProvider, sut.notif)
+    }
+
+    @Test("a login expired for minutes stays in the calm waiting state, without a notification")
+    func recentExpiryStaysCalm() async {
+        let sut = await makeExpiredSUT(expiredFor: 20 * 60)
+
+        #expect(sut.store.errorState == .tokenUnavailable)
+        #expect(sut.store.isAwaitingRefresh)
+        #expect(sut.store.loginExpiredSince == nil)
+        #expect(sut.notif.loginExpiredFires.isEmpty)
+        #expect(sut.notif.lastTokenExpiredFire == nil)
+    }
+
+    @Test("a login expired for over an hour escalates and notifies with its expiry")
+    func oldExpiryEscalates() async {
+        let sut = await makeExpiredSUT(expiredFor: 3 * 3600)
+
+        let since = sut.store.loginExpiredSince
+        #expect(since != nil)
+        #expect(since == sut.tokenProvider.tokenDiagnostic.tokenExpiresAt)
+        #expect(sut.notif.loginExpiredFires == [since!])
+        #expect(sut.notif.lastTokenExpiredFire == nil)
+    }
+
+    /// The calm state flips on a later tick once the hour is up, without
+    /// needing any new event.
+    @Test("the escalation turns on at a later tick once the hour passes")
+    func escalationTurnsOnLater() async {
+        let sut = await makeExpiredSUT(expiredFor: 50 * 60)
+        #expect(sut.store.loginExpiredSince == nil)
+
+        sut.tokenProvider.tokenDiagnostic.tokenExpiresAt = Date().addingTimeInterval(-61 * 60)
+        await sut.store.refresh(force: true)
+
+        #expect(sut.store.loginExpiredSince != nil)
+        #expect(sut.notif.loginExpiredFires.count == 1)
+    }
+
+    @Test("a successful refresh ends the escalation")
+    func successEndsEscalation() async {
+        let sut = await makeExpiredSUT(expiredFor: 3 * 3600)
+        #expect(sut.store.loginExpiredSince != nil)
+
+        sut.repo.stubbedError = nil
+        await sut.store.refresh(force: true)
+
+        #expect(sut.store.errorState == .none)
+        #expect(sut.store.loginExpiredSince == nil)
+    }
+
+    /// A refused Keychain read has its own explanation; "run claude" would
+    /// be the wrong advice there, so the escalation stays out of the way.
+    @Test("an auth failure hint takes precedence over the escalation")
+    func authHintWins() async {
+        let sut = makeSUT(token: "stale-token", shouldFail: true, failWith: .tokenExpired(endpoint: "/api/oauth/usage", statusCode: 401))
+        sut.tokenProvider.tokenDiagnostic = TokenDiagnostic(
+            source: .credentialsFile,
+            keychainFailure: .accessDenied,
+            tokenExpiresAt: Date().addingTimeInterval(-5 * 3600)
+        )
+        await sut.store.refresh()
+
+        #expect(sut.store.authFailureHint != nil)
+        #expect(sut.store.loginExpiredSince == nil)
+    }
+
+    /// The token was not expired, so this 401 is not the routine lag: the
+    /// existing token-expired alert still fires.
+    @Test("a 401 on a token with no known expiry keeps the plain token alert")
+    func unknownExpiryKeepsPlainAlert() async {
+        let sut = makeSUT(token: "rejected-token", shouldFail: true, failWith: .tokenExpired(endpoint: "/api/oauth/usage", statusCode: 401))
+        let toggles = fixtureToggles()
+        sut.store.notifTogglesProvider = { toggles }
+
+        await sut.store.refresh()
+
+        #expect(sut.store.loginExpiredSince == nil)
+        #expect(sut.notif.lastTokenExpiredFire != nil)
+        #expect(sut.notif.loginExpiredFires.isEmpty)
+    }
+
+    /// The persistent failures behind a hint (a refused or timed-out Keychain
+    /// read) used to alert every hour without end. Through the real service:
+    /// one alert across repeated failing ticks, and a success re-arms it.
+    @Test("a hint-driven 401 repeated across ticks notifies at most once")
+    func hintDriven401NotifiesOnce() async {
+        let repo = MockUsageRepository()
+        repo.stubbedError = APIError.tokenExpired(endpoint: "/api/oauth/usage", statusCode: 401)
+        let tokenProvider = MockTokenProvider()
+        tokenProvider.token = "refused-token"
+        tokenProvider.tokenDiagnostic = TokenDiagnostic(
+            source: .credentialsFile,
+            keychainFailure: .timedOut,
+            tokenExpiresAt: Date().addingTimeInterval(-5 * 3600)
+        )
+        let center = MockNotificationCenter()
+        let store = UsageStore(
+            repository: repo,
+            tokenProvider: tokenProvider,
+            sharedFileService: MockSharedFileService(),
+            notificationService: NotificationService(center: center, stateStore: MockNotificationStateStore())
+        )
+        let toggles = fixtureToggles()
+        store.notifTogglesProvider = { toggles }
+
+        for _ in 0..<4 { await store.refresh(force: true) }
+        #expect(store.authFailureHint != nil)
+        #expect(center.addedIDs.filter { $0 == "token_expired" }.count == 1)
+
+        repo.stubbedError = nil
+        await store.refresh(force: true)
+        #expect(store.errorState == .none)
+
+        repo.stubbedError = APIError.tokenExpired(endpoint: "/api/oauth/usage", statusCode: 401)
+        await store.refresh(force: true)
+        await store.refresh(force: true)
+        #expect(center.addedIDs.filter { $0 == "token_expired" }.count == 2)
+    }
+
+    @Test("a successful refresh ends the token alert episode")
+    func successEndsTokenAlertEpisode() async {
+        let sut = makeSUT()
+        await sut.store.refresh()
+        #expect(sut.notif.tokenAlertEpisodesEnded == 1)
+    }
+
     // MARK: - refresh — interval check
 
     @Test("refresh returns early when interval not elapsed based on currentSpeed")

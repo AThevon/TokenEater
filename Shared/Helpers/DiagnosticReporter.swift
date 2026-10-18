@@ -77,13 +77,21 @@ enum DiagnosticReporter {
         // Without it an unauthorized report cannot be told apart from a
         // machine whose live token we were simply refused (#273).
         let diagnostic = usageStore.tokenDiagnostic
-        let tokenSource = diagnostic.source?.reportLabel ?? "none"
+        // An expired Keychain login passed over for a fresher file or
+        // Desktop token is said so, since the two expiries then differ (#268).
+        let tokenSource = (diagnostic.source?.reportLabel ?? "none")
+            + (diagnostic.passedOverExpiredKeychain ? " (Keychain token expired)" : "")
         let keychainRead = diagnostic.keychainFailure?.reportLabel ?? "ok"
-        let keychainExpiry: String = {
-            guard let expiry = diagnostic.tokenExpiresAt else { return "-" }
+        func expiryLabel(_ expiry: Date?) -> String {
+            guard let expiry else { return "-" }
             let stamp = formatDate(expiry, relative: true) ?? "-"
             return expiry < Date() ? "\(stamp) (expired)" : stamp
-        }()
+        }
+        let tokenExpiry = expiryLabel(diagnostic.tokenExpiresAt)
+        let keychainExpiry = expiryLabel(diagnostic.keychainExpiresAt)
+        let escalation = usageStore.loginExpiredSince
+            .flatMap { formatDate($0, relative: true) }
+            .map { "on (login expired \($0))" } ?? "off"
         let proxyConfigured: String
         if let proxy = usageStore.proxyConfig, proxy.isValidForUse {
             proxyConfigured = "yes"
@@ -104,7 +112,9 @@ enum DiagnosticReporter {
         - Token source: \(tokenSource)
         - Keychain read: \(keychainRead)
         - Keychain items named "Claude Code-credentials": \(diagnostic.matchingKeychainItems)
+        - Token expiry: \(tokenExpiry)
         - Keychain token expiry: \(keychainExpiry)
+        - Expired-login escalation: \(escalation)
         - Proxy configured: \(proxyConfigured)
         """
     }

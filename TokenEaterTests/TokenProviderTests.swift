@@ -494,6 +494,164 @@ struct TokenProviderTests {
         #expect(decryption.silentRebootstrapCallCount == 2)
     }
 
+    // MARK: - Freshness over priority (#268)
+
+    private let expiredAt = Date().addingTimeInterval(-3 * 3600)
+    private let validUntil = Date().addingTimeInterval(5 * 3600)
+
+    /// The report: the user works in the Claude desktop app, the CLI's
+    /// Keychain item expired hours ago, and Desktop's embedded engine keeps
+    /// `.credentials.json` current. The live file token has to win.
+    @Test("an expired Keychain token gives way to a valid credentials file")
+    func expiredKeychainYieldsToValidFile() {
+        let (provider, securityCLI, credentials, _, _) = makeSUT(
+            securityCLIToken: "stale-keychain",
+            credentialsToken: "fresh-file"
+        )
+        securityCLI.expiresAt = expiredAt
+        credentials.storedExpiresAt = validUntil
+
+        #expect(provider.currentToken() == "fresh-file")
+        let diagnostic = provider.tokenDiagnostic
+        #expect(diagnostic.source == .credentialsFile)
+        #expect(diagnostic.tokenExpiresAt == validUntil)
+        #expect(diagnostic.keychainExpiresAt == expiredAt)
+        #expect(diagnostic.keychainFailure == nil)
+        #expect(diagnostic.passedOverExpiredKeychain)
+        #expect(diagnostic.isStaleFallback == false)
+    }
+
+    /// Nothing better anywhere: the expired Keychain token is still returned,
+    /// so the request is made, the 401 path runs, and the diagnostic carries
+    /// the expiry the escalation needs.
+    @Test("an expired Keychain token is kept when no other source has a token")
+    func expiredKeychainKeptWhenAlone() {
+        let (provider, securityCLI, _, _, _) = makeSUT(securityCLIToken: "stale-keychain")
+        securityCLI.expiresAt = expiredAt
+
+        #expect(provider.currentToken() == "stale-keychain")
+        let diagnostic = provider.tokenDiagnostic
+        #expect(diagnostic.source == .keychainCLI)
+        #expect(diagnostic.tokenExpiresAt == expiredAt)
+        #expect(diagnostic.loginExpiresAt == expiredAt)
+        #expect(diagnostic.passedOverExpiredKeychain == false)
+    }
+
+    @Test("a valid Keychain token wins over a valid credentials file")
+    func validKeychainWins() {
+        let (provider, securityCLI, credentials, _, decryption) = makeSUT(
+            securityCLIToken: "live-keychain",
+            credentialsToken: "live-file",
+            encryptedToken: "encrypted-blob",
+            hasEncryptionKey: true
+        )
+        securityCLI.expiresAt = validUntil
+        credentials.storedExpiresAt = validUntil.addingTimeInterval(3600)
+
+        #expect(provider.currentToken() == "live-keychain")
+        #expect(provider.tokenDiagnostic.source == .keychainCLI)
+        #expect(decryption.decryptCallCount == 0)
+    }
+
+    /// Two dead tokens: priority decides, so the Keychain one, which is the
+    /// login Claude Code renews, is the one the diagnostic talks about.
+    @Test("with every token expired the Keychain one is kept")
+    func allExpiredKeepsKeychain() {
+        let (provider, securityCLI, credentials, _, _) = makeSUT(
+            securityCLIToken: "stale-keychain",
+            credentialsToken: "stale-file"
+        )
+        securityCLI.expiresAt = expiredAt
+        credentials.storedExpiresAt = expiredAt.addingTimeInterval(-3600)
+
+        #expect(provider.currentToken() == "stale-keychain")
+        #expect(provider.tokenDiagnostic.source == .keychainCLI)
+    }
+
+    @Test("a token about to expire counts as expired")
+    func nearlyExpiredKeychainYields() {
+        let (provider, securityCLI, credentials, _, _) = makeSUT(
+            securityCLIToken: "dying-keychain",
+            credentialsToken: "fresh-file"
+        )
+        securityCLI.expiresAt = Date().addingTimeInterval(20)
+        credentials.storedExpiresAt = validUntil
+
+        #expect(provider.currentToken() == "fresh-file")
+    }
+
+    /// No expiry is not a dead token: a Keychain payload without one keeps
+    /// its priority, exactly as before.
+    @Test("a Keychain token with no expiry keeps its priority")
+    func keychainWithoutExpiryKeepsPriority() {
+        let (provider, _, credentials, _, _) = makeSUT(
+            securityCLIToken: "keychain",
+            credentialsToken: "file"
+        )
+        credentials.storedExpiresAt = validUntil
+
+        #expect(provider.currentToken() == "keychain")
+    }
+
+    @Test("an expired Keychain token gives way to a Claude Desktop token")
+    func expiredKeychainYieldsToDesktop() {
+        let desktopJSON: [String: Any] = [
+            "claudeAiOauth": [
+                "accessToken": "desktop-token",
+                "expiresAt": validUntil.timeIntervalSince1970 * 1000,
+            ]
+        ]
+        let (provider, securityCLI, _, _, _) = makeSUT(
+            securityCLIToken: "stale-keychain",
+            encryptedToken: "encrypted-blob",
+            hasEncryptionKey: true,
+            decryptedData: try! JSONSerialization.data(withJSONObject: desktopJSON)
+        )
+        securityCLI.expiresAt = expiredAt
+
+        #expect(provider.currentToken() == "desktop-token")
+        #expect(provider.tokenDiagnostic.source == .claudeDesktop)
+        #expect(provider.tokenDiagnostic.passedOverExpiredKeychain)
+    }
+
+    /// Looking for a fresher token must not cost a prompt: with no cached
+    /// Desktop key, the search skips that source rather than re-deriving
+    /// the key from "Claude Safe Storage" (#225).
+    @Test("the freshness search never re-derives the Claude Desktop key")
+    func freshnessSearchDoesNotRederiveKey() {
+        let (provider, securityCLI, _, _, decryption) = makeSUT(
+            securityCLIToken: "stale-keychain",
+            encryptedToken: "encrypted-blob",
+            hasEncryptionKey: false
+        )
+        securityCLI.expiresAt = expiredAt
+        decryption.silentRebootstrapResult = true
+
+        #expect(provider.currentToken() == "stale-keychain")
+        for _ in 0..<3 { _ = provider.refreshTokenIfChanged() }
+        #expect(decryption.silentRebootstrapCallCount == 0)
+    }
+
+    /// Desktop writes a renewed login to the file: the next tick picks it up
+    /// as a change, which forces the refresh that clears the stale state.
+    @Test("a renewed file token behind an expired Keychain is seen on the next tick")
+    func renewedFileSeenOnTick() {
+        let (provider, securityCLI, credentials, _, _) = makeSUT(
+            securityCLIToken: "stale-keychain",
+            credentialsToken: "stale-file"
+        )
+        securityCLI.expiresAt = expiredAt
+        credentials.storedExpiresAt = expiredAt
+
+        #expect(provider.currentToken() == "stale-keychain")
+
+        credentials.storedToken = "renewed-file"
+        credentials.storedExpiresAt = validUntil
+
+        #expect(provider.refreshTokenIfChanged() == true)
+        #expect(provider.currentToken() == "renewed-file")
+    }
+
     // MARK: - refreshTokenIfChanged (account swap detection)
 
     @Test("refreshTokenIfChanged detects a rotated Keychain token and updates the cache")
