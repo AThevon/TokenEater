@@ -29,8 +29,11 @@ enum DemoMode {
     /// Whether `codex.json` existed before the fake Codex login wrote it.
     static let codexFileExistedKey = "demo.multiAccount.codexFileExisted"
     static let startedAtKey = "demo.multiAccount.startedAt"
+    /// The `DemoFixtures.version` whose accounts the running demo tracks.
+    /// Absent from a demo started before versions existed, which counts as 1.
+    static let versionKey = "demo.multiAccount.version"
 
-    static let keys = [flagKey, snapshotKey, snapshotIndexKey, codexFileExistedKey, startedAtKey]
+    static let keys = [flagKey, snapshotKey, snapshotIndexKey, codexFileExistedKey, startedAtKey, versionKey]
 
     /// Whether this process runs the demo. Read once, after `DemoLaunch`
     /// has settled the launch, and never again: flipping the switch while

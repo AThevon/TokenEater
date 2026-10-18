@@ -195,12 +195,19 @@ struct TokenEaterApp: App {
         self.settingsStore = SettingsStore()
         // Just turned on: the demo accounts get their menu bar segments and
         // popover sections, as the add sheet gives an account it connects.
-        if demoLaunch == .activated {
+        switch demoLaunch {
+        case .activated:
             DemoLaunch.seedLayouts(
                 for: accountsStore.records,
                 into: settingsStore,
                 home: ClaudeConfigDirResolver.realHome()
             )
+        case .pruned(let retired):
+            // Fake accounts an older demo build tracked: gone from the
+            // account list already, now from the layouts and the order.
+            for id in retired { settingsStore.purgeAccount(id) }
+        case .inactive, .resumed, .cleanedUp:
+            break
         }
         self.updateStore = UpdateStore()
         self.sessionStore = SessionStore()

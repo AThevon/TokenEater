@@ -53,7 +53,7 @@ struct DemoHistoryShape: Equatable, Sendable {
     let models: [(ModelKind, Double)]
     let projects: [String]
     /// No activity after this long before the demo started (an account that
-    /// went quiet: expired, paused).
+    /// went quiet, like the expired one).
     let quietFor: TimeInterval?
 
     static func == (lhs: DemoHistoryShape, rhs: DemoHistoryShape) -> Bool {
@@ -76,7 +76,6 @@ struct DemoClaudeFixture: Equatable, Sendable, Identifiable {
     /// Tracked when the demo starts. The others are only offered by the
     /// add-account sheet.
     let seeded: Bool
-    let isPaused: Bool
     let login: DemoLogin
     /// The fixture whose identity this login carries: itself, or another
     /// fixture's for a second folder signed in to the same account.
@@ -93,7 +92,7 @@ struct DemoClaudeFixture: Equatable, Sendable, Identifiable {
     let fable: DemoPool?
     let extraCredits: DemoExtraCredits?
     /// Last numbers written for it when the demo starts, this long before:
-    /// what a paused or expired account keeps showing.
+    /// what an expired account keeps showing.
     let lastNumbersAgo: TimeInterval?
     let history: DemoHistoryShape
 
@@ -128,7 +127,6 @@ enum DemoFixtures {
         name: "Work",
         colorHex: "#F472B6",
         seeded: true,
-        isPaused: false,
         login: .valid,
         identityKey: "work",
         plan: .team,
@@ -155,7 +153,6 @@ enum DemoFixtures {
         name: "Side project",
         colorHex: "#22D3EE",
         seeded: true,
-        isPaused: false,
         login: .valid,
         identityKey: "side",
         plan: .max,
@@ -180,7 +177,6 @@ enum DemoFixtures {
         name: "Old login",
         colorHex: "#C084FC",
         seeded: true,
-        isPaused: false,
         login: .expired,
         identityKey: "old",
         plan: .pro,
@@ -199,31 +195,6 @@ enum DemoFixtures {
         )
     )
 
-    static let paused = DemoClaudeFixture(
-        key: "paused",
-        folderName: ".claude-demo-paused",
-        name: "Paused",
-        colorHex: "#6366F1",
-        seeded: true,
-        isPaused: true,
-        login: .valid,
-        identityKey: "paused",
-        plan: .pro,
-        email: "kim@freelance-demo.dev",
-        organizationName: nil,
-        fiveHour: DemoPool(base: 22, swing: 3, resetOffsetMinutes: 150),
-        weekly: DemoPool(base: 55, swing: 2, resetOffsetMinutes: 3_000),
-        fable: nil,
-        extraCredits: nil,
-        lastNumbersAgo: 3 * 3600,
-        history: DemoHistoryShape(
-            tokensPerHour: 120_000,
-            models: [(.sonnet55, 1.0)],
-            projects: ["/demo/client-site"],
-            quietFor: 86_400
-        )
-    )
-
     /// Offered by the add sheet, with a login: Connect succeeds.
     static let client = DemoClaudeFixture(
         key: "client",
@@ -231,7 +202,6 @@ enum DemoFixtures {
         name: "Client",
         colorHex: "#8B7CF6",
         seeded: false,
-        isPaused: false,
         login: .valid,
         identityKey: "client",
         plan: .pro,
@@ -258,7 +228,6 @@ enum DemoFixtures {
         name: "Empty",
         colorHex: "#94A3B8",
         seeded: false,
-        isPaused: false,
         login: .none,
         identityKey: "empty",
         plan: .pro,
@@ -280,7 +249,6 @@ enum DemoFixtures {
         name: "Copy",
         colorHex: "#E879F9",
         seeded: false,
-        isPaused: false,
         login: .valid,
         identityKey: "work",
         plan: .team,
@@ -294,9 +262,27 @@ enum DemoFixtures {
         history: work.history
     )
 
-    static let claude: [DemoClaudeFixture] = [work, side, expired, paused, client, empty, copy]
+    static let claude: [DemoClaudeFixture] = [work, side, expired, client, empty, copy]
 
     static var seeded: [DemoClaudeFixture] { claude.filter(\.seeded) }
+
+    /// Bumped whenever the seeded set changes, so a demo already running
+    /// drops the fake accounts this build no longer seeds at its next launch
+    /// (`DemoLaunch.pruneRetired`). 1 seeded a paused account as well; 2
+    /// seeds Work, Side project and Old login only.
+    static let version = 2
+
+    /// The prefix every demo folder's name starts with, the ones an older
+    /// build seeded or offered included.
+    static let folderPrefix = ".claude-demo-"
+
+    /// Whether a folder is one of the demo's, this build's fixtures or a
+    /// retired one. Nil (the default folder) never is.
+    static func isDemoFolder(_ path: String?, home: String) -> Bool {
+        guard let path else { return false }
+        let name = URL(fileURLWithPath: ClaudeConfigDirResolver.normalize(path, home: home)).lastPathComponent
+        return name.hasPrefix(folderPrefix)
+    }
 
     static func fixture(key: String) -> DemoClaudeFixture? {
         claude.first { $0.key == key }
@@ -330,7 +316,7 @@ enum DemoFixtures {
             service: fixture.service(home: home),
             name: fixture.name,
             colorHex: fixture.colorHex,
-            isPaused: fixture.isPaused,
+            isPaused: false,
             notificationsEnabled: true,
             identityDigest: identityDigest(of: fixture),
             addedAt: now

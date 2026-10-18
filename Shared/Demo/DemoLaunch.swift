@@ -48,6 +48,10 @@ enum DemoLaunchOutcome: Equatable {
     case activated
     /// The demo was already on: nothing to do.
     case resumed
+    /// The demo was already on, started by a build that seeded other fake
+    /// accounts: the ones this build no longer seeds were removed, and the
+    /// settings still have to forget them (`SettingsStore.purgeAccount`).
+    case pruned([AccountID])
     /// The switch was turned off: everything the demo added is gone and the
     /// app's defaults are back to the snapshot.
     case cleanedUp
@@ -60,6 +64,8 @@ enum DemoLaunch {
     enum Step: Equatable {
         case none
         case resume
+        /// Running, but started by a build with other fixtures.
+        case prune
         case activate
         case cleanUp
     }
@@ -69,10 +75,17 @@ enum DemoLaunch {
         let ran = defaults.object(forKey: DemoMode.snapshotKey) != nil
         switch (enabled, ran) {
         case (false, false): return .none
-        case (true, true): return .resume
+        case (true, true): return isCurrent(defaults: defaults) ? .resume : .prune
         case (true, false): return .activate
         case (false, true): return .cleanUp
         }
+    }
+
+    /// Whether the running demo was started, or last pruned, by a build
+    /// seeding the same accounts as this one.
+    static func isCurrent(defaults: UserDefaults) -> Bool {
+        let stored = defaults.object(forKey: DemoMode.versionKey) as? Int ?? 1
+        return stored >= DemoFixtures.version
     }
 
     /// The app's launch step, on the app's own defaults and files only:
@@ -85,7 +98,7 @@ enum DemoLaunch {
         switch step(defaults: .standard) {
         case .none: return .inactive
         case .resume: return .resumed
-        case .activate, .cleanUp: return prepare(.live())
+        case .prune, .activate, .cleanUp: return prepare(.live())
         }
     }
 
@@ -94,6 +107,8 @@ enum DemoLaunch {
         switch step(defaults: env.defaults) {
         case .none: return .inactive
         case .resume: return .resumed
+        case .prune:
+            return .pruned(pruneRetired(env))
         case .activate:
             activate(env)
             return .activated
@@ -107,8 +122,8 @@ enum DemoLaunch {
 
     /// Snapshots the app's defaults, the widget's accounts index and whether
     /// `codex.json` existed, then tracks the seeded fake accounts next to
-    /// whatever was tracked already, gives the paused and expired ones their
-    /// last numbers, and turns Codex on for the fake login.
+    /// whatever was tracked already, gives the expired one its last numbers,
+    /// and turns Codex on for the fake login.
     static func activate(_ env: DemoLaunchEnvironment) {
         var domain = env.defaults.persistentDomain(forName: env.domainName) ?? [:]
         for key in DemoMode.keys { domain.removeValue(forKey: key) }
@@ -124,6 +139,7 @@ enum DemoLaunch {
             forKey: DemoMode.codexFileExistedKey
         )
         env.defaults.set(env.now, forKey: DemoMode.startedAtKey)
+        env.defaults.set(DemoFixtures.version, forKey: DemoMode.versionKey)
 
         var records = ClaudeAccountsStorage.load(from: env.defaults, home: env.home)
         for fixture in DemoFixtures.seeded {
@@ -142,7 +158,46 @@ enum DemoLaunch {
         env.defaults.set(true, forKey: "codexEnabled")
     }
 
-    /// The numbers a fake account that does not refresh (paused, expired)
+    // MARK: - A demo started by an older build
+
+    /// Removes the fake accounts this build does not seed, the way Remove
+    /// takes an account: a seeded fixture that retired (Paused) and any fake
+    /// folder connected through the add sheet (Client), so the demo comes
+    /// back to exactly the seeded accounts. Their record, every defaults key
+    /// under their suffix, their shared file, their history cache and their
+    /// alerts go here, before any store reads them; the layouts that name
+    /// them go once the settings exist, through the ids this returns. The
+    /// snapshot is not touched: none of them was in it. A real account added
+    /// during the demo stays.
+    @discardableResult
+    static func pruneRetired(_ env: DemoLaunchEnvironment) -> [AccountID] {
+        defer { env.defaults.set(DemoFixtures.version, forKey: DemoMode.versionKey) }
+        var records = ClaudeAccountsStorage.load(from: env.defaults, home: env.home)
+        let seeded = Set(DemoFixtures.seeded.map(\.accountID))
+        let retired = records
+            .filter { !$0.id.isMain && !seeded.contains($0.id) && DemoFixtures.isDemoFolder($0.configDir, home: env.home) }
+            .map(\.id)
+        guard !retired.isEmpty else { return [] }
+
+        records.removeAll { retired.contains($0.id) }
+        env.defaults.set(ClaudeAccountsStorage.encode(records), forKey: ClaudeAccountsStorage.defaultsKey)
+        let fm = FileManager.default
+        for id in retired {
+            for key in env.defaults.dictionaryRepresentation().keys where key.hasSuffix(id.storageSuffix) {
+                env.defaults.removeObject(forKey: key)
+            }
+            try? fm.removeItem(at: env.sharedDirectory.appendingPathComponent(id.sharedFileName))
+            try? fm.removeItem(at: env.sharedDirectory.appendingPathComponent("history-cache\(id.storageSuffix).json"))
+            env.notifications.purge(account: id, includingDelivered: true)
+        }
+        let index = AccountIndexEntry.index(of: records)
+        if env.indexFile.accountsIndex != nil {
+            env.indexFile.updateAccountsIndex(index)
+        }
+        return retired
+    }
+
+    /// The numbers a fake account that does not refresh (an expired one)
     /// shows, dated `lastNumbersAgo` before `startedAt`.
     static func seedLastNumbers(for fixture: DemoClaudeFixture, file: SharedFileServiceProtocol, startedAt: Date) {
         guard let ago = fixture.lastNumbersAgo else { return }
@@ -164,8 +219,8 @@ enum DemoLaunch {
     /// way the add sheet does for an account it connects: a popover section
     /// and menu bar segments each, in list order, then All on screen. Run
     /// once the settings exist, right after `activate` and after the demo
-    /// card brings removed demo accounts back. Paused ones get nothing, as
-    /// they leave the menu bar and popover anyway.
+    /// card brings removed demo accounts back. A paused one gets nothing, as
+    /// it leaves the menu bar and popover anyway.
     @MainActor
     static func seedLayouts(for records: [ClaudeAccountRecord], into settings: SettingsStore, home: String) {
         let running = records.filter { record in
@@ -200,7 +255,7 @@ enum DemoLaunch {
         }
 
         var ids = Set(DemoFixtures.seeded.map(\.accountID))
-        for record in records where DemoFixtures.fixture(forFolder: record.configDir, home: env.home) != nil {
+        for record in records where !record.id.isMain && DemoFixtures.isDemoFolder(record.configDir, home: env.home) {
             ids.insert(record.id)
         }
         if let snapshot {

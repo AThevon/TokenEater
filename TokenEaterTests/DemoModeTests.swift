@@ -192,12 +192,15 @@ struct DemoModeTests {
 
         let records = ClaudeAccountsStorage.load(from: fixture.defaults, home: home)
         #expect(records.map(\.id) == [.main] + DemoFixtures.seeded.map(\.accountID))
-        #expect(records.first { $0.id == DemoFixtures.paused.accountID }?.isPaused == true)
+        // Exactly three fake Claude accounts, none paused: pausing one is
+        // the user's to try.
+        #expect(DemoFixtures.seeded.map(\.name) == ["Work", "Side project", "Old login"])
+        #expect(records.allSatisfy { !$0.isPaused })
         #expect(records.allSatisfy { $0.id.isMain || $0.identityDigest != nil })
         #expect(fixture.defaults.bool(forKey: "codexEnabled"))
         #expect(fixture.defaults.data(forKey: DemoMode.snapshotKey) != nil)
-        // The two accounts that never refresh start with their last numbers.
-        #expect(fixture.accountFiles.files[DemoFixtures.paused.accountID]?.cachedUsage != nil)
+        #expect(fixture.defaults.integer(forKey: DemoMode.versionKey) == DemoFixtures.version)
+        // The account that never refreshes starts with its last numbers.
         #expect(fixture.accountFiles.files[DemoFixtures.expired.accountID]?.cachedUsage != nil)
         #expect(fixture.accountFiles.files[DemoFixtures.work.accountID]?.cachedUsage == nil)
         // Nothing reached the disk of the shared folder.
@@ -207,6 +210,83 @@ struct DemoModeTests {
         let during = domain(fixture)
         #expect(DemoLaunch.prepare(fixture.env) == .resumed)
         #expect(domain(fixture).isEqual(during))
+    }
+
+    // MARK: - A demo started by an older build
+
+    /// What a demo started by the previous build left: its seeded Paused
+    /// account (`acct-demo-paused`) and Client connected from the add sheet
+    /// under a random id, with their keys, files and layouts.
+    private func olderDemo(_ fixture: Fixture) throws -> (paused: AccountID, client: AccountID, real: AccountID) {
+        fixture.defaults.set(true, forKey: DemoMode.flagKey)
+        #expect(DemoLaunch.prepare(fixture.env) == .activated)
+        fixture.defaults.removeObject(forKey: DemoMode.versionKey)
+
+        var records = ClaudeAccountsStorage.load(from: fixture.defaults, home: home)
+        let pausedPath = home + "/.claude-demo-paused"
+        let paused = ClaudeAccountRecord(
+            id: AccountID(rawValue: "acct-demo-paused"), configDir: pausedPath,
+            service: ClaudeConfigDirResolver.service(forHashInput: pausedPath),
+            name: "Paused", colorHex: "#6366F1", isPaused: true, identityDigest: "paused"
+        )
+        let clientRecord = DemoFixtures.record(for: DemoFixtures.client, home: home, now: Date())
+        let client = ClaudeAccountRecord(
+            id: .makeExtra(), configDir: clientRecord.configDir, service: clientRecord.service,
+            name: "Client", colorHex: clientRecord.colorHex, identityDigest: clientRecord.identityDigest
+        )
+        // A real account added during the demo must stay.
+        let realPath = home + "/.claude-work"
+        let real = ClaudeAccountRecord(
+            id: .makeExtra(), configDir: realPath,
+            service: ClaudeConfigDirResolver.service(forHashInput: realPath),
+            name: "Real", colorHex: "#22C55E", identityDigest: "real"
+        )
+        records += [paused, client, real]
+        fixture.defaults.set(ClaudeAccountsStorage.encode(records), forKey: ClaudeAccountsStorage.defaultsKey)
+        for id in [paused.id, client.id, real.id] {
+            fixture.defaults.set(Data([1]), forKey: "sessionPacingSamples" + id.storageSuffix)
+            fixture.defaults.set(Data([2]), forKey: "popoverComposition.claude" + id.storageSuffix)
+            try Data("{}".utf8).write(to: fixture.directory.appendingPathComponent(id.sharedFileName))
+        }
+        return (paused.id, client.id, real.id)
+    }
+
+    @Test("a demo started by an older build drops Paused and Client at the next launch")
+    func olderDemoIsPruned() throws {
+        let fixture = try makeFixture(prefs: realPrefs)
+        let ids = try olderDemo(fixture)
+        #expect(DemoLaunch.step(defaults: fixture.defaults) == .prune)
+
+        let outcome = DemoLaunch.prepare(fixture.env)
+        #expect(outcome == .pruned([ids.paused, ids.client]))
+
+        let records = ClaudeAccountsStorage.load(from: fixture.defaults, home: home)
+        #expect(records.map(\.id) == [.main] + DemoFixtures.seeded.map(\.accountID) + [ids.real])
+        for id in [ids.paused, ids.client] {
+            #expect(fixture.defaults.object(forKey: "sessionPacingSamples" + id.storageSuffix) == nil)
+            #expect(fixture.defaults.object(forKey: "popoverComposition.claude" + id.storageSuffix) == nil)
+            #expect(!files(in: fixture.directory).contains(id.sharedFileName))
+        }
+        #expect(Set(fixture.notifications.purges.map(\.account)) == [ids.paused, ids.client])
+        #expect(fixture.defaults.object(forKey: "sessionPacingSamples" + ids.real.storageSuffix) != nil)
+        #expect(files(in: fixture.directory).contains(ids.real.sharedFileName))
+
+        // Once only: the next launch just resumes.
+        #expect(DemoLaunch.step(defaults: fixture.defaults) == .resume)
+        #expect(DemoLaunch.prepare(fixture.env) == .resumed)
+    }
+
+    @Test("the add sheet's demo folders still answer after the trim")
+    func addSheetFoldersStillWork() {
+        #expect(DemoFixtures.claude.filter { !$0.seeded }.map(\.key) == ["client", "empty", "copy"])
+        for fixture in DemoFixtures.claude {
+            #expect(DemoFixtures.fixture(forFolder: fixture.folderPath(home: home), home: home) == fixture)
+            #expect(DemoFixtures.isDemoFolder(fixture.folderPath(home: home), home: home))
+        }
+        #expect(DemoFixtures.isDemoFolder(home + "/.claude-demo-paused", home: home))
+        #expect(DemoFixtures.fixture(forFolder: home + "/.claude-demo-paused", home: home) == nil)
+        #expect(!DemoFixtures.isDemoFolder(home + "/.claude-work", home: home))
+        #expect(!DemoFixtures.isDemoFolder(nil, home: home))
     }
 
     // MARK: - Turning it off
