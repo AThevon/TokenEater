@@ -55,7 +55,7 @@ struct LastKnownNumbersTests {
     func expiredAccountKeepsDatedNumbers() async {
         let token = MockTokenProvider()
         token.token = "expired"
-        token.lastScope = .configDir(path: "/Users/demo/.claude-old", service: "Claude Code-credentials-old")
+        token.lastScope = .configDir(path: "/Users/tester/.claude-old", service: "Claude Code-credentials-old")
         let twoDaysAgo = Date().addingTimeInterval(-2 * 86_400)
         let store = makeStore(repo: refusingRepo(), token: token, shared: cache(fetchedAt: twoDaysAgo))
 

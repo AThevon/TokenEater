@@ -205,7 +205,7 @@ struct ClaudeAccountRow<FolderLine: View>: View {
             identityState: store.identityState,
             isPaused: record.isPaused,
             lastUpdate: store.lastUpdate,
-            folderExists: record.configDir.map { DemoMode.configFolderExists(atPath: $0) } ?? true,
+            folderExists: record.configDir.map { FileManager.default.fileExists(atPath: $0) } ?? true,
             command: command,
             names: Dictionary(uniqueKeysWithValues: accountsStore.records.map { ($0.id, $0.name) })
         )

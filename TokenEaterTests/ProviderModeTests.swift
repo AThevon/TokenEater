@@ -550,36 +550,34 @@ struct ProviderModeTests {
         #expect(store.popoverComposition.elements.contains { $0.account == Self.work })
     }
 
-    @Test("The demo's running accounts land in the All layouts, paused and real ones do not")
-    func demoSeedsItsAccounts() {
+    @Test("Accounts seeded one after another land in the All layouts in that order, others stay out")
+    func seedSeveralAccountsInOrder() {
         let store = makeStore()
         defer { clean() }
-        let home = ClaudeConfigDirResolver.realHome()
-        let records = [ClaudeAccountRecord.defaultMain()]
-            + DemoFixtures.seeded.map { DemoFixtures.record(for: $0, home: home, now: Date()) }
-            + [ClaudeAccountRecord(id: Self.side, configDir: home + "/.claude-side", name: "Side", colorHex: "#22D3EE")]
+        let client = AccountID(rawValue: "acct-client")
         store.claudeEnabled = true
         store.codexEnabled = true
-        store.claudeAccounts = records.map(\.summary)
-        store.activeProviderMode = .claude
+        store.claudeAccounts = [
+            mainSummary,
+            summary(Self.work, "Work"),
+            summary(Self.side, "Side project"),
+            summary(client, "Client"),
+        ]
+        store.activeProviderMode = .all
 
-        DemoLaunch.seedLayouts(for: records, into: store, home: home)
+        store.seedAccount(Self.work, addToMenuBar: true)
+        store.seedAccount(Self.side, addToMenuBar: true)
 
-        #expect(store.activeProviderMode == .all)
-        let running = DemoFixtures.seeded.filter { !(DemoFixtures.record(for: $0, home: home, now: Date()).isPaused) }
-        #expect(running.contains(DemoFixtures.work) && running.contains(DemoFixtures.side))
-        for fixture in DemoFixtures.seeded {
-            let inPopover = store.popoverComposition.elements.contains { $0.account == fixture.accountID }
-            let inMenuBar = store.menuBarComposition.segments.contains { $0.account == fixture.accountID }
-            #expect(inPopover == running.contains(fixture))
-            #expect(inMenuBar == running.contains(fixture))
+        for id in [Self.work, Self.side] {
+            #expect(store.popoverComposition.elements.contains { $0.account == id })
+            #expect(store.menuBarComposition.segments.contains { $0.account == id })
         }
-        #expect(!store.popoverComposition.elements.contains { $0.account == Self.side })
-        #expect(!store.menuBarComposition.segments.contains { $0.account == Self.side })
-        // In list order, Work's run before Side project's.
+        #expect(!store.popoverComposition.elements.contains { $0.account == client })
+        #expect(!store.menuBarComposition.segments.contains { $0.account == client })
+        // Work's segments run before Side project's.
         let order = store.menuBarComposition.segments.compactMap(\.account)
-        let work = order.firstIndex(of: DemoFixtures.work.accountID)
-        let side = order.firstIndex(of: DemoFixtures.side.accountID)
+        let work = order.firstIndex(of: Self.work)
+        let side = order.firstIndex(of: Self.side)
         #expect(work != nil && side != nil && work! < side!)
     }
 

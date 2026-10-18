@@ -33,7 +33,7 @@ Three targets:
 
 `project.yml` declares the widget's `NSExtension` key under the target's `info.properties`, so XcodeGen writes it into `TokenEaterWidget/Info.plist` on every generate. That plist is tracked but fully regenerated, so never hand-edit it. The `plutil -insert NSExtension ...` step in `build.sh`, `SETUP.md` and all three workflows is therefore a no-op today: it exits 1 with "Value already exists", swallowed by `|| true`. Keep it as a guard in case the `info.properties` block is ever dropped, but it is not load-bearing. If the widget gallery shows nothing, check the cache nuke (`com.apple.chrono` plus `pluginkit -r`) and that the `.appex` still carries `com.apple.security.app-sandbox` (no `--deep` on the parent sign) instead.
 
-`TokenEaterApp/` has no Swift file at its root; every source sits in a subfolder (`Accounts/`, `App/`, `Components/`, `Demo/`, `Onboarding/`, `Overlay/`, `Popover/`, `Resources/`, `Settings/`, `Studio/`, `Updater/`, `Windows/`). Quote full paths when editing `project.yml`; the bare filenames in the feature index below are grep targets, not paths.
+`TokenEaterApp/` has no Swift file at its root; every source sits in a subfolder (`Accounts/`, `App/`, `Components/`, `Onboarding/`, `Overlay/`, `Popover/`, `Resources/`, `Settings/`, `Studio/`, `Updater/`, `Windows/`). Quote full paths when editing `project.yml`; the bare filenames in the feature index below are grep targets, not paths.
 
 `Shared/` is compiled into all three targets:
 
@@ -45,7 +45,6 @@ Three targets:
 - `Shared/Components/` - reusable SwiftUI views shared by app and widget (RingGauge, PacingBar, AnimatedGradient, GlowText, etc.).
 - `Shared/Design/DesignTokens.swift` - the `DS` design-token namespace plus a `View` extension.
 - `Shared/Extensions/` and `Shared/en.lproj` / `Shared/fr.lproj` - shared extensions and EN/FR localization.
-- `Shared/Demo/` - the multi-account demo mode (see below): fixtures and the in-memory services that answer its fake folders. Not services in the convention's sense, so outside `Shared/Services/` and with no mocks.
 
 ## Architecture and mental model
 
@@ -248,17 +247,6 @@ This block deliberately leaves `UserDefaults` alone, so `hasCompletedOnboarding`
 After installing, remove the old widget from the desktop and add a fresh one (right-click > Edit Widgets > TokenEater).
 
 The `xattr -cr` above is only for ad-hoc local builds. Official releases are Developer ID-signed and notarized in CI, so shipped DMGs are not quarantined.
-
-### Multi-account demo mode (local testing)
-
-For trying every multi-account surface with a single real Claude login and no Codex login. Off by default and read once at launch; quit TokenEater before flipping it:
-
-```bash
-defaults write com.tokeneater.app demo.multiAccount -bool YES   # on, at the next launch
-defaults delete com.tokeneater.app demo.multiAccount            # off, at the next launch
-```
-
-Turning it on (`DemoLaunch` in `Shared/Demo/DemoLaunch.swift`, run from `TokenEaterApp.init` before any store) snapshots the app's defaults domain, the widget's `accountsIndex` and whether `codex.json` existed, then tracks three fake accounts next to the real main one (Work at a high 5h, Side project with the longest name, Old login expired and showing its dated last numbers; pausing one is left to the user), gives them their menu bar segments and popover sections in All (`DemoLaunch.seedLayouts`, once `SettingsStore` exists) and turns Codex on with a fake ChatGPT Pro login. A demo started by a build that seeded other fake accounts (`DemoFixtures.version`, stored under `demo.multiAccount.version`) is pruned once at the next launch (`DemoLaunch.pruneRetired`): every fake folder (`~/.claude-demo-*`) that is not a seeded fixture, the retired Paused one and an account connected from the add sheet alike, goes the way Remove takes it, and `SettingsStore.purgeAccount` drops it from the layouts once the settings exist. Turning it off removes every account the snapshot does not hold, fake ones and a real one added during the demo alike, the way Remove does (`shared-acct-*.json`, history caches, notifications), drops the fake Codex login's alerts, puts the index and `codex.json` back, and restores the defaults snapshot, so any setting changed during the demo is reverted too. Runtime state is the exception (`DemoLaunch.isRuntimeState`: alert memory, pacing samples, `lastSeenVersion`, the brew prompt): its current value is kept, so an alert already sent or a what's-new screen already seen does not come back. Fake folders (`~/.claude-demo-*`) are never created: `DemoTokenProvider`, `DemoAPIClient`, `DemoConfigDirScanner`, `DemoCodexTokenProvider`, `DemoCodexAPIClient` and `DemoSessionHistoryService` answer them in memory at the service seams (`AccountRuntimeServices`, the `AccountsStore` and `CodexUsageStore` initializers, `CombinedSessionHistoryService.claudeLeg`), so everything above those seams is the real code. The only shipped code that asks about the demo is `DemoMode`'s seams; with the switch off they answer exactly as before (`TokenEaterTests/DemoModeTests.swift`). While it runs, Settings > Providers shows a demo card with sample threshold and expired-login alerts per fake account (never the real main one, whose alert identifiers they would take).
 
 ### CI test build (test-build.yml)
 

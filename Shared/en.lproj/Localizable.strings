@@ -1253,17 +1253,3 @@
 "accounts.mainFolder.note" = "Changing it reads the new folder's login once, then clears the numbers of the previous one.";
 "onboarding.claude.configDir" = "Using CLAUDE_CONFIG_DIR? Choose its folder";
 "onboarding.claude.configDir.current" = "Folder: %@ · Change";
-
-/* Multi-account demo (only drawn while `defaults write com.tokeneater.app demo.multiAccount -bool YES` is set) */
-"demo.title" = "Demo mode";
-"demo.subtitle" = "Fake Claude accounts and a fake Codex login, answered from fixtures: no Keychain, no file, no network for them. Your real main account runs as usual next to them, and sample alerts are only offered for the fake ones.";
-"demo.account.fake" = "demo";
-"demo.account.real" = "real";
-"demo.notify.threshold" = "Threshold alert";
-"demo.notify.expired" = "Expired login alert";
-"demo.refresh" = "Refresh demo accounts";
-"demo.restore" = "Bring back removed demo accounts";
-"demo.turnOff" = "Turn off";
-"demo.turnOff.title" = "Turn off the demo?";
-"demo.turnOff.message" = "TokenEater quits now. At the next launch, every account added during the demo, fake or real, goes with its files and alerts, and your settings go back to how they were before the demo. Alerts already sent stay remembered.";
-"demo.turnOff.action" = "Turn off and quit";

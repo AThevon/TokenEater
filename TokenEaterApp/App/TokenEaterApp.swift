@@ -143,53 +143,23 @@ struct TokenEaterApp: App {
         // have: read them into its terms before any store decodes them.
         PrototypeAccountMigration.run()
 
-        // The multi-account demo starts or ends here, before any store reads
-        // the defaults it snapshots or restores. Without its switch this
-        // reads two keys and does nothing else (`DemoMode`).
-        let demoLaunch = DemoLaunch.prepareAtLaunch()
-        let demo = DemoMode.isActive
-
         self.historyWidgetStore = HistoryWidgetStore()
-        self.codexStore = demo
-            ? CodexUsageStore(
-                repository: CodexUsageRepository(apiClient: DemoCodexAPIClient()),
-                tokenProvider: DemoCodexTokenProvider()
-            )
-            : CodexUsageStore()
+        self.codexStore = CodexUsageStore()
         // The main account's store reads the folder the user chose for it,
         // `~/.claude` unless they chose another one (#294).
         let mainNotifications = NotificationService()
-        let usageStore = demo
-            ? UsageStore(
-                repository: UsageRepository(apiClient: DemoAPIClient(real: APIClient())),
-                tokenProvider: DemoRoutingTokenProvider(real: TokenProvider.forMainAccount()),
-                notificationService: mainNotifications
-            )
-            : UsageStore(
-                tokenProvider: TokenProvider.forMainAccount(),
-                notificationService: mainNotifications
-            )
+        let usageStore = UsageStore(
+            tokenProvider: TokenProvider.forMainAccount(),
+            notificationService: mainNotifications
+        )
         self.usageStore = usageStore
         // The accounts index for the "Claude · Account" widget goes into
         // `shared.json`, next to the main account's numbers.
-        let accountsStore = demo
-            ? AccountsStore(
-                mainStore: usageStore,
-                scanner: DemoConfigDirScanner(real: ClaudeConfigDirScanner()),
-                makeConnectTokenProvider: { DemoTokenProvider.orReal(scope: $0) },
-                apiClient: DemoAPIClient(real: APIClient()),
-                indexFile: SharedFileService(),
-                reloadAccountWidgets: { WidgetReloader.scheduleAccountReload() },
-                runtimeServices: AccountRuntimeServices(
-                    makeAPIClient: { DemoAPIClient(real: APIClient()) },
-                    makeTokenProvider: { DemoTokenProvider.orReal(scope: $0) }
-                )
-            )
-            : AccountsStore(
-                mainStore: usageStore,
-                indexFile: SharedFileService(),
-                reloadAccountWidgets: { WidgetReloader.scheduleAccountReload() }
-            )
+        let accountsStore = AccountsStore(
+            mainStore: usageStore,
+            indexFile: SharedFileService(),
+            reloadAccountWidgets: { WidgetReloader.scheduleAccountReload() }
+        )
         self.accountsStore = accountsStore
         // The main account's alerts keep their historical identifiers and
         // only name the account once a second one runs; the scope that knows
@@ -197,22 +167,6 @@ struct TokenEaterApp: App {
         mainNotifications.scope = accountsStore.notificationScope(for: .main)
         self.themeStore = ThemeStore()
         self.settingsStore = SettingsStore()
-        // Just turned on: the demo accounts get their menu bar segments and
-        // popover sections, as the add sheet gives an account it connects.
-        switch demoLaunch {
-        case .activated:
-            DemoLaunch.seedLayouts(
-                for: accountsStore.records,
-                into: settingsStore,
-                home: ClaudeConfigDirResolver.realHome()
-            )
-        case .pruned(let retired):
-            // Fake accounts an older demo build tracked: gone from the
-            // account list already, now from the layouts and the order.
-            for id in retired { settingsStore.purgeAccount(id) }
-        case .inactive, .resumed, .cleanedUp:
-            break
-        }
         self.updateStore = UpdateStore()
         self.sessionStore = SessionStore()
         self.vendorStatusStore = VendorStatusStore()

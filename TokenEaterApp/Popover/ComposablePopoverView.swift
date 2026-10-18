@@ -357,7 +357,7 @@ private struct ClaudeAccountSectionHeader: View {
             identityState: store.identityState,
             isPaused: false,
             lastUpdate: store.lastUpdate,
-            folderExists: folder.map { DemoMode.configFolderExists(atPath: $0) } ?? true,
+            folderExists: folder.map { FileManager.default.fileExists(atPath: $0) } ?? true,
             command: "",
             names: [:]
         )

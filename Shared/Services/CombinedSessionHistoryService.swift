@@ -28,13 +28,13 @@ final class CombinedSessionHistoryService: SessionHistoryServiceProtocol {
     init(
         claudeRoots: @escaping @Sendable () -> [ClaudeHistoryRoot] = { CombinedSessionHistoryService.trackedClaudeRoots() },
         accountFilter: AccountID? = nil,
-        codex: SessionHistoryServiceProtocol = CombinedSessionHistoryService.codexLeg(),
+        codex: SessionHistoryServiceProtocol = SessionHistoryService(source: .codex),
         isCodexEnabled: @escaping @Sendable () -> Bool = CombinedSessionHistoryService.codexEnabledDefault
     ) {
         self.claudeLegs = {
             claudeRoots()
                 .filter { accountFilter == nil || $0.account == accountFilter }
-                .map(Self.claudeLeg(for:))
+                .map { SessionHistoryService(rootURL: $0.projectsURL, cacheURL: $0.cacheURL) }
         }
         self.codex = codex
         self.isCodexEnabled = isCodexEnabled
@@ -43,26 +43,12 @@ final class CombinedSessionHistoryService: SessionHistoryServiceProtocol {
     /// One fixed Claude leg, for tests and callers that already hold one.
     init(
         claude: SessionHistoryServiceProtocol,
-        codex: SessionHistoryServiceProtocol = CombinedSessionHistoryService.codexLeg(),
+        codex: SessionHistoryServiceProtocol = SessionHistoryService(source: .codex),
         isCodexEnabled: @escaping @Sendable () -> Bool = CombinedSessionHistoryService.codexEnabledDefault
     ) {
         self.claudeLegs = { [claude] }
         self.codex = codex
         self.isCodexEnabled = isCodexEnabled
-    }
-
-    /// The reader of one Claude folder's transcripts, with its own cache.
-    /// A folder of the multi-account demo is generated in memory instead,
-    /// and only while the demo runs (`DemoMode`).
-    static func claudeLeg(for root: ClaudeHistoryRoot) -> SessionHistoryServiceProtocol {
-        DemoMode.historyService(for: root)
-            ?? SessionHistoryService(rootURL: root.projectsURL, cacheURL: root.cacheURL)
-    }
-
-    /// The Codex reader: `CODEX_HOME`'s sessions, or the demo's fake Codex
-    /// login while the demo runs.
-    static func codexLeg() -> SessionHistoryServiceProtocol {
-        DemoMode.codexHistoryService() ?? SessionHistoryService(source: .codex)
     }
 
     /// Every tracked Claude account's folder, the main one first: its

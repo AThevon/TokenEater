@@ -1253,17 +1253,3 @@
 "accounts.mainFolder.note" = "Le changer lit une fois la connexion du nouveau dossier, puis efface les chiffres de l'ancienne.";
 "onboarding.claude.configDir" = "Tu utilises CLAUDE_CONFIG_DIR ? Choisis son dossier";
 "onboarding.claude.configDir.current" = "Dossier : %@ · Modifier";
-
-/* Multi-account demo (only drawn while `defaults write com.tokeneater.app demo.multiAccount -bool YES` is set) */
-"demo.title" = "Mode démo";
-"demo.subtitle" = "Des comptes Claude fictifs et une connexion Codex fictive, servis par des fixtures : ni trousseau, ni fichier, ni réseau pour eux. Ton vrai compte principal tourne normalement à côté, et les alertes d'exemple ne sont proposées que pour les comptes fictifs.";
-"demo.account.fake" = "démo";
-"demo.account.real" = "réel";
-"demo.notify.threshold" = "Alerte de seuil";
-"demo.notify.expired" = "Alerte connexion expirée";
-"demo.refresh" = "Actualiser les comptes démo";
-"demo.restore" = "Remettre les comptes démo retirés";
-"demo.turnOff" = "Désactiver";
-"demo.turnOff.title" = "Désactiver la démo ?";
-"demo.turnOff.message" = "TokenEater se ferme maintenant. Au prochain lancement, chaque compte ajouté pendant la démo, fictif ou réel, disparaît avec ses fichiers et ses alertes, et tes réglages reviennent à leur état d'avant la démo. Les alertes déjà envoyées restent mémorisées.";
-"demo.turnOff.action" = "Désactiver et quitter";

@@ -42,7 +42,10 @@ final class AccountRuntime {
         if let builtInsights { return builtInsights }
         let built: MonitoringInsightsStore
         if let history {
-            built = MonitoringInsightsStore(service: CombinedSessionHistoryService.claudeLeg(for: history))
+            built = MonitoringInsightsStore(service: SessionHistoryService(
+                rootURL: history.projectsURL,
+                cacheURL: history.cacheURL
+            ))
         } else {
             built = MonitoringInsightsStore(service: CombinedSessionHistoryService(
                 claudeRoots: { [] },
@@ -61,20 +64,6 @@ final class AccountRuntime {
         store.retire()
         builtInsights?.invalidate()
     }
-}
-
-/// What an added account's store talks to: the usage API and the token
-/// provider for its folder. `.live` is the real pair; the multi-account
-/// demo (`DemoMode`) passes one that answers its fake folders in memory and
-/// hands every real folder to the real pair.
-struct AccountRuntimeServices: Sendable {
-    let makeAPIClient: @Sendable () -> APIClientProtocol
-    let makeTokenProvider: @Sendable (CredentialScope) -> TokenProviderProtocol
-
-    static let live = AccountRuntimeServices(
-        makeAPIClient: { APIClient() },
-        makeTokenProvider: { TokenProvider(scope: $0) }
-    )
 }
 
 /// Owns the tracked Claude accounts and one `UsageStore` per added account.
@@ -153,7 +142,6 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
         notifications: NotificationServiceProtocol? = nil,
         indexFile: SharedFileServiceProtocol? = nil,
         reloadAccountWidgets: @escaping @MainActor () -> Void = {},
-        runtimeServices: AccountRuntimeServices = .live,
         makeRuntime: (@MainActor (ClaudeAccountRecord) -> AccountRuntime)? = nil
     ) {
         let labels = AccountNotificationLabels()
@@ -169,7 +157,7 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
         self.reloadAccountWidgets = reloadAccountWidgets
         self.publishedIndex = indexFile?.accountsIndex
         let runtimeMaker = makeRuntime ?? { record in
-            AccountsStore.liveRuntime(record, notificationScope: labels.scope(for: record.id), services: runtimeServices)
+            AccountsStore.liveRuntime(record, notificationScope: labels.scope(for: record.id))
         }
         self.makeRuntime = runtimeMaker
         let loaded = Self.loadRecords(from: defaults, home: home)
@@ -245,15 +233,11 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
     /// pacing samples, notification state and alert identifiers. Its
     /// refreshes reload the account widget only, the one kind that can read
     /// its file.
-    static func liveRuntime(
-        _ record: ClaudeAccountRecord,
-        notificationScope: NotificationScope,
-        services: AccountRuntimeServices = .live
-    ) -> AccountRuntime {
+    static func liveRuntime(_ record: ClaudeAccountRecord, notificationScope: NotificationScope) -> AccountRuntime {
         let file = SharedFileService(fileName: record.id.sharedFileName)
         let store = UsageStore(
-            repository: UsageRepository(apiClient: services.makeAPIClient(), sharedFileService: file),
-            tokenProvider: services.makeTokenProvider(record.scope),
+            repository: UsageRepository(apiClient: APIClient(), sharedFileService: file),
+            tokenProvider: TokenProvider(scope: record.scope),
             sharedFileService: file,
             notificationService: NotificationService(
                 stateStore: UserDefaultsNotificationStateStore(keySuffix: record.id.storageSuffix),
@@ -270,7 +254,7 @@ final class AccountsStore: ObservableObject, AccountsStoreProtocol {
         return AccountRuntime(store: store, sharedFile: file, history: history)
     }
 
-    nonisolated static func sessionSamplesKey(for id: AccountID) -> String {
+    static func sessionSamplesKey(for id: AccountID) -> String {
         "sessionPacingSamples" + id.storageSuffix
     }
 

@@ -28,8 +28,5 @@ protocol SharedFileServiceProtocol: Sendable {
     func updatePacingSchedule(_ schedule: PacingSchedule)
     func updateLastWeekDailyTotals(_ totals: [Int], refreshedAt: Date)
     func updateAccountsIndex(_ index: [AccountIndexEntry])
-    /// Drops the accounts index, so the widget assumes the main account
-    /// alone again, as before any index was written.
-    func clearAccountsIndex()
     func clear()
 }

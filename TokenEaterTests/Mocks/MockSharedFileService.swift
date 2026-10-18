@@ -39,13 +39,6 @@ final class MockSharedFileService: SharedFileServiceProtocol, @unchecked Sendabl
         _accountsIndex = index
     }
 
-    var clearAccountsIndexCallCount = 0
-
-    func clearAccountsIndex() {
-        clearAccountsIndexCallCount += 1
-        _accountsIndex = nil
-    }
-
     func updateAfterSync(usage: CachedUsage, syncDate: Date) {
         updateAfterSyncCallCount += 1
         _cachedUsage = usage
