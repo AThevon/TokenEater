@@ -23,7 +23,7 @@ struct DashboardEditorView: View {
                 // Only once there is something to arrange: one section is
                 // the whole page whatever the layout or the order says.
                 if settingsStore.runningSections.count > 1 {
-                    HomeSectionsEditor()
+                    HomeSectionsEditor(sections: settingsStore.runningSections)
                 }
                 blocksEditor
             }
@@ -155,25 +155,34 @@ struct DashboardEditorView: View {
 /// The home page's sections in All: how they are laid out, and in which
 /// order. The order is the app's one account order: it also sorts the
 /// popover's sections in All and the mode pills. Both settings are global,
-/// not per provider mode, since only All has several sections.
+/// not per provider mode, since only All has several sections; the tag next
+/// to the title says so, under a scope picker that edits one mode.
 private struct HomeSectionsEditor: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The order on screen. A local copy, not a binding to the store: the
     /// store's list is a reconciled, computed one, and `ReorderDropDelegate`
-    /// moves rows in place on every drag tick. Each change goes back to the
-    /// store, and the store's changes (an account added or paused) come back
-    /// here.
-    @State private var order: [HomeSection] = []
+    /// moves rows in place on every drag tick. It goes back to the store
+    /// once a drag ends or a move button is pressed, so the home page, the
+    /// popover and the pills do not redraw on every tick; the store's changes
+    /// (an account added or paused) come back here.
+    @State private var order: [HomeSection]
     @State private var draggingID: String?
+
+    init(sections: [HomeSection]) {
+        _order = State(initialValue: sections)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("dashboard.sections.title")
-                    .font(DS.Typography.title2)
-                    .foregroundStyle(DS.Palette.textPrimary)
+                HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.xs) {
+                    Text("dashboard.sections.title")
+                        .font(DS.Typography.title2)
+                        .foregroundStyle(DS.Palette.textPrimary)
+                    globalTag
+                }
                 Text("dashboard.sections.hint")
                     .font(.system(size: 11))
                     .foregroundStyle(DS.Palette.textTertiary)
@@ -215,13 +224,36 @@ private struct HomeSectionsEditor: View {
                 .onDrop(of: [.text], delegate: ReorderGapDropDelegate(draggingID: $draggingID))
             }
         }
-        .onAppear { order = settingsStore.runningSections }
         .onChange(of: settingsStore.runningSections) { _, sections in
-            if sections != order { order = sections }
+            if sections != order, draggingID == nil { order = sections }
         }
-        .onChange(of: order) { _, sections in
-            if sections != settingsStore.runningSections { settingsStore.setSectionOrder(sections) }
+        // A drag ends on a drop, in a row or in a gap.
+        .onChange(of: draggingID) { _, dragging in
+            if dragging == nil { commit() }
         }
+        .onDisappear { commit() }
+    }
+
+    private func commit() {
+        guard order != settingsStore.runningSections else { return }
+        settingsStore.setSectionOrder(order)
+        // A section that left during the drag (paused, removed) leaves here.
+        if order != settingsStore.runningSections { order = settingsStore.runningSections }
+    }
+
+    /// These two settings are not the mode's the scope picker above edits.
+    private var globalTag: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "globe")
+                .font(.system(size: 9, weight: .semibold))
+            Text("dashboard.sections.global")
+        }
+        .font(.system(size: 10, weight: .semibold))
+        .foregroundStyle(DS.Palette.textSecondary)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 2)
+        .background(Capsule().fill(Color.white.opacity(0.07)))
+        .help(String(localized: "dashboard.sections.global.help"))
     }
 
     private func caption(_ key: LocalizedStringKey) -> some View {
@@ -275,10 +307,14 @@ private struct HomeSectionsEditor: View {
 
             ProviderGlyph(provider: section.provider, size: 12)
                 .foregroundStyle(DS.Palette.textSecondary)
-            if case .claude(let account) = section,
-               let summary = settingsStore.claudeAccount(account),
-               settingsStore.showsAccountMarkers {
-                AccountDot(colorHex: summary.colorHex, size: 8)
+            // The dot's slot stays on Codex's row too, so every name starts
+            // at the same place.
+            if settingsStore.showsAccountMarkers {
+                if case .claude(let account) = section, let summary = settingsStore.claudeAccount(account) {
+                    AccountDot(colorHex: summary.colorHex, size: 8)
+                } else {
+                    Color.clear.frame(width: 8, height: 8)
+                }
             }
             Text(name(of: section))
                 .font(.system(size: 12, weight: .medium))
@@ -345,6 +381,10 @@ private struct HomeSectionsEditor: View {
         withAnimation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.8)) {
             order.swapAt(source, destination)
         }
+        // A drag released outside every drop target leaves `draggingID`
+        // set; a button press ends it.
+        draggingID = nil
+        commit()
     }
 }
 

@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// The label over one dashboard column once several Claude accounts share
-/// the page: a mark (the account's dot, or the provider's glyph for Codex)
-/// and the column's name. Its own view so the what's-new screen shows the
-/// same header the dashboard draws.
+/// The label over one section of the All dashboard: a mark (the account's
+/// dot, or the provider's glyph) and the section's name. Large enough to
+/// tell the sections apart on a page that stacks them. Its own view so the
+/// what's-new screen shows the same header the dashboard draws.
 struct DashboardColumnHeader<Mark: View>: View {
     let title: String
     /// The full name on hover, for an account name the column truncates.
@@ -17,9 +17,9 @@ struct DashboardColumnHeader<Mark: View>: View {
                 .lineLimit(1)
                 .help(hoverText ?? "")
         }
-        .font(.system(size: 11, weight: .semibold))
+        .font(.system(size: 13, weight: .semibold))
         .foregroundStyle(DS.Palette.textSecondary)
-        .frame(height: 14)
+        .frame(height: 16)
     }
 }
 
@@ -27,7 +27,7 @@ extension DashboardColumnHeader where Mark == AccountDot {
     /// A Claude account's column: its colour dot and its name.
     init(accountName: String, colorHex: String) {
         self.init(title: accountName, hoverText: accountName) {
-            AccountDot(colorHex: colorHex, size: 8)
+            AccountDot(colorHex: colorHex, size: 9)
         }
     }
 }

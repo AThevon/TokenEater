@@ -45,33 +45,24 @@ struct MonitoringColumnsTests {
     @Test("One section has the page in every layout")
     func oneSection() {
         for layout in HomeLayout.allCases {
-            #expect(MonitoringColumns.perRow(layout: layout, sections: 1, fitsTwo: true) == 1)
-            #expect(MonitoringColumns.perRow(layout: layout, sections: 0, fitsTwo: true) == 1)
+            #expect(MonitoringColumns.perRow(layout: layout, sections: 1) == 1)
+            #expect(MonitoringColumns.perRow(layout: layout, sections: 0) == 1)
         }
     }
 
     @Test("Auto: two sections side by side, three or more stacked")
     func autoLayout() {
-        #expect(MonitoringColumns.perRow(layout: .auto, sections: 2, fitsTwo: true) == 2)
+        #expect(MonitoringColumns.perRow(layout: .auto, sections: 2) == 2)
         for count in 3...6 {
-            #expect(MonitoringColumns.perRow(layout: .auto, sections: count, fitsTwo: true) == 1)
+            #expect(MonitoringColumns.perRow(layout: .auto, sections: count) == 1)
         }
     }
 
     @Test("One column always stacks, two columns always pairs")
     func explicitLayouts() {
         for count in 2...6 {
-            #expect(MonitoringColumns.perRow(layout: .oneColumn, sections: count, fitsTwo: true) == 1)
-            #expect(MonitoringColumns.perRow(layout: .twoColumns, sections: count, fitsTwo: true) == 2)
-        }
-    }
-
-    @Test("A page too narrow for two stacks in every layout")
-    func narrowStacks() {
-        for layout in HomeLayout.allCases {
-            for count in 1...5 {
-                #expect(MonitoringColumns.perRow(layout: layout, sections: count, fitsTwo: false) == 1)
-            }
+            #expect(MonitoringColumns.perRow(layout: .oneColumn, sections: count) == 1)
+            #expect(MonitoringColumns.perRow(layout: .twoColumns, sections: count) == 2)
         }
     }
 
@@ -79,12 +70,11 @@ struct MonitoringColumnsTests {
     func twoAbreastThreshold() {
         let minimum = MonitoringColumns.twoAbreastMinimumWidth(spacing: 16)
         #expect(minimum == MonitoringColumns.minimumSideBySideWidth * 2 + 16)
-        #expect(MonitoringColumns.fitsTwoAbreast(width: minimum, spacing: 16))
-        #expect(!MonitoringColumns.fitsTwoAbreast(width: minimum - 1, spacing: 16))
         // The page's content at the 600 pt minimum window (minus the window
-        // and page padding) stacks; at 760 pt two sections fit.
-        #expect(!MonitoringColumns.fitsTwoAbreast(width: 600 - 16 - 32, spacing: 16))
-        #expect(MonitoringColumns.fitsTwoAbreast(width: 760 - 16 - 32, spacing: 16))
+        // and page padding) is below it, so the sections stack there; at
+        // 760 pt two sections fit.
+        #expect(600 - 16 - 32 < minimum)
+        #expect(760 - 16 - 32 >= minimum)
     }
 
     @Test("Rows keep the order, two per row or one")

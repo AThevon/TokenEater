@@ -21,11 +21,20 @@ struct HomeSectionOrderTests {
         }
     }
 
-    @Test("Nothing stored: the accounts as tracked, main first, then Codex")
+    @Test("Nothing stored: main and Codex as in 6.0, then the added accounts as tracked")
     func defaultOrder() {
         #expect(HomeSectionOrder.reconciled([], accounts: Self.accounts)
-                == [.claude(.main), .claude(Self.work), .claude(Self.side), .codex])
+                == [.claude(.main), .codex, .claude(Self.work), .claude(Self.side)])
         #expect(HomeSectionOrder.reconciled([], accounts: [.main]) == [.claude(.main), .codex])
+    }
+
+    @Test("A new account lands at the end, whether the order was rearranged or not")
+    func newAccountAlwaysLast() {
+        let untouched = HomeSectionOrder.reconciled([], accounts: [.main, Self.work])
+        let touched = HomeSectionOrder.reconciled(untouched.map(\.storageID), accounts: [.main, Self.work])
+        #expect(untouched == touched)
+        #expect(HomeSectionOrder.reconciled([], accounts: Self.accounts).last == .claude(Self.side))
+        #expect(HomeSectionOrder.reconciled(touched.map(\.storageID), accounts: Self.accounts).last == .claude(Self.side))
     }
 
     @Test("A stored order is kept, and a new account goes at the end")

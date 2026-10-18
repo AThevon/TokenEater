@@ -81,6 +81,9 @@ struct PrototypeAccountMigrationTests {
             "menuBarComposition": try! JSONEncoder().encode(current),
             "sessionPacingSamples": Data("[]".utf8),
             "sessionPacingSamples.acct-work": Data("[]".utf8),
+            // Same prefix, not the prototype's eight hex digits.
+            "sessionPacingSamples.codex": Data("[]".utf8),
+            "sessionPacingSamples.1a2b3c4d5": Data("[]".utf8),
             "popoverComposition.claude.acct-work": Data("{}".utf8),
             "heroWindows": Data(#"{"claude":"weekly"}"#.utf8),
         ]

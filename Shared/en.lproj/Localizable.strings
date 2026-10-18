@@ -1110,6 +1110,7 @@
 "studio.scope.hint" = "Each mode keeps its own layouts";
 "popover.editor.providerSwitch" = "Provider switch";
 "popover.editor.providerSwitch.hint" = "Pinned above the layout, so a provider mode always has a way back out.";
+"popover.editor.accountOrder" = "In All, the accounts follow the section order set in Studio > Dashboard.";
 "settings.connection.provider" = "%@ connection";
 "popoverTemplate.sideBySide" = "Side by side";
 "popoverTemplate.sessionsOnly" = "Sessions only";
@@ -1135,8 +1136,10 @@
 "dashboard.editor.reset" = "Reset order";
 "dashboard.editor.lastBlock" = "The last visible block has to stay visible";
 "dashboard.sections.title" = "Sections";
-"dashboard.sections.hint" = "How All lays out each account and Codex. The order also sorts the popover sections and the mode pills.";
-"dashboard.layout.label" = "Layout";
+"dashboard.sections.hint" = "How the All view lays out each account and Codex. The order also sorts the mode pills and, from two Claude accounts, the popover's sections.";
+"dashboard.sections.global" = "Every mode";
+"dashboard.sections.global.help" = "Applies to the All view whichever mode you are editing; the order also applies to the mode pills.";
+"dashboard.layout.label" = "Arrangement";
 "dashboard.layout.auto" = "Auto";
 "dashboard.layout.oneColumn" = "One column";
 "dashboard.layout.twoColumns" = "Two columns";

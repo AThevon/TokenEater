@@ -260,10 +260,21 @@ struct PopoverSectionView: View {
     }
 
     private var elementsHeader: some View {
-        HStack {
-            editorSectionLabel("popover.editor.elements")
-            Spacer()
-            addElementMenu
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                editorSectionLabel("popover.editor.elements")
+                Spacer()
+                addElementMenu
+            }
+            // The popover sorts the account sections by the section order,
+            // so dragging one account's elements above another's here moves
+            // nothing there. Said where the drag happens.
+            if showsAccountGroups {
+                Text("popover.editor.accountOrder")
+                    .font(.system(size: 10))
+                    .foregroundStyle(DS.Palette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 

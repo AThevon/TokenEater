@@ -52,6 +52,8 @@ struct MetricTile: View {
     /// Set by the grid for all its cards at once; nil lets this card shed
     /// words on its own.
     @Environment(\.dashboardTileStyle) private var style
+    /// A header above the section names it: the label drops the prefix.
+    @Environment(\.dashboardColumnHeaded) private var columnHeaded
 
     @State private var isHovered: Bool = false
     @State private var showBack: Bool = false
@@ -181,7 +183,7 @@ struct MetricTile: View {
     /// The back face adds its window ("7D"), which goes before the label
     /// would be cut.
     private func tileLabel(suffix: String?) -> some View {
-        let named = labelPrefix.flatMap { prefix in (style?.prefix ?? true) ? prefix : nil }
+        let named = columnHeaded ? nil : labelPrefix.flatMap { prefix in (style?.prefix ?? true) ? prefix : nil }
         return ViewThatFits(in: .horizontal) {
             if let named {
                 tileLabelText(named + " · " + label + (suffix.map { " · " + $0 } ?? ""))

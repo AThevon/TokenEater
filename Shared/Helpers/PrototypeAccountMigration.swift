@@ -66,12 +66,17 @@ enum PrototypeAccountMigration {
     }
 
     /// The layouts stored for the `claudeWork` mode, and the pacing samples
-    /// of its second store (`sessionPacingSamples.<service suffix>`); this
-    /// build's own per-account keys end in `.acct-<id>`.
+    /// of its second store, `sessionPacingSamples.<service suffix>`, where
+    /// the suffix is the eight hex digits Claude Code appends to a config
+    /// folder's Keychain service. Only that exact shape matches, so a later
+    /// key under the same prefix (this build's `.acct-<id>`, or a Codex one)
+    /// is never swept.
     static func isObsoleteSuffixed(_ key: String) -> Bool {
         if key.hasSuffix("." + modeRawValue) { return true }
         let samples = "sessionPacingSamples."
-        return key.hasPrefix(samples) && !key.dropFirst(samples.count).hasPrefix("acct-")
+        guard key.hasPrefix(samples) else { return false }
+        let suffix = key.dropFirst(samples.count)
+        return suffix.count == 8 && suffix.allSatisfy(\.isHexDigit)
     }
 
     static func isLayoutKey(_ key: String) -> Bool {

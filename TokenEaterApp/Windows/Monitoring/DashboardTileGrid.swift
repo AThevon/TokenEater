@@ -81,12 +81,13 @@ struct DashboardTileGrid<Tile: View>: View {
     @ViewBuilder let tile: (TileDescriptor) -> Tile
 
     @Environment(\.dashboardTilesPerRow) private var cap
+    @Environment(\.dashboardColumnHeaded) private var columnHeaded
 
     var body: some View {
         let wide = MetricsGridLayout.rows(tiles, maxPerRow: cap)
         let narrow = MetricsGridLayout.rows(tiles, maxPerRow: MetricsGridLayout.sideBySideRow)
         let threeAbreast = wide.map(\.count) != narrow.map(\.count)
-        let prefixed = tiles.contains { $0.prefix != nil }
+        let prefixed = !columnHeaded && tiles.contains { $0.prefix != nil }
         let judgedAs = cap == MetricsGridLayout.sideBySideRow ? cap : 0
         ViewThatFits(in: .horizontal) {
             if threeAbreast {

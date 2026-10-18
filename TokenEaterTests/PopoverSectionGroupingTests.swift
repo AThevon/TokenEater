@@ -112,20 +112,65 @@ struct PopoverSectionGroupingTests {
         ])
     }
 
-    @Test("Codex follows the order too, around a neutral element in the middle")
-    func codexFollowsTheOrder() {
+    @Test("The order sorts within a stretch of headed sections, never across chrome")
+    func orderStaysWithinAStretch() {
         let elements = [
             PopoverElement(kind: .session, style: .chip, width: .half),
             PopoverElement(kind: .timestamp, style: .utilityRow, width: .full),
             PopoverElement(kind: .codexSession, style: .chip, width: .half),
             PopoverElement(kind: .session, style: .chip, width: .half, account: Self.work),
+            PopoverElement(kind: .quitButton, style: .actionButton, width: .full),
+            PopoverElement(kind: .session, style: .chip, width: .half, account: Self.side),
         ]
         let sections = PopoverSectionGrouping.groups(
             elements, mode: .all, focused: .main, running: Self.running,
-            order: [.codex, .claude(Self.work), .claude(.main)]
+            order: [.claude(Self.side), .codex, .claude(Self.work), .claude(.main)]
         )
-        #expect(sections.map(\.key) == [.codex, .neutral, .claude(Self.work), .claude(.main)])
+        // Codex and Work swap inside their stretch; the main account above
+        // the timestamp and Side below Quit keep their places.
+        #expect(sections.map(\.key) == [
+            .claude(.main), .neutral, .codex, .claude(Self.work), .neutral, .claude(Self.side),
+        ])
+        let reversed = PopoverSectionGrouping.groups(
+            elements, mode: .all, focused: .main, running: Self.running,
+            order: [.claude(Self.work), .codex, .claude(.main), .claude(Self.side)]
+        )
+        #expect(reversed.map(\.key) == [
+            .claude(.main), .neutral, .claude(Self.work), .codex, .neutral, .claude(Self.side),
+        ])
         // No order: the composition's own.
-        #expect(groups(elements).map(\.key) == [.claude(.main), .neutral, .codex, .claude(Self.work)])
+        #expect(groups(elements).map(\.key) == [
+            .claude(.main), .neutral, .codex, .claude(Self.work), .neutral, .claude(Self.side),
+        ])
+    }
+
+    @Test("An interleaved layout gives each account one section once sorted")
+    func interleavedLayoutMergesPerAccount() {
+        let composition = PopoverBuiltinTemplate.sideBySide.composition
+            .addingAccountSection(Self.work)
+        for order in [
+            HomeSectionOrder.defaultOrder(accounts: [.main, Self.work]),
+            [.claude(Self.work), .codex, .claude(.main)],
+        ] {
+            let sections = PopoverSectionGrouping.groups(
+                composition.visibleElements, mode: .all, focused: .main, running: Self.running, order: order
+            )
+            let headed = sections.filter(\.key.hasHeader)
+            // One section per account and one for Codex, in the order.
+            #expect(headed.map(\.key) == order.map { section -> PopoverSectionGrouping.Key in
+                switch section {
+                case .claude(let account): return .claude(account)
+                case .codex: return .codex
+                }
+            })
+            #expect(Set(sections.map(\.id)).count == sections.count)
+            // The main account's three cells pack into two rows: its two
+            // half-width gauges, chips and pace tiles share rows again.
+            let main = headed.first { $0.key == .claude(.main) }
+            #expect(main?.elements.map(\.kind) == [.session, .weekly, .sessionPacing])
+            #expect(main.map { PopoverRowPacker.pack($0.elements).count } == 2)
+            let codex = headed.first { $0.key == .codex }
+            #expect(codex?.elements.map(\.kind) == [.codexSession, .codexWeekly, .codexSessionPacing])
+        }
     }
 }

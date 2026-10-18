@@ -1,10 +1,10 @@
 import Foundation
 
 /// Splits the popover's elements into the sections it draws once two Claude
-/// accounts run: one per run of consecutive elements that belong to the same
-/// account (or to Codex), each under a small header naming it, and the
-/// neutral chrome (plan badge, refresh, timestamp, buttons) in sections of
-/// its own with no header.
+/// accounts run: between two pieces of neutral chrome (plan badge, refresh,
+/// timestamp, buttons), one section per account and one for Codex, each
+/// under a small header naming it and in the section order; the chrome in
+/// sections of its own with no header.
 ///
 /// Pure: the views decide which elements are visible, and this only groups
 /// what they hand it. `PopoverRowPacker` then packs each section on its own,
@@ -42,9 +42,7 @@ enum PopoverSectionGrouping {
     ///
     /// The sections that name an account or Codex then follow `order` (the
     /// section order of Studio), so the popover lists the accounts as the
-    /// home page and the mode pills do. They swap places among themselves
-    /// only: neutral chrome stays where the composition put it, so a
-    /// header row stays on top and the buttons at the bottom.
+    /// home page and the mode pills do (see `ordered`).
     static func groups(
         _ elements: [PopoverElement],
         mode: ProviderMode,
@@ -52,7 +50,7 @@ enum PopoverSectionGrouping {
         running: Set<AccountID>,
         order: [HomeSection] = []
     ) -> [Section] {
-        var sections: [(key: Key, elements: [PopoverElement])] = []
+        var runs: [Run] = []
         for element in elements {
             let key: Key
             switch element.kind.provider {
@@ -66,26 +64,44 @@ enum PopoverSectionGrouping {
             case nil:
                 key = .neutral
             }
-            if let last = sections.last, last.key == key {
-                sections[sections.count - 1].elements.append(element)
-            } else {
-                sections.append((key, [element]))
-            }
+            add(element, key: key, to: &runs)
         }
         var seen: [Key: Int] = [:]
-        let grouped = sections.map { section in
-            let occurrence = seen[section.key, default: 0]
-            seen[section.key] = occurrence + 1
-            return Section(key: section.key, elements: section.elements, id: "\(section.key.id)#\(occurrence)")
+        return ordered(runs, by: order).map { run in
+            let occurrence = seen[run.key, default: 0]
+            seen[run.key] = occurrence + 1
+            return Section(key: run.key, elements: run.elements, id: "\(run.key.id)#\(occurrence)")
         }
-        return ordered(grouped, by: order)
     }
 
-    /// The headed sections sorted by `order` into the places headed sections
-    /// already held. Stable: a key `order` does not name keeps its place
-    /// after the named ones, and two runs of one account keep theirs.
-    static func ordered(_ sections: [Section], by order: [HomeSection]) -> [Section] {
-        guard !order.isEmpty else { return sections }
+    /// Consecutive elements of one key, before they become a `Section`.
+    struct Run: Equatable {
+        let key: Key
+        var elements: [PopoverElement]
+    }
+
+    /// Adds the element to the last run when it has the same key, or opens
+    /// a new one.
+    private static func add(_ element: PopoverElement, key: Key, to runs: inout [Run]) {
+        if let last = runs.last, last.key == key {
+            runs[runs.count - 1].elements.append(element)
+        } else {
+            runs.append(Run(key: key, elements: [element]))
+        }
+    }
+
+    /// The runs with each stretch of headed sections sorted by `order`, then
+    /// the neighbours of one key merged into one section.
+    ///
+    /// A stretch ends at neutral chrome, so the order never carries an
+    /// account across it: the header row stays on top, the buttons at the
+    /// bottom, and a section the composition put below Quit stays below it.
+    /// Merging is what keeps an interleaved layout ("Side by side" puts
+    /// Claude and Codex cells in turn) to one header per account rather
+    /// than one per cell. Stable: a key `order` does not name comes after
+    /// the named ones, in the composition's order.
+    static func ordered(_ runs: [Run], by order: [HomeSection]) -> [Run] {
+        guard !order.isEmpty else { return runs }
         var rank: [Key: Int] = [:]
         for (index, section) in order.enumerated() {
             switch section {
@@ -93,18 +109,28 @@ enum PopoverSectionGrouping {
             case .codex: rank[.codex] = index
             }
         }
-        let slots = sections.indices.filter { sections[$0].key.hasHeader }
-        let sorted = slots.enumerated()
-            .sorted { lhs, rhs in
-                let left = rank[sections[lhs.element].key] ?? Int.max
-                let right = rank[sections[rhs.element].key] ?? Int.max
+        var result: [Run] = []
+        var stretch: [Run] = []
+        func flush() {
+            let sorted = stretch.enumerated().sorted { lhs, rhs in
+                let left = rank[lhs.element.key] ?? Int.max
+                let right = rank[rhs.element.key] ?? Int.max
                 return left == right ? lhs.offset < rhs.offset : left < right
             }
-            .map { sections[$0.element] }
-        var result = sections
-        for (slot, section) in zip(slots, sorted) {
-            result[slot] = section
+            for (_, run) in sorted {
+                for element in run.elements { add(element, key: run.key, to: &result) }
+            }
+            stretch = []
         }
+        for run in runs {
+            if run.key.hasHeader {
+                stretch.append(run)
+            } else {
+                flush()
+                result.append(run)
+            }
+        }
+        flush()
         return result
     }
 }

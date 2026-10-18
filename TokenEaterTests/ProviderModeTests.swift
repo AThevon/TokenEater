@@ -336,7 +336,7 @@ struct ProviderModeTests {
         #expect(afterRemoval.compositionSuffix == ".claude")
     }
 
-    @Test("One pill per running Claude account, Codex last, nothing below two")
+    @Test("One pill per running Claude account, Codex after the main account, nothing below two")
     func modeChoices() {
         let store = makeStore()
         defer { clean() }
@@ -354,10 +354,10 @@ struct ProviderModeTests {
 
         store.codexEnabled = true
         store.claudeAccounts = [mainSummary, summary(Self.work, "Work"), summary(Self.side, "Side")]
-        #expect(store.modeChoices.map(\.id) == ["all", "claude", "claude.acct-work", "claude.acct-side", "codex"])
+        #expect(store.modeChoices.map(\.id) == ["all", "claude", "codex", "claude.acct-work", "claude.acct-side"])
 
         store.claudeAccounts = [mainSummary, summary(Self.work, "Work", paused: true), summary(Self.side, "Side")]
-        #expect(store.modeChoices.map(\.id) == ["all", "claude", "claude.acct-side", "codex"])
+        #expect(store.modeChoices.map(\.id) == ["all", "claude", "codex", "claude.acct-side"])
 
         // Claude off stops every account.
         store.claudeEnabled = false
@@ -602,7 +602,7 @@ struct ProviderModeTests {
         defer { clean() }
         store.codexEnabled = true
         store.claudeAccounts = [mainSummary, summary(Self.work, "Work"), summary(Self.side, "Side")]
-        #expect(store.runningSections == [.claude(.main), .claude(Self.work), .claude(Self.side), .codex])
+        #expect(store.runningSections == [.claude(.main), .codex, .claude(Self.work), .claude(Self.side)])
 
         store.setSectionOrder([.codex, .claude(Self.side), .claude(.main), .claude(Self.work)])
         #expect(store.activeClaudeAccounts.map(\.id) == [Self.side, .main, Self.work])

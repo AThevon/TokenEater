@@ -37,28 +37,23 @@ enum MonitoringColumns {
     /// so the sections stack whatever the layout asks for.
     static let minimumSideBySideWidth: CGFloat = 340
 
-    /// The narrowest page that still puts two sections abreast.
+    /// The narrowest page that still puts two sections abreast. The view
+    /// gives the two-per-row candidate this minimum inside `ViewThatFits`,
+    /// so a narrower page falls back to one per row in every layout, with
+    /// no measured width stored.
     static func twoAbreastMinimumWidth(spacing: CGFloat) -> CGFloat {
         minimumSideBySideWidth * 2 + spacing
     }
 
-    /// Whether a page this wide holds two sections abreast. The view decides
-    /// it through `ViewThatFits` at this same threshold, never by storing a
-    /// measured width.
-    static func fitsTwoAbreast(width: CGFloat, spacing: CGFloat) -> Bool {
-        width >= twoAbreastMinimumWidth(spacing: spacing)
-    }
-
-    /// Sections per row: one or two, never more.
+    /// Sections per row the layout asks for: one or two, never more.
     ///
     /// One section always has the page. Auto puts exactly two side by side,
     /// as 6.0 did with Claude and Codex (no row follows them, so different
     /// heights leave no hole), and stacks from three, where interleaving
     /// columns would make the page hard to read. One column always stacks;
-    /// two columns always pairs. A page too narrow for two stacks in every
-    /// layout.
-    static func perRow(layout: HomeLayout, sections: Int, fitsTwo: Bool) -> Int {
-        guard sections > 1, fitsTwo else { return 1 }
+    /// two columns always pairs.
+    static func perRow(layout: HomeLayout, sections: Int) -> Int {
+        guard sections > 1 else { return 1 }
         switch layout {
         case .auto: return sections == 2 ? 2 : 1
         case .oneColumn: return 1

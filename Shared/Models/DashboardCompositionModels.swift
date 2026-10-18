@@ -208,10 +208,15 @@ enum HomeLayout: String, Codable, CaseIterable, Identifiable, Sendable {
 /// Pure, so the reconciliation is unit tested: the stored list is only ever
 /// written by the Studio control, and every reader goes through `reconciled`.
 enum HomeSectionOrder {
-    /// The order with nothing stored: the Claude accounts as tracked (main
-    /// first), then Codex, which is the layout 6.0 had.
+    /// The order with nothing stored: the main account then Codex, as 6.0
+    /// laid them out, then the added accounts in the order they were added.
+    /// A new account lands at the end whether or not the order was ever
+    /// rearranged, so two people with the same order on screen see a new
+    /// account land at the same place.
     static func defaultOrder(accounts: [AccountID]) -> [HomeSection] {
-        accounts.map(HomeSection.claude) + [.codex]
+        accounts.filter(\.isMain).map(HomeSection.claude)
+            + [.codex]
+            + accounts.filter { !$0.isMain }.map(HomeSection.claude)
     }
 
     /// Every tracked account and Codex, once each. The stored ids come first

@@ -219,7 +219,7 @@ struct MonitoringView: View {
         }
     }
 
-    /// All's sections, laid out as Studio's Layout asks (see
+    /// All's sections, laid out as Studio's Arrangement asks (see
     /// `MonitoringColumns.perRow`): stacked full width, or two per row.
     /// Two per row only where two fit side by side; a narrower page stacks
     /// them in every layout.
@@ -230,25 +230,30 @@ struct MonitoringView: View {
     @ViewBuilder
     private var comparison: some View {
         let shown = comparisonColumns
-        let layout = settingsStore.homeLayout
-        Group {
-            if MonitoringColumns.perRow(layout: layout, sections: shown.count, fitsTwo: true) > 1 {
-                let minimum = MonitoringColumns.twoAbreastMinimumWidth(spacing: DS.Spacing.md)
-                ViewThatFits(in: .horizontal) {
-                    sectionRows(shown, perRow: 2)
-                        .frame(minWidth: minimum, idealWidth: minimum, maxWidth: .infinity)
-                    sectionRows(shown, perRow: 1)
-                }
-            } else {
+        if MonitoringColumns.perRow(layout: settingsStore.homeLayout, sections: shown.count) > 1 {
+            let minimum = MonitoringColumns.twoAbreastMinimumWidth(spacing: DS.Spacing.md)
+            ViewThatFits(in: .horizontal) {
+                sectionRows(shown, perRow: 2)
+                    .frame(minWidth: minimum, idealWidth: minimum, maxWidth: .infinity)
                 sectionRows(shown, perRow: 1)
             }
+        } else {
+            sectionRows(shown, perRow: 1)
         }
-        .environment(\.dashboardColumnHeaded, columnsAreHeaded)
     }
 
     private func sectionRows(_ sections: [HomeSection], perRow: Int) -> some View {
         let sideBySide = perRow > 1
-        return VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        // A header names every section once two Claude accounts share the
+        // page, and whenever the sections stack, where a section's cards
+        // would otherwise run into the next one's with only a name in front
+        // of some labels to tell them apart. Claude and Codex side by side
+        // keep 6.0's look: no header, the provider's name in front of each
+        // card's label.
+        let headed = settingsStore.showsAccountMarkers || !sideBySide
+        // Rows sit further apart than cards, so a section reads as a unit
+        // and the next header starts a new one.
+        return VStack(alignment: .leading, spacing: DS.Spacing.xl) {
             ForEach(MonitoringColumns.rows(sections, perRow: perRow), id: \.self) { row in
                 // Each section is its own top-aligned stack, at one shared
                 // width. A last row with one section left keeps the width of
@@ -256,7 +261,7 @@ struct MonitoringView: View {
                 // The next row starts under the taller section.
                 EqualWidthRow(spacing: DS.Spacing.md) {
                     ForEach(row) { section in
-                        sectionView(section, pacingAbreast: !sideBySide)
+                        sectionView(section, pacingAbreast: !sideBySide, headed: headed)
                     }
                     if row.count < perRow {
                         Color.clear.frame(height: 0)
@@ -267,6 +272,8 @@ struct MonitoringView: View {
         // Two small cards per row at most in a section that shares its row,
         // three where it has the page (and only when three fit).
         .environment(\.dashboardTilesPerRow, MetricsGridLayout.maxPerRow(sideBySide: sideBySide))
+        // Under a header the cards drop the name in front of their labels.
+        .environment(\.dashboardColumnHeaded, headed)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -274,9 +281,11 @@ struct MonitoringView: View {
     /// The main account and Codex draw here as they always have; an added
     /// account draws through an embedded copy of this view over its own
     /// `UsageStore`.
-    private func sectionView(_ section: HomeSection, pacingAbreast: Bool) -> some View {
+    private func sectionView(_ section: HomeSection, pacingAbreast: Bool, headed: Bool) -> some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-            columnHeader(section)
+            if headed {
+                columnHeader(section)
+            }
             switch section {
             case .claude(let account) where !account.isMain:
                 if let store = accountsStore.usageStore(for: account) {
@@ -296,26 +305,30 @@ struct MonitoringView: View {
         .transition(.glanceCard)
     }
 
-    /// What each section is, once several Claude accounts share the page:
-    /// the account's identity dot and full name over a Claude section, the
-    /// provider's mark over Codex's. The dot only names the account; the
-    /// values keep their risk colours. Not drawn with a single Claude
-    /// account, where the page is as it was.
+    /// What a section is: the account's identity dot and full name over a
+    /// Claude section once several accounts share the page, the provider's
+    /// mark and name otherwise ("Claude", or "Codex" as on its mode pill).
+    /// The dot only names the account; the values keep their risk colours.
     @ViewBuilder
     private func columnHeader(_ column: HomeSection) -> some View {
-        if settingsStore.showsAccountMarkers {
-            switch column {
-            case .claude(let account):
+        switch column {
+        case .claude(let account):
+            if settingsStore.showsAccountMarkers {
                 let summary = settingsStore.claudeAccount(account)
                 DashboardColumnHeader(
                     accountName: summary?.name ?? MetricProvider.claude.displayName,
                     colorHex: summary?.colorHex ?? AccountPalette.presets[0]
                 )
-            case .codex:
-                DashboardColumnHeader(title: MetricProvider.codex.displayName) {
-                    ProviderGlyph(provider: .codex, size: 9)
+            } else {
+                DashboardColumnHeader(title: ProviderMode.claude.localizedLabel) {
+                    ProviderGlyph(provider: .claude, size: 11)
                         .foregroundStyle(DS.Palette.textTertiary)
                 }
+            }
+        case .codex:
+            DashboardColumnHeader(title: ProviderMode.codex.localizedLabel) {
+                ProviderGlyph(provider: .codex, size: 11)
+                    .foregroundStyle(DS.Palette.textTertiary)
             }
         }
     }
@@ -503,20 +516,13 @@ struct MonitoringView: View {
         return codexStore.windows.min { $0.windowDuration < $1.windowDuration }
     }
 
-    /// True when each column has a header naming it, which is the case once
-    /// several Claude accounts share the page. The cards under it then carry
-    /// no name of their own: the header sits right above every column, in
-    /// whichever row it lands, and "WORK · WEEKLY" under "Work" only cost
-    /// the label its room.
-    private var columnsAreHeaded: Bool {
-        isComparing && settingsStore.showsAccountMarkers
-    }
-
-    /// The name a card label starts with: the provider's when there is
-    /// another one on screen and no header says whose column it is, as in
-    /// 6.0; none otherwise.
+    /// The name a card label starts with while several sections share the
+    /// page: the provider's, as in 6.0, or the account's. The card drops it
+    /// when a header above the section already names it
+    /// (`dashboardColumnHeaded`, which the page sets per arrangement): "WORK ·
+    /// WEEKLY" under "Work" only costs the label its room.
     private func labelPrefix(for provider: MetricProvider) -> String? {
-        isComparing && !columnsAreHeaded ? columnName(for: provider) : nil
+        isComparing ? columnName(for: provider) : nil
     }
 
     /// The name a card label gives its column: the provider, or once two
@@ -826,11 +832,6 @@ struct MonitoringView: View {
         }
     }
 
-    /// "PACING", with the column's name in front when no header names it.
-    private var pacingTitle: String {
-        let pacing = String(localized: "pacing.label").uppercased()
-        return columnsAreHeaded ? pacing : columnName(for: .claude).uppercased() + " · " + pacing
-    }
 
     @ViewBuilder
     private func heroBackPacing(gaugeColor: Color, zone: PacingZone?, pacing: PacingResult?) -> some View {
@@ -839,7 +840,7 @@ struct MonitoringView: View {
                 ProviderGlyph(provider: .claude, size: 11)
                     .foregroundStyle(gaugeColor)
                     .dsGlow(gaugeColor, radius: 4, opacity: 0.6)
-                Text(pacingTitle)
+                HeroPacingTitle(name: columnName(for: .claude))
                     .lineLimit(1)
                     .font(DS.Typography.micro)
                     .tracking(1.5)
@@ -1439,5 +1440,17 @@ private struct DashboardAccountPlanBadges: View {
     /// Claude mode hands the page the focused account's store already.
     private func store(for account: AccountID) -> UsageStore? {
         settingsStore.activeProviderMode == .claude ? usageStore : accountsStore.usageStore(for: account)
+    }
+}
+
+/// The hero back's "PACING", with the section's name in front, as the hero's
+/// front says it, unless a header above the section names it already.
+private struct HeroPacingTitle: View {
+    let name: String
+    @Environment(\.dashboardColumnHeaded) private var columnHeaded
+
+    var body: some View {
+        let pacing = String(localized: "pacing.label").uppercased()
+        Text(columnHeaded ? pacing : name.uppercased() + " · " + pacing)
     }
 }

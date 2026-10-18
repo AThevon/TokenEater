@@ -82,14 +82,16 @@ struct CodexPacingCard: View {
 }
 
 /// A pacing card's label: one line, the column's name in front of it while
-/// it fits and dropped first when it does not, like the small cards.
+/// it fits and dropped first when it does not, like the small cards. Never
+/// under a header that names the section already.
 struct DashboardCardLabel: View {
     let label: String
     var prefix: String? = nil
+    @Environment(\.dashboardColumnHeaded) private var columnHeaded
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
-            if let prefix {
+            if let prefix, !columnHeaded {
                 text(prefix + " · " + label)
             }
             text(label)

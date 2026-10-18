@@ -1110,6 +1110,7 @@
 "studio.scope.hint" = "Chaque mode garde ses propres dispositions";
 "popover.editor.providerSwitch" = "Sélecteur de provider";
 "popover.editor.providerSwitch.hint" = "Épinglé au-dessus de la disposition, pour qu'un mode provider ait toujours une sortie.";
+"popover.editor.accountOrder" = "En mode Tout, les comptes suivent l'ordre des sections réglé dans Studio > Dashboard.";
 "settings.connection.provider" = "Connexion %@";
 "popoverTemplate.sideBySide" = "Côte à côte";
 "popoverTemplate.sessionsOnly" = "Sessions seules";
@@ -1135,8 +1136,10 @@
 "dashboard.editor.reset" = "Réinitialiser l'ordre";
 "dashboard.editor.lastBlock" = "Le dernier bloc visible doit le rester";
 "dashboard.sections.title" = "Sections";
-"dashboard.sections.hint" = "Comment Tout dispose chaque compte et Codex. L'ordre trie aussi les sections du popover et les pastilles de mode.";
-"dashboard.layout.label" = "Disposition";
+"dashboard.sections.hint" = "Comment la vue Tout dispose chaque compte et Codex. L'ordre trie aussi les pastilles de mode et, dès deux comptes Claude, les sections du popover.";
+"dashboard.sections.global" = "Tous les modes";
+"dashboard.sections.global.help" = "S'applique à la vue Tout quel que soit le mode que tu édites ; l'ordre s'applique aussi aux pastilles de mode.";
+"dashboard.layout.label" = "Agencement";
 "dashboard.layout.auto" = "Auto";
 "dashboard.layout.oneColumn" = "Une colonne";
 "dashboard.layout.twoColumns" = "Deux colonnes";
