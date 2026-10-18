@@ -585,11 +585,9 @@ struct MenuBarAccountMarkerTests {
 
     private func twoAccounts(
         _ segments: [MenuBarSegment],
-        label: MenuBarAccountLabel = .dotAndName,
         monochrome: Bool = false
     ) -> MenuBarRenderer.RenderData {
         var bar = MenuBarOutageBadgeTests.sampleRenderData(segments: segments)
-        bar.composition.accountLabel = label
         if monochrome {
             bar = MenuBarRenderer.RenderData(
                 composition: bar.composition, fiveHourPct: 10, sevenDayPct: 5, sonnetPct: 0,
@@ -717,30 +715,34 @@ struct MenuBarAccountMarkerTests {
         #expect(MenuBarRenderer.source(for: pinned, data: bar) == bar)
     }
 
-    @Test("A monochrome bar spells the names even when set to dots")
-    func monochromeForcesNames() {
+    @Test("A colour bar marks accounts by their ring alone, whatever their names")
+    func colourBarDrawsNoNames() {
         let segments = [
             MenuBarSegment(kind: .session, style: .valueOnly),
             MenuBarSegment(kind: .session, style: .valueOnly, account: work),
         ]
-        let dots = MenuBarRenderer.renderUncached(twoAccounts(segments, label: .dot)).size.width
-        let named = MenuBarRenderer.renderUncached(twoAccounts(segments, label: .dotAndName)).size.width
-        let monoDots = MenuBarRenderer.renderUncached(twoAccounts(segments, label: .dot, monochrome: true)).size.width
-        #expect(named > dots)
-        #expect(monoDots == named)
+        let bar = twoAccounts(segments)
+        var renamed = bar
+        renamed.accountMarkers[work.rawValue] = MenuBarRenderer.AccountMarker(label: "A much longer name", colorHex: "#F472B6")
+        renamed.accountMarkers[main] = MenuBarRenderer.AccountMarker(label: "X", colorHex: "#5B8DEF")
+        #expect(MenuBarRenderer.renderUncached(bar).size == MenuBarRenderer.renderUncached(renamed).size)
     }
 
-    @Test("A name longer than eight characters is cut with an ellipsis in the bar")
-    func longNamesAreShortened() {
+    @Test("A monochrome bar follows each ring with an initial, never the whole name")
+    func monochromeDrawsInitials() {
         let segments = [
             MenuBarSegment(kind: .session, style: .valueOnly),
             MenuBarSegment(kind: .session, style: .valueOnly, account: work),
         ]
-        var long = twoAccounts(segments)
-        long.accountMarkers[work.rawValue] = MenuBarRenderer.AccountMarker(label: "Personnelle", colorHex: "#F472B6")
-        var cut = long
-        cut.accountMarkers[work.rawValue] = MenuBarRenderer.AccountMarker(label: "Personne…", colorHex: "#F472B6")
-        #expect(MenuBarRenderer.renderUncached(long).size == MenuBarRenderer.renderUncached(cut).size)
+        let colour = MenuBarRenderer.renderUncached(twoAccounts(segments)).size.width
+        let mono = twoAccounts(segments, monochrome: true)
+        let monoWidth = MenuBarRenderer.renderUncached(mono).size.width
+        #expect(monoWidth > colour)
+        // "Perso" and "Work" start differently: one letter each, so a longer
+        // name that keeps its initial leaves the bar the same width.
+        var longer = mono
+        longer.accountMarkers[work.rawValue] = MenuBarRenderer.AccountMarker(label: "Workstation", colorHex: "#F472B6")
+        #expect(MenuBarRenderer.renderUncached(longer).size.width == monoWidth)
     }
 
     @Test("With several accounts, one without numbers shows a placeholder and the bar keeps the others")

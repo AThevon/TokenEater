@@ -243,7 +243,7 @@ struct WhatsNewView: View {
     /// own theme and Smart Color settings.
     private var menuBarSample: some View {
         // Drawn dark like the real bar over its dark backdrop, even in a
-        // light window, or the names and period labels would vanish.
+        // light window, or the period labels would vanish.
         let image = MenuBarRenderer.drawnDark(MenuBarRenderer.renderWithHitRects(
             WhatsNewSample.menuBar(theme: themeStore, settings: settingsStore)
         ).image)

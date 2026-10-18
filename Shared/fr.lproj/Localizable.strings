@@ -859,10 +859,7 @@
 "menuBar.editor.deleteTemplate" = "Supprimer le template";
 "menuBar.editor.preview" = "Aperçu";
 "menuBar.editor.preview.hint" = "Cliquez sur un segment pour le sélectionner dans la liste";
-"menuBar.editor.accountLabel" = "Comptes";
-"menuBar.editor.accountLabel.dot" = "Point";
-"menuBar.editor.accountLabel.dotAndName" = "Point et nom";
-"menuBar.editor.accountLabel.monochrome" = "Une barre de menus monochrome n'a pas de couleur pour distinguer les points, elle affiche donc les noms.";
+"menuBar.editor.accounts.monochrome" = "Une barre de menus monochrome dessine tous les anneaux pareils, donc chacun est suivi de l'initiale de son compte.";
 "menuBar.editor.empty" = "Vide - le menu bar affiche l'icône de l'app";
 "menuBar.editor.emptyList" = "Aucun segment. Ajoutez-en un, sinon le menu bar affiche juste l'icône.";
 
@@ -1062,7 +1059,7 @@
 "whatsNew.accounts.title" = "Plusieurs comptes Claude, côte à côte";
 "whatsNew.accounts.body" = "Suis chaque connexion Claude Code que tu utilises, chacune avec son nom et sa couleur. La couleur sert seulement à repérer le compte : les chiffres gardent leurs couleurs habituelles.";
 "whatsNew.accounts.menuBar.title" = "Barre de menu";
-"whatsNew.accounts.menuBar.text" = "Les chiffres de chaque compte se placent après son anneau de couleur et son nom.";
+"whatsNew.accounts.menuBar.text" = "Les chiffres de chaque compte suivent un anneau de sa couleur, sans nom, pour garder la barre courte. Survole la barre pour savoir quel compte est lequel.";
 "whatsNew.accounts.surfaces.title" = "Popover et dashboard";
 "whatsNew.accounts.surfaces.text" = "Une section ou une colonne par compte, et une pastille de mode par compte (un menu à partir de trois) pour n'afficher que lui.";
 "whatsNew.accounts.alerts.title" = "Notifications";
@@ -1190,7 +1187,6 @@
 "accounts.details.preview.hint" = "Ses chiffres apparaissent après le premier rafraîchissement, dans quelques secondes. Le popover reçoit de toute façon une section compacte pour lui.";
 "accounts.details.preview.off" = "Le compte reste hors de la barre des menus. Le popover reçoit quand même une section compacte, et Studio pourra ajouter le compte à la barre des menus plus tard.";
 "accounts.details.preview.switchesToAll" = "Le compte rejoint la disposition Tout, donc la barre des menus passe en mode Tout, celui qui montre tous les comptes.";
-"accounts.details.preview.compact" = "Avec trois comptes, les noms ne tiendraient pas à côté de l'encoche : la barre les marque seulement par leur couleur. Studio peut remettre les noms.";
 "accounts.details.back" = "Retour";
 "accounts.details.done" = "Terminer";
 

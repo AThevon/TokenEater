@@ -270,32 +270,17 @@ struct MenuBarSegment: Codable, Equatable, Identifiable {
 struct MenuBarComposition: Codable, Equatable {
     /// Ordered list; order = left-to-right render order.
     var segments: [MenuBarSegment]
-    /// How a group of segments is marked with its account once two Claude
-    /// accounts are on. Written only when it differs from the default, so a
-    /// composition nobody customised encodes exactly as it did in 6.0.
-    var accountLabel: MenuBarAccountLabel
 
-    private enum CodingKeys: String, CodingKey {
-        case segments, accountLabel
-    }
-
-    init(segments: [MenuBarSegment], accountLabel: MenuBarAccountLabel = .dotAndName) {
+    init(segments: [MenuBarSegment]) {
         self.segments = segments
-        self.accountLabel = accountLabel
     }
 
+    /// Unknown keys are ignored: an `accountLabel` written by a 6.1
+    /// pre-release (dots, or dots and names) is dropped the next time the
+    /// layout is saved, since the bar now marks accounts by colour alone.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         segments = c.decodeLossyArray(MenuBarSegment.self, forKey: .segments)
-        accountLabel = (try? c.decodeIfPresent(MenuBarAccountLabel.self, forKey: .accountLabel)) ?? .dotAndName
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var c = encoder.container(keyedBy: CodingKeys.self)
-        try c.encode(segments, forKey: .segments)
-        if accountLabel != .dotAndName {
-            try c.encode(accountLabel, forKey: .accountLabel)
-        }
     }
 
     var visibleSegments: [MenuBarSegment] { segments.filter { !$0.isHidden } }

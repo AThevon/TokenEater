@@ -103,10 +103,12 @@ enum MenuBarRenderer {
         var hasNumbers: Bool = true
     }
 
-    /// How an account's run of segments is marked: its colour dot, and its
-    /// name unless the bar is set to dots only.
+    /// How an account's run of segments is marked: a ring in its colour,
+    /// never its name. A monochrome bar, where every ring has the same
+    /// colour, adds the account's initial (`AccountNameRules.monochromeInitials`).
     struct AccountMarker: Equatable {
-        /// The full name; the renderer shortens it (`AccountNameRules.menuBarLabel`).
+        /// The full name, for the status item's tooltip and the monochrome
+        /// initial; a colour bar never draws it.
         let label: String
         let colorHex: String
     }
@@ -442,7 +444,7 @@ enum MenuBarRenderer {
         enum Content {
             case run(NSAttributedString)
             case pill(text: String, tint: NSColor)
-            /// An account's mark: its dot, then its short name when there is one.
+            /// An account's mark: its ring, then its initial on a monochrome bar.
             case marker(dot: NSColor, name: NSAttributedString?)
         }
 
@@ -506,11 +508,14 @@ enum MenuBarRenderer {
     /// to the segment it precedes: clicking it selects that segment.
     private static func drawComposition(_ data: RenderData) -> (image: NSImage, hitRects: [SegmentHitRect]) {
         let segments = Dictionary(plannedSegments(data).map { ($0.segment.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let initials = data.menuBarMonochrome
+            ? AccountNameRules.monochromeInitials(data.accountMarkers.mapValues(\.label))
+            : [:]
         let visuals: [SegmentVisual] = layoutPlan(data).compactMap { step in
             switch step {
             case .marker(let account):
                 guard let marker = data.accountMarkers[account] else { return nil }
-                return markerVisual(marker, data: data)
+                return markerVisual(marker, initial: initials[account], data: data)
             case .segment(let id):
                 guard let planned = segments[id] else { return nil }
                 return visual(for: planned.segment, data: planned.source)
@@ -573,15 +578,18 @@ enum MenuBarRenderer {
         return data.accountData[account]
     }
 
-    /// The marker's visual. The dot carries the account's colour and nothing
-    /// else: the values after it keep their risk colours. A monochrome bar
-    /// has no colour to tell accounts apart, so it always spells the name.
-    private static func markerVisual(_ marker: AccountMarker, data: RenderData) -> SegmentVisual {
-        let showsName = data.composition.accountLabel == .dotAndName || data.menuBarMonochrome
-        let name = showsName
-            ? NSAttributedString(string: AccountNameRules.menuBarLabel(marker.label), attributes: [
-                .font: markerFont, .foregroundColor: periodColor(data),
-            ])
+    /// The marker's visual: a ring in the account's colour and nothing else,
+    /// so the bar stays free of names; the values after it keep their risk
+    /// colours. A monochrome bar draws every ring alike, so there the ring
+    /// is followed by the account's initial, the least text that still says
+    /// which account a run belongs to.
+    private static func markerVisual(_ marker: AccountMarker, initial: String?, data: RenderData) -> SegmentVisual {
+        let name = data.menuBarMonochrome
+            ? initial.map {
+                NSAttributedString(string: $0, attributes: [
+                    .font: markerFont, .foregroundColor: periodColor(data),
+                ])
+            }
             : nil
         let dot: NSColor = data.menuBarMonochrome ? .labelColor : NSColor(hex: marker.colorHex)
         return SegmentVisual(id: UUID(), content: .marker(dot: dot, name: name))

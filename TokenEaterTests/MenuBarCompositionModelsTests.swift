@@ -122,7 +122,6 @@ struct MenuBarCompositionModelsTests {
     @Test("a 6.0 blob decodes and re-encodes byte for byte")
     func blob60IsByteIdentical() throws {
         let decoded = try JSONDecoder().decode(MenuBarComposition.self, from: Data(Self.blob60.utf8))
-        #expect(decoded.accountLabel == .dotAndName)
         #expect(decoded.segments.allSatisfy { $0.account == nil })
         let encoded = try sortedEncoder().encode(decoded)
         #expect(String(data: encoded, encoding: .utf8) == Self.blob60)
@@ -132,14 +131,12 @@ struct MenuBarCompositionModelsTests {
     func accountRoundTrip() throws {
         let id = AccountID(rawValue: "acct-1")
         let composition = MenuBarComposition(
-            segments: [MenuBarSegment(kind: .session, style: .labelValue, account: id)],
-            accountLabel: .dot
+            segments: [MenuBarSegment(kind: .session, style: .labelValue, account: id)]
         )
         let data = try JSONEncoder().encode(composition)
         let decoded = try JSONDecoder().decode(MenuBarComposition.self, from: data)
         #expect(decoded == composition)
         #expect(decoded.segments[0].account == id)
-        #expect(decoded.accountLabel == .dot)
     }
 
     @Test("an unreadable account falls back to the mode's account, the segment stays")
@@ -150,13 +147,15 @@ struct MenuBarCompositionModelsTests {
         #expect(decoded.segments.allSatisfy { $0.account == nil })
     }
 
-    @Test("the default account label is never written")
-    func accountLabelOmittedWhenDefault() throws {
-        let plain = try JSONSerialization.jsonObject(with: JSONEncoder().encode(MenuBarComposition.default)) as? [String: Any]
-        #expect(plain?.keys.sorted() == ["segments"])
-        let custom = MenuBarComposition(segments: [], accountLabel: .dot)
-        let object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(custom)) as? [String: Any]
-        #expect(object?["accountLabel"] as? String == "dot")
+    @Test("a pre-release accountLabel key is read past and dropped on save")
+    func preReleaseAccountLabelIsDropped() throws {
+        for label in ["dot", "dotAndName"] {
+            let json = #"{"accountLabel":""# + label + #"","segments":[{"kind":"session","style":"labelValue"}]}"#
+            let decoded = try JSONDecoder().decode(MenuBarComposition.self, from: Data(json.utf8))
+            #expect(decoded.segments.count == 1)
+            let object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(decoded)) as? [String: Any]
+            #expect(object?.keys.sorted() == ["segments"])
+        }
     }
 
     @Test("two layouts that differ only by account are not equivalent")

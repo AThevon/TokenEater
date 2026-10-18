@@ -179,11 +179,15 @@ struct ClaudeAccountModelsTests {
         #expect(AccountNameRules.sanitize("Exactly12chr").count == 12)
     }
 
-    @Test("the menu bar keeps eight characters, then an ellipsis")
-    func menuBarLabel() {
-        #expect(AccountNameRules.menuBarLabel("Personnelle") == "Personne…")
-        #expect(AccountNameRules.menuBarLabel("Perso") == "Perso")
-        #expect(AccountNameRules.menuBarLabel("Exactly8") == "Exactly8")
+    @Test("a monochrome bar's initials: one letter, more only when two names start alike")
+    func monochromeInitials() {
+        #expect(AccountNameRules.monochromeInitials(["a": "Perso", "b": "work"]) == ["a": "P", "b": "W"])
+        #expect(AccountNameRules.monochromeInitials(["a": "Work", "b": "Wife", "c": "Side"])
+                == ["a": "Wo", "b": "Wi", "c": "S"])
+        #expect(AccountNameRules.monochromeInitials(["a": "Claude", "b": "Client"]) == ["a": "Cla", "b": "Cli"])
+        // Never more than three letters, even when the names stay alike.
+        #expect(AccountNameRules.monochromeInitials(["a": "Work", "b": "Work 2"]) == ["a": "Wor", "b": "Wor"])
+        #expect(AccountNameRules.monochromeInitials(["a": "Jo", "b": "Joe"]) == ["a": "Jo", "b": "Joe"])
     }
 
     @Test("the next colour is the first preset nobody uses, cycling when all are taken")

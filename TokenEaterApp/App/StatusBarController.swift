@@ -583,7 +583,7 @@ final class StatusBarController: NSObject {
             codex: codexStore, accounts: accountsStore
         )
         statusItem.button?.image = MenuBarRenderer.render(data)
-        // The bar cuts names at eight characters; hovering it names every
+        // The bar marks accounts by colour only; hovering it names every
         // account it marks, in full and in the bar's order.
         let toolTip = Self.accountsToolTip(data)
         if statusItem.button?.toolTip != toolTip { statusItem.button?.toolTip = toolTip }

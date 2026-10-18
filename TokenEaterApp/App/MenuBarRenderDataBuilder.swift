@@ -114,16 +114,14 @@ extension MenuBarRenderer.RenderData {
     /// All layout with the account's segments, which show "--" until its
     /// first refresh, every run marked with its account since there will be
     /// two. `name` and `colorHex` are the new account's as the sheet has them;
-    /// `mainName` is the main account's when the sheet is renaming it too.
-    /// `compactLabels` draws the dots without names, as the sheet seeds the
-    /// bar when three accounts would not fit next to the notch otherwise.
+    /// `mainName` is the main account's when the sheet is renaming it too
+    /// (the bar shows only colours, but a monochrome one draws initials).
     /// Drawn in the add-account sheet; nothing is saved.
     static func previewAddingAccount(
         _ id: AccountID,
         name: String,
         colorHex: String,
         mainName: String? = nil,
-        compactLabels: Bool = false,
         usage: UsageStore,
         theme: ThemeStore,
         settings: SettingsStore,
@@ -142,7 +140,6 @@ extension MenuBarRenderer.RenderData {
         pending.showsPlaceholderValues = true
         var after = before
         after.composition = allLayout.addingAccountSegments(id)
-        if compactLabels { after.composition.accountLabel = .dot }
         after.accountData[id.rawValue] = pending
         var markers = markers(for: accounts.activeAccountIDs, accounts: accounts)
         if let mainName, let main = markers[AccountID.main.rawValue] {

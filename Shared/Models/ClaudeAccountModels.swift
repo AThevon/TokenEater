@@ -383,8 +383,6 @@ enum AccountPalette {
 enum AccountNameRules {
     /// Longest name the field accepts.
     static let maxLength = 12
-    /// Characters a name keeps in the menu bar before the ellipsis.
-    static let menuBarVisibleCharacters = 8
     /// What an account is called when nothing better is known.
     static let defaultName = "Claude"
 
@@ -397,21 +395,29 @@ enum AccountNameRules {
         return cut.isEmpty ? fallback : cut
     }
 
-    /// The name as the menu bar draws it: eight characters, then an ellipsis
-    /// when there were more. The full name lives in tooltips and Settings.
-    static func menuBarLabel(_ name: String) -> String {
-        guard name.count > menuBarVisibleCharacters else { return name }
-        return String(name.prefix(menuBarVisibleCharacters)) + "…"
+    /// What a monochrome menu bar writes next to each account's ring, since
+    /// every ring there has the same colour: the name's first letter, or its
+    /// first two or three when another account's name starts the same way.
+    /// A colour bar never draws a name; this is the one place letters stand
+    /// in for the colour. Keyed like `names`.
+    static func monochromeInitials(_ names: [String: String]) -> [String: String] {
+        let longest = 3
+        var initials: [String: String] = [:]
+        for (key, name) in names {
+            let letters = Array(name.trimmingCharacters(in: .whitespaces))
+            var length = 1
+            while length < min(longest, letters.count),
+                  names.contains(where: { other in
+                      other.key != key && other.value.trimmingCharacters(in: .whitespaces).lowercased()
+                          .hasPrefix(String(letters.prefix(length)).lowercased())
+                  }) {
+                length += 1
+            }
+            let prefix = String(letters.prefix(length))
+            initials[key] = prefix.prefix(1).uppercased() + prefix.dropFirst()
+        }
+        return initials
     }
-}
-
-/// How the menu bar marks a group of segments that belong to one account,
-/// once two accounts are on.
-enum MenuBarAccountLabel: String, Codable, CaseIterable, Sendable {
-    /// The account's colour dot alone.
-    case dot
-    /// The dot followed by the account's short name.
-    case dotAndName
 }
 
 // MARK: - Identity
