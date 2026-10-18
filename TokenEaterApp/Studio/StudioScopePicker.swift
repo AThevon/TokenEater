@@ -15,8 +15,9 @@ import SwiftUI
 /// header one is hidden while you are in here so there is only ever one
 /// scope control on screen.
 ///
-/// Leaving Studio puts the app back in the mode it was in when you arrived,
-/// so authoring a Codex layout never strands you in Codex mode.
+/// Picking a scope here switches the app's mode for real, and leaving Studio
+/// keeps it: the layout you just edited is the one you see afterwards (#285).
+/// The header switcher is back on screen outside Studio to change it.
 struct StudioScopePicker: View {
     @EnvironmentObject private var settingsStore: SettingsStore
 
