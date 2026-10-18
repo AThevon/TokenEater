@@ -109,6 +109,19 @@ struct SessionStoreTests {
         #expect(store.topActiveModelName == "Opus 4.8")
     }
 
+    @Test("topActiveModelName labels Claude 5.5 sessions with their own version")
+    func topActiveModelClaude55() async throws {
+        let (store, mock) = makeStore()
+        store.bind()
+        let now = Date()
+        var a = makeSampleSession(id: "a", lastUpdate: now); a.model = "claude-opus-5-5"
+        var b = makeSampleSession(id: "b", lastUpdate: now); b.model = "claude-opus-5-5[1m]"
+        var c = makeSampleSession(id: "c", lastUpdate: now); c.model = "claude-sonnet-5-5"
+        mock.emit([a, b, c])
+        try await Task.sleep(nanoseconds: 100_000_000)
+        #expect(store.topActiveModelName == "Opus 5.5")
+    }
+
     @Test("topActiveModelName excludes dead sessions from the tally")
     func topActiveModelExcludesDead() async throws {
         let (store, mock) = makeStore()
