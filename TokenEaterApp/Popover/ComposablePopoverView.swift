@@ -233,10 +233,15 @@ private struct PopoverGrid: View {
     @ViewBuilder
     private func cell(_ element: PopoverElement, rowIndex: Int) -> some View {
         let selected = selectedID == element.id
+        let cellStore = store(for: element) ?? usageStore
         PopoverElementCellView(element: element)
             // Each Claude cell reads its own account; with a single account
             // this is the store the popover already holds.
-            .environmentObject(store(for: element) ?? usageStore)
+            .environmentObject(cellStore)
+            // A login that no longer answers keeps its last numbers, greyed:
+            // its section header says how old they are.
+            .lastNumbersDimmed(element.kind.provider == .claude && !element.kind.isChrome
+                               && cellStore.lastNumbersDate != nil)
             .overlay {
                 if selected {
                     RoundedRectangle(cornerRadius: 12)
@@ -371,7 +376,10 @@ private struct ClaudeAccountSectionHeader: View {
         case .network:
             return (String(localized: "popover.account.offline"), true)
         case .loginExpired where store.loginExpiredSince != nil:
-            return (String(localized: "popover.account.expired"), true)
+            // The cells below are its last numbers, greyed: say how old.
+            let expired = String(localized: "popover.account.expired")
+            guard let last = store.lastNumbersDate else { return (expired, true) }
+            return (expired + " · " + last.formatted(.relative(presentation: .named, unitsStyle: .abbreviated)), true)
         default:
             break
         }

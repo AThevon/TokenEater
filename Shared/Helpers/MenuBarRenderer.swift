@@ -216,7 +216,10 @@ enum MenuBarRenderer {
     // MARK: - Color helpers
 
     private static func colorForPct(_ pct: Int, resetDate: Date?, windowDuration: TimeInterval, data: RenderData) -> NSColor {
-        gaugeColor(
+        // Last known numbers of a login that no longer answers: drawn in the
+        // secondary colour, so a frozen value never reads as a live risk.
+        if data.isAwaitingRefresh { return .secondaryLabelColor }
+        return gaugeColor(
             pct: pct,
             resetDate: resetDate,
             windowDuration: windowDuration,
@@ -290,6 +293,7 @@ enum MenuBarRenderer {
     }
 
     private static func colorForZone(_ zone: PacingZone, data: RenderData) -> NSColor {
+        if data.isAwaitingRefresh { return .secondaryLabelColor }
         if data.menuBarMonochrome { return .labelColor }
         return data.themeColors.pacingNSColor(for: zone)
     }

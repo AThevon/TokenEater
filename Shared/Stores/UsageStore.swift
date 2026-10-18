@@ -95,6 +95,15 @@ final class UsageStore: ObservableObject {
         errorState == .tokenUnavailable && lastUsage != nil
     }
 
+    /// When the numbers on screen were fetched, while they are the last known
+    /// ones of a login that no longer answers; nil while they are live. The
+    /// surfaces then draw them greyed and dated ("last numbers 2 days ago")
+    /// rather than in risk colours with a countdown that may already have
+    /// passed, so a frozen snapshot never reads as a fresh one.
+    var lastNumbersDate: Date? {
+        isAwaitingRefresh ? lastUpdate : nil
+    }
+
     /// True when the paid Extra Credits pool is provisioned and turned on for
     /// this account. Mirrors `hasOpus`: drives whether the metric
     /// can be pinned to the menu bar and shown in the widgets.
@@ -286,6 +295,12 @@ final class UsageStore: ObservableObject {
         refreshing = true
         let started = generation
         defer { if generation == started { refreshing = false } }
+
+        // A refresh can come before the cache was ever loaded (a token
+        // change, a wake, an added account still waiting its turn). Showing
+        // the last numbers first means a refused login keeps them on screen,
+        // dated, instead of a blank 0% that looks like a fresh reading.
+        if lastUsage == nil { loadCached() }
 
         // Resolve token, off the main thread: a `security` read can take
         // seconds when the Keychain is slow to answer.

@@ -13,6 +13,9 @@ struct TileDescriptor {
     /// The column's name ("Claude", "Codex") when the tile has to say whose
     /// it is, dropped first when the tile runs short of room.
     var prefix: String? = nil
+    /// Set while the numbers are the last known ones of a login that no
+    /// longer answers: see `MetricTile.lastNumbersDate`.
+    var lastNumbersDate: Date? = nil
 }
 
 struct MetricTile: View {
@@ -35,6 +38,10 @@ struct MetricTile: View {
     /// True once the insights store has done its first load. Lets the
     /// back face show a "loading..." placeholder vs a "no data" one.
     let insightsLoaded: Bool
+    /// Set while the numbers are the last known ones of a login that no
+    /// longer answers: the tile turns grey and says how old they are instead
+    /// of counting down to a reset that may already have passed.
+    var lastNumbersDate: Date? = nil
 
     /// Set by the grid for all its cards at once; nil lets this card shed
     /// words on its own.
@@ -46,7 +53,7 @@ struct MetricTile: View {
     @State private var isFlipping: Bool = false
 
     var body: some View {
-        let color = GaugeColorResolver.color(
+        let color = lastNumbersDate != nil ? DS.Palette.textTertiary : GaugeColorResolver.color(
             mode: GaugeColorResolver.mode(smartColorEnabled: smartEnabled, windowDuration: windowDuration),
             utilization: pct,
             resetDate: resetDate,
@@ -136,7 +143,9 @@ struct MetricTile: View {
             .animation(DS.Motion.springLiquid, value: pct)
 
             Group {
-                if let resetText, !resetText.isEmpty {
+                if let lastNumbersDate {
+                    lastNumbersLine(lastNumbersDate)
+                } else if let resetText, !resetText.isEmpty {
                     if let style {
                         resetLine(resetText, words: style.resetWords, absolute: style.clock)
                     } else {
@@ -210,6 +219,33 @@ struct MetricTile: View {
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
                     .foregroundStyle(DS.Palette.textSecondary)
             }
+        }
+        .lineLimit(1)
+    }
+
+    /// "LAST NUMBERS 2 days ago", the words dropped first when room runs out.
+    private func lastNumbersLine(_ date: Date) -> some View {
+        let age = date.formatted(.relative(presentation: .named))
+        return ViewThatFits(in: .horizontal) {
+            lastNumbersLine(age: age, words: true)
+            lastNumbersLine(age: age, words: false)
+        }
+    }
+
+    private func lastNumbersLine(age: String, words: Bool) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: "clock.badge.exclamationmark")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(DS.Palette.textTertiary)
+            if words {
+                Text(String(localized: "dashboard.hero.lastNumbers").uppercased())
+                    .font(.system(size: 8, weight: .bold))
+                    .tracking(1)
+                    .foregroundStyle(DS.Palette.textTertiary)
+            }
+            Text(age)
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(DS.Palette.textSecondary)
         }
         .lineLimit(1)
     }

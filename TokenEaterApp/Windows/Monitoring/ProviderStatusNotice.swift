@@ -68,7 +68,15 @@ struct ProviderStatusNotice: View {
             guard !usageStore.isAwaitingRefresh else { return nil }
             switch usageStore.errorState {
             case .tokenUnavailable:
-                return usageStore.authFailureHint ?? String(localized: "error.banner.reauth.hint")
+                if let hint = usageStore.authFailureHint { return hint }
+                let generic = String(localized: "error.banner.reauth.hint")
+                // A config folder's login is renewed by one command naming
+                // that folder: say it now rather than only after the hour of
+                // calm, since with no numbers on screen there is no calm to keep.
+                guard UsageStore.renewCommand(scope: usageStore.credentialScope,
+                                              home: ClaudeConfigDirResolver.realHome()) != nil
+                else { return generic }
+                return generic + ". " + usageStore.loginExpiredHint
             case .rateLimited:      return String(localized: "error.banner.apiunavailable")
             case .networkError:     return String(localized: "error.network.generic")
             case .none:             return nil

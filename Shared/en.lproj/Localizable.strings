@@ -453,6 +453,7 @@
 "dashboard.hero.window.menu" = "Glance window";
 "dashboard.hero.session.label" = "Session · 5h window";
 "dashboard.hero.resetsIn" = "Resets in";
+"dashboard.hero.lastNumbers" = "Last numbers";
 "pacing.zone.chill" = "Chill";
 "pacing.zone.ontrack" = "On track";
 "pacing.zone.warning" = "Watch out";

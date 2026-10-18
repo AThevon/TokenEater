@@ -453,6 +453,7 @@
 "dashboard.hero.window.menu" = "Fenêtre affichée";
 "dashboard.hero.session.label" = "Session · fenêtre 5h";
 "dashboard.hero.resetsIn" = "Reset dans";
+"dashboard.hero.lastNumbers" = "Derniers chiffres";
 "pacing.zone.chill" = "Chill";
 "pacing.zone.ontrack" = "Pile-poil";
 "pacing.zone.warning" = "Attention";

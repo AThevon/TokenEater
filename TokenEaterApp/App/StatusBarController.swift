@@ -462,6 +462,10 @@ final class StatusBarController: NSObject {
         let id = record.id
         store.notifTogglesProvider = { [weak self] in self?.makeNotificationToggles(for: id) }
 
+        // The last numbers show at once, whatever happens next: a running
+        // account's first fetch waits its turn below, and a login that is
+        // refused then keeps them on screen, dated, rather than a blank 0%.
+        if store.lastUsage == nil { store.loadCached() }
         guard settingsStore.claudeEnabled, !record.isPaused else {
             store.stopAutoRefresh()
             store.loadCached()

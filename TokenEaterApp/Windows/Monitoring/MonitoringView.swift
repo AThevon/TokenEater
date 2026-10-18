@@ -353,7 +353,11 @@ struct MonitoringView: View {
         case (.windows, .claude):
             // The hero already shows one window, so the grid never repeats it.
             grid(of: claudeGridTiles
-                .map { labelled($0, for: .claude) })
+                .map { tile in
+                    var copy = labelled(tile, for: .claude)
+                    copy.lastNumbersDate = usageStore.lastNumbersDate
+                    return copy
+                })
         case (.windows, .codex):
             grid(of: codexGridWindows
                 .map { window in
@@ -369,7 +373,11 @@ struct MonitoringView: View {
                 })
 
         case (.pacing, .claude):
-            claudePacing(abreast: pacingAbreast)
+            // A pace measures frozen numbers against a clock that kept
+            // running: meaningless once the login stopped answering.
+            if usageStore.lastNumbersDate == nil {
+                claudePacing(abreast: pacingAbreast)
+            }
         case (.pacing, .codex):
             codexPacing(abreast: pacingAbreast)
 
@@ -678,10 +686,18 @@ struct MonitoringView: View {
             ? usageStore.lastUsage?.fiveHour?.resetsAtDate
             : usageStore.lastUsage?.sevenDay?.resetsAtDate
         let resetText = isSession ? usageStore.fiveHourReset : usageStore.sevenDayReset
-        let gaugeColor = gaugeColor(pct: pct, resetDate: resetDate, windowDuration: window.duration)
-        let gaugeGradient = gaugeGradient(pct: pct, resetDate: resetDate, windowDuration: window.duration)
-        let zone = isSession ? usageStore.fiveHourPacing?.zone : usageStore.pacingResult?.zone
-        let pacing = isSession ? usageStore.fiveHourPacing : usageStore.pacingResult
+        // A login that no longer answers keeps its last numbers, greyed and
+        // dated: no risk colour, no pace, no countdown that may have passed.
+        let lastNumbers = usageStore.lastNumbersDate
+        let gaugeColor = lastNumbers != nil
+            ? DS.Palette.textSecondary
+            : gaugeColor(pct: pct, resetDate: resetDate, windowDuration: window.duration)
+        let gaugeGradient = lastNumbers != nil
+            ? LinearGradient(colors: [DS.Palette.textSecondary, DS.Palette.textTertiary],
+                             startPoint: .topLeading, endPoint: .bottomTrailing)
+            : gaugeGradient(pct: pct, resetDate: resetDate, windowDuration: window.duration)
+        let zone = lastNumbers != nil ? nil : (isSession ? usageStore.fiveHourPacing?.zone : usageStore.pacingResult?.zone)
+        let pacing = lastNumbers != nil ? nil : (isSession ? usageStore.fiveHourPacing : usageStore.pacingResult)
         // Ambient tint follows the gauge color so the wash, the big
         // number, and the ring all read as a single signal.
         let accent = gaugeColor
@@ -710,7 +726,8 @@ struct MonitoringView: View {
                         zone: zone,
                         window: window,
                         resetText: resetText,
-                        resetDate: resetDate
+                        resetDate: resetDate,
+                        lastNumbers: lastNumbers
                     )
                 }
             }
@@ -758,7 +775,7 @@ struct MonitoringView: View {
     @ViewBuilder
     private func heroFrontContent(
         pct: Int, gaugeColor: Color, gaugeGradient: LinearGradient, zone: PacingZone?,
-        window: ClaudeHeroWindow, resetText: String, resetDate: Date?
+        window: ClaudeHeroWindow, resetText: String, resetDate: Date?, lastNumbers: Date?
     ) -> some View {
         ProviderHeroFace(
             provider: .claude,
@@ -769,7 +786,8 @@ struct MonitoringView: View {
             zone: zone,
             resetText: resetText,
             resetDate: resetDate,
-            name: accountName
+            name: accountName,
+            lastNumbersDate: lastNumbers
         )
     }
 
@@ -965,7 +983,8 @@ struct MonitoringView: View {
             insights: hasRichBack(tileId: tile.id)
                 ? insightsStore.snapshot(for: tileFamily(for: tile.id))
                 : nil,
-            insightsLoaded: insightsStore.hasLoaded
+            insightsLoaded: insightsStore.hasLoaded,
+            lastNumbersDate: tile.lastNumbersDate
         )
     }
 
@@ -1003,7 +1022,7 @@ struct MonitoringView: View {
                 icon: "brain.head.profile",
                 pct: usageStore.opusPct,
                 resetText: nil,
-                resetDate: nil,
+                resetDate: usageStore.lastUsage?.sevenDayOpus?.resetsAtDate,
                 windowDuration: weekWindow
             ))
         }
@@ -1014,7 +1033,7 @@ struct MonitoringView: View {
                 icon: "person.2.fill",
                 pct: usageStore.coworkPct,
                 resetText: nil,
-                resetDate: usageStore.lastUsage?.sevenDayOpus?.resetsAtDate,
+                resetDate: nil,
                 windowDuration: weekWindow
             ))
         }
@@ -1170,7 +1189,9 @@ struct MonitoringView: View {
         // spent, in the warning colour once something is.
         let uncapped = extra.isUncapped
         let spent = CurrencyFormatter.formatMinorUnits(used, currencyCode: currency, locale: Locale(identifier: "en_US"))
-        let tint: Color = uncapped
+        // Grey while these are the last numbers of a login that no longer
+        // answers: a frozen amount carries no risk colour.
+        let tint: Color = usageStore.lastNumbersDate != nil ? DS.Palette.textTertiary : uncapped
             ? (used > 0
                 ? themeStore.current.gaugeColor(for: Double(themeStore.thresholds.warningPercent), thresholds: themeStore.thresholds)
                 : DS.Palette.textSecondary)

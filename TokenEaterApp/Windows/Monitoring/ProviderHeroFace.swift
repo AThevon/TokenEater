@@ -30,6 +30,10 @@ struct ProviderHeroFace: View {
     /// Overrides the provider's name in the label, for an added Claude
     /// account ("Work"), which draws with Claude's provider.
     var name: String? = nil
+    /// Set while the numbers are the last known ones of a login that no
+    /// longer answers: the reset line then says how old they are instead of
+    /// counting down to a reset that may already have passed.
+    var lastNumbersDate: Date? = nil
     @Environment(\.glowIntensity) private var glowIntensity
     /// A header above the column names it already: the label keeps the
     /// window alone, and the provider's mark beside it.
@@ -126,12 +130,16 @@ struct ProviderHeroFace: View {
                 .fixedSize()
                 .layoutPriority(1)
 
-                ViewThatFits(in: .horizontal) {
-                    if resetWords {
-                        resetLine(words: true, clock: true)
+                if let lastNumbersDate {
+                    lastNumbersLine(lastNumbersDate)
+                } else {
+                    ViewThatFits(in: .horizontal) {
+                        if resetWords {
+                            resetLine(words: true, clock: true)
+                        }
+                        resetLine(words: false, clock: true)
+                        resetLine(words: false, clock: false)
                     }
-                    resetLine(words: false, clock: true)
-                    resetLine(words: false, clock: false)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -172,6 +180,36 @@ struct ProviderHeroFace: View {
             resetLine(words: words, countdown: resetText.isEmpty ? "-" : resetText,
                       clockTime: clock ? resetDate?.formatted(.dateTime.hour().minute()) : nil)
         }
+    }
+
+    /// "LAST NUMBERS 2 days ago", re-read every minute so the age keeps up
+    /// while the window stays open. The words go first when room runs out.
+    private func lastNumbersLine(_ date: Date) -> some View {
+        TimelineView(.periodic(from: .now, by: 60)) { _ in
+            let age = date.formatted(.relative(presentation: .named))
+            ViewThatFits(in: .horizontal) {
+                lastNumbersLine(age: age, words: true)
+                lastNumbersLine(age: age, words: false)
+            }
+        }
+    }
+
+    private func lastNumbersLine(age: String, words: Bool) -> some View {
+        HStack(spacing: DS.Spacing.xs) {
+            Image(systemName: "clock.badge.exclamationmark")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(DS.Palette.textTertiary)
+            if words {
+                Text(String(localized: "dashboard.hero.lastNumbers").uppercased())
+                    .font(DS.Typography.micro)
+                    .tracking(1.2)
+                    .foregroundStyle(DS.Palette.textTertiary)
+            }
+            Text(age)
+                .font(DS.Typography.metricInline)
+                .foregroundStyle(DS.Palette.textSecondary)
+        }
+        .lineLimit(1)
     }
 
     /// A countdown as wide as this window's can get: days and hours for a
@@ -258,5 +296,16 @@ struct ProviderHeroFace: View {
         case .hot:     "flame.fill"
         case nil:      "sparkles"
         }
+    }
+}
+
+extension View {
+    /// Greys a block or a cell whose numbers are the last known ones of a
+    /// login that no longer answers, so they never pass for live readings.
+    /// Risk colours go (they describe a now the numbers do not), and the
+    /// content stays legible.
+    func lastNumbersDimmed(_ dimmed: Bool) -> some View {
+        saturation(dimmed ? 0 : 1)
+            .opacity(dimmed ? 0.55 : 1)
     }
 }
