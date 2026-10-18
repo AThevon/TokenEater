@@ -13,8 +13,20 @@ import SwiftUI
 struct NotificationsSectionView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var accountsStore: AccountsStore
+    @EnvironmentObject private var usageStore: UsageStore
+
+    /// Follows the added accounts' stores, so the Sonnet row appears as soon
+    /// as any of them reports that limit.
+    @StateObject private var accountStores = UsageStoresObserver()
 
     @State private var notifTestCooldown = false
+
+    /// Sonnet is a model-scoped weekly limit Anthropic no longer sends to most
+    /// accounts. Its row only shows while at least one Claude account's
+    /// response carries it: a switch for an alert that cannot fire is noise.
+    private var anyAccountHasSonnet: Bool {
+        usageStore.hasSonnet || accountsStore.runningExtraStores.contains { $0.hasSonnet }
+    }
 
     /// Wide enough for a mini switch plus breathing room, and identical in
     /// every card so the columns line up down the whole page.
@@ -61,6 +73,7 @@ struct NotificationsSectionView: View {
         }
         .padding(24)
         .task { await settingsStore.refreshNotificationStatus() }
+        .followingAccountStores(accountStores, accounts: accountsStore, accountList: settingsStore.claudeAccounts)
     }
 
     private func resetToDefaults() {
@@ -375,9 +388,11 @@ struct NotificationsSectionView: View {
                     .claude: $settingsStore.notification.trackWeekly,
                     .codex: $settingsStore.notification.codexTrackWeekly,
                 ])
-                eventRow(String(localized: "settings.notifications.row.sonnet"), [
-                    .claude: $settingsStore.notification.trackSonnet,
-                ])
+                if anyAccountHasSonnet {
+                    eventRow(String(localized: "settings.notifications.row.sonnet"), [
+                        .claude: $settingsStore.notification.trackSonnet,
+                    ])
+                }
                 eventRow(String(localized: "settings.notifications.row.fable"), [
                     .claude: $settingsStore.notification.trackFable,
                 ])

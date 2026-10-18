@@ -248,7 +248,7 @@ final class NotificationService: NotificationServiceProtocol {
     func evaluate(
         fiveHour: MetricSnapshot,
         sevenDay: MetricSnapshot,
-        sonnet: MetricSnapshot,
+        sonnet: MetricSnapshot?,
         fable: MetricSnapshot,
         sessionPacing: PacingZone?,
         weeklyPacing: PacingZone?,
@@ -270,7 +270,9 @@ final class NotificationService: NotificationServiceProtocol {
         if toggles.trackWeekly {
             checkSurface(.weekly, snapshot: sevenDay, pacing: weeklyPacing, toggles: toggles)
         }
-        if toggles.trackSonnet {
+        // Sonnet is a model-scoped limit most accounts no longer get: with no
+        // limit in the response there is nothing to alert on.
+        if toggles.trackSonnet, let sonnet {
             checkSurface(.sonnet, snapshot: sonnet, pacing: weeklyPacing, toggles: toggles)
         }
         if toggles.trackFable {

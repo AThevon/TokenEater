@@ -915,12 +915,16 @@ final class UsageStore: ObservableObject {
             windowDuration: 7 * 86_400,
             utilization: usage.sevenDay?.utilization ?? Double(sevenDayPct)
         )
-        let sonnetSnap = MetricSnapshot(
-            pct: sonnetPct,
-            resetsAt: usage.sevenDaySonnet?.resetsAtDate,
-            windowDuration: 7 * 86_400,
-            utilization: usage.sevenDaySonnet?.utilization ?? Double(sonnetPct)
-        )
+        // Nil when the response carries no Sonnet limit, so no alert can
+        // fire for a quota this account does not have.
+        let sonnetSnap = usage.sevenDaySonnet.map { bucket in
+            MetricSnapshot(
+                pct: sonnetPct,
+                resetsAt: bucket.resetsAtDate,
+                windowDuration: 7 * 86_400,
+                utilization: bucket.utilization
+            )
+        }
         let fableSnap = MetricSnapshot(
             pct: fablePct,
             resetsAt: usage.sevenDayFable?.resetsAtDate,

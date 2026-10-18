@@ -397,9 +397,9 @@ enum DemoNotifications {
         let idle = MetricSnapshot(pct: 0, resetsAt: nil, windowDuration: 7 * 86_400)
         let toggles = sampleToggles(thresholds: thresholds)
         // First pass sets the baseline, the second crosses the threshold.
-        service.evaluate(fiveHour: calm, sevenDay: idle, sonnet: idle, fable: idle, sessionPacing: nil,
+        service.evaluate(fiveHour: calm, sevenDay: idle, sonnet: nil, fable: idle, sessionPacing: nil,
                          weeklyPacing: nil, extraUsage: nil, toggles: toggles)
-        service.evaluate(fiveHour: hot, sevenDay: idle, sonnet: idle, fable: idle, sessionPacing: nil,
+        service.evaluate(fiveHour: hot, sevenDay: idle, sonnet: nil, fable: idle, sessionPacing: nil,
                          weeklyPacing: nil, extraUsage: nil, toggles: toggles)
     }
 
@@ -419,7 +419,7 @@ enum DemoNotifications {
             claudeEnabled: true,
             trackFiveHour: true,
             trackWeekly: true,
-            trackSonnet: true,
+            trackSonnet: false,
             trackFable: true,
             sendRecovery: false,
             pacingHot: false,

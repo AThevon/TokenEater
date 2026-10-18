@@ -115,7 +115,9 @@ protocol NotificationServiceProtocol {
     func evaluate(
         fiveHour: MetricSnapshot,
         sevenDay: MetricSnapshot,
-        sonnet: MetricSnapshot,
+        /// Nil when the account's response carries no Sonnet weekly limit:
+        /// no alert, and the surface's baseline is left alone.
+        sonnet: MetricSnapshot?,
         fable: MetricSnapshot,
         sessionPacing: PacingZone?,
         weeklyPacing: PacingZone?,

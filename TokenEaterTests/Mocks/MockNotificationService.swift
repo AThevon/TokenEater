@@ -6,7 +6,7 @@ final class MockNotificationService: NotificationServiceProtocol {
     var lastEvaluation: (
         fiveHour: MetricSnapshot,
         sevenDay: MetricSnapshot,
-        sonnet: MetricSnapshot,
+        sonnet: MetricSnapshot?,
         fable: MetricSnapshot,
         sessionPacing: PacingZone?,
         weeklyPacing: PacingZone?,
@@ -42,7 +42,7 @@ final class MockNotificationService: NotificationServiceProtocol {
     func evaluate(
         fiveHour: MetricSnapshot,
         sevenDay: MetricSnapshot,
-        sonnet: MetricSnapshot,
+        sonnet: MetricSnapshot?,
         fable: MetricSnapshot,
         sessionPacing: PacingZone?,
         weeklyPacing: PacingZone?,

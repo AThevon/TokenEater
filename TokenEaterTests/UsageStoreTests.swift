@@ -402,7 +402,7 @@ struct UsageStoreTests {
 
         #expect(notif.lastEvaluation?.fiveHour.pct == 42)
         #expect(notif.lastEvaluation?.sevenDay.pct == 65)
-        #expect(notif.lastEvaluation?.sonnet.pct == 30)
+        #expect(notif.lastEvaluation?.sonnet?.pct == 30)
     }
 
     @Test("refresh sets hasConfig true when token available")
