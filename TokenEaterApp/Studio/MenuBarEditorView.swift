@@ -907,6 +907,7 @@ enum MenuBarSegmentAvailability {
             guard settings.activeProviderMode.shows(provider) else { return false }
         }
         switch kind {
+        case .sonnet: return usage.hasSonnet
         case .fable, .fablePacing: return usage.hasFable
         case .extraCredits: return usage.hasExtraCredits
         case .codexSession, .codexSessionPacing:

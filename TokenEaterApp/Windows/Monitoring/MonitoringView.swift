@@ -1014,7 +1014,7 @@ struct MonitoringView: View {
                 icon: "person.2.fill",
                 pct: usageStore.coworkPct,
                 resetText: nil,
-                resetDate: nil,
+                resetDate: usageStore.lastUsage?.sevenDayOpus?.resetsAtDate,
                 windowDuration: weekWindow
             ))
         }

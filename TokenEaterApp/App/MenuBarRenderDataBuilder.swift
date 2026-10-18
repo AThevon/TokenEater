@@ -32,6 +32,7 @@ extension MenuBarRenderer.RenderData {
             fiveHourPct: usage.fiveHourPct,
             sevenDayPct: usage.sevenDayPct,
             sonnetPct: usage.sonnetPct,
+            hasSonnet: usage.hasSonnet,
             weeklyPacingDelta: Int(usage.pacingResult?.delta ?? 0),
             weeklyPacingZone: usage.pacingResult?.zone ?? .onTrack,
             hasWeeklyPacing: usage.pacingResult != nil,

@@ -198,7 +198,7 @@ extension EditorUnavailability {
     /// grant. Everything else that reports unavailable is missing data.
     private static func isPlanFact(_ kind: MenuBarSegmentKind) -> Bool {
         switch kind {
-        case .fable, .fablePacing, .extraCredits,
+        case .sonnet, .fable, .fablePacing, .extraCredits,
              .codexSession, .codexSessionPacing,
              .codexWeekly, .codexWeeklyPacing:
             return true
@@ -209,7 +209,7 @@ extension EditorUnavailability {
 
     private static func isPlanFact(_ kind: PopoverElementKind) -> Bool {
         switch kind {
-        case .fable, .fablePacing, .extraCredits,
+        case .sonnet, .fable, .fablePacing, .extraCredits,
              .codexSession, .codexSessionPacing,
              .codexWeekly, .codexWeeklyPacing:
             return true

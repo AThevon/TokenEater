@@ -540,7 +540,6 @@ enum PopoverBuiltinTemplate: String, CaseIterable, Identifiable {
             return PopoverComposition(elements: Self.chromeRow + [
                 PopoverElement(kind: .session, style: .gaugeRing, width: .full, options: .init(showReset: true)),
                 PopoverElement(kind: .weekly, style: .gaugeRing, width: .third),
-                PopoverElement(kind: .sonnet, style: .gaugeRing, width: .third),
                 PopoverElement(kind: .fable, style: .gaugeRing, width: .third),
                 PopoverElement(kind: .extraCredits, style: .gaugeRing, width: .third),
                 PopoverElement(kind: .sessionPacing, style: .paceBar, width: .full),

@@ -161,6 +161,7 @@ enum PopoverMetricResolver {
         // not have disappears and the row recompacts.
         case .codexSession, .codexSessionPacing: return codexWindow(.session, codex) != nil
         case .codexWeekly, .codexWeeklyPacing: return codexWindow(.weekly, codex) != nil
+        case .sonnet: return usage.hasSonnet
         case .fable: return usage.hasFable
         case .extraCredits: return usage.hasExtraCredits
         // Pacing follows the 3-state model (absent / idle / active): available

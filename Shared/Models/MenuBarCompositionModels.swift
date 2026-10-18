@@ -136,7 +136,7 @@ enum MenuBarSegmentKind: String, Codable, CaseIterable, Identifiable {
     /// account lacks the metric, matching the pre-5.10 menu bar.
     var isPresenceGated: Bool {
         switch self {
-        case .fable, .extraCredits, .fablePacing,
+        case .sonnet, .fable, .extraCredits, .fablePacing,
              .codexSession, .codexWeekly, .codexSessionPacing, .codexWeeklyPacing:
             return true
         default:
@@ -317,8 +317,12 @@ struct MenuBarComposition: Codable, Equatable {
     /// segment here.
     func addingAccountSegments(_ id: AccountID) -> MenuBarComposition {
         guard !id.isMain, !segments.contains(where: { $0.account == id }) else { return self }
+        // Presence-gated kinds (Sonnet, Fable, Extra Credits) are left out:
+        // the new account may not carry that limit, and a copy of it would
+        // draw nothing and leave the account without a segment.
         let mainUsage = visibleSegments.filter {
-            $0.kind.provider == .claude && $0.kind.family == .usage && ($0.account ?? .main).isMain
+            $0.kind.provider == .claude && $0.kind.family == .usage && !$0.kind.isPresenceGated
+                && ($0.account ?? .main).isMain
         }
         var models: [MenuBarSegment] = []
         for segment in mainUsage where !models.contains(where: { $0.kind == segment.kind }) {
@@ -432,7 +436,6 @@ enum MenuBarBuiltinTemplate: String, CaseIterable, Identifiable {
                 MenuBarSegment(kind: .weekly, style: .labelValue),
                 MenuBarSegment(kind: .sessionPacing, style: .dotDelta),
                 MenuBarSegment(kind: .weeklyPacing, style: .dotDelta),
-                MenuBarSegment(kind: .sonnet, style: .labelValue),
             ])
         }
     }

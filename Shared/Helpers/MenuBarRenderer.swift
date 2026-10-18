@@ -13,6 +13,11 @@ enum MenuBarRenderer {
         let fiveHourPct: Int
         let sevenDayPct: Int
         let sonnetPct: Int
+        /// True only when the account's response carries a Sonnet weekly limit
+        /// (a flat `seven_day_sonnet` utilization or a `limits[]` entry). Most
+        /// accounts get none any more, so a Sonnet segment draws nothing then.
+        /// Defaulted so callers that never show Sonnet can leave it out.
+        var hasSonnet: Bool = false
         let weeklyPacingDelta: Int
         let weeklyPacingZone: PacingZone
         let hasWeeklyPacing: Bool
@@ -646,6 +651,7 @@ enum MenuBarRenderer {
     private static func isSegmentAvailable(_ kind: MenuBarSegmentKind, data: RenderData) -> Bool {
         if let provider = kind.provider, !data.visibleProviders.contains(provider) { return false }
         switch kind {
+        case .sonnet: return data.hasSonnet
         case .fable: return data.hasFable
         case .extraCredits: return data.hasExtraCredits
         // Pacing segments follow a 3-state model: absent (bucket missing) ->
