@@ -7,9 +7,9 @@ import Foundation
 /// - per-file persisted cache keyed by path + mtime -> repeated opens after
 ///   the first cold scan re-use the previous result and only re-parse the
 ///   handful of files that changed since
-/// - line streaming via `enumerateLines` + `contains("input_tokens")` cheap
-///   pre-filter -> JSON parse only the assistant turns that actually carry
-///   token usage
+/// - block-by-block streaming (`forEachLine`) + an `input_tokens` byte
+///   pre-filter -> a transcript is never held whole in memory, and only the
+///   assistant turns that actually carry token usage are JSON-parsed
 /// - TaskGroup with concurrency cap -> uses cores without saturating
 /// - cooperative cancellation via `Task.checkCancellation()`
 final class SessionHistoryService: SessionHistoryServiceProtocol {
@@ -191,6 +191,11 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
         }
         saveCache(persisted)
 
+        // A scan frees its read buffers at once, but malloc keeps the large
+        // ones dirty for tens of seconds before handing them back, which is
+        // what Activity Monitor shows. Give them back now.
+        malloc_zone_pressure_relief(nil, 0)
+
         // 5. Aggregate across files into the requested bucketing.
         return Self.aggregate(
             entries: deduplicatedEntries(Array(newEntries.values)),
@@ -247,27 +252,23 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
             return cached
         }
 
-        // Cache miss: stream the file line by line.
-        let content: String
-        do {
-            content = try String(contentsOf: url, encoding: .utf8)
-        } catch {
-            return nil
-        }
-
         if source == .codex {
+            guard let content = try? String(contentsOf: url, encoding: .utf8) else { return nil }
             return try CodexHistoryParser.parse(content, path: url.path, mtime: mtime)
         }
+
+        // Cache miss: stream the file in blocks rather than reading it whole.
+        // A Claude Code transcript can weigh tens of megabytes, four parse at
+        // once, and a whole-file `String` per file is what pushed a cold
+        // launch past 900 MB. Only lines carrying token usage are decoded.
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
 
         var bucketsByHour: [Date: HistoryBucket] = [:]
         var sessionIds: Set<String> = []
 
-        content.enumerateLines { line, _ in
-            // Cheap pre-filter: lines without token usage are ignored. Skips
-            // user prompts, tool_use blocks, system messages, etc.
-            guard line.contains("input_tokens") else { return }
-            guard let data = line.data(using: .utf8),
-                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        try forEachLine(in: handle, containing: usageMarker) { data in
+            guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
             else { return }
 
             // Timestamp -> bucket date (start of hour).
@@ -341,6 +342,41 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
             buckets: Array(output.values).sorted { $0.date < $1.date },
             sessionIds: Array(sessionIds)
         )
+    }
+
+    /// The bytes a JSONL line must hold to be worth decoding: lines without
+    /// token usage (prompts, tool calls, system messages) are skipped unread.
+    private static let usageMarker = Data("input_tokens".utf8)
+
+    /// Size of each read. Bounds what one file holds in memory at a time,
+    /// whatever its length.
+    private static let readChunkSize = 1 << 20
+
+    /// Calls `body` with each newline-terminated line of `handle` (the last
+    /// one too when it has no newline) that contains `marker`, reading one
+    /// block at a time. Lines are split on `\n` only: a JSONL record never
+    /// holds a raw newline, while a Unicode line separator can sit inside one
+    /// of its strings.
+    static func forEachLine(
+        in handle: FileHandle,
+        containing marker: Data,
+        _ body: (Data) throws -> Void
+    ) throws {
+        var pending = Data()
+        while true {
+            try Task.checkCancellation()
+            let chunk = try autoreleasepool { try handle.read(upToCount: readChunkSize) ?? Data() }
+            if chunk.isEmpty { break }
+            pending.append(chunk)
+            var start = pending.startIndex
+            while let newline = pending[start...].firstIndex(of: 0x0A) {
+                let line = pending[start..<newline]
+                if line.range(of: marker) != nil { try body(Data(line)) }
+                start = pending.index(after: newline)
+            }
+            pending = Data(pending[start...])
+        }
+        if !pending.isEmpty, pending.range(of: marker) != nil { try body(pending) }
     }
 
     // MARK: - Aggregation across files
