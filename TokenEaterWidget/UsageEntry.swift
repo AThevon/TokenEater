@@ -42,8 +42,7 @@ struct UsageEntry: TimelineEntry {
             date: Date(),
             usage: UsageResponse(
                 fiveHour: UsageBucket(utilization: 35, resetsAt: iso8601String(from: Date().addingTimeInterval(3600))),
-                sevenDay: UsageBucket(utilization: 52, resetsAt: iso8601String(from: Date().addingTimeInterval(86400 * 3))),
-                sevenDaySonnet: UsageBucket(utilization: 12, resetsAt: iso8601String(from: Date().addingTimeInterval(86400 * 3)))
+                sevenDay: UsageBucket(utilization: 52, resetsAt: iso8601String(from: Date().addingTimeInterval(86400 * 3)))
             ),
             lastWeekDailyTotals: [120_000, 180_000, 95_000, 240_000, 310_000, 150_000, 220_000]
         )

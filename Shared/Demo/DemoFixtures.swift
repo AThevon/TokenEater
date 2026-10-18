@@ -85,9 +85,11 @@ struct DemoClaudeFixture: Equatable, Sendable, Identifiable {
     let organizationName: String?
     let fiveHour: DemoPool
     let weekly: DemoPool
-    let sonnet: DemoPool?
+    /// The one model-scoped weekly limit live accounts still carry (a
+    /// `limits[]` entry tagged "Fable"). Sonnet and Opus pools are not
+    /// modelled: Anthropic stopped sending them, and the demo shows only
+    /// what a live account can show.
     let fable: DemoPool?
-    let opus: DemoPool?
     let extraCredits: DemoExtraCredits?
     /// Last numbers written for it when the demo starts, this long before:
     /// what a paused or expired account keeps showing.
@@ -133,9 +135,7 @@ enum DemoFixtures {
         organizationName: "Acme Robotics",
         fiveHour: DemoPool(base: 88, swing: 6, resetOffsetMinutes: 0),
         weekly: DemoPool(base: 30, swing: 2, resetOffsetMinutes: 0),
-        sonnet: DemoPool(base: 41, swing: 3, resetOffsetMinutes: 0),
         fable: DemoPool(base: 63, swing: 4, resetOffsetMinutes: 0),
-        opus: nil,
         extraCredits: DemoExtraCredits(monthlyLimit: 20_000, usedCredits: 4_750),
         lastNumbersAgo: nil,
         history: DemoHistoryShape(
@@ -162,9 +162,7 @@ enum DemoFixtures {
         organizationName: nil,
         fiveHour: DemoPool(base: 9, swing: 4, resetOffsetMinutes: 95),
         weekly: DemoPool(base: 14, swing: 2, resetOffsetMinutes: 1_800),
-        sonnet: nil,
         fable: nil,
-        opus: nil,
         extraCredits: nil,
         lastNumbersAgo: nil,
         history: DemoHistoryShape(
@@ -189,9 +187,7 @@ enum DemoFixtures {
         organizationName: nil,
         fiveHour: DemoPool(base: 47, swing: 0, resetOffsetMinutes: 40),
         weekly: DemoPool(base: 71, swing: 0, resetOffsetMinutes: 600),
-        sonnet: nil,
         fable: nil,
-        opus: nil,
         extraCredits: nil,
         lastNumbersAgo: 2 * 86_400,
         history: DemoHistoryShape(
@@ -216,9 +212,7 @@ enum DemoFixtures {
         organizationName: nil,
         fiveHour: DemoPool(base: 22, swing: 3, resetOffsetMinutes: 150),
         weekly: DemoPool(base: 55, swing: 2, resetOffsetMinutes: 3_000),
-        sonnet: nil,
         fable: nil,
-        opus: nil,
         extraCredits: nil,
         lastNumbersAgo: 3 * 3600,
         history: DemoHistoryShape(
@@ -244,9 +238,7 @@ enum DemoFixtures {
         organizationName: nil,
         fiveHour: DemoPool(base: 35, swing: 5, resetOffsetMinutes: 210),
         weekly: DemoPool(base: 48, swing: 2, resetOffsetMinutes: 4_200),
-        sonnet: nil,
         fable: nil,
-        opus: nil,
         extraCredits: nil,
         lastNumbersAgo: nil,
         history: DemoHistoryShape(
@@ -273,9 +265,7 @@ enum DemoFixtures {
         organizationName: nil,
         fiveHour: DemoPool(base: 0, swing: 0, resetOffsetMinutes: 0),
         weekly: DemoPool(base: 0, swing: 0, resetOffsetMinutes: 0),
-        sonnet: nil,
         fable: nil,
-        opus: nil,
         extraCredits: nil,
         lastNumbersAgo: nil,
         history: DemoHistoryShape(tokensPerHour: 0, models: [], projects: [], quietFor: nil)
@@ -297,9 +287,7 @@ enum DemoFixtures {
         organizationName: work.organizationName,
         fiveHour: work.fiveHour,
         weekly: work.weekly,
-        sonnet: work.sonnet,
         fable: work.fable,
-        opus: nil,
         extraCredits: work.extraCredits,
         lastNumbersAgo: nil,
         history: work.history
@@ -406,8 +394,6 @@ enum DemoFixtures {
         return UsageResponse(
             fiveHour: bucket(fixture.fiveHour, window: 5 * 3600, phase: 0),
             sevenDay: bucket(fixture.weekly, window: week, phase: 1),
-            sevenDaySonnet: bucket(fixture.sonnet, window: week, phase: 2),
-            sevenDayOpus: bucket(fixture.opus, window: week, phase: 3),
             sevenDayFable: bucket(fixture.fable, window: week, phase: 4),
             extraUsage: fixture.extraCredits.map { credits in
                 ExtraUsage(

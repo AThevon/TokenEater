@@ -504,7 +504,14 @@ struct DemoModeTests {
 
         #expect(early.fiveHour?.utilization != later.fiveHour?.utilization)
         #expect((82...94).contains(early.fiveHour?.utilization ?? 0))
-        #expect(early.sevenDaySonnet != nil && early.sevenDayFable != nil)
+        #expect(early.sevenDayFable != nil)
+        // No account invents a Sonnet or Opus weekly limit: live accounts no
+        // longer get one, so the demo must not show one either.
+        for account in DemoFixtures.claude {
+            let usage = DemoFixtures.usage(for: account, at: startedAt, startedAt: startedAt)
+            #expect(usage.sevenDaySonnet == nil, "\(account.name) invents a Sonnet limit")
+            #expect(usage.sevenDayOpus == nil, "\(account.name) invents an Opus limit")
+        }
         #expect(early.extraUsage?.isEnabled == true)
         // Resets sit on a grid: the next refresh in the same window agrees.
         #expect(early.fiveHour?.resetsAt == later.fiveHour?.resetsAt)
