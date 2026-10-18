@@ -100,6 +100,16 @@ struct SecurityCLIReaderTests {
         #expect(SecurityCLIReader.failure(forExitCode: 1) == .unknown)
     }
 
+    // MARK: - Item detection
+
+    /// Onboarding's detection relies on this staying an attributes-only
+    /// answer: an injected lister stands in for the Keychain query.
+    @Test("hasCredentialItem answers from the account listing")
+    func hasCredentialItemFollowsListing() {
+        #expect(SecurityCLIReader(accountLister: { _ in ["athevon"] }).hasCredentialItem() == true)
+        #expect(SecurityCLIReader(accountLister: { _ in [] }).hasCredentialItem() == false)
+    }
+
     // MARK: - Shadowed service name (#268)
 
     private static func payload(token: String, expiresAt: Int? = nil) -> String {
