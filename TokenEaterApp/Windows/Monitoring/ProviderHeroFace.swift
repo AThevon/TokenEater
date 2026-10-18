@@ -158,7 +158,35 @@ struct ProviderHeroFace: View {
         }
     }
 
+    /// The reset line measures itself as if it read a full countdown and a
+    /// clock time, like the number reads 100%: two cards side by side then
+    /// keep or drop their "resets in" words together, whatever their own
+    /// values (a "-" for a login with no numbers is much shorter than
+    /// "3h43 · 15:20").
     private func resetLine(words: Bool, clock: Bool) -> some View {
+        ZStack(alignment: .leading) {
+            resetLine(words: words, countdown: Self.countdownTemplate(for: resetText),
+                      clockTime: clock ? Self.clockTemplate : nil)
+                .hidden()
+                .accessibilityHidden(true)
+            resetLine(words: words, countdown: resetText.isEmpty ? "-" : resetText,
+                      clockTime: clock ? resetDate?.formatted(.dateTime.hour().minute()) : nil)
+        }
+    }
+
+    /// A countdown as wide as this window's can get: days and hours for a
+    /// weekly window, hours and minutes otherwise.
+    private static func countdownTemplate(for resetText: String) -> String {
+        resetText.contains("d") ? "0d 00h" : "00h00"
+    }
+
+    /// A clock time as wide as the locale writes one.
+    private static let clockTemplate: String = {
+        let late = DateComponents(calendar: .current, year: 2026, month: 1, day: 1, hour: 22, minute: 58)
+        return (late.date ?? .now).formatted(.dateTime.hour().minute())
+    }()
+
+    private func resetLine(words: Bool, countdown: String, clockTime: String?) -> some View {
         HStack(spacing: DS.Spacing.xs) {
             Image(systemName: "clock.arrow.circlepath")
                 .font(.system(size: 11, weight: .semibold))
@@ -169,14 +197,14 @@ struct ProviderHeroFace: View {
                     .tracking(1.2)
                     .foregroundStyle(DS.Palette.textTertiary)
             }
-            Text(resetText.isEmpty ? "-" : resetText)
+            Text(countdown)
                 .font(DS.Typography.metricInline)
                 .foregroundStyle(DS.Palette.textPrimary)
-            if clock, let resetDate {
+            if let clockTime {
                 Text("·")
                     .font(DS.Typography.metricInline)
                     .foregroundStyle(DS.Palette.textTertiary.opacity(0.5))
-                Text(resetDate.formatted(.dateTime.hour().minute()))
+                Text(clockTime)
                     .font(DS.Typography.metricInline)
                     .foregroundStyle(DS.Palette.textPrimary)
             }

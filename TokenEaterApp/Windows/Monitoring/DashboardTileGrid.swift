@@ -70,6 +70,12 @@ struct DashboardTileStyle: Equatable {
 /// tries the fullest style first, and the style it settles on applies to
 /// every card, so the cards of one grid always read alike. Only when not
 /// even the countdown alone fits does each card shed on its own.
+///
+/// In a column that shares its row with another one, every row of cards is
+/// judged as if it were full, a lone card included: the grid next door
+/// usually has two cards abreast at the same column width, and judging the
+/// lone card on its own would word it differently ("Resets in" on one side,
+/// not on the other).
 struct DashboardTileGrid<Tile: View>: View {
     let tiles: [TileDescriptor]
     @ViewBuilder let tile: (TileDescriptor) -> Tile
@@ -81,24 +87,25 @@ struct DashboardTileGrid<Tile: View>: View {
         let narrow = MetricsGridLayout.rows(tiles, maxPerRow: MetricsGridLayout.sideBySideRow)
         let threeAbreast = wide.map(\.count) != narrow.map(\.count)
         let prefixed = tiles.contains { $0.prefix != nil }
+        let judgedAs = cap == MetricsGridLayout.sideBySideRow ? cap : 0
         ViewThatFits(in: .horizontal) {
             if threeAbreast {
                 rows(wide, style: .full)
                 if prefixed { rows(wide, style: .named) }
                 rows(wide, style: .compact)
             }
-            rows(narrow, style: .full)
-            if prefixed { rows(narrow, style: .named) }
-            rows(narrow, style: .compact)
-            rows(narrow, style: .minimal)
-            rows(narrow, style: nil)
+            rows(narrow, style: .full, judgedAs: judgedAs)
+            if prefixed { rows(narrow, style: .named, judgedAs: judgedAs) }
+            rows(narrow, style: .compact, judgedAs: judgedAs)
+            rows(narrow, style: .minimal, judgedAs: judgedAs)
+            rows(narrow, style: nil, judgedAs: judgedAs)
         }
     }
 
-    private func rows(_ rows: [[TileDescriptor]], style: DashboardTileStyle?) -> some View {
+    private func rows(_ rows: [[TileDescriptor]], style: DashboardTileStyle?, judgedAs: Int = 0) -> some View {
         VStack(spacing: DS.Spacing.sm) {
             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                EqualWidthRow(spacing: DS.Spacing.sm) {
+                EqualWidthRow(spacing: DS.Spacing.sm, judgedAs: judgedAs) {
                     ForEach(row, id: \.id) { descriptor in
                         tile(descriptor)
                     }
@@ -121,6 +128,9 @@ struct DashboardTileGrid<Tile: View>: View {
 /// `ViewThatFits` decide honestly.
 struct EqualWidthRow: Layout {
     var spacing: CGFloat
+    /// Asked for its ideal width, the row answers as if it held at least
+    /// this many subviews. It still lays out the ones it has.
+    var judgedAs: Int = 0
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         guard !subviews.isEmpty else { return .zero }
@@ -135,7 +145,8 @@ struct EqualWidthRow: Layout {
         }
         let ideals = subviews.map { $0.sizeThatFits(.unspecified) }
         let widest = ideals.map(\.width).max() ?? 0
-        return CGSize(width: widest * count + gaps, height: ideals.map(\.height).max() ?? 0)
+        let judged = CGFloat(max(subviews.count, judgedAs))
+        return CGSize(width: widest * judged + spacing * (judged - 1), height: ideals.map(\.height).max() ?? 0)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {

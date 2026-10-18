@@ -9,12 +9,11 @@ struct CodexFooterPills: View {
     @EnvironmentObject private var codexStore: CodexUsageStore
 
     var body: some View {
-        DashboardPillRow(pills: Self.pills(codexStore))
+        DashboardPillRow(pills: pills)
     }
 
     /// The pills Codex has to show, in order; empty when it has none.
-    @MainActor
-    static func pills(_ codexStore: CodexUsageStore) -> [DashboardPill] {
+    private var pills: [DashboardPill] {
         var pills: [DashboardPill] = []
         if codexStore.planType != .unknown {
             pills.append(DashboardPill(

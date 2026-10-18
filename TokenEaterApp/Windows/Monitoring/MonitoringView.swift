@@ -151,11 +151,7 @@ struct MonitoringView: View {
     }
 
     var claudeHeroWindow: ClaudeHeroWindow {
-        claudeHeroWindow(for: heroAccount)
-    }
-
-    private func claudeHeroWindow(for account: AccountID) -> ClaudeHeroWindow {
-        settingsStore.heroWindow(for: .claude, account: account)
+        settingsStore.heroWindow(for: .claude, account: heroAccount)
             .flatMap(ClaudeHeroWindow.init(rawValue:)) ?? .session
     }
 
@@ -356,7 +352,7 @@ struct MonitoringView: View {
 
         case (.windows, .claude):
             // The hero already shows one window, so the grid never repeats it.
-            grid(of: claudeGridTiles(of: usageStore, account: heroAccount)
+            grid(of: claudeGridTiles
                 .map { labelled($0, for: .claude) })
         case (.windows, .codex):
             grid(of: codexGridWindows
@@ -473,16 +469,15 @@ struct MonitoringView: View {
     /// Which tile the Claude hero is already showing, so the grid can skip it.
     /// Nil when the hero shows the 5-hour window, which has no tile of its own
     /// in the grid, so nothing is filtered out.
-    private func claudeHeroTileID(for account: AccountID) -> String? {
-        claudeHeroWindow(for: account) == .weekly ? "weekly" : nil
+    private var claudeHeroTileID: String? {
+        claudeHeroWindow == .weekly ? "weekly" : nil
     }
 
     /// The small cards of a Claude column: every window but the one its hero
     /// already shows. In every mode: the duplicate showed up as soon as the
     /// hero was pinned to Weekly, which a Claude-only user can do as well.
-    private func claudeGridTiles(of store: UsageStore, account: AccountID) -> [TileDescriptor] {
-        let heroTile = claudeHeroTileID(for: account)
-        return secondaryTiles(of: store).filter { $0.id != heroTile }
+    private var claudeGridTiles: [TileDescriptor] {
+        secondaryTiles.filter { $0.id != claudeHeroTileID }
     }
 
     /// Codex's small cards: every window but the hero's.
@@ -974,7 +969,7 @@ struct MonitoringView: View {
         )
     }
 
-    private func secondaryTiles(of usageStore: UsageStore) -> [TileDescriptor] {
+    private var secondaryTiles: [TileDescriptor] {
         let weekWindow: TimeInterval = 7 * 86_400
         var tiles: [TileDescriptor] = [
             TileDescriptor(
@@ -1239,16 +1234,16 @@ struct MonitoringView: View {
     // MARK: - Footer pills
 
     private var footerPills: some View {
-        DashboardPillRow(pills: claudePills(usageStore))
+        DashboardPillRow(pills: claudePills)
     }
 
-    private func claudePills(_ store: UsageStore) -> [DashboardPill] {
+    private var claudePills: [DashboardPill] {
         var pills: [DashboardPill] = []
-        if let tier = store.rateLimitTier {
+        if let tier = usageStore.rateLimitTier {
             pills.append(DashboardPill(id: "tier", icon: "sparkles", label: String(localized: "dashboard.tier"),
                                        value: tier.formattedRateLimitTier, tint: DS.Palette.accentStats))
         }
-        if let org = store.organizationName {
+        if let org = usageStore.organizationName {
             pills.append(DashboardPill(id: "org", icon: "building.2.fill", label: String(localized: "dashboard.org"),
                                        value: org, tint: DS.Palette.accentHistory))
         }
