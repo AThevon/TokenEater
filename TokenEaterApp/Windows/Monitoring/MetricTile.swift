@@ -224,8 +224,8 @@ struct MetricTile: View {
         return date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
     }
 
-    /// Back face - "details" view. When `insights` is available (weekly,
-    /// sonnet, opus tiles) we show a rich 7d breakdown; otherwise we
+    /// Back face - "details" view. When `insights` is available (the 7-day
+    /// tiles) we show a rich 7d breakdown; otherwise we
     /// fall back to a minimal placeholder. Card dimensions match the
     /// front via the parent's fixed height.
     @ViewBuilder

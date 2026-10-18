@@ -20,7 +20,6 @@
 "settings.pacing.style" = "Pacing style";
 "settings.group.session" = "Session (5h)";
 "settings.group.weekly" = "Weekly";
-"settings.group.sonnet" = "Sonnet";
 "metric.weekly" = "Weekly";
 "metric.sonnet" = "Sonnet";
 "metric.reset" = "Resets in %@";
@@ -31,8 +30,6 @@
 "widget.sonnet" = "Sonnet";
 "widget.session.subtitle" = "5h sliding window";
 "widget.weekly.full" = "Weekly";
-"widget.weekly.subtitle" = "Opus + Sonnet + Haiku";
-"widget.sonnet.subtitle" = "Dedicated limit";
 "widget.offline" = "Offline";
 "widget.loading" = "Loading...";
 "widget.reset" = "Reset %@";
@@ -96,8 +93,6 @@
 "pacing.weekly.label" = "Weekly pacing";
 "pacing.fable.label" = "Fable pacing";
 "pacing.cooldown" = "back to 0%% in %@";
-"pacing.sonnet.label" = "Sonnet pacing";
-"settings.display.sonnet" = "Display Sonnet";
 "settings.metrics.pinned" = "Pinned metrics";
 "settings.metrics.pinned.footer" = "Choose which metrics appear in the menu bar.";
 "settings.pacing.display" = "Pacing display";
@@ -223,7 +218,7 @@
 "settings.pacing.margin.value" = "Margin";
 "settings.pacing.margin.hint" = "Tolerance band around the ideal pace. On track stays within ±margin, warning fires once you drift further, hot kicks in beyond 2x the margin.";
 "settings.pacing.workweek" = "Workweek pacing";
-"settings.pacing.workweek.hint" = "Pace only counts your active days, so off-days don't make you look ahead of pace. Applies to the weekly and Sonnet gauges, not the 5h session.";
+"settings.pacing.workweek.hint" = "Pace only counts your active days, so off-days don't make you look ahead of pace. Applies to the 7-day gauges, not the 5h session.";
 "settings.pacing.workweek.hours" = "Active hours";
 "pacing.workweek.badge.active" = "Workweek pacing on";
 "pacing.workweek.badge.offday" = "Off day, pacing resting until reset";
@@ -233,7 +228,7 @@
 "settings.workweek.popover.point1.desc" = "Only the hours on the days you select count toward the ideal pace line.";
 "settings.workweek.popover.point2.title" = "Off-days freeze the pace";
 "settings.workweek.popover.point2.desc" = "On excluded days the expected pace pauses and your full quota stays available until the reset.";
-"settings.workweek.popover.point3.title" = "Weekly and Sonnet only";
+"settings.workweek.popover.point3.title" = "7-day gauges only";
 "settings.workweek.popover.point3.desc" = "Applies to the 7-day gauges. The 5h session is intraday, so it's never schedule-adjusted.";
 "settings.workweek.popover.footer" = "Works whatever your reset day is, since any 7-day window holds the same set of active days.";
 

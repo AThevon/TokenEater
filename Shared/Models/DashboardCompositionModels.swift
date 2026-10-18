@@ -21,7 +21,8 @@ import Foundation
 enum DashboardBlock: String, Codable, CaseIterable, Identifiable, Sendable {
     /// The big gauge. One per provider.
     case hero
-    /// The secondary windows: weekly, Sonnet, Opus, Fable for Claude; the
+    /// The secondary windows: weekly plus whichever per-model limits the
+    /// account carries (Fable, rarely Sonnet or Opus) for Claude; the
     /// windows the plan declares for Codex.
     case windows
     /// Pacing cards for every window that has a rate.

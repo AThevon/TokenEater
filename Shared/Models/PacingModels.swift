@@ -95,7 +95,7 @@ struct PacingTrajectoryPoint: Equatable {
 /// ... 7=Sat), so off-days (weekends by default) don't push the expected pace
 /// forward - a Mon-Fri user no longer looks "hot" just because the calendar
 /// week elapsed while they rested. Disabled = every day counts (classic rolling
-/// window). Applies to the weekly + Sonnet buckets only; the 5h session is an
+/// window). Applies to the 7-day buckets only; the 5h session is an
 /// intraday window and is never schedule-adjusted.
 struct PacingSchedule: Equatable, Sendable {
     var enabled: Bool

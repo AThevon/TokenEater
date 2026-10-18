@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Small glyph shown on weekly / Sonnet pacing surfaces when workweek pacing is
+/// Small glyph shown on 7-day pacing surfaces when workweek pacing is
 /// active, so the compressed ("days go faster") and frozen-on-off-days behaviour
 /// is explained rather than looking broken. Switches to a "resting" variant on
 /// off-days, where the expected pace is parked and the full quota is still

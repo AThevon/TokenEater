@@ -213,12 +213,12 @@ The smart gauge interpolates between the three `gauge*` tokens on the [0, 1] ris
 
 | Surface | Threshold | Smart | Pacing |
 |---|---|---|---|
-| Menu bar percentages (5h, 7d, sonnet, design) | fallback | yes | n/a |
+| Menu bar percentages (5h, 7d, per-model limits such as Fable) | fallback | yes | n/a |
 | Menu bar reset countdown text | fallback | yes | n/a |
 | Menu bar pacing pill / dot | n/a | n/a | yes |
 | Stats hero ring + value | fallback | yes | n/a |
 | Stats hero zone glyph (centered) | n/a | n/a | yes |
-| Stats metric tiles (weekly, sonnet, design) | fallback | yes | n/a |
+| Stats metric tiles (weekly, per-model limits such as Fable) | fallback | yes | n/a |
 | Stats pacing sub-row + track | n/a | n/a | yes |
 | Popover hero / satellite / equal rings | fallback | yes | n/a |
 | Popover compact chips | fallback | yes | n/a |

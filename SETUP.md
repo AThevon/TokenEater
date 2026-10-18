@@ -1,6 +1,6 @@
 # TokenEater — Setup
 
-Native macOS widget to display Claude usage (session, weekly all models, weekly Sonnet).
+Native macOS widget to display Claude usage (session, weekly all models, and any per-model weekly limit the account carries).
 
 ## Prerequisites
 
@@ -94,7 +94,7 @@ Shared/                      Shared code (compiled into all targets)
 - **Response**:
   - `five_hour.utilization` — Session (5h sliding window)
   - `seven_day.utilization` — Weekly all models
-  - `seven_day_sonnet.utilization` — Weekly Sonnet only
+  - `limits[]`: the same pools plus per-model weekly limits (`weekly_scoped` entries tagged with the model's `display_name`, Fable today). A model limit shows only when the account's response carries it; most accounts no longer get a Sonnet or Opus one, so `seven_day_sonnet` and `seven_day_opus` usually come back null.
 
 The OAuth token is managed by Claude Code and refreshes automatically.
 

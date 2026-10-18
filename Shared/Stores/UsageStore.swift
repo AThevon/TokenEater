@@ -57,9 +57,10 @@ final class UsageStore: ObservableObject {
     @Published var hasOpus: Bool = false
     @Published var hasCowork: Bool = false
     @Published var hasFable: Bool = false
-    /// True when the plan carries a dedicated weekly Sonnet pool. Most plans
-    /// don't (Sonnet usage only counts toward the shared 5h/weekly buckets),
-    /// so surfaces gated on this avoid showing a permanently-0% Sonnet gauge.
+    /// True when the response carries a Sonnet weekly limit (a flat
+    /// `seven_day_sonnet` utilization or a `limits[]` entry). Anthropic no
+    /// longer sends one to most accounts, so every Sonnet surface (menu bar,
+    /// popover, dashboard, widget, alerts) is gated on this.
     @Published var hasSonnet: Bool = false
     @Published var fableReset: String = ""
     @Published var fableResetAbsolute: String = ""

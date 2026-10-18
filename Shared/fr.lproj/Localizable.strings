@@ -20,7 +20,6 @@
 "settings.pacing.style" = "Style du pacing";
 "settings.group.session" = "Session (5h)";
 "settings.group.weekly" = "Weekly";
-"settings.group.sonnet" = "Sonnet";
 "metric.weekly" = "Hebdo";
 "metric.sonnet" = "Sonnet";
 "metric.reset" = "Reset dans %@";
@@ -31,8 +30,6 @@
 "widget.sonnet" = "Sonnet";
 "widget.session.subtitle" = "Fenêtre glissante 5h";
 "widget.weekly.full" = "Hebdomadaire";
-"widget.weekly.subtitle" = "Opus + Sonnet + Haiku";
-"widget.sonnet.subtitle" = "Limite dédiée";
 "widget.offline" = "Hors ligne";
 "widget.loading" = "Chargement...";
 "widget.reset" = "Reset %@";
@@ -96,8 +93,6 @@
 "pacing.weekly.label" = "Rythme hebdomadaire";
 "pacing.fable.label" = "Rythme Fable";
 "pacing.cooldown" = "retour à 0%% dans %@";
-"pacing.sonnet.label" = "Rythme Sonnet";
-"settings.display.sonnet" = "Afficher Sonnet";
 "settings.metrics.pinned" = "Métriques épinglées";
 "settings.metrics.pinned.footer" = "Choisissez les métriques affichées dans la barre de menu.";
 "settings.pacing.display" = "Affichage rythme";
@@ -223,7 +218,7 @@
 "settings.pacing.margin.value" = "Marge";
 "settings.pacing.margin.hint" = "Bande de tolérance autour du rythme idéal. On track reste dans ±marge, warning quand tu dépasses, hot au-delà de 2x la marge.";
 "settings.pacing.workweek" = "Rythme jours ouvrés";
-"settings.pacing.workweek.hint" = "Le rythme ne compte que tes jours actifs, donc tes jours off ne te font plus paraître en avance. S'applique aux jauges hebdo et Sonnet, pas à la session 5h.";
+"settings.pacing.workweek.hint" = "Le rythme ne compte que tes jours actifs, donc tes jours off ne te font plus paraître en avance. S'applique aux jauges 7 jours, pas à la session 5h.";
 "settings.pacing.workweek.hours" = "Heures actives";
 "pacing.workweek.badge.active" = "Rythme jours ouvrés actif";
 "pacing.workweek.badge.offday" = "Jour off, rythme en pause jusqu'au reset";
@@ -233,7 +228,7 @@
 "settings.workweek.popover.point1.desc" = "Seules les heures des jours sélectionnés comptent dans la ligne de rythme idéal.";
 "settings.workweek.popover.point2.title" = "Les jours off gèlent le rythme";
 "settings.workweek.popover.point2.desc" = "Les jours exclus, le rythme attendu se met en pause et ton quota plein reste dispo jusqu'au reset.";
-"settings.workweek.popover.point3.title" = "Hebdo et Sonnet seulement";
+"settings.workweek.popover.point3.title" = "Jauges 7 jours seulement";
 "settings.workweek.popover.point3.desc" = "S'applique aux jauges 7 jours. La session 5h est intraday, donc jamais ajustée par le calendrier.";
 "settings.workweek.popover.footer" = "Marche quel que soit ton jour de reset, vu que toute fenêtre de 7 jours contient le même ensemble de jours actifs.";
 
