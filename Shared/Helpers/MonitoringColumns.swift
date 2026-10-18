@@ -1,82 +1,76 @@
 import Foundation
 
-/// The columns of the dashboard, left to right.
+/// The sections of the dashboard and how they wrap.
 ///
-/// All compares everything that runs: one column per running Claude account,
-/// the main one first, then Codex. A provider mode shows one column: Claude
-/// mode the account it is focused on, Codex mode Codex. Pure, so the order
-/// and the fallbacks are unit tested; `MonitoringView` only lays them out.
+/// All shows every section that runs, in the order Studio gives them: one per
+/// running Claude account and Codex. A provider mode shows one: Claude mode
+/// the account it is focused on, Codex mode Codex. Pure, so the order, the
+/// fallbacks and the layout rules are unit tested; `MonitoringView` only lays
+/// them out.
 enum MonitoringColumns {
-    enum Column: Hashable, Identifiable {
-        case claude(AccountID)
-        case codex
-
-        var id: String {
-            switch self {
-            case .claude(let account): return "claude" + account.storageSuffix
-            case .codex: return "codex"
-            }
-        }
-
-        var provider: MetricProvider {
-            switch self {
-            case .claude: return .claude
-            case .codex: return .codex
-            }
-        }
-    }
-
     /// - Parameters:
-    ///   - activeAccounts: the running Claude accounts in display order, the
-    ///     main one first; empty while Claude is off.
+    ///   - sections: the running sections in display order (see
+    ///     `SettingsStore.runningSections`): no Claude account while Claude
+    ///     is off, no Codex while Codex is.
     ///   - focused: the account Claude mode shows. One that no longer runs
     ///     falls back to the main account.
-    static func columns(
-        mode: ProviderMode,
-        focused: AccountID,
-        activeAccounts: [AccountID],
-        codexEnabled: Bool
-    ) -> [Column] {
+    static func columns(mode: ProviderMode, focused: AccountID, sections: [HomeSection]) -> [HomeSection] {
         switch mode {
         case .all:
-            return activeAccounts.map(Column.claude) + (codexEnabled ? [.codex] : [])
+            return sections
         case .claude:
-            guard !activeAccounts.isEmpty else { return [] }
-            return [.claude(activeAccounts.contains(focused) ? focused : .main)]
+            let accounts = sections.compactMap { section -> AccountID? in
+                if case .claude(let account) = section { return account }
+                return nil
+            }
+            guard !accounts.isEmpty else { return [] }
+            return [.claude(accounts.contains(focused) ? focused : .main)]
         case .codex:
-            return codexEnabled ? [.codex] : []
+            return sections.contains(.codex) ? [.codex] : []
         }
     }
 
-    // MARK: - Rows
+    // MARK: - Layout
 
-    /// Never more than two columns abreast: from three, a hero's number and
-    /// every label truncate at an ordinary window width.
-    static let maxPerRow = 2
+    /// The narrowest a section may get and still sit next to another one.
+    /// Below it the hero's number and the cards' labels start to truncate,
+    /// so the sections stack whatever the layout asks for.
+    static let minimumSideBySideWidth: CGFloat = 340
 
-    /// The narrowest a column may get and still sit next to another one once
-    /// several accounts share the page. Below it, the columns stack.
-    static let minimumSideBySideWidth: CGFloat = 360
-
-    /// The narrowest page that still puts two columns abreast once there
-    /// are more than two to lay out.
+    /// The narrowest page that still puts two sections abreast.
     static func twoAbreastMinimumWidth(spacing: CGFloat) -> CGFloat {
-        minimumSideBySideWidth * CGFloat(maxPerRow) + spacing
+        minimumSideBySideWidth * 2 + spacing
     }
 
-    /// How the columns wrap, row by row.
+    /// Whether a page this wide holds two sections abreast. The view decides
+    /// it through `ViewThatFits` at this same threshold, never by storing a
+    /// measured width.
+    static func fitsTwoAbreast(width: CGFloat, spacing: CGFloat) -> Bool {
+        width >= twoAbreastMinimumWidth(spacing: spacing)
+    }
+
+    /// Sections per row: one or two, never more.
     ///
-    /// One or two columns stay on one row whatever the width, which is the
-    /// layout 6.0 had for Claude and Codex. From three, the columns go two by
-    /// two in order (so Codex lands after the Claude accounts), or one per
-    /// row when the page is narrower than `twoAbreastMinimumWidth`, which the
-    /// view decides by measuring, not by storing a width.
-    static func rows(_ columns: [Column], twoAbreast: Bool) -> [[Column]] {
-        guard !columns.isEmpty else { return [] }
-        guard columns.count > maxPerRow else { return [columns] }
-        let perRow = twoAbreast ? maxPerRow : 1
-        return stride(from: 0, to: columns.count, by: perRow).map {
-            Array(columns[$0 ..< min($0 + perRow, columns.count)])
+    /// One section always has the page. Auto puts exactly two side by side,
+    /// as 6.0 did with Claude and Codex (no row follows them, so different
+    /// heights leave no hole), and stacks from three, where interleaving
+    /// columns would make the page hard to read. One column always stacks;
+    /// two columns always pairs. A page too narrow for two stacks in every
+    /// layout.
+    static func perRow(layout: HomeLayout, sections: Int, fitsTwo: Bool) -> Int {
+        guard sections > 1, fitsTwo else { return 1 }
+        switch layout {
+        case .auto: return sections == 2 ? 2 : 1
+        case .oneColumn: return 1
+        case .twoColumns: return 2
+        }
+    }
+
+    /// The sections row by row, in order.
+    static func rows(_ sections: [HomeSection], perRow: Int) -> [[HomeSection]] {
+        let size = max(1, perRow)
+        return stride(from: 0, to: sections.count, by: size).map {
+            Array(sections[$0 ..< min($0 + size, sections.count)])
         }
     }
 }

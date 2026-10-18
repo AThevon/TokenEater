@@ -1134,6 +1134,18 @@
 "dashboard.editor.hint" = "Glisse pour réordonner. Un bloc masqué est conservé, pas supprimé.";
 "dashboard.editor.reset" = "Réinitialiser l'ordre";
 "dashboard.editor.lastBlock" = "Le dernier bloc visible doit le rester";
+"dashboard.sections.title" = "Sections";
+"dashboard.sections.hint" = "Comment Tout dispose chaque compte et Codex. L'ordre trie aussi les sections du popover et les pastilles de mode.";
+"dashboard.layout.label" = "Disposition";
+"dashboard.layout.auto" = "Auto";
+"dashboard.layout.oneColumn" = "Une colonne";
+"dashboard.layout.twoColumns" = "Deux colonnes";
+"dashboard.layout.auto.help" = "Une section prend toute la page, deux se placent côte à côte, à partir de trois elles s'empilent.";
+"dashboard.layout.oneColumn.help" = "Les sections s'empilent l'une sous l'autre, sur toute la largeur.";
+"dashboard.layout.twoColumns.help" = "Les sections vont par deux, dans l'ordre. Une fenêtre étroite les empile quand même.";
+"dashboard.order.label" = "Ordre des sections";
+"dashboard.order.up" = "Monter";
+"dashboard.order.down" = "Descendre";
 
 /* Comptes Claude : ajout */
 "accounts.add.link" = "Suivre un autre compte Claude…";

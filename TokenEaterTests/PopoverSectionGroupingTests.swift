@@ -93,4 +93,39 @@ struct PopoverSectionGroupingTests {
         let sections = groups(elements)
         #expect(sections.map(\.key) == [.claude(Self.work), .neutral, .claude(Self.work)])
     }
+
+    @Test("The section order sorts the account sections, the chrome stays in place")
+    func sectionsFollowTheOrder() {
+        let composition = PopoverComposition.default
+            .addingAccountSection(Self.work)
+            .addingAccountSection(Self.side)
+        let order: [HomeSection] = [.claude(Self.side), .codex, .claude(.main), .claude(Self.work)]
+        let sections = PopoverSectionGrouping.groups(
+            composition.visibleElements, mode: .all, focused: .main, running: Self.running, order: order
+        )
+        #expect(sections.map(\.key) == [
+            .neutral, .claude(Self.side), .claude(.main), .claude(Self.work), .neutral,
+        ])
+        // Ids stay those of the content, so a reorder animates rather than rebuilds.
+        #expect(sections.map(\.id) == [
+            "neutral#0", "claude.acct-side#0", "claude.main#0", "claude.acct-work#0", "neutral#1",
+        ])
+    }
+
+    @Test("Codex follows the order too, around a neutral element in the middle")
+    func codexFollowsTheOrder() {
+        let elements = [
+            PopoverElement(kind: .session, style: .chip, width: .half),
+            PopoverElement(kind: .timestamp, style: .utilityRow, width: .full),
+            PopoverElement(kind: .codexSession, style: .chip, width: .half),
+            PopoverElement(kind: .session, style: .chip, width: .half, account: Self.work),
+        ]
+        let sections = PopoverSectionGrouping.groups(
+            elements, mode: .all, focused: .main, running: Self.running,
+            order: [.codex, .claude(Self.work), .claude(.main)]
+        )
+        #expect(sections.map(\.key) == [.codex, .neutral, .claude(Self.work), .claude(.main)])
+        // No order: the composition's own.
+        #expect(groups(elements).map(\.key) == [.claude(.main), .neutral, .codex, .claude(Self.work)])
+    }
 }

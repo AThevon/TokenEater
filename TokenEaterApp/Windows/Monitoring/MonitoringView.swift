@@ -62,11 +62,10 @@ struct MonitoringView: View {
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
                 header
 
-                // One ordered list drives all three modes. A provider mode
-                // renders it once; All renders it once per column, each
-                // column a stack of its own: a column never waits for its
-                // neighbour's blocks, so a short one leaves no holes. The
-                // order and the visibility come from Studio.
+                // One ordered list of blocks drives all three modes. A
+                // provider mode renders it once; All renders it once per
+                // section, each section a stack of its own, laid out as
+                // Studio's Layout and Section order say.
                 if isComparing {
                     comparison
                 } else if let column = columns.first {
@@ -193,39 +192,37 @@ struct MonitoringView: View {
 
     var showsCodex: Bool { visibleProviders.contains(.codex) }
 
-    /// The page's columns: in All, one per running Claude account then
-    /// Codex; in a provider mode, the one it shows.
-    private var columns: [MonitoringColumns.Column] {
+    /// The page's sections: in All, every running Claude account and Codex
+    /// in the section order of Studio; in a provider mode, the one it shows.
+    private var columns: [HomeSection] {
         MonitoringColumns.columns(
             mode: settingsStore.activeProviderMode,
             focused: settingsStore.focusedClaudeAccount,
-            activeAccounts: settingsStore.activeClaudeAccounts.map(\.id),
-            codexEnabled: settingsStore.codexEnabled
+            sections: settingsStore.runningSections
         )
     }
 
-    /// True when the page has two columns or more to put side by side. A
-    /// provider mode, or a single active provider with a single account, gets
-    /// that provider's own full page instead: there is nothing to compare,
-    /// and half a comparison is worse than none. An embedded account column
-    /// is always part of a comparison.
+    /// True when the page has two sections or more. A provider mode, or a
+    /// single active provider with a single account, gets that provider's
+    /// own full page instead, with nothing to tell apart. An embedded
+    /// account section is always part of several.
     private var isComparing: Bool {
         embeddedAccount != nil || columns.count > 1
     }
 
-    /// The columns All compares. An added account whose store is not there
-    /// yet (just added, or resumed) is left out rather than drawn as a hole
-    /// its neighbour would spread into.
-    private var comparisonColumns: [MonitoringColumns.Column] {
+    /// The sections All shows. An added account whose store is not there
+    /// yet (just added, or resumed) is left out rather than drawn empty.
+    private var comparisonColumns: [HomeSection] {
         columns.filter { column in
             guard case .claude(let account) = column, !account.isMain else { return true }
             return accountsStore.usageStore(for: account) != nil
         }
     }
 
-    /// The All comparison: the columns two by two at most, never three
-    /// abreast, stacking one per row when the page is too narrow for two.
-    /// One or two columns stay side by side as they did in 6.0.
+    /// All's sections, laid out as Studio's Layout asks (see
+    /// `MonitoringColumns.perRow`): stacked full width, or two per row.
+    /// Two per row only where two fit side by side; a narrower page stacks
+    /// them in every layout.
     ///
     /// The width decides through `ViewThatFits`, not a measured `@State`:
     /// nothing to store on every frame of a resize, nothing stale after a
@@ -233,52 +230,54 @@ struct MonitoringView: View {
     @ViewBuilder
     private var comparison: some View {
         let shown = comparisonColumns
+        let layout = settingsStore.homeLayout
         Group {
-            if shown.count > MonitoringColumns.maxPerRow {
+            if MonitoringColumns.perRow(layout: layout, sections: shown.count, fitsTwo: true) > 1 {
                 let minimum = MonitoringColumns.twoAbreastMinimumWidth(spacing: DS.Spacing.md)
                 ViewThatFits(in: .horizontal) {
-                    columnRows(shown, twoAbreast: true)
+                    sectionRows(shown, perRow: 2)
                         .frame(minWidth: minimum, idealWidth: minimum, maxWidth: .infinity)
-                    columnRows(shown, twoAbreast: false)
+                    sectionRows(shown, perRow: 1)
                 }
             } else {
-                columnRows(shown, twoAbreast: true)
+                sectionRows(shown, perRow: 1)
             }
         }
         .environment(\.dashboardColumnHeaded, columnsAreHeaded)
     }
 
-    private func columnRows(_ columns: [MonitoringColumns.Column], twoAbreast: Bool) -> some View {
-        let rows = MonitoringColumns.rows(columns, twoAbreast: twoAbreast)
-        let sideBySide = rows.contains { $0.count > 1 }
+    private func sectionRows(_ sections: [HomeSection], perRow: Int) -> some View {
+        let sideBySide = perRow > 1
         return VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            ForEach(rows, id: \.self) { row in
-                // Each column is its own stack, top-aligned, at one shared
-                // width. A last row with one column left keeps it the width
-                // of the columns above, so its cards never spread to the
-                // full page. The next row starts under the taller column.
+            ForEach(MonitoringColumns.rows(sections, perRow: perRow), id: \.self) { row in
+                // Each section is its own top-aligned stack, at one shared
+                // width. A last row with one section left keeps the width of
+                // the ones above, so its cards never spread to the full page.
+                // The next row starts under the taller section.
                 EqualWidthRow(spacing: DS.Spacing.md) {
-                    ForEach(row) { column in
-                        columnView(column, pacingAbreast: !sideBySide)
+                    ForEach(row) { section in
+                        sectionView(section, pacingAbreast: !sideBySide)
                     }
-                    if sideBySide && row.count < MonitoringColumns.maxPerRow {
+                    if row.count < perRow {
                         Color.clear.frame(height: 0)
                     }
                 }
             }
         }
+        // Two small cards per row at most in a section that shares its row,
+        // three where it has the page (and only when three fit).
         .environment(\.dashboardTilesPerRow, MetricsGridLayout.maxPerRow(sideBySide: sideBySide))
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// One column of the All comparison, top to bottom: its header, its
-    /// notice, then its blocks. The main account and Codex draw here as
-    /// they always have; an added account draws through an embedded copy of
-    /// this view over its own `UsageStore`.
-    private func columnView(_ column: MonitoringColumns.Column, pacingAbreast: Bool) -> some View {
+    /// One section, top to bottom: its header, its notice, then its blocks.
+    /// The main account and Codex draw here as they always have; an added
+    /// account draws through an embedded copy of this view over its own
+    /// `UsageStore`.
+    private func sectionView(_ section: HomeSection, pacingAbreast: Bool) -> some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-            columnHeader(column)
-            switch column {
+            columnHeader(section)
+            switch section {
             case .claude(let account) where !account.isMain:
                 if let store = accountsStore.usageStore(for: account) {
                     MonitoringView(
@@ -289,21 +288,21 @@ struct MonitoringView: View {
                         .environmentObject(store)
                 }
             default:
-                ProviderStatusNotice(provider: column.provider)
-                blocks(for: column.provider, pacingAbreast: pacingAbreast)
+                ProviderStatusNotice(provider: section.provider)
+                blocks(for: section.provider, pacingAbreast: pacingAbreast)
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .transition(.glanceCard)
     }
 
-    /// What each column is, once several Claude accounts share the page:
-    /// the account's identity dot and full name over a Claude column, the
-    /// provider's mark over Codex's. The
-    /// dot only names the account; the values keep their risk colours. Not
-    /// drawn with a single Claude account, where the page is as it was.
+    /// What each section is, once several Claude accounts share the page:
+    /// the account's identity dot and full name over a Claude section, the
+    /// provider's mark over Codex's. The dot only names the account; the
+    /// values keep their risk colours. Not drawn with a single Claude
+    /// account, where the page is as it was.
     @ViewBuilder
-    private func columnHeader(_ column: MonitoringColumns.Column) -> some View {
+    private func columnHeader(_ column: HomeSection) -> some View {
         if settingsStore.showsAccountMarkers {
             switch column {
             case .claude(let account):
@@ -1394,7 +1393,7 @@ private struct DashboardPlanBadge: View {
 /// dot and name and plan, then Codex's. It follows the added accounts'
 /// stores itself, since their plans arrive with their profiles.
 private struct DashboardAccountPlanBadges: View {
-    let columns: [MonitoringColumns.Column]
+    let columns: [HomeSection]
 
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var codexStore: CodexUsageStore

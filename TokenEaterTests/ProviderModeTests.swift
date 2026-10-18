@@ -14,6 +14,7 @@ struct ProviderModeTests {
         "dashboardComposition", "dashboardComposition.claude", "dashboardComposition.codex",
         "activeProviderMode", "codexEnabled", "claudeEnabled",
         "claudeAccounts.v1", "focusedClaudeAccount", "heroWindows",
+        "sectionOrder", "dashboardLayout",
     ]
 
     private func clean() {
@@ -592,6 +593,75 @@ struct ProviderModeTests {
         #expect(store.popoverComposition == popover)
         #expect(store.menuBarComposition == menuBar)
     }
+
+    // MARK: - Section order
+
+    @Test("The section order sorts the running accounts and the mode pills, Codex included")
+    func sectionOrderSortsPills() {
+        let store = makeStore()
+        defer { clean() }
+        store.codexEnabled = true
+        store.claudeAccounts = [mainSummary, summary(Self.work, "Work"), summary(Self.side, "Side")]
+        #expect(store.runningSections == [.claude(.main), .claude(Self.work), .claude(Self.side), .codex])
+
+        store.setSectionOrder([.codex, .claude(Self.side), .claude(.main), .claude(Self.work)])
+        #expect(store.activeClaudeAccounts.map(\.id) == [Self.side, .main, Self.work])
+        #expect(store.modeChoices.map(\.id) == ["all", "codex", "claude.acct-side", "claude", "claude.acct-work"])
+        #expect(UserDefaults.standard.stringArray(forKey: "sectionOrder") == ["codex", "acct-side", "main", "acct-work"])
+
+        // The dashboard's sections in All follow it as well.
+        #expect(MonitoringColumns.columns(mode: .all, focused: .main, sections: store.runningSections)
+                == [.codex, .claude(Self.side), .claude(.main), .claude(Self.work)])
+    }
+
+    @Test("A paused account keeps its place, a new one goes at the end, a removed one leaves")
+    func sectionOrderReconciles() {
+        let store = makeStore()
+        defer { clean() }
+        store.codexEnabled = true
+        store.claudeAccounts = [mainSummary, summary(Self.work, "Work"), summary(Self.side, "Side")]
+        store.setSectionOrder([.claude(Self.work), .codex, .claude(.main), .claude(Self.side)])
+
+        // Work paused: the user moves Side project first; Work keeps its slot.
+        store.claudeAccounts = [mainSummary, summary(Self.work, "Work", paused: true), summary(Self.side, "Side")]
+        #expect(store.runningSections == [.codex, .claude(.main), .claude(Self.side)])
+        store.setSectionOrder([.claude(Self.side), .codex, .claude(.main)])
+        store.claudeAccounts = [mainSummary, summary(Self.work, "Work"), summary(Self.side, "Side")]
+        #expect(store.runningSections == [.claude(Self.work), .claude(Self.side), .codex, .claude(.main)])
+
+        // A new account lands at the end of a custom order.
+        let third = AccountID(rawValue: "acct-third")
+        store.claudeAccounts.append(summary(third, "Third"))
+        #expect(store.runningSections.last == .claude(third))
+
+        // Removed: gone from the order and from the stored list.
+        store.claudeAccounts.removeAll { $0.id == Self.work }
+        store.purgeAccount(Self.work)
+        #expect(!store.orderedSections.contains(.claude(Self.work)))
+        #expect(UserDefaults.standard.stringArray(forKey: "sectionOrder")?.contains("acct-work") == false)
+    }
+
+    @Test("The order and the layout survive a relaunch; garbage in the order is ignored")
+    func sectionOrderPersists() {
+        let store = makeStore()
+        defer { clean() }
+        UserDefaults.standard.set(
+            ClaudeAccountsStorage.encode([.defaultMain()]),
+            forKey: "claudeAccounts.v1"
+        )
+        store.homeLayout = .twoColumns
+        UserDefaults.standard.set(["codex", "acct-gone", "not an id", "main", "main"], forKey: "sectionOrder")
+        let relaunched = SettingsStore(notificationService: MockNotificationService(), tokenProvider: MockTokenProvider())
+        relaunched.codexEnabled = true
+        #expect(relaunched.homeLayout == .twoColumns)
+        #expect(relaunched.orderedSections == [.codex, .claude(.main)])
+        #expect(relaunched.runningSections == [.codex, .claude(.main)])
+
+        UserDefaults.standard.set("sideways", forKey: "dashboardLayout")
+        let fallback = SettingsStore(notificationService: MockNotificationService(), tokenProvider: MockTokenProvider())
+        #expect(fallback.homeLayout == .auto)
+    }
+
 }
 
 /// A mode is a view of what is on, so it cannot outlive what it was a view of.

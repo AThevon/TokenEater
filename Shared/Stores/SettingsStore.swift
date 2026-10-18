@@ -131,18 +131,70 @@ final class SettingsStore: ObservableObject {
     /// does not run a second transition.
     private var isSwitchingScope = false
 
-    /// The accounts that are running: not paused, and Claude switched on.
+    /// The accounts that are running: not paused, and Claude switched on,
+    /// in the section order.
     var activeClaudeAccounts: [ClaudeAccountSummary] {
         guard claudeEnabled else { return [] }
-        return claudeAccounts.filter { !$0.isPaused }
+        return orderedSections.compactMap { section in
+            guard case .claude(let id) = section else { return nil }
+            return claudeAccounts.first { $0.id == id && !$0.isPaused }
+        }
     }
 
-    /// The pills of the mode switcher: All, one per running Claude account,
-    /// Codex. Empty below two, where All already says everything, so a
-    /// single provider with a single account sees no switcher at all.
+    // MARK: - Sections
+
+    /// How the home page in All lays its sections out.
+    @Published var homeLayout: HomeLayout {
+        didSet { UserDefaults.standard.set(homeLayout.rawValue, forKey: Self.homeLayoutKey) }
+    }
+
+    /// The section order as the user arranged it in Studio, empty until they
+    /// do. Read it through `orderedSections`, which reconciles it with the
+    /// accounts tracked now.
+    @Published private(set) var sectionOrder: [String] {
+        didSet { UserDefaults.standard.set(sectionOrder, forKey: Self.sectionOrderKey) }
+    }
+
+    static let homeLayoutKey = "dashboardLayout"
+    static let sectionOrderKey = "sectionOrder"
+
+    /// Every tracked account and Codex, in the order the user gave them,
+    /// running or not, so a paused account keeps its place.
+    var orderedSections: [HomeSection] {
+        HomeSectionOrder.reconciled(sectionOrder, accounts: claudeAccounts.map(\.id))
+    }
+
+    /// The sections that run, in order: the running Claude accounts and
+    /// Codex while it is on. What All shows on the home page.
+    var runningSections: [HomeSection] {
+        let running = runningClaudeAccountIDs
+        return orderedSections.filter { section in
+            switch section {
+            case .claude(let id): return running.contains(id)
+            case .codex: return codexEnabled
+            }
+        }
+    }
+
+    /// Stores the order of the sections on screen, keeping the place of the
+    /// ones that are not (a paused account, Codex switched off).
+    func setSectionOrder(_ visible: [HomeSection]) {
+        let next = HomeSectionOrder.applying(visible, to: orderedSections).map(\.storageID)
+        guard next != sectionOrder else { return }
+        sectionOrder = next
+    }
+
+    /// The pills of the mode switcher: All, then one per running section in
+    /// the section order. Empty below two, where All already says
+    /// everything, so a single provider with a single account sees no
+    /// switcher at all.
     var modeChoices: [ModeChoice] {
-        var choices = activeClaudeAccounts.map { ModeChoice(mode: .claude, account: $0.id) }
-        if codexEnabled { choices.append(ModeChoice(mode: .codex)) }
+        let choices = runningSections.map { section -> ModeChoice in
+            switch section {
+            case .claude(let id): return ModeChoice(mode: .claude, account: id)
+            case .codex: return ModeChoice(mode: .codex)
+            }
+        }
         guard choices.count > 1 else { return [] }
         return [ModeChoice(mode: .all)] + choices
     }
@@ -334,6 +386,10 @@ final class SettingsStore: ObservableObject {
                 template.composition.segments.removeAll { $0.account == id }
                 return template
             }
+        }
+
+        if sectionOrder.contains(id.rawValue) {
+            sectionOrder.removeAll { $0 == id.rawValue }
         }
 
         let heroKey = heroWindowKey(.claude, account: id)
@@ -792,6 +848,9 @@ final class SettingsStore: ObservableObject {
         self.display = displayStore
 
         self.claudeAccounts = ClaudeAccountsStorage.load(from: .standard).map(\.summary)
+        self.homeLayout = UserDefaults.standard.string(forKey: Self.homeLayoutKey)
+            .flatMap(HomeLayout.init(rawValue:)) ?? .auto
+        self.sectionOrder = UserDefaults.standard.stringArray(forKey: Self.sectionOrderKey) ?? []
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
         self.hasSeenStudioIntro = UserDefaults.standard.bool(forKey: "hasSeenStudioIntro")
         self.codexEnabled = Self.resolveCodexEnabled(authStateProvider: codexAuthStateProvider)

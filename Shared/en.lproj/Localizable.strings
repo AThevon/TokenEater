@@ -1134,6 +1134,18 @@
 "dashboard.editor.hint" = "Drag to reorder. Hidden blocks are kept, not deleted.";
 "dashboard.editor.reset" = "Reset order";
 "dashboard.editor.lastBlock" = "The last visible block has to stay visible";
+"dashboard.sections.title" = "Sections";
+"dashboard.sections.hint" = "How All lays out each account and Codex. The order also sorts the popover sections and the mode pills.";
+"dashboard.layout.label" = "Layout";
+"dashboard.layout.auto" = "Auto";
+"dashboard.layout.oneColumn" = "One column";
+"dashboard.layout.twoColumns" = "Two columns";
+"dashboard.layout.auto.help" = "One section fills the page, two sit side by side, three or more stack.";
+"dashboard.layout.oneColumn.help" = "Sections stack one under the other, full width.";
+"dashboard.layout.twoColumns.help" = "Sections go two per row, in order. A narrow window still stacks them.";
+"dashboard.order.label" = "Section order";
+"dashboard.order.up" = "Move up";
+"dashboard.order.down" = "Move down";
 
 /* Claude accounts: adding one */
 "accounts.add.link" = "Track another Claude account…";

@@ -185,7 +185,8 @@ private struct PopoverGrid: View {
             visible,
             mode: settingsStore.activeProviderMode,
             focused: settingsStore.focusedClaudeAccount,
-            running: settingsStore.runningClaudeAccountIDs
+            running: settingsStore.runningClaudeAccountIDs,
+            order: settingsStore.orderedSections
         )
         var offsets: [String: Int] = [:]
         var rows = 0

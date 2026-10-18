@@ -39,11 +39,18 @@ enum PopoverSectionGrouping {
     /// The account each element resolves to, then the runs of equal keys.
     /// A Claude element whose account is not running (see
     /// `AccountID.effective`) is left out, as the renderer leaves it out.
+    ///
+    /// The sections that name an account or Codex then follow `order` (the
+    /// section order of Studio), so the popover lists the accounts as the
+    /// home page and the mode pills do. They swap places among themselves
+    /// only: neutral chrome stays where the composition put it, so a
+    /// header row stays on top and the buttons at the bottom.
     static func groups(
         _ elements: [PopoverElement],
         mode: ProviderMode,
         focused: AccountID,
-        running: Set<AccountID>
+        running: Set<AccountID>,
+        order: [HomeSection] = []
     ) -> [Section] {
         var sections: [(key: Key, elements: [PopoverElement])] = []
         for element in elements {
@@ -66,10 +73,38 @@ enum PopoverSectionGrouping {
             }
         }
         var seen: [Key: Int] = [:]
-        return sections.map { section in
+        let grouped = sections.map { section in
             let occurrence = seen[section.key, default: 0]
             seen[section.key] = occurrence + 1
             return Section(key: section.key, elements: section.elements, id: "\(section.key.id)#\(occurrence)")
         }
+        return ordered(grouped, by: order)
+    }
+
+    /// The headed sections sorted by `order` into the places headed sections
+    /// already held. Stable: a key `order` does not name keeps its place
+    /// after the named ones, and two runs of one account keep theirs.
+    static func ordered(_ sections: [Section], by order: [HomeSection]) -> [Section] {
+        guard !order.isEmpty else { return sections }
+        var rank: [Key: Int] = [:]
+        for (index, section) in order.enumerated() {
+            switch section {
+            case .claude(let account): rank[.claude(account)] = index
+            case .codex: rank[.codex] = index
+            }
+        }
+        let slots = sections.indices.filter { sections[$0].key.hasHeader }
+        let sorted = slots.enumerated()
+            .sorted { lhs, rhs in
+                let left = rank[sections[lhs.element].key] ?? Int.max
+                let right = rank[sections[rhs.element].key] ?? Int.max
+                return left == right ? lhs.offset < rhs.offset : left < right
+            }
+            .map { sections[$0.element] }
+        var result = sections
+        for (slot, section) in zip(slots, sorted) {
+            result[slot] = section
+        }
+        return result
     }
 }
