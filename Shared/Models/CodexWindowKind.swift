@@ -13,20 +13,23 @@ enum CodexWindowKind: String, Codable, CaseIterable, Sendable {
     case session
     /// Long rolling window, 7 days in every payload observed so far.
     case weekly
-    /// Neither shape. Defensive: renders with a duration-derived label instead
-    /// of being dropped, so a new backend window still shows up.
+    /// Neither shape (a 12 h, monthly or yearly window, say). Defensive:
+    /// renders with a duration-derived label instead of being dropped, so a new
+    /// backend window still shows up.
     case other
 
-    /// Boundaries are deliberately wide: they only have to separate "intraday"
-    /// from "multi-day", not pin exact values the backend may tune.
+    /// Boundaries are deliberately wide around 5 h and 7 days, so a backend
+    /// tweak of either does not flip the classification. The weekly band is
+    /// still closed on both sides: a 30-day or 365-day window is not a week,
+    /// and calling it "Weekly" would also route it to weekly notifications.
     static func classify(seconds: Int) -> CodexWindowKind {
         if seconds <= 0 { return .other }
         if seconds <= 6 * 3600 { return .session }
-        if seconds >= 5 * 86_400 { return .weekly }
+        if (5 * 86_400)...(10 * 86_400) ~= seconds { return .weekly }
         return .other
     }
 
-    /// Short label for gauges and tiles: "5h", "Weekly", "12h", "3d".
+    /// Short label for gauges and tiles: "5h", "Weekly", "12h", "30d".
     func label(for duration: TimeInterval) -> String {
         switch self {
         case .weekly:

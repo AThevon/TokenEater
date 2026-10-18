@@ -15,6 +15,25 @@ struct CodexWindowKindTests {
         #expect(CodexWindowKind.classify(seconds: 43_200) == .other)
         #expect(CodexWindowKind.classify(seconds: 0) == .other)
         #expect(CodexWindowKind.classify(seconds: -1) == .other)
+        #expect(CodexWindowKind.classify(seconds: 10 * 86_400) == .weekly)
+    }
+
+    @Test("a monthly or yearly window is not a week")
+    func longWindowsAreNotWeekly() {
+        #expect(CodexWindowKind.classify(seconds: 30 * 86_400) == .other)
+        #expect(CodexWindowKind.classify(seconds: 365 * 86_400) == .other)
+        #expect(CodexWindowKind.other.label(for: 30 * 86_400) == "30d")
+        #expect(CodexWindowKind.other.heroLabel(for: 365 * 86_400) == "365d")
+    }
+
+    @Test("a 30-day window next to a session one stays out of the weekly slot")
+    func monthlyWindowResolution() {
+        let usage = CodexFixtures.decode(CodexFixtures.monthlyWindowJSON)
+        let windows = CodexWindowResolver.windows(in: usage)
+
+        #expect(windows.map(\.kind) == [.session, .other])
+        #expect(windows.last?.label == "30d")
+        #expect(windows.last?.pct == 35)
     }
 
     @Test("a weekly-only plan reports its single window as weekly, not as a session")

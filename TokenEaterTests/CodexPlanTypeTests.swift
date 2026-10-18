@@ -13,6 +13,15 @@ struct CodexPlanTypeTests {
         #expect(CodexPlanType(rawPlan: "enterprise") == .enterprise)
         #expect(CodexPlanType(rawPlan: "edu_pro") == .edu)
         #expect(CodexPlanType(rawPlan: "free") == .free)
+        #expect(CodexPlanType(rawPlan: "promax") == .proMax)
+        #expect(CodexPlanType(rawPlan: "hc") == .enterprise)
+    }
+
+    @Test("Go is its own plan, not folded into Plus")
+    func goIsDistinct() {
+        #expect(CodexPlanType(rawPlan: "go") == .go)
+        #expect(CodexPlanType(rawPlan: "go") != .plus)
+        #expect(CodexPlanType.go.displayLabel == "GO")
     }
 
     @Test("matching ignores case and surrounding whitespace")
@@ -42,6 +51,8 @@ struct CodexPlanTypeTests {
         #expect(CodexPlanType.proLite.displayLabel == "PRO LITE")
         #expect(CodexPlanType.plus.displayLabel == "PLUS")
         #expect(CodexPlanType.enterprise.displayLabel == "ENTERPRISE")
+        #expect(CodexPlanType.proMax.displayLabel == "PRO MAX")
+        #expect(CodexPlanType.proMax.badgeColor == CodexPlanType.pro.badgeColor)
     }
 
     @Test("the auth state derives the plan from its claim")
@@ -49,6 +60,8 @@ struct CodexPlanTypeTests {
         let state = CodexAuthState.chatgpt(accountId: "a", planType: "prolite", expiresAt: nil)
         #expect(state.planType == .proLite)
         #expect(CodexAuthState.notInstalled.planType == .unknown)
+        #expect(CodexAuthState.chatgpt(accountId: "a", planType: "promax", expiresAt: nil).planType == .proMax)
+        #expect(CodexAuthState.chatgpt(accountId: "a", planType: "go", expiresAt: nil).planType == .go)
     }
 
     @Test("only a ChatGPT login is trackable")
