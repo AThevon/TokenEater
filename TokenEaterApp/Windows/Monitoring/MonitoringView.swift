@@ -17,14 +17,12 @@ struct MonitoringView: View {
     @EnvironmentObject private var vendorStatusStore: VendorStatusStore
     @EnvironmentObject private var accountsStore: AccountsStore
 
-    /// Set when this view draws one cell of an added Claude account's column
-    /// in the All dashboard: the `embeddedSlot` row of that account, over the
+    /// Set when this view draws one added Claude account as a column of the
+    /// All dashboard: only that account's notice and Claude blocks, over the
     /// account's own `UsageStore`, which the caller injects into the
     /// environment. No header and no scroll view, since the page around it
     /// has both.
     var embeddedAccount: AccountID? = nil
-    /// Which row of its column an embedded copy draws.
-    var embeddedSlot: DashboardSlot = .notice
     /// Whether an embedded copy lays its pacing cards side by side, which a
     /// column does once it has the page's width to itself.
     var embeddedPacingAbreast: Bool = false
@@ -49,8 +47,11 @@ struct MonitoringView: View {
 
     var body: some View {
         if embeddedAccount != nil {
-            slotContent(embeddedSlot, provider: .claude, pacingAbreast: embeddedPacingAbreast)
-                .onAppear { insightsStore.warmIfStale() }
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                ProviderStatusNotice(provider: .claude)
+                blocks(for: .claude, pacingAbreast: embeddedPacingAbreast)
+            }
+            .onAppear { insightsStore.warmIfStale() }
         } else {
             page
         }
@@ -62,16 +63,16 @@ struct MonitoringView: View {
                 header
 
                 // One ordered list drives all three modes. A provider mode
-                // renders it once; All lays it out block by block across the
-                // columns of each row, so a block starts at the same height
-                // in every column of the row whatever the blocks above it
-                // hold. The order and the visibility come from Studio.
+                // renders it once; All renders it once per column, each
+                // column a stack of its own: a column never waits for its
+                // neighbour's blocks, so a short one leaves no holes. The
+                // order and the visibility come from Studio.
                 if isComparing {
                     comparison
                 } else if let column = columns.first {
                     VStack(alignment: .leading, spacing: DS.Spacing.sm) {
                         ProviderStatusNotice(provider: column.provider)
-                        blocks(for: column.provider)
+                        blocks(for: column.provider, pacingAbreast: true)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .transition(.glanceCard)
@@ -256,130 +257,53 @@ struct MonitoringView: View {
         let sideBySide = rows.contains { $0.count > 1 }
         return VStack(alignment: .leading, spacing: DS.Spacing.md) {
             ForEach(rows, id: \.self) { row in
-                columnRow(row, cells: sideBySide ? MonitoringColumns.maxPerRow : 1, sideBySide: sideBySide)
+                // Each column is its own stack, top-aligned, at one shared
+                // width. A last row with one column left keeps it the width
+                // of the columns above, so its cards never spread to the
+                // full page. The next row starts under the taller column.
+                EqualWidthRow(spacing: DS.Spacing.md) {
+                    ForEach(row) { column in
+                        columnView(column, pacingAbreast: !sideBySide)
+                    }
+                    if sideBySide && row.count < MonitoringColumns.maxPerRow {
+                        Color.clear.frame(height: 0)
+                    }
+                }
             }
         }
         .environment(\.dashboardTilesPerRow, MetricsGridLayout.maxPerRow(sideBySide: sideBySide))
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// One row of columns, laid out slot by slot: the headers, the notices,
-    /// then each block, every column's cell at the same width and starting
-    /// at the same height. A column without the block keeps an empty cell,
-    /// and a slot no column of the row has is left out. A last row with one
-    /// column left keeps it the width of the columns above.
-    private func columnRow(_ row: [MonitoringColumns.Column], cells: Int, sideBySide: Bool) -> some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-            ForEach(slots(for: row), id: \.self) { slot in
-                EqualWidthRow(spacing: DS.Spacing.md) {
-                    ForEach(row) { column in
-                        Group {
-                            if hasContent(slot, in: column) {
-                                cell(slot, of: column, pacingAbreast: !sideBySide)
-                            } else {
-                                Color.clear.frame(height: 0)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .transition(.glanceCard)
-                    }
-                    ForEach(row.count ..< max(row.count, cells), id: \.self) { _ in
-                        Color.clear.frame(height: 0)
-                    }
-                }
-            }
-        }
-    }
-
-    /// The slots a row draws, in order: only those at least one of its
-    /// columns has.
-    private func slots(for row: [MonitoringColumns.Column]) -> [DashboardSlot] {
-        let candidates: [DashboardSlot] = [.header, .notice]
-            + settingsStore.dashboardComposition.visibleBlocks.map(DashboardSlot.block)
-        return candidates.filter { slot in row.contains { hasContent(slot, in: $0) } }
-    }
-
-    /// The store a Claude column reads. In All, the page's own store is the
-    /// main account's.
-    private func store(for column: MonitoringColumns.Column) -> UsageStore? {
-        guard case .claude(let account) = column else { return nil }
-        return account.isMain ? usageStore : accountsStore.usageStore(for: account)
-    }
-
-    /// Whether a column draws anything in a slot, read from the same state
-    /// the cell renders from.
-    private func hasContent(_ slot: DashboardSlot, in column: MonitoringColumns.Column) -> Bool {
-        switch slot {
-        case .header:
-            return settingsStore.showsAccountMarkers
-        case .notice:
-            guard let claude = store(for: column) ?? (column == .codex ? usageStore : nil) else { return false }
-            return ProviderStatusNotice.hasContent(provider: column.provider, usageStore: claude, codexStore: codexStore)
-        case .block(let block):
-            guard block.providers.contains(column.provider) else { return false }
-            switch (block, column) {
-            case (.hero, _):
-                return true
-            case (.windows, .claude(let account)):
-                guard let store = store(for: column) else { return false }
-                return !claudeGridTiles(of: store, account: account).isEmpty
-            case (.windows, .codex):
-                return !codexGridWindows.isEmpty
-            case (.pacing, .claude):
-                guard let store = store(for: column) else { return false }
-                return store.fiveHourPacing != nil || store.pacingResult != nil
-            case (.pacing, .codex):
-                return codexStore.windows.contains { $0.pacing != nil }
-            case (.extraCredits, .claude):
-                return store(for: column)?.extraUsage?.isEnabled == true
-            case (.extraCredits, .codex):
-                return false
-            case (.footer, .claude):
-                return store(for: column).map { !claudePills($0).isEmpty } ?? false
-            case (.footer, .codex):
-                return !CodexFooterPills.pills(codexStore).isEmpty
-            }
-        }
-    }
-
-    /// One cell of the comparison. The main account and Codex draw here as
+    /// One column of the All comparison, top to bottom: its header, its
+    /// notice, then its blocks. The main account and Codex draw here as
     /// they always have; an added account draws through an embedded copy of
     /// this view over its own `UsageStore`.
-    @ViewBuilder
-    private func cell(_ slot: DashboardSlot, of column: MonitoringColumns.Column, pacingAbreast: Bool) -> some View {
-        switch (slot, column) {
-        case (.header, _):
+    private func columnView(_ column: MonitoringColumns.Column, pacingAbreast: Bool) -> some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             columnHeader(column)
-        case (_, .claude(let account)) where !account.isMain:
-            if let store = accountsStore.usageStore(for: account) {
-                MonitoringView(
-                    embeddedAccount: account,
-                    embeddedSlot: slot,
-                    embeddedPacingAbreast: pacingAbreast,
-                    insightsStore: accountsStore.insightsStore(for: account) ?? insightsStore
-                )
-                    .environmentObject(store)
+            switch column {
+            case .claude(let account) where !account.isMain:
+                if let store = accountsStore.usageStore(for: account) {
+                    MonitoringView(
+                        embeddedAccount: account,
+                        embeddedPacingAbreast: pacingAbreast,
+                        insightsStore: accountsStore.insightsStore(for: account) ?? insightsStore
+                    )
+                        .environmentObject(store)
+                }
+            default:
+                ProviderStatusNotice(provider: column.provider)
+                blocks(for: column.provider, pacingAbreast: pacingAbreast)
             }
-        default:
-            slotContent(slot, provider: column.provider, pacingAbreast: pacingAbreast)
         }
-    }
-
-    @ViewBuilder
-    private func slotContent(_ slot: DashboardSlot, provider: MetricProvider, pacingAbreast: Bool) -> some View {
-        switch slot {
-        case .header:
-            EmptyView()
-        case .notice:
-            ProviderStatusNotice(provider: provider)
-        case .block(let block):
-            blockContent(block, for: provider, pacingAbreast: pacingAbreast)
-        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .transition(.glanceCard)
     }
 
     /// What each column is, once several Claude accounts share the page:
     /// the account's identity dot and full name over a Claude column, the
-    /// provider's mark over Codex's, so the rows below still line up. The
+    /// provider's mark over Codex's. The
     /// dot only names the account; the values keep their risk colours. Not
     /// drawn with a single Claude account, where the page is as it was.
     @ViewBuilder
@@ -402,13 +326,12 @@ struct MonitoringView: View {
     }
 
 
-    /// Renders one provider's blocks, in the order Studio put them, for a
-    /// page with a single column.
+    /// Renders one provider's blocks, in the order Studio put them.
     @ViewBuilder
-    private func blocks(for provider: MetricProvider) -> some View {
+    private func blocks(for provider: MetricProvider, pacingAbreast: Bool) -> some View {
         ForEach(settingsStore.dashboardComposition.visibleBlocks) { block in
             if block.providers.contains(provider) {
-                blockContent(block, for: provider, pacingAbreast: true)
+                blockContent(block, for: provider, pacingAbreast: pacingAbreast)
             }
         }
     }
@@ -1487,12 +1410,4 @@ private struct DashboardAccountPlanBadges: View {
     private func store(for account: AccountID) -> UsageStore? {
         settingsStore.activeProviderMode == .claude ? usageStore : accountsStore.usageStore(for: account)
     }
-}
-
-/// One row of a column in the All comparison: the column's header, its
-/// status notice, or one of the blocks Studio orders.
-enum DashboardSlot: Hashable {
-    case header
-    case notice
-    case block(DashboardBlock)
 }

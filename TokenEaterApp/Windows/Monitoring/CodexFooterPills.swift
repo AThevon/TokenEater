@@ -12,8 +12,7 @@ struct CodexFooterPills: View {
         DashboardPillRow(pills: Self.pills(codexStore))
     }
 
-    /// Empty when Codex has nothing to say here, which the dashboard reads to
-    /// leave the row out.
+    /// The pills Codex has to show, in order; empty when it has none.
     @MainActor
     static func pills(_ codexStore: CodexUsageStore) -> [DashboardPill] {
         var pills: [DashboardPill] = []
