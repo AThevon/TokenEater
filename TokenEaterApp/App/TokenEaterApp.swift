@@ -138,6 +138,10 @@ struct TokenEaterApp: App {
         // any store is constructed - store inits read UserDefaults.standard, so
         // missing this step would make every upgrading user land on onboarding.
         LegacyHelperCleanupService().migratePrefsIfNeeded()
+        // A build of the second-account prototype (#284) left a mode, menu
+        // bar and popover kinds and an account list this build does not
+        // have: read them into its terms before any store decodes them.
+        PrototypeAccountMigration.run()
 
         // The multi-account demo starts or ends here, before any store reads
         // the defaults it snapshots or restores. Without its switch this
