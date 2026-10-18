@@ -745,6 +745,36 @@ struct MenuBarAccountMarkerTests {
         #expect(MenuBarRenderer.renderUncached(longer).size.width == monoWidth)
     }
 
+    @Test("A monochrome bar's initials only count the accounts it marks, in its order")
+    func monochromeInitialsFollowTheBar() {
+        let segments = [
+            MenuBarSegment(kind: .session, style: .valueOnly),
+            MenuBarSegment(kind: .session, style: .valueOnly, account: work),
+        ]
+        var bar = twoAccounts(segments, monochrome: true)
+        bar.accountMarkers[work.rawValue] = MenuBarRenderer.AccountMarker(label: "Work", colorHex: "#F472B6")
+        // "Wife" is tracked but kept out of the bar: "Work" stays "W".
+        bar.accountMarkers["acct-wife"] = MenuBarRenderer.AccountMarker(label: "Wife", colorHex: "#22D3EE")
+        let plan = MenuBarRenderer.layoutPlan(bar)
+        #expect(MenuBarRenderer.monochromeInitials(plan: plan, data: bar) == [main: "P", work.rawValue: "W"])
+        var alone = bar
+        alone.accountMarkers.removeValue(forKey: "acct-wife")
+        #expect(MenuBarRenderer.renderUncached(alone).size == MenuBarRenderer.renderUncached(bar).size)
+    }
+
+    @Test("The tooltip names one account per ring, in the bar's order")
+    func toolTipFollowsTheRings() {
+        let segments = [
+            MenuBarSegment(kind: .session, style: .labelValue),
+            MenuBarSegment(kind: .serviceStatus, style: .glyph),
+            MenuBarSegment(kind: .weekly, style: .labelValue),
+            MenuBarSegment(kind: .session, style: .labelValue, account: work),
+        ]
+        #expect(MenuBarRenderer.accountsToolTip(twoAccounts(segments)) == "Perso · Perso · Work")
+        let single = MenuBarOutageBadgeTests.sampleRenderData(segments: segments)
+        #expect(MenuBarRenderer.accountsToolTip(single) == nil)
+    }
+
     @Test("With several accounts, one without numbers shows a placeholder and the bar keeps the others")
     func accountWithoutNumbersKeepsTheBar() {
         let segments = [

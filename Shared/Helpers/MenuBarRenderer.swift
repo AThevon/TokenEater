@@ -431,12 +431,26 @@ enum MenuBarRenderer {
     /// tighter than between two segments, so the mark reads as part of the
     /// run it names rather than as a segment of its own.
     private static let markerGap: CGFloat = 3
+    /// Space before a marker that follows something: wider than between two
+    /// segments, so each account's run reads as one block and the previous
+    /// run's last glyph (often a pacing dot) does not run into the next ring.
+    private static let accountGap: CGFloat = 12
     /// The marker is a ring, not a disc: the pacing dots next to it are
     /// filled glyphs coloured by risk, and the account's mark must not read
-    /// as one of them.
-    private static let markerDot: CGFloat = 7
-    private static let markerRingWidth: CGFloat = 2
-    private static let markerFont = NSFont.systemFont(ofSize: 10, weight: .semibold)
+    /// as one of them. As large as those dots and drawn thick enough for the
+    /// colour to read on a non-Retina screen.
+    private static let markerDot: CGFloat = 9
+    private static let markerRingWidth: CGFloat = 2.5
+    /// On a monochrome bar the ring carries no colour, the initial says
+    /// which account it is: the ring shrinks back to a small mark so that,
+    /// as large as a capital, it does not read as an "O" before the letter.
+    private static let monochromeMarkerDot: CGFloat = 6
+    private static let monochromeMarkerRingWidth: CGFloat = 1.5
+    /// The monochrome initial sits close to its ring and is drawn as bright
+    /// as the values, so "C" never reads as part of a dimmer period label
+    /// after it.
+    private static let initialGap: CGFloat = 2.5
+    private static let markerFont = NSFont.systemFont(ofSize: 11, weight: .bold)
 
     private struct SegmentVisual {
         let id: UUID
@@ -445,7 +459,7 @@ enum MenuBarRenderer {
             case run(NSAttributedString)
             case pill(text: String, tint: NSColor)
             /// An account's mark: its ring, then its initial on a monochrome bar.
-            case marker(dot: NSColor, name: NSAttributedString?)
+            case marker(dot: NSColor, diameter: CGFloat, ring: CGFloat, name: NSAttributedString?)
         }
 
         var isMarker: Bool {
@@ -508,10 +522,9 @@ enum MenuBarRenderer {
     /// to the segment it precedes: clicking it selects that segment.
     private static func drawComposition(_ data: RenderData) -> (image: NSImage, hitRects: [SegmentHitRect]) {
         let segments = Dictionary(plannedSegments(data).map { ($0.segment.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let initials = data.menuBarMonochrome
-            ? AccountNameRules.monochromeInitials(data.accountMarkers.mapValues(\.label))
-            : [:]
-        let visuals: [SegmentVisual] = layoutPlan(data).compactMap { step in
+        let plan = layoutPlan(data)
+        let initials = data.menuBarMonochrome ? monochromeInitials(plan: plan, data: data) : [:]
+        let visuals: [SegmentVisual] = plan.compactMap { step in
             switch step {
             case .marker(let account):
                 guard let marker = data.accountMarkers[account] else { return nil }
@@ -528,7 +541,7 @@ enum MenuBarRenderer {
         let widths = visuals.map { visualWidth($0) }
         var gaps: [CGFloat] = []
         for (i, v) in visuals.enumerated() where i < visuals.count - 1 {
-            gaps.append(v.isMarker ? markerGap : segmentGap)
+            gaps.append(v.isMarker ? markerGap : visuals[i + 1].isMarker ? accountGap : segmentGap)
         }
         let total = widths.reduce(0, +) + gaps.reduce(0, +)
         let imgSize = NSSize(width: ceil(total) + 2, height: imageHeight)
@@ -562,6 +575,33 @@ enum MenuBarRenderer {
         return (img, rects)
     }
 
+    /// The initials a monochrome bar writes after its rings, worked out over
+    /// the accounts the bar actually marks, in its order: an account kept
+    /// out of the bar never lengthens another's.
+    static func monochromeInitials(plan: [PlannedVisual], data: RenderData) -> [String: String] {
+        var seen: Set<String> = []
+        let marked: [(key: String, name: String)] = plan.compactMap { step in
+            guard case .marker(let account) = step, seen.insert(account).inserted,
+                  let marker = data.accountMarkers[account] else { return nil }
+            return (account, marker.label)
+        }
+        return AccountNameRules.monochromeInitials(marked)
+    }
+
+    /// The full names of the accounts the bar marks, one per ring and in
+    /// the bar's order (an account split around a Codex segment is named
+    /// twice, as it is ringed twice), or nil when it marks none (a single
+    /// account).
+    static func accountsToolTip(_ data: RenderData) -> String? {
+        var names: [String] = []
+        for visual in layoutPlan(data) {
+            guard case .marker(let account) = visual,
+                  let marker = data.accountMarkers[account] else { continue }
+            names.append(marker.label)
+        }
+        return names.isEmpty ? nil : names.joined(separator: " · ")
+    }
+
     /// The account a Claude segment reads: the one it names, or the bar's
     /// default (the focused account in Claude mode, the main one otherwise).
     private static func accountKey(for segment: MenuBarSegment, data: RenderData) -> String {
@@ -587,12 +627,17 @@ enum MenuBarRenderer {
         let name = data.menuBarMonochrome
             ? initial.map {
                 NSAttributedString(string: $0, attributes: [
-                    .font: markerFont, .foregroundColor: periodColor(data),
+                    .font: markerFont, .foregroundColor: NSColor.labelColor,
                 ])
             }
             : nil
-        let dot: NSColor = data.menuBarMonochrome ? .labelColor : NSColor(hex: marker.colorHex)
-        return SegmentVisual(id: UUID(), content: .marker(dot: dot, name: name))
+        let mono = data.menuBarMonochrome
+        return SegmentVisual(id: UUID(), content: .marker(
+            dot: mono ? .labelColor : NSColor(hex: marker.colorHex),
+            diameter: mono ? monochromeMarkerDot : markerDot,
+            ring: mono ? monochromeMarkerRingWidth : markerRingWidth,
+            name: name
+        ))
     }
 
     /// Presence / data gating, matching the pre-5.10 renderer: metrics the
@@ -937,9 +982,9 @@ enum MenuBarRenderer {
         case .pill(let text, _):
             let w = (text as NSString).size(withAttributes: [.font: pillFont]).width
             return ceil(w) + pillPaddingH * 2
-        case .marker(_, let name):
-            guard let name else { return markerDot }
-            return markerDot + markerGap + ceil(name.size().width)
+        case .marker(_, let diameter, _, let name):
+            guard let name else { return diameter }
+            return diameter + initialGap + ceil(name.size().width)
         }
     }
 
@@ -962,17 +1007,17 @@ enum MenuBarRenderer {
                 at: NSPoint(x: x + (width - ts.width) / 2, y: (imageHeight - ts.height) / 2 - 0.5),
                 withAttributes: attrs
             )
-        case .marker(let dot, let name):
-            let inset = markerRingWidth / 2
-            let dotRect = NSRect(x: x, y: (imageHeight - markerDot) / 2, width: markerDot, height: markerDot)
+        case .marker(let dot, let diameter, let ringWidth, let name):
+            let inset = ringWidth / 2
+            let dotRect = NSRect(x: x, y: (imageHeight - diameter) / 2, width: diameter, height: diameter)
                 .insetBy(dx: inset, dy: inset)
             dot.setStroke()
             let ring = NSBezierPath(ovalIn: dotRect)
-            ring.lineWidth = markerRingWidth
+            ring.lineWidth = ringWidth
             ring.stroke()
             if let name {
                 let ts = name.size()
-                name.draw(at: NSPoint(x: x + markerDot + markerGap, y: (imageHeight - ts.height) / 2))
+                name.draw(at: NSPoint(x: x + diameter + initialGap, y: (imageHeight - ts.height) / 2))
             }
         }
     }

@@ -585,21 +585,8 @@ final class StatusBarController: NSObject {
         statusItem.button?.image = MenuBarRenderer.render(data)
         // The bar marks accounts by colour only; hovering it names every
         // account it marks, in full and in the bar's order.
-        let toolTip = Self.accountsToolTip(data)
+        let toolTip = MenuBarRenderer.accountsToolTip(data)
         if statusItem.button?.toolTip != toolTip { statusItem.button?.toolTip = toolTip }
-    }
-
-    /// The full names of the accounts the bar marks, in the order of their
-    /// runs, or nil when it marks none (a single account).
-    static func accountsToolTip(_ data: MenuBarRenderer.RenderData) -> String? {
-        var names: [String] = []
-        var seen: Set<String> = []
-        for visual in MenuBarRenderer.layoutPlan(data) {
-            guard case .marker(let account) = visual, seen.insert(account).inserted,
-                  let marker = data.accountMarkers[account] else { continue }
-            names.append(marker.label)
-        }
-        return names.isEmpty ? nil : names.joined(separator: " · ")
     }
 
     /// Run a 1-second redraw ONLY while an outage badge is visible, so the

@@ -1059,7 +1059,7 @@
 "whatsNew.accounts.title" = "Several Claude accounts, side by side";
 "whatsNew.accounts.body" = "Track every Claude Code login you use, each with its own name and color. The color only marks the account: the numbers keep their usual colors.";
 "whatsNew.accounts.menuBar.title" = "Menu bar";
-"whatsNew.accounts.menuBar.text" = "Each account's numbers follow a ring in its color, with no name, so the bar stays short. Hover the bar to see which account is which.";
+"whatsNew.accounts.menuBar.text" = "Each account's numbers follow a ring in its color, with no name, so the bar stays short (a monochrome bar adds the account's initial). Hover the bar to see which account is which.";
 "whatsNew.accounts.surfaces.title" = "Popover and dashboard";
 "whatsNew.accounts.surfaces.text" = "One section or column per account, and a mode pill per account (a single menu from three) to show just that one.";
 "whatsNew.accounts.alerts.title" = "Notifications";
@@ -1178,9 +1178,10 @@
 "accounts.details.color.hint" = "It marks the account next to its numbers. The numbers keep their risk colours.";
 "accounts.color.custom" = "Custom colour";
 "accounts.color.taken" = "Another account wears this colour";
+"accounts.color.alike" = "Another account wears this colour or one close to it: in the menu bar, their rings would look alike.";
 "accounts.color.nearRisk" = "This colour is close to one the gauges use for risk, so the mark could be read as a warning.";
 "accounts.details.mainName" = "Your main account";
-"accounts.details.mainName.hint" = "With two accounts, every surface names them. You can rename both later in Settings.";
+"accounts.details.mainName.hint" = "With two accounts, the popover, the dashboard and Settings name them, and the menu bar tells them apart by colour. You can rename both later in Settings.";
 "accounts.details.addToMenuBar" = "Add to the menu bar";
 "accounts.details.preview.now" = "Now";
 "accounts.details.preview.with" = "With %@";

@@ -43,7 +43,7 @@ struct ClaudeAccountEntity: AppEntity {
     private init(removedID: String) {
         id = removedID
         name = String(localized: "widget.account.removed.title")
-        colorHex = AccountPalette.presets[AccountPalette.presets.count - 1]
+        colorHex = AccountPalette.slate
         isMain = false
         isPaused = false
         isRemoved = true

@@ -181,22 +181,63 @@ struct ClaudeAccountModelsTests {
 
     @Test("a monochrome bar's initials: one letter, more only when two names start alike")
     func monochromeInitials() {
-        #expect(AccountNameRules.monochromeInitials(["a": "Perso", "b": "work"]) == ["a": "P", "b": "W"])
-        #expect(AccountNameRules.monochromeInitials(["a": "Work", "b": "Wife", "c": "Side"])
+        #expect(AccountNameRules.monochromeInitials([("a", "Perso"), ("b", "work")]) == ["a": "P", "b": "W"])
+        #expect(AccountNameRules.monochromeInitials([("a", "Work"), ("b", "Wife"), ("c", "Side")])
                 == ["a": "Wo", "b": "Wi", "c": "S"])
-        #expect(AccountNameRules.monochromeInitials(["a": "Claude", "b": "Client"]) == ["a": "Cla", "b": "Cli"])
-        // Never more than three letters, even when the names stay alike.
-        #expect(AccountNameRules.monochromeInitials(["a": "Work", "b": "Work 2"]) == ["a": "Wor", "b": "Wor"])
-        #expect(AccountNameRules.monochromeInitials(["a": "Jo", "b": "Joe"]) == ["a": "Jo", "b": "Joe"])
+        #expect(AccountNameRules.monochromeInitials([("a", "Claude"), ("b", "Client")]) == ["a": "Cla", "b": "Cli"])
+        #expect(AccountNameRules.monochromeInitials([("a", "Jo"), ("b", "Joe")]) == ["a": "Jo", "b": "Joe"])
+        #expect(AccountNameRules.monochromeInitials([("a", "Solo")]) == ["a": "S"])
     }
 
-    @Test("the next colour is the first preset nobody uses, cycling when all are taken")
+    @Test("names still alike after three letters are numbered in the bar's order, never drawn the same")
+    func monochromeInitialsNeverCollide() {
+        #expect(AccountNameRules.monochromeInitials([("a", "Work"), ("b", "Work 2")]) == ["a": "W1", "b": "W2"])
+        #expect(AccountNameRules.monochromeInitials([("b", "Work 2"), ("a", "Work")]) == ["b": "W1", "a": "W2"])
+        // Case alone does not tell two rings apart.
+        #expect(AccountNameRules.monochromeInitials([("a", "work"), ("b", "Work"), ("c", "Side")])
+                == ["a": "W1", "b": "W2", "c": "S"])
+        let many = AccountNameRules.monochromeInitials([("a", "Client A"), ("b", "Client B"), ("c", "Cloud")])
+        #expect(Set(many.values).count == 3)
+    }
+
+    @Test("the next colour is the free preset furthest from every colour worn, cycling when all are taken")
     func paletteNextColor() {
         #expect(AccountPalette.nextColor(excluding: []) == "#5B8DEF")
         #expect(AccountPalette.nextColor(excluding: ["#5b8def"]) == "#F472B6")
         #expect(AccountPalette.nextColor(excluding: AccountPalette.presets) == AccountPalette.presets[0])
+        // The presets are listed in the order the rule hands them out.
+        var used: [String] = []
+        for _ in AccountPalette.presets { used.append(AccountPalette.nextColor(excluding: used)) }
+        #expect(used == AccountPalette.presets)
+        // A custom colour counts too: next to a custom pink, the main
+        // account's blue and nothing else, the pick moves away from both.
+        let next = AccountPalette.nextColor(excluding: ["#5B8DEF", "#F06AB0"])
+        #expect(next != "#F472B6")
+        #expect(!AccountPalette.looksLikeAny(next, of: ["#5B8DEF", "#F06AB0"]))
         #expect(AccountPalette.normalizedHex("22d3ee") == "#22D3EE")
         #expect(AccountPalette.normalizedHex("#12345") == nil)
+    }
+
+    @Test("the first five accounts' colours never look alike on the ring")
+    func paletteFirstFiveAreApart() {
+        var used: [String] = []
+        for _ in 0..<5 {
+            let next = AccountPalette.nextColor(excluding: used)
+            #expect(!AccountPalette.looksLikeAny(next, of: used), "\(next) vs \(used)")
+            used.append(next)
+        }
+    }
+
+    @Test("two identity colours look alike under thirty degrees, two greys always, a grey and a colour never")
+    func identityColoursAlike() {
+        // Blue and indigo, the pair the old order handed the fifth account.
+        #expect(AccountPalette.looksLikeAny("#6366F1", of: ["#5B8DEF"]))
+        #expect(AccountPalette.looksLikeAny("#5B8DEF", of: ["#5B8DEF"]))
+        #expect(!AccountPalette.looksLikeAny("#F472B6", of: ["#5B8DEF", "#22D3EE"]))
+        #expect(AccountPalette.looksLikeAny("#94A3B8", of: ["#A1A1AA"]))
+        #expect(!AccountPalette.looksLikeAny("#94A3B8", of: ["#5B8DEF"]))
+        #expect(!AccountPalette.looksLikeAny("#5B8DEF", of: []))
+        #expect(!AccountPalette.looksLikeAny("nope", of: ["#5B8DEF"]))
     }
 
     @Test("no preset is a risk colour")

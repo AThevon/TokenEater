@@ -293,21 +293,52 @@ enum ClaudeAccountsStorage {
 /// header, a mode pill) and never tints a value: risk colour stays on the
 /// numbers (Smart Color and the thresholds, see `docs/design/COLORING.md`).
 /// The presets avoid the greens, ambers, oranges and reds that risk uses,
-/// and come in the order that keeps the first accounts furthest apart: a
-/// 6-point dot is all that tells two accounts apart in the menu bar, so the
-/// second and third accounts never get a neighbour of the main account's
-/// blue. The first stays the main account's decoding default.
+/// which leaves them a narrow band of the wheel: the menu bar's ring is all
+/// that tells two accounts apart there, so a new account gets the preset
+/// that reads furthest from every colour already worn (`nextColor`), and
+/// the presets are listed in the order that rule hands them out from the
+/// main account's blue. The first stays the main account's decoding default.
 enum AccountPalette {
+    /// The one grey preset, also what a removed account's widget wears.
+    static let slate = "#94A3B8"
+
     static let presets: [String] = [
         "#5B8DEF", // blue
         "#F472B6", // pink
-        "#22D3EE", // cyan
         "#C084FC", // lilac
-        "#6366F1", // indigo
+        "#22D3EE", // cyan
+        slate,
         "#8B7CF6", // violet
         "#E879F9", // fuchsia
-        "#94A3B8", // slate
+        "#6366F1", // indigo
     ]
+
+    /// Below this hue distance two identity colours read as one on the menu
+    /// bar's ring.
+    static let alikeBelow: Double = 30
+
+    /// How far apart two identity colours read, in hue degrees: their hue
+    /// distance when both are colourful, nothing between two greys, and
+    /// `alikeBelow` between a grey and a colour (told apart, barely). Nil
+    /// when either is not a colour.
+    static func distance(_ a: String, _ b: String) -> Double? {
+        guard let hueA = hue(of: a), let hueB = hue(of: b),
+              let chromaA = chroma(of: a), let chromaB = chroma(of: b) else { return nil }
+        switch (chromaA >= 0.25, chromaB >= 0.25) {
+        case (true, true): return hueDistance(hueA, hueB)
+        case (false, false): return 0
+        default: return alikeBelow
+        }
+    }
+
+    /// Whether a colour would pass for one already worn on the menu bar's
+    /// ring. A pick that does gets a warning; nothing refuses it.
+    static func looksLikeAny(_ hex: String, of others: [String]) -> Bool {
+        others.contains { other in
+            guard let d = distance(hex, other) else { return false }
+            return d < alikeBelow
+        }
+    }
 
     /// The red, green and blue of a `#RRGGBB` colour, 0 to 1.
     private static func rgb(of hex: String) -> (r: Double, g: Double, b: Double)? {
@@ -362,12 +393,25 @@ enum AccountPalette {
         return d > 180 ? 360 - d : d
     }
 
-    /// The first preset no tracked account uses yet, cycling once all eight
-    /// are taken.
+    /// The free preset that reads furthest from every colour the tracked
+    /// accounts wear (a custom one included), the earlier preset on a tie;
+    /// cycling once all eight are taken.
     static func nextColor(excluding used: [String]) -> String {
-        let taken = Set(used.compactMap(normalizedHex))
-        if let free = presets.first(where: { !taken.contains($0) }) { return free }
-        return presets[taken.count % presets.count]
+        let worn = used.compactMap(normalizedHex)
+        let taken = Set(worn)
+        let free = presets.filter { !taken.contains($0) }
+        guard !free.isEmpty else { return presets[taken.count % presets.count] }
+        guard !worn.isEmpty else { return free[0] }
+        func nearest(_ hex: String) -> Double {
+            worn.compactMap { distance(hex, $0) }.min() ?? 180
+        }
+        var best = free[0]
+        var bestDistance = nearest(best)
+        for candidate in free.dropFirst() {
+            let d = nearest(candidate)
+            if d > bestDistance { best = candidate; bestDistance = d }
+        }
+        return best
     }
 
     /// `#RRGGBB` uppercased, or nil for anything that is not a six-digit hex
@@ -398,25 +442,41 @@ enum AccountNameRules {
     /// What a monochrome menu bar writes next to each account's ring, since
     /// every ring there has the same colour: the name's first letter, or its
     /// first two or three when another account's name starts the same way.
-    /// A colour bar never draws a name; this is the one place letters stand
-    /// in for the colour. Keyed like `names`.
-    static func monochromeInitials(_ names: [String: String]) -> [String: String] {
+    /// Names still alike after three letters ("Work" and "Work 2", or two
+    /// that differ only in case) fall back to their first letter and their
+    /// rank among those alike, in the order given ("W1", "W2"), so no two
+    /// rings ever carry the same text. A colour bar never draws a name; this
+    /// is the one place letters stand in for the colour. Pass only the
+    /// accounts the bar marks, in the bar's order.
+    static func monochromeInitials(_ names: [(key: String, name: String)]) -> [String: String] {
         let longest = 3
-        var initials: [String: String] = [:]
-        for (key, name) in names {
-            let letters = Array(name.trimmingCharacters(in: .whitespaces))
+        let trimmed = names.map { (key: $0.key, letters: Array($0.name.trimmingCharacters(in: .whitespaces))) }
+        var initials: [(key: String, text: String)] = []
+        for (key, letters) in trimmed {
             var length = 1
             while length < min(longest, letters.count),
-                  names.contains(where: { other in
-                      other.key != key && other.value.trimmingCharacters(in: .whitespaces).lowercased()
+                  trimmed.contains(where: { other in
+                      other.key != key && String(other.letters).lowercased()
                           .hasPrefix(String(letters.prefix(length)).lowercased())
                   }) {
                 length += 1
             }
             let prefix = String(letters.prefix(length))
-            initials[key] = prefix.prefix(1).uppercased() + prefix.dropFirst()
+            initials.append((key, prefix.prefix(1).uppercased() + prefix.dropFirst()))
         }
-        return initials
+        var result: [String: String] = [:]
+        var rank: [String: Int] = [:]
+        for (key, text) in initials {
+            let alike = initials.filter { $0.text.lowercased() == text.lowercased() }
+            guard alike.count > 1 else {
+                result[key] = text
+                continue
+            }
+            let group = text.lowercased()
+            rank[group, default: 0] += 1
+            result[key] = text.prefix(1).uppercased() + String(rank[group]!)
+        }
+        return result
     }
 }
 

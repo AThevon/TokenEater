@@ -4,7 +4,9 @@ import AppKit
 /// The identity colour of a Claude account: eight presets chosen to stay
 /// clear of the risk colours, and a custom colour for anyone who wants
 /// another. Colours already worn by another account are marked, not refused:
-/// two accounts may share one if the user wants that.
+/// two accounts may share one if the user wants that, but since the menu bar
+/// tells accounts apart by their ring's colour alone, a pick that matches or
+/// nears another account's colour says so.
 struct AccountColorPicker: View {
     @Binding var colorHex: String
     /// The colours the other tracked accounts wear.
@@ -27,13 +29,20 @@ struct AccountColorPicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             swatches
+            if let selected, AccountPalette.looksLikeAny(selected, of: taken) {
+                warning("accounts.color.alike")
+            }
             if isCustom, let selected, AccountPalette.resemblesRiskColor(selected, riskColors: riskColors) {
-                Label(String(localized: "accounts.color.nearRisk"), systemImage: "exclamationmark.triangle.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(DS.Palette.semanticWarning.opacity(0.9))
-                    .fixedSize(horizontal: false, vertical: true)
+                warning("accounts.color.nearRisk")
             }
         }
+    }
+
+    private func warning(_ key: String.LocalizationValue) -> some View {
+        Label(String(localized: key), systemImage: "exclamationmark.triangle.fill")
+            .font(.system(size: 10))
+            .foregroundStyle(DS.Palette.semanticWarning.opacity(0.9))
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var swatches: some View {
