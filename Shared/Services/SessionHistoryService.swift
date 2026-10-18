@@ -267,62 +267,68 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
         var bucketsByHour: [Date: HistoryBucket] = [:]
         var sessionIds: Set<String> = []
 
-        try forEachLine(in: handle, containing: usageMarker) { data in
-            guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-            else { return }
+        // A read that fails partway (an I/O error, a cloud file not yet
+        // downloaded) skips this transcript, as the whole-file read it
+        // replaced did, rather than failing the History scan of every file.
+        let read: Void? = try skippingUnreadable {
+            try forEachLine(in: handle, containing: usageMarker) { data in
+                guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                else { return }
 
-            // Timestamp -> bucket date (start of hour).
-            guard let tsString = obj["timestamp"] as? String,
-                  let date = isoDate(tsString) else { return }
-            let bucketDate = startOfHour(date)
+                // Timestamp -> bucket date (start of hour).
+                guard let tsString = obj["timestamp"] as? String,
+                      let date = isoDate(tsString) else { return }
+                let bucketDate = startOfHour(date)
 
-            // Session id -> contributes to the distinct count.
-            if let sessionId = obj["sessionId"] as? String {
-                sessionIds.insert(sessionId)
+                // Session id -> contributes to the distinct count.
+                if let sessionId = obj["sessionId"] as? String {
+                    sessionIds.insert(sessionId)
+                }
+
+                // Project path: prefer the per-event `cwd` field. The
+                // directory-name decoding fallback is lossy for project paths
+                // that contain hyphens (`/` -> `-` collapses `/a/b-c` and
+                // `/a/b/c` to the same key).
+                let projectPath: String
+                if let cwd = obj["cwd"] as? String, !cwd.isEmpty {
+                    projectPath = cwd
+                } else {
+                    projectPath = decodedProject(from: url)
+                }
+
+                // Pull message + usage payload.
+                guard let message = obj["message"] as? [String: Any],
+                      let usage = message["usage"] as? [String: Any] else { return }
+
+                let modelString = (message["model"] as? String) ?? ""
+                let kind = ModelKind(rawModel: modelString)
+
+                let input = (usage["input_tokens"] as? Int) ?? 0
+                let output = (usage["output_tokens"] as? Int) ?? 0
+                let cacheRead = (usage["cache_read_input_tokens"] as? Int) ?? 0
+                let cacheCreate = (usage["cache_creation_input_tokens"] as? Int) ?? 0
+                let active = input + cacheCreate + output
+
+                var bucket = bucketsByHour[bucketDate] ?? HistoryBucket(
+                    date: bucketDate,
+                    tokensByModel: [:],
+                    tokensByProject: [:],
+                    sessionsCount: 0,
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    cacheReadTokens: 0,
+                    cacheCreateTokens: 0
+                )
+                bucket.tokensByModel[kind, default: 0] += active
+                bucket.tokensByProject[projectPath, default: 0] += active
+                bucket.inputTokens += input
+                bucket.outputTokens += output
+                bucket.cacheReadTokens += cacheRead
+                bucket.cacheCreateTokens += cacheCreate
+                bucketsByHour[bucketDate] = bucket
             }
-
-            // Project path: prefer the per-event `cwd` field. The
-            // directory-name decoding fallback is lossy for project paths
-            // that contain hyphens (`/` -> `-` collapses `/a/b-c` and
-            // `/a/b/c` to the same key).
-            let projectPath: String
-            if let cwd = obj["cwd"] as? String, !cwd.isEmpty {
-                projectPath = cwd
-            } else {
-                projectPath = decodedProject(from: url)
-            }
-
-            // Pull message + usage payload.
-            guard let message = obj["message"] as? [String: Any],
-                  let usage = message["usage"] as? [String: Any] else { return }
-
-            let modelString = (message["model"] as? String) ?? ""
-            let kind = ModelKind(rawModel: modelString)
-
-            let input = (usage["input_tokens"] as? Int) ?? 0
-            let output = (usage["output_tokens"] as? Int) ?? 0
-            let cacheRead = (usage["cache_read_input_tokens"] as? Int) ?? 0
-            let cacheCreate = (usage["cache_creation_input_tokens"] as? Int) ?? 0
-            let active = input + cacheCreate + output
-
-            var bucket = bucketsByHour[bucketDate] ?? HistoryBucket(
-                date: bucketDate,
-                tokensByModel: [:],
-                tokensByProject: [:],
-                sessionsCount: 0,
-                inputTokens: 0,
-                outputTokens: 0,
-                cacheReadTokens: 0,
-                cacheCreateTokens: 0
-            )
-            bucket.tokensByModel[kind, default: 0] += active
-            bucket.tokensByProject[projectPath, default: 0] += active
-            bucket.inputTokens += input
-            bucket.outputTokens += output
-            bucket.cacheReadTokens += cacheRead
-            bucket.cacheCreateTokens += cacheCreate
-            bucketsByHour[bucketDate] = bucket
         }
+        guard read != nil else { return nil }
 
         // Each file is a single session. The session-count contribution is 1
         // per *distinct* session id we observed. In practice that's always 1
@@ -348,6 +354,18 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
     /// token usage (prompts, tool calls, system messages) are skipped unread.
     private static let usageMarker = Data("input_tokens".utf8)
 
+    /// Runs one transcript's read, turning any failure but cancellation into
+    /// nil, so one unreadable file is skipped instead of ending the scan.
+    static func skippingUnreadable<T>(_ read: () throws -> T) throws -> T? {
+        do {
+            return try read()
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            return nil
+        }
+    }
+
     /// Size of each read. Bounds what one file holds in memory at a time,
     /// whatever its length.
     private static let readChunkSize = 1 << 20
@@ -363,20 +381,42 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
         _ body: (Data) throws -> Void
     ) throws {
         var pending = Data()
+        // How much of `pending` is already known to hold no newline. A line
+        // longer than one block is searched once, not again from its start
+        // with each block it grows by: a line of tens of megabytes (a large
+        // tool output, an image in base64) then cost quadratic time.
+        var scanned = 0
         while true {
             try Task.checkCancellation()
             let chunk = try autoreleasepool { try handle.read(upToCount: readChunkSize) ?? Data() }
             if chunk.isEmpty { break }
             pending.append(chunk)
-            var start = pending.startIndex
-            while let newline = pending[start...].firstIndex(of: 0x0A) {
-                let line = pending[start..<newline]
-                if line.range(of: marker) != nil { try body(Data(line)) }
-                start = pending.index(after: newline)
+            var start = 0
+            var searchFrom = scanned
+            while let newline = newlineOffset(in: pending, from: searchFrom) {
+                let line = pending.subdata(in: start..<newline)
+                if line.range(of: marker) != nil { try body(line) }
+                start = newline + 1
+                searchFrom = start
             }
-            pending = Data(pending[start...])
+            // Only the unfinished line is carried over, and only copied when
+            // something before it was consumed.
+            if start > 0 { pending = pending.subdata(in: start..<pending.count) }
+            scanned = pending.count
         }
         if !pending.isEmpty, pending.range(of: marker) != nil { try body(pending) }
+    }
+
+    /// The offset of the first `\n` in `data` at or after `offset`, found
+    /// with `memchr` rather than a byte-by-byte collection walk. `data`
+    /// starts at index 0, which `forEachLine` keeps true.
+    private static func newlineOffset(in data: Data, from offset: Int) -> Int? {
+        guard offset < data.count else { return nil }
+        return data.withUnsafeBytes { raw -> Int? in
+            guard let base = raw.baseAddress,
+                  let hit = memchr(base + offset, 0x0A, raw.count - offset) else { return nil }
+            return base.distance(to: UnsafeRawPointer(hit))
+        }
     }
 
     // MARK: - Aggregation across files

@@ -16,6 +16,9 @@ struct TileDescriptor {
     /// Set while the numbers are the last known ones of a login that no
     /// longer answers: see `MetricTile.lastNumbersDate`.
     var lastNumbersDate: Date? = nil
+    /// False for a login that failed with nothing to show: see
+    /// `MetricTile.hasNumbers`.
+    var hasNumbers: Bool = true
 }
 
 struct MetricTile: View {
@@ -42,6 +45,9 @@ struct MetricTile: View {
     /// longer answers: the tile turns grey and says how old they are instead
     /// of counting down to a reset that may already have passed.
     var lastNumbersDate: Date? = nil
+    /// False for a login that failed with nothing to show: the tile reads
+    /// "--" in grey, never a 0% that would pass for a fresh reading.
+    var hasNumbers: Bool = true
 
     /// Set by the grid for all its cards at once; nil lets this card shed
     /// words on its own.
@@ -53,7 +59,7 @@ struct MetricTile: View {
     @State private var isFlipping: Bool = false
 
     var body: some View {
-        let color = lastNumbersDate != nil ? DS.Palette.textTertiary : GaugeColorResolver.color(
+        let color = lastNumbersDate != nil || !hasNumbers ? DS.Palette.textTertiary : GaugeColorResolver.color(
             mode: GaugeColorResolver.mode(smartColorEnabled: smartEnabled, windowDuration: windowDuration),
             utilization: pct,
             resetDate: resetDate,
@@ -116,16 +122,18 @@ struct MetricTile: View {
             }
 
             HStack(alignment: .firstTextBaseline, spacing: 1) {
-                Text("\(pct)")
+                Text(hasNumbers ? "\(pct)" : "--")
                     .font(.system(size: 30, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(color)
                     .contentTransition(.numericText(value: Double(pct)))
                     .animation(DS.Motion.springLiquid, value: pct)
-                Text("%")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(color.opacity(0.55))
-                    .baselineOffset(3)
+                if hasNumbers {
+                    Text("%")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(color.opacity(0.55))
+                        .baselineOffset(3)
+                }
             }
 
             GeometryReader { geo in
@@ -143,9 +151,9 @@ struct MetricTile: View {
             .animation(DS.Motion.springLiquid, value: pct)
 
             Group {
-                if let lastNumbersDate {
+                if let lastNumbersDate, hasNumbers {
                     lastNumbersLine(lastNumbersDate)
-                } else if let resetText, !resetText.isEmpty {
+                } else if hasNumbers, let resetText, !resetText.isEmpty {
                     if let style {
                         resetLine(resetText, words: style.resetWords, absolute: style.clock)
                     } else {
@@ -223,12 +231,16 @@ struct MetricTile: View {
         .lineLimit(1)
     }
 
-    /// "LAST NUMBERS 2 days ago", the words dropped first when room runs out.
+    /// "LAST NUMBERS 2 days ago", re-read every minute so the age keeps up
+    /// with the hero's while the window stays open. The words go first when
+    /// room runs out.
     private func lastNumbersLine(_ date: Date) -> some View {
-        let age = date.formatted(.relative(presentation: .named))
-        return ViewThatFits(in: .horizontal) {
-            lastNumbersLine(age: age, words: true)
-            lastNumbersLine(age: age, words: false)
+        TimelineView(.periodic(from: .now, by: 60)) { _ in
+            let age = date.formatted(.relative(presentation: .named))
+            ViewThatFits(in: .horizontal) {
+                lastNumbersLine(age: age, words: true)
+                lastNumbersLine(age: age, words: false)
+            }
         }
     }
 

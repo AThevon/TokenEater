@@ -65,7 +65,16 @@ struct ProviderStatusNotice: View {
                                       since.formatted(.relative(presentation: .named)))
                 return headline + ". " + usageStore.loginExpiredHint
             }
-            guard !usageStore.isAwaitingRefresh else { return nil }
+            if usageStore.isAwaitingRefresh {
+                // Old numbers of a config folder whose expiry is unknown, so
+                // the hour of calm never ends: say which command renews it,
+                // as the greyed, dated numbers above already say it stopped.
+                guard usageStore.lastNumbersDate != nil, usageStore.authFailureHint == nil,
+                      UsageStore.renewCommand(scope: usageStore.credentialScope,
+                                              home: ClaudeConfigDirResolver.realHome()) != nil
+                else { return nil }
+                return usageStore.loginExpiredHint
+            }
             switch usageStore.errorState {
             case .tokenUnavailable:
                 if let hint = usageStore.authFailureHint { return hint }

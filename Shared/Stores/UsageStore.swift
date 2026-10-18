@@ -95,13 +95,42 @@ final class UsageStore: ObservableObject {
         errorState == .tokenUnavailable && lastUsage != nil
     }
 
-    /// When the numbers on screen were fetched, while they are the last known
-    /// ones of a login that no longer answers; nil while they are live. The
-    /// surfaces then draw them greyed and dated ("last numbers 2 days ago")
-    /// rather than in risk colours with a countdown that may already have
-    /// passed, so a frozen snapshot never reads as a fresh one.
+    /// When the numbers on screen were fetched, once they are the old numbers
+    /// of a login that no longer answers; nil while they are live, and nil
+    /// through the calm wait for Claude Code's next run (#218), when they are
+    /// still minutes old. The surfaces then draw them greyed and dated ("last
+    /// numbers 2 days ago") rather than in risk colours with a countdown that
+    /// may already have passed, so a frozen snapshot never reads as a fresh
+    /// one.
     var lastNumbersDate: Date? {
-        isAwaitingRefresh ? lastUpdate : nil
+        Self.lastNumbersDate(
+            isAwaitingRefresh: isAwaitingRefresh,
+            lastUpdate: lastUpdate,
+            loginExpiredSince: loginExpiredSince,
+            now: Date()
+        )
+    }
+
+    /// The numbers turn into old ones when the login is known to have been
+    /// expired past the hour of calm, or, its expiry unknown, when they are
+    /// themselves older than that hour: a routine token blip over fresh
+    /// numbers changes nothing on screen.
+    nonisolated static func lastNumbersDate(
+        isAwaitingRefresh: Bool,
+        lastUpdate: Date?,
+        loginExpiredSince: Date?,
+        now: Date
+    ) -> Date? {
+        guard isAwaitingRefresh, let lastUpdate else { return nil }
+        if loginExpiredSince != nil { return lastUpdate }
+        return now.timeIntervalSince(lastUpdate) > TokenExpiryPolicy.escalationDelay ? lastUpdate : nil
+    }
+
+    /// True when a login that failed has no numbers at all to show (never
+    /// fetched, or its cache is gone): the surfaces draw "--" rather than a
+    /// 0% that would pass for a fresh reading.
+    var hasNoNumbers: Bool {
+        lastUsage == nil && errorState != .none
     }
 
     /// True when the paid Extra Credits pool is provisioned and turned on for
@@ -941,12 +970,16 @@ final class UsageStore: ObservableObject {
                 utilization: bucket.utilization
             )
         }
-        let fableSnap = MetricSnapshot(
-            pct: fablePct,
-            resetsAt: usage.sevenDayFable?.resetsAtDate,
-            windowDuration: 7 * 86_400,
-            utilization: usage.sevenDayFable?.utilization ?? Double(fablePct)
-        )
+        // Same for Fable: an account without that limit has nothing to alert
+        // on, not a 0% that could end a "recovered" episode on its own.
+        let fableSnap = usage.sevenDayFable.map { bucket in
+            MetricSnapshot(
+                pct: fablePct,
+                resetsAt: bucket.resetsAtDate,
+                windowDuration: 7 * 86_400,
+                utilization: bucket.utilization
+            )
+        }
 
         notificationService.evaluate(
             fiveHour: fiveHourSnap,

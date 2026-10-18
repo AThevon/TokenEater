@@ -317,11 +317,11 @@ struct MenuBarComposition: Codable, Equatable {
     /// segment here.
     func addingAccountSegments(_ id: AccountID) -> MenuBarComposition {
         guard !id.isMain, !segments.contains(where: { $0.account == id }) else { return self }
-        // Presence-gated kinds (Sonnet, Fable, Extra Credits) are left out:
-        // the new account may not carry that limit, and a copy of it would
-        // draw nothing and leave the account without a segment.
+        // Sonnet is left out: almost no account gets that limit any more, so
+        // a copy would most likely draw nothing and take one of the two
+        // places. Fable and Extra Credits are copied as they always were.
         let mainUsage = visibleSegments.filter {
-            $0.kind.provider == .claude && $0.kind.family == .usage && !$0.kind.isPresenceGated
+            $0.kind.provider == .claude && $0.kind.family == .usage && $0.kind != .sonnet
                 && ($0.account ?? .main).isMain
         }
         var models: [MenuBarSegment] = []
@@ -438,6 +438,17 @@ enum MenuBarBuiltinTemplate: String, CaseIterable, Identifiable {
                 MenuBarSegment(kind: .weeklyPacing, style: .dotDelta),
             ])
         }
+    }
+
+    /// Whether `composition` is this template, as it ships now or as an
+    /// earlier version shipped it: a bar applied from Complete while it still
+    /// ended on a Sonnet segment keeps reading as Complete in the editor.
+    func matches(_ composition: MenuBarComposition) -> Bool {
+        if self.composition.isEquivalent(to: composition) { return true }
+        guard self == .complete else { return false }
+        var legacy = self.composition
+        legacy.segments.append(MenuBarSegment(kind: .sonnet, style: .labelValue))
+        return legacy.isEquivalent(to: composition)
     }
 }
 

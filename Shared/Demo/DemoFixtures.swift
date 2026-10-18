@@ -13,7 +13,8 @@ enum DemoLogin: Equatable, Sendable {
     /// A login Anthropic accepts: profile and usage answer.
     case valid
     /// A login Anthropic refuses: every call is a 401, and its token
-    /// expired three hours before the demo started.
+    /// expired just after the last numbers it shows were fetched
+    /// (`DemoFixtures.expiredAt`).
     case expired
     /// No login in the folder at all.
     case none
@@ -189,7 +190,7 @@ enum DemoFixtures {
         weekly: DemoPool(base: 71, swing: 0, resetOffsetMinutes: 600),
         fable: nil,
         extraCredits: nil,
-        lastNumbersAgo: 2 * 86_400,
+        lastNumbersAgo: DemoFixtures.expiredLastNumbersAgo,
         history: DemoHistoryShape(
             tokensPerHour: 150_000,
             models: [(.opus5, 0.6), (.sonnet5, 0.4)],
@@ -420,11 +421,16 @@ enum DemoFixtures {
     /// Thursday 1 January 2026, 08:00 UTC.
     static let gridAnchor = Date(timeIntervalSince1970: 1_767_254_400)
 
-    /// When an expired fixture's login stopped working: three hours before
-    /// the demo started, so it is past the hour of calm the app gives a
-    /// routine expiry and the escalated state shows at once.
+    /// How old the expired fixture's numbers are when the demo starts.
+    static let expiredLastNumbersAgo: TimeInterval = 2 * 86_400
+
+    /// When an expired fixture's login stopped working: five minutes after
+    /// its last numbers were fetched, as a real login stops answering just
+    /// after its last good refresh, so "expired 2 days ago" and "last numbers
+    /// 2 days ago" agree. Long past the hour of calm the app gives a routine
+    /// expiry, so the escalated state shows at once.
     static func expiredAt(startedAt: Date) -> Date {
-        startedAt.addingTimeInterval(-3 * 3600)
+        startedAt.addingTimeInterval(-expiredLastNumbersAgo + 300)
     }
 
     /// The 5h readings that would have been recorded since the current

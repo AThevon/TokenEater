@@ -249,7 +249,7 @@ final class NotificationService: NotificationServiceProtocol {
         fiveHour: MetricSnapshot,
         sevenDay: MetricSnapshot,
         sonnet: MetricSnapshot?,
-        fable: MetricSnapshot,
+        fable: MetricSnapshot?,
         sessionPacing: PacingZone?,
         weeklyPacing: PacingZone?,
         extraUsage: ExtraUsage?,
@@ -270,12 +270,12 @@ final class NotificationService: NotificationServiceProtocol {
         if toggles.trackWeekly {
             checkSurface(.weekly, snapshot: sevenDay, pacing: weeklyPacing, toggles: toggles)
         }
-        // Sonnet is a model-scoped limit most accounts no longer get: with no
-        // limit in the response there is nothing to alert on.
+        // Sonnet and Fable are model-scoped limits an account may not get:
+        // with no limit in the response there is nothing to alert on.
         if toggles.trackSonnet, let sonnet {
             checkSurface(.sonnet, snapshot: sonnet, pacing: weeklyPacing, toggles: toggles)
         }
-        if toggles.trackFable {
+        if toggles.trackFable, let fable {
             checkSurface(.fable, snapshot: fable, pacing: weeklyPacing, toggles: toggles)
         }
 

@@ -356,6 +356,7 @@ struct MonitoringView: View {
                 .map { tile in
                     var copy = labelled(tile, for: .claude)
                     copy.lastNumbersDate = usageStore.lastNumbersDate
+                    copy.hasNumbers = !usageStore.hasNoNumbers
                     return copy
                 })
         case (.windows, .codex):
@@ -375,7 +376,7 @@ struct MonitoringView: View {
         case (.pacing, .claude):
             // A pace measures frozen numbers against a clock that kept
             // running: meaningless once the login stopped answering.
-            if usageStore.lastNumbersDate == nil {
+            if usageStore.lastNumbersDate == nil, !usageStore.hasNoNumbers {
                 claudePacing(abreast: pacingAbreast)
             }
         case (.pacing, .codex):
@@ -688,16 +689,19 @@ struct MonitoringView: View {
         let resetText = isSession ? usageStore.fiveHourReset : usageStore.sevenDayReset
         // A login that no longer answers keeps its last numbers, greyed and
         // dated: no risk colour, no pace, no countdown that may have passed.
+        // One that never had any reads "--", greyed the same way.
         let lastNumbers = usageStore.lastNumbersDate
-        let gaugeColor = lastNumbers != nil
+        let hasNumbers = !usageStore.hasNoNumbers
+        let muted = lastNumbers != nil || !hasNumbers
+        let gaugeColor = muted
             ? DS.Palette.textSecondary
             : gaugeColor(pct: pct, resetDate: resetDate, windowDuration: window.duration)
-        let gaugeGradient = lastNumbers != nil
+        let gaugeGradient = muted
             ? LinearGradient(colors: [DS.Palette.textSecondary, DS.Palette.textTertiary],
                              startPoint: .topLeading, endPoint: .bottomTrailing)
             : gaugeGradient(pct: pct, resetDate: resetDate, windowDuration: window.duration)
-        let zone = lastNumbers != nil ? nil : (isSession ? usageStore.fiveHourPacing?.zone : usageStore.pacingResult?.zone)
-        let pacing = lastNumbers != nil ? nil : (isSession ? usageStore.fiveHourPacing : usageStore.pacingResult)
+        let zone = muted ? nil : (isSession ? usageStore.fiveHourPacing?.zone : usageStore.pacingResult?.zone)
+        let pacing = muted ? nil : (isSession ? usageStore.fiveHourPacing : usageStore.pacingResult)
         // Ambient tint follows the gauge color so the wash, the big
         // number, and the ring all read as a single signal.
         let accent = gaugeColor
@@ -727,7 +731,8 @@ struct MonitoringView: View {
                         window: window,
                         resetText: resetText,
                         resetDate: resetDate,
-                        lastNumbers: lastNumbers
+                        lastNumbers: lastNumbers,
+                        hasNumbers: hasNumbers
                     )
                 }
             }
@@ -775,7 +780,8 @@ struct MonitoringView: View {
     @ViewBuilder
     private func heroFrontContent(
         pct: Int, gaugeColor: Color, gaugeGradient: LinearGradient, zone: PacingZone?,
-        window: ClaudeHeroWindow, resetText: String, resetDate: Date?, lastNumbers: Date?
+        window: ClaudeHeroWindow, resetText: String, resetDate: Date?, lastNumbers: Date?,
+        hasNumbers: Bool
     ) -> some View {
         ProviderHeroFace(
             provider: .claude,
@@ -787,7 +793,8 @@ struct MonitoringView: View {
             resetText: resetText,
             resetDate: resetDate,
             name: accountName,
-            lastNumbersDate: lastNumbers
+            lastNumbersDate: lastNumbers,
+            hasNumbers: hasNumbers
         )
     }
 
@@ -984,8 +991,16 @@ struct MonitoringView: View {
                 ? insightsStore.snapshot(for: tileFamily(for: tile.id))
                 : nil,
             insightsLoaded: insightsStore.hasLoaded,
-            lastNumbersDate: tile.lastNumbersDate
+            lastNumbersDate: tile.lastNumbersDate,
+            hasNumbers: tile.hasNumbers
         )
+    }
+
+    /// The Opus weekly countdown, nil when the limit carries no reset.
+    private var opusResetText: String? {
+        guard let reset = usageStore.lastUsage?.sevenDayOpus?.resetsAtDate else { return nil }
+        let relative = ResetCountdownFormatter.weekly(from: reset).relative
+        return relative.isEmpty ? nil : relative
     }
 
     private var secondaryTiles: [TileDescriptor] {
@@ -1021,7 +1036,7 @@ struct MonitoringView: View {
                 label: "Opus",
                 icon: "brain.head.profile",
                 pct: usageStore.opusPct,
-                resetText: nil,
+                resetText: opusResetText,
                 resetDate: usageStore.lastUsage?.sevenDayOpus?.resetsAtDate,
                 windowDuration: weekWindow
             ))

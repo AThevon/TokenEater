@@ -109,7 +109,7 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
 
     private var activeBuiltin: MenuBarBuiltinTemplate? {
         guard activeUserTemplateID == nil else { return nil }
-        return MenuBarBuiltinTemplate.allCases.first { $0.composition.isEquivalent(to: current) }
+        return MenuBarBuiltinTemplate.allCases.first { $0.matches(current) }
     }
 
     private var isModified: Bool {

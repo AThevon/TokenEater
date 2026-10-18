@@ -143,7 +143,7 @@ struct PopoverSectionView: View {
     /// The built-in that matches (only when no saved template already did).
     private var activeBuiltin: PopoverBuiltinTemplate? {
         guard activeUserTemplateID == nil else { return nil }
-        return PopoverBuiltinTemplate.allCases.first { $0.composition.isEquivalent(to: current) }
+        return PopoverBuiltinTemplate.allCases.first { $0.matches(current) }
     }
 
     /// The current composition diverges from every template -> a custom, not

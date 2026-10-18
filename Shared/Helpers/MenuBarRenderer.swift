@@ -106,6 +106,11 @@ enum MenuBarRenderer {
         /// accounts on, one that has none draws "--" in its place instead of
         /// turning the whole bar into the logo.
         var hasNumbers: Bool = true
+        /// The numbers are the old ones of a login that no longer answers
+        /// (`UsageStore.lastNumbersDate`): values in the secondary colour, no
+        /// pace and no countdown, which describe a now they do not. False
+        /// through the calm wait over fresh numbers.
+        var showsLastNumbers: Bool = false
     }
 
     /// How an account's run of segments is marked: a ring in its colour,
@@ -216,10 +221,7 @@ enum MenuBarRenderer {
     // MARK: - Color helpers
 
     private static func colorForPct(_ pct: Int, resetDate: Date?, windowDuration: TimeInterval, data: RenderData) -> NSColor {
-        // Last known numbers of a login that no longer answers: drawn in the
-        // secondary colour, so a frozen value never reads as a live risk.
-        if data.isAwaitingRefresh { return .secondaryLabelColor }
-        return gaugeColor(
+        gaugeColor(
             pct: pct,
             resetDate: resetDate,
             windowDuration: windowDuration,
@@ -293,7 +295,6 @@ enum MenuBarRenderer {
     }
 
     private static func colorForZone(_ zone: PacingZone, data: RenderData) -> NSColor {
-        if data.isAwaitingRefresh { return .secondaryLabelColor }
         if data.menuBarMonochrome { return .labelColor }
         return data.themeColors.pacingNSColor(for: zone)
     }
@@ -705,7 +706,12 @@ enum MenuBarRenderer {
             return placeholderContent(kind: kind, style: style, data: data)
         }
         let spend = kind == .extraCredits ? data.extraCreditsUncappedSpend : nil
-        let color = spend != nil
+        // Old numbers of a Claude login that no longer answers: drawn in the
+        // secondary colour, so a frozen value never reads as a live risk.
+        // Codex reads its own store and keeps its colours.
+        let color: NSColor = kind.provider == .claude && data.showsLastNumbers
+            ? .secondaryLabelColor
+            : spend != nil
             ? uncappedSpendColor(
                 hasSpend: data.extraCreditsUncappedHasSpend,
                 monochrome: data.menuBarMonochrome,
@@ -779,25 +785,28 @@ enum MenuBarRenderer {
 
     private static func pacingContent(kind: MenuBarSegmentKind, style: MenuBarSegmentStyle, shape: PacingShape, data: RenderData) -> SegmentVisual.Content {
         // A pacing segment reaches here whenever its bucket is present
-        // (isSegmentAvailable). `hasData` is whether there's an active window to
+        // (isSegmentAvailable). `hasWindow` is whether there's an active window to
         // compute a pace against; when false the segment draws a muted "-"
         // placeholder (idle) rather than a bogus 0% delta.
-        let hasData: Bool
+        let hasWindow: Bool
         let zone: PacingZone
         let delta: Int
         switch kind {
         case .codexSessionPacing:
-            hasData = data.codexSession?.hasPacing ?? false
+            hasWindow = data.codexSession?.hasPacing ?? false
             zone = data.codexSession?.pacingZone ?? .onTrack
             delta = data.codexSession?.pacingDelta ?? 0
         case .codexWeeklyPacing:
-            hasData = data.codexWeekly?.hasPacing ?? false
+            hasWindow = data.codexWeekly?.hasPacing ?? false
             zone = data.codexWeekly?.pacingZone ?? .onTrack
             delta = data.codexWeekly?.pacingDelta ?? 0
-        case .sessionPacing: hasData = data.hasSessionPacing; zone = data.sessionPacingZone; delta = data.sessionPacingDelta
-        case .fablePacing:   hasData = data.hasFablePacing;   zone = data.fablePacingZone;   delta = data.fablePacingDelta
-        default:             hasData = data.hasWeeklyPacing;  zone = data.weeklyPacingZone;  delta = data.weeklyPacingDelta
+        case .sessionPacing: hasWindow = data.hasSessionPacing; zone = data.sessionPacingZone; delta = data.sessionPacingDelta
+        case .fablePacing:   hasWindow = data.hasFablePacing;   zone = data.fablePacingZone;   delta = data.fablePacingDelta
+        default:             hasWindow = data.hasWeeklyPacing;  zone = data.weeklyPacingZone;  delta = data.weeklyPacingDelta
         }
+        // A pace measures frozen numbers against a clock that kept running:
+        // old numbers of a login that no longer answers get the idle "-".
+        let hasData = hasWindow && !(kind.provider == .claude && data.showsLastNumbers)
         let tint = hasData ? colorForZone(zone, data: data) : NSColor.tertiaryLabelColor
         let sign = delta >= 0 ? "+" : ""
         let glyph = shape.glyph
@@ -833,8 +842,9 @@ enum MenuBarRenderer {
         let resolved = resetDisplayText(format: format, data: data)
         // Empty only when `fiveHour.resetsAt` is nil (typically between two 5h
         // windows). Fall back to `-` so the segment stays visible.
-        let text = resolved.isEmpty ? "-" : resolved
-        let color = resetValueColor(data)
+        // Old numbers: their countdown may have passed long ago, so "-".
+        let text = resolved.isEmpty || data.showsLastNumbers ? "-" : resolved
+        let color = data.showsLastNumbers ? NSColor.tertiaryLabelColor : resetValueColor(data)
         switch style {
         case .pill:
             return .pill(text: text, tint: color)

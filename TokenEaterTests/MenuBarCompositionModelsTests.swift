@@ -194,15 +194,16 @@ struct MenuBarCompositionModelsTests {
         #expect(added.segments.map(\.kind) == [.session, .session])
         #expect(added.segments[1].style == .valueOnly)
 
-        // Never more than two, in the main account's order, and never a
-        // model-scoped kind the new account may not carry.
+        // Never more than two, in the main account's order, and never
+        // Sonnet, a limit almost no account gets any more. Fable is copied
+        // as it always was.
         let busy = MenuBarComposition(segments: [
             MenuBarSegment(kind: .weekly, style: .labelValue),
             MenuBarSegment(kind: .sonnet, style: .labelValue),
             MenuBarSegment(kind: .fable, style: .labelValue),
             MenuBarSegment(kind: .session, style: .labelValue),
         ])
-        #expect(busy.addingAccountSegments(work).segments.suffix(2).map(\.kind) == [.weekly, .session])
+        #expect(busy.addingAccountSegments(work).segments.suffix(2).map(\.kind) == [.weekly, .fable])
     }
 
     @Test("from the third account in the bar, one segment each")

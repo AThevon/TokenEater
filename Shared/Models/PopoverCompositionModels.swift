@@ -551,6 +551,19 @@ enum PopoverBuiltinTemplate: String, CaseIterable, Identifiable {
             ])
         }
     }
+
+    /// Whether `composition` is this template, as it ships now or as an
+    /// earlier version shipped it: a popover applied from Complete while it
+    /// still had a Sonnet ring after the weekly one keeps reading as Complete
+    /// in the editor.
+    func matches(_ composition: PopoverComposition) -> Bool {
+        if self.composition.isEquivalent(to: composition) { return true }
+        guard self == .complete else { return false }
+        var legacy = self.composition
+        guard let weekly = legacy.elements.firstIndex(where: { $0.kind == .weekly }) else { return false }
+        legacy.elements.insert(PopoverElement(kind: .sonnet, style: .gaugeRing, width: .third), at: weekly + 1)
+        return legacy.isEquivalent(to: composition)
+    }
 }
 
 /// A popover composition the user saved under a name. Persisted as a JSON blob

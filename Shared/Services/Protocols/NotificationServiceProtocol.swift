@@ -116,9 +116,9 @@ protocol NotificationServiceProtocol {
         fiveHour: MetricSnapshot,
         sevenDay: MetricSnapshot,
         /// Nil when the account's response carries no Sonnet weekly limit:
-        /// no alert, and the surface's baseline is left alone.
+        /// no alert, and the surface's baseline is left alone. Same for Fable.
         sonnet: MetricSnapshot?,
-        fable: MetricSnapshot,
+        fable: MetricSnapshot?,
         sessionPacing: PacingZone?,
         weeklyPacing: PacingZone?,
         extraUsage: ExtraUsage?,

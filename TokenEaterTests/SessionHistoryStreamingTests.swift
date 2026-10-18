@@ -54,6 +54,33 @@ struct SessionHistoryStreamingTests {
         #expect(parsed?["input_tokens"] as? Int == 5)
     }
 
+    @Test("a line spanning several blocks, and a newline right on a block edge, split as a whole read would")
+    func linesAcrossManyBlocks() throws {
+        let block = 1 << 20
+        // A record that ends exactly where the first block does.
+        let edge = #"{"input_tokens":6,"pad":""# + String(repeating: "y", count: block - 28) + #""}"#
+        #expect(edge.utf8.count == block - 1)
+        let huge = #"{"pad":""# + String(repeating: "z", count: 3 * block + 123) + #"","input_tokens":7}"#
+        let content = edge + "\n" + huge + "\n" + "{\"input_tokens\":8}"
+        let found = try lines(of: Data(content.utf8))
+        #expect(found.count == 3)
+        #expect(found[0] == edge)
+        #expect(found[1] == huge)
+        #expect(found[2] == #"{"input_tokens":8}"#)
+    }
+
+    @Test("a transcript that cannot be read is skipped, a cancelled scan still stops")
+    func unreadableIsSkippedButCancellationIsNot() throws {
+        struct ReadFailure: Error {}
+        let skipped: Int? = try SessionHistoryService.skippingUnreadable { () throws -> Int in throw ReadFailure() }
+        #expect(skipped == nil)
+        let read: Int? = try SessionHistoryService.skippingUnreadable { 3 }
+        #expect(read == 3)
+        #expect(throws: CancellationError.self) {
+            _ = try SessionHistoryService.skippingUnreadable { () throws -> Int in throw CancellationError() }
+        }
+    }
+
     @Test("an empty file gives nothing")
     func emptyFile() throws {
         #expect(try lines(of: Data()).isEmpty)

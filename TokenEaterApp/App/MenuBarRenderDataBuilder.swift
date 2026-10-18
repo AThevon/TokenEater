@@ -74,6 +74,7 @@ extension MenuBarRenderer.RenderData {
             visibleProviders: Set(settings.activeProviders.filter { settings.activeProviderMode.shows($0) })
         )
         data.hasNumbers = usage.lastUsage != nil
+        data.showsLastNumbers = usage.lastNumbersDate != nil
         // Each running added account, built the same way from its own store,
         // for the segments that resolve to it. Paused accounts are left out,
         // so their segments step aside.

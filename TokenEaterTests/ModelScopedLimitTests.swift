@@ -102,6 +102,8 @@ struct ModelScopedLimitTests {
         #expect(store.hasOpus == false)
         #expect(notif.lastEvaluation != nil)
         #expect(notif.lastEvaluation?.sonnet == nil)
+        // Fable is model-scoped too: absent, nothing reaches the alerts.
+        #expect(notif.lastEvaluation?.fable == nil)
     }
 
     @Test("a Sonnet limit: present, and its snapshot reaches the alerts")
@@ -185,6 +187,26 @@ struct ModelScopedLimitTests {
         #expect(!PopoverComposition.default.elements.contains { $0.kind == .sonnet })
     }
 
+    @Test("a layout applied from Complete while it still had Sonnet still reads as Complete")
+    func legacyCompleteStillMatches() {
+        var menuBar = MenuBarBuiltinTemplate.complete.composition
+        menuBar.segments.append(MenuBarSegment(kind: .sonnet, style: .labelValue))
+        #expect(MenuBarBuiltinTemplate.complete.matches(menuBar))
+        #expect(MenuBarBuiltinTemplate.complete.matches(MenuBarBuiltinTemplate.complete.composition))
+        #expect(!MenuBarBuiltinTemplate.classic.matches(menuBar))
+        // Sonnet anywhere else is a custom layout, not the old template.
+        var moved = MenuBarBuiltinTemplate.complete.composition
+        moved.segments.insert(MenuBarSegment(kind: .sonnet, style: .labelValue), at: 0)
+        #expect(!MenuBarBuiltinTemplate.complete.matches(moved))
+
+        var popover = PopoverBuiltinTemplate.complete.composition
+        let weekly = popover.elements.firstIndex { $0.kind == .weekly }!
+        popover.elements.insert(PopoverElement(kind: .sonnet, style: .gaugeRing, width: .third), at: weekly + 1)
+        #expect(PopoverBuiltinTemplate.complete.matches(popover))
+        #expect(PopoverBuiltinTemplate.complete.matches(PopoverBuiltinTemplate.complete.composition))
+        #expect(!PopoverBuiltinTemplate.classic.matches(popover))
+    }
+
     // MARK: - Notifications
 
     @Test("no Sonnet limit: no Sonnet alert and no Sonnet baseline, even when tracked")
@@ -206,5 +228,28 @@ struct ModelScopedLimitTests {
         service.evaluate(fiveHour: calm, sevenDay: calm, sonnet: hot, fable: calm,
                          sessionPacing: nil, weeklyPacing: nil, extraUsage: nil, toggles: toggles)
         #expect(center.addedIDs.contains { $0.contains("sonnet") })
+    }
+
+    @Test("no Fable limit: no Fable alert, and its baseline is left alone")
+    func noFableAlertWhenAbsent() {
+        let center = MockNotificationCenter()
+        let state = MockNotificationStateStore()
+        let service = NotificationService(center: center, stateStore: state)
+        // Fable was high when it disappeared: a 0% stand-in would move that
+        // baseline as if the pool had emptied.
+        state.levels["lastLevel_fable"] = UsageLevel.red.rawValue
+        let toggles = Self.toggles(trackSonnet: false)
+        let calm = MetricSnapshot(pct: 5, resetsAt: nil, windowDuration: 5 * 3600)
+
+        service.evaluate(fiveHour: calm, sevenDay: calm, sonnet: nil, fable: nil,
+                         sessionPacing: nil, weeklyPacing: nil, extraUsage: nil, toggles: toggles)
+        #expect(!center.addedIDs.contains { $0.contains("fable") })
+        #expect(state.levels["lastLevel_fable"] == UsageLevel.red.rawValue)
+
+        let hot = MetricSnapshot(pct: 96, resetsAt: nil, windowDuration: 7 * 86_400)
+        state.levels["lastLevel_fable"] = UsageLevel.green.rawValue
+        service.evaluate(fiveHour: calm, sevenDay: calm, sonnet: nil, fable: hot,
+                         sessionPacing: nil, weeklyPacing: nil, extraUsage: nil, toggles: toggles)
+        #expect(center.addedIDs.contains { $0.contains("fable") })
     }
 }

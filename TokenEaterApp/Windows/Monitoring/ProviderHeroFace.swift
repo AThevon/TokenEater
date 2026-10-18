@@ -34,6 +34,10 @@ struct ProviderHeroFace: View {
     /// longer answers: the reset line then says how old they are instead of
     /// counting down to a reset that may already have passed.
     var lastNumbersDate: Date? = nil
+    /// False for a login that failed with nothing to show: the number reads
+    /// "--" and the line under it says so, never a 0% that would pass for a
+    /// fresh reading.
+    var hasNumbers: Bool = true
     @Environment(\.glowIntensity) private var glowIntensity
     /// A header above the column names it already: the label keeps the
     /// window alone, and the provider's mark beside it.
@@ -125,12 +129,18 @@ struct ProviderHeroFace: View {
                     number("100")
                         .hidden()
                         .accessibilityHidden(true)
-                    number("\(pct)")
+                    if hasNumbers {
+                        number("\(pct)")
+                    } else {
+                        number("--", percent: false)
+                    }
                 }
                 .fixedSize()
                 .layoutPriority(1)
 
-                if let lastNumbersDate {
+                if !hasNumbers {
+                    noNumbersLine
+                } else if let lastNumbersDate {
                     lastNumbersLine(lastNumbersDate)
                 } else {
                     ViewThatFits(in: .horizontal) {
@@ -150,7 +160,7 @@ struct ProviderHeroFace: View {
         }
     }
 
-    private func number(_ value: String) -> some View {
+    private func number(_ value: String, percent: Bool = true) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 2) {
             Text(value)
                 .font(.system(size: 64, weight: .bold, design: .rounded))
@@ -159,11 +169,27 @@ struct ProviderHeroFace: View {
                 .dsGlow(gaugeColor, radius: 10, opacity: 0.45)
                 .contentTransition(.numericText(value: Double(pct)))
                 .animation(DS.Motion.springLiquid, value: pct)
-            Text("%")
-                .font(.system(size: 26, weight: .heavy, design: .rounded))
-                .foregroundStyle(gaugeColor.opacity(0.55))
-                .baselineOffset(5)
+            if percent {
+                Text("%")
+                    .font(.system(size: 26, weight: .heavy, design: .rounded))
+                    .foregroundStyle(gaugeColor.opacity(0.55))
+                    .baselineOffset(5)
+            }
         }
+    }
+
+    /// "NO NUMBERS YET", in place of a countdown there is nothing to base on.
+    private var noNumbersLine: some View {
+        HStack(spacing: DS.Spacing.xs) {
+            Image(systemName: "questionmark.circle")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(DS.Palette.textTertiary)
+            Text(String(localized: "dashboard.hero.noNumbers").uppercased())
+                .font(DS.Typography.micro)
+                .tracking(1.2)
+                .foregroundStyle(DS.Palette.textTertiary)
+        }
+        .lineLimit(1)
     }
 
     /// The reset line measures itself as if it read a full countdown and a
