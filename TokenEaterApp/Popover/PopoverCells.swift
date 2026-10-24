@@ -302,8 +302,8 @@ private struct ChipCell: View {
 // MARK: - Reset line (ring and chip cells)
 
 /// The time left before a reset under a ring or in a chip: bold, a step or
-/// two above the words and in the primary text colour, so the number reads
-/// first (#295). With `sentence` the localized "Resets in" words stand
+/// two above the words and in a softened primary text colour: it reads before
+/// the caption without being the brightest thing in the popover (#295). With `sentence` the localized "Resets in" words stand
 /// before it in the caption's own style, a little further off than a plain
 /// space so the two do not run together.
 private struct PopoverResetLine: View {
@@ -346,7 +346,7 @@ private struct PopoverResetLine: View {
     private var value: some View {
         Text(countdown)
             .font(DS.Typography.countdown(countdownSize))
-            .foregroundStyle(DS.Palette.textPrimary)
+            .foregroundStyle(DS.Palette.textPrimary.opacity(0.65))
     }
 
     private func words(_ text: String) -> some View {
