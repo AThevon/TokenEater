@@ -61,9 +61,30 @@ enum PopoverColors {
 
 struct PopoverErrorBanner: View {
     @EnvironmentObject private var usageStore: UsageStore
+    @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var accountsStore: AccountsStore
+
+    /// The account this banner speaks for, once several run: the banner sits
+    /// above every account's section, so it says whose problem it is.
+    private var namedAccount: ClaudeAccountSummary? {
+        guard settingsStore.showsAccountMarkers,
+              let record = accountsStore.records.first(where: { accountsStore.usageStore(for: $0.id) === usageStore })
+        else { return nil }
+        return settingsStore.claudeAccount(record.id)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
+            if let account = namedAccount {
+                HStack(spacing: 5) {
+                    AccountDot(colorHex: account.colorHex, size: 7)
+                    Text(account.name)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.75))
+                        .lineLimit(1)
+                        .help(account.name)
+                }
+            }
             switch usageStore.errorState {
             case .tokenUnavailable:
                 if let since = usageStore.loginExpiredSince {
@@ -159,7 +180,7 @@ struct PopoverErrorBanner: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.85))
                     .fixedSize(horizontal: false, vertical: true)
-                Text(String(localized: "error.login.expired.hint"))
+                Text(usageStore.loginExpiredHint)
                     .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.55))
                     .fixedSize(horizontal: false, vertical: true)
@@ -270,16 +291,19 @@ struct PopoverErrorBanner: View {
 /// state, so users can paste raw debug context into GitHub issues.
 struct CopyDiagnosticButton: View {
     @EnvironmentObject private var codexStore: CodexUsageStore
-    @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var settingsStore: SettingsStore
+    /// The report always describes the main account first, whatever account
+    /// a surrounding view has put in the environment's `UsageStore`.
+    @EnvironmentObject private var accountsStore: AccountsStore
     @State private var copied = false
 
     var body: some View {
         Button {
             let report = DiagnosticReporter.makeReport(
-                usageStore: usageStore,
+                usageStore: accountsStore.mainStore,
                 settingsStore: settingsStore,
-                codexStore: codexStore
+                codexStore: codexStore,
+                accounts: accountsStore
             )
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()

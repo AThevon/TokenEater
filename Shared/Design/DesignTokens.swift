@@ -212,6 +212,14 @@ enum DS {
         static let micro        = Font.system(size: 10, weight: .medium)
         static let metricLarge  = Font.system(size: 28, weight: .semibold, design: .monospaced)
         static let metricInline = Font.system(size: 13, weight: .regular, design: .monospaced)
+
+        /// The time left before a reset ("2h14", "4d 6h"), wherever it sits
+        /// next to smaller words: bold, so it is the first thing read on its
+        /// line. Each surface picks a size a step or two above the caption
+        /// around it; the caption and any clock time keep their own style.
+        static func countdown(_ size: CGFloat, monospaced: Bool = false) -> Font {
+            .system(size: size, weight: .bold, design: monospaced ? .monospaced : .default)
+        }
     }
 }
 

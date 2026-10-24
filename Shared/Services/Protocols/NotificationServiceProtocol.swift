@@ -78,6 +78,30 @@ struct NotificationToggles {
     var codex: CodexNotificationToggles = .default
 }
 
+extension NotificationToggles {
+    /// The bundle one Claude account's store alerts with: the app's settings,
+    /// with the Claude sub-master also off when the user silenced that
+    /// account. Thresholds, events and offsets stay global; only the switch
+    /// is per account. Codex and the vendor alerts never go through here.
+    ///
+    /// The switch lives on a card Settings shows only while several accounts
+    /// are tracked, so it only counts then: back to one account, a switch
+    /// left off there cannot mute every Claude alert with nothing on screen
+    /// to turn it back on. A record that is gone (an account removed while
+    /// one of its refreshes was out) sends nothing.
+    func scoped(to record: ClaudeAccountRecord?, tracksSeveralAccounts: Bool) -> NotificationToggles {
+        var copy = self
+        guard let record else {
+            copy.claudeEnabled = false
+            return copy
+        }
+        if tracksSeveralAccounts {
+            copy.claudeEnabled = claudeEnabled && record.notificationsEnabled
+        }
+        return copy
+    }
+}
+
 protocol NotificationServiceProtocol {
     func setupDelegate()
     func requestPermission()
@@ -85,11 +109,16 @@ protocol NotificationServiceProtocol {
     /// `provider` names the sender in the banner subtitle, exactly as a real
     /// alert would, so a test verifies what the user will actually see.
     func sendTest(for provider: MetricProvider?)
+    /// A Claude test banner as one account's real alerts look: its subtitle
+    /// and its thread.
+    func sendTest(forClaudeAccount account: NotificationScope)
     func evaluate(
         fiveHour: MetricSnapshot,
         sevenDay: MetricSnapshot,
-        sonnet: MetricSnapshot,
-        fable: MetricSnapshot,
+        /// Nil when the account's response carries no Sonnet weekly limit:
+        /// no alert, and the surface's baseline is left alone. Same for Fable.
+        sonnet: MetricSnapshot?,
+        fable: MetricSnapshot?,
         sessionPacing: PacingZone?,
         weeklyPacing: PacingZone?,
         extraUsage: ExtraUsage?,
@@ -115,6 +144,10 @@ protocol NotificationServiceProtocol {
     func notifyCodexTokenExpired(toggles: NotificationToggles)
     /// Drops any pending Codex reminder, for when the provider is switched off.
     func cancelCodexReminders()
+    /// Drops an account's Claude alerts: its pending reminders, and with
+    /// `includingDelivered` the banners already in Notification Center. For
+    /// an account paused (pending only) or removed (both).
+    func purge(account: AccountID, includingDelivered: Bool)
 }
 
 extension NotificationServiceProtocol {

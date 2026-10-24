@@ -134,6 +134,60 @@ struct WhatsNewGateTests {
         #expect(!store.needsWhatsNew)
     }
 
+    @Test("Updating from any 6.0.x to a 6.1.x build shows the 6.1 screen")
+    func sixZeroToSixOneIsNew() {
+        for lastSeen in ["6.0.0", "6.0.1", "6.0.9"] {
+            for current in ["6.1.0", "6.1.1", "6.1.12"] {
+                #expect(SettingsStore.isNewRelease(lastSeen: lastSeen, current: current))
+            }
+        }
+    }
+
+    @Test("Within the 6.1 line, patches and downgrades announce nothing")
+    func sameLineIsSilent() {
+        #expect(!SettingsStore.isNewRelease(lastSeen: "6.1.0", current: "6.1.0"))
+        #expect(!SettingsStore.isNewRelease(lastSeen: "6.1.0", current: "6.1.3"))
+        #expect(!SettingsStore.isNewRelease(lastSeen: "6.1.4", current: "6.1.0"))
+    }
+
+    @Test("A major bump and a pre-key install both count as new")
+    func majorAndMissingKeyAreNew() {
+        #expect(SettingsStore.isNewRelease(lastSeen: "6.1.2", current: "7.0.0"))
+        #expect(SettingsStore.isNewRelease(lastSeen: "", current: "6.1.0"))
+        #expect(SettingsStore.isNewRelease(lastSeen: "5.13.0", current: "6.1.0"))
+    }
+
+    @Test("Only an upgrade from before 6.0 is told about Codex")
+    func codexIntroOnlyFromFiveX() {
+        #expect(SettingsStore.predatesCodex(lastSeen: ""))
+        #expect(SettingsStore.predatesCodex(lastSeen: "5.13.0"))
+        #expect(!SettingsStore.predatesCodex(lastSeen: "6.0.0"))
+        #expect(!SettingsStore.predatesCodex(lastSeen: "6.0.4"))
+        #expect(!SettingsStore.predatesCodex(lastSeen: "6.1.0"))
+    }
+
+    @Test("The release line is major.minor")
+    func releaseLine() {
+        #expect(SettingsStore.releaseLine(of: "6.1.2") == "6.1")
+        #expect(SettingsStore.releaseLine(of: "6.1") == "6.1")
+        #expect(SettingsStore.releaseLine(of: "") == "")
+    }
+
+    @Test("The Settings button replays it once, and finishing it disarms it again")
+    func settingsReplayShowsItOnce() {
+        let store = makeStore()
+        store.hasCompletedOnboarding = true
+        #expect(!store.needsWhatsNew)
+
+        // What Settings > General > What's new does.
+        store.lastSeenVersion = ""
+        #expect(store.needsWhatsNew)
+
+        store.markWhatsNewSeen()
+        #expect(!store.needsWhatsNew)
+        #expect(store.lastSeenVersion == SettingsStore.currentVersion)
+    }
+
     @Test("Replaying the wizard does not re-arm the release screen")
     func replayingOnboardingDoesNotReArm() {
         let store = makeStore()

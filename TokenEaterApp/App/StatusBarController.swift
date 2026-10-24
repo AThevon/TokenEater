@@ -25,6 +25,7 @@ final class StatusBarController: NSObject {
     private let updateStore: UpdateStore
     private let sessionStore: SessionStore
     private let vendorStatusStore: VendorStatusStore
+    private let accountsStore: AccountsStore
     private let tokenFileMonitor: TokenFileMonitorProtocol
 
     init(
@@ -35,6 +36,7 @@ final class StatusBarController: NSObject {
         updateStore: UpdateStore,
         sessionStore: SessionStore,
         vendorStatusStore: VendorStatusStore,
+        accountsStore: AccountsStore,
         tokenFileMonitor: TokenFileMonitorProtocol = TokenFileMonitor()
     ) {
         self.codexStore = codexStore
@@ -44,6 +46,7 @@ final class StatusBarController: NSObject {
         self.updateStore = updateStore
         self.sessionStore = sessionStore
         self.vendorStatusStore = vendorStatusStore
+        self.accountsStore = accountsStore
         self.tokenFileMonitor = tokenFileMonitor
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         // Track the item under a stable, app-specific identity rather than the
@@ -134,15 +137,35 @@ final class StatusBarController: NSObject {
             .environmentObject(settingsStore)
             .environmentObject(updateStore)
             .environmentObject(vendorStatusStore)
+            .environmentObject(accountsStore)
         popover.contentViewController = NSHostingController(rootView: popoverView)
     }
 
+    /// Every Claude store: the main one, then each added account's. The
+    /// settings sinks below go through it so an added account always runs
+    /// with the same margin, schedule, interval and proxy as the main one.
+    private func forEachClaudeStore(_ body: (UsageStore) -> Void) {
+        accountsStore.allStores.forEach(body)
+    }
+
     private func observeStoreChanges() {
+        // The added accounts' stores are merged here one by one, and
+        // re-merged whenever the set of accounts changes. They are not
+        // relayed through `AccountsStore` itself, which would repaint every
+        // view observing it on every refresh of any account.
+        let accountStores = accountsStore.$runtimes
+            .map { runtimes in
+                Publishers.MergeMany(runtimes.values.map { $0.store.objectWillChange.map { _ in () } })
+            }
+            .switchToLatest()
+            .eraseToAnyPublisher()
         Publishers.MergeMany(
             usageStore.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             themeStore.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
             settingsStore.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
-            vendorStatusStore.objectWillChange.map { _ in () }.eraseToAnyPublisher()
+            vendorStatusStore.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            accountsStore.objectWillChange.map { _ in () }.eraseToAnyPublisher(),
+            accountStores
         )
         .debounce(for: .milliseconds(100), scheduler: RunLoop.main)
         .sink { [weak self] _ in
@@ -156,7 +179,7 @@ final class StatusBarController: NSObject {
                 guard let self else { return }
                 self.codexStore.refreshResetCountdown()
                 guard self.settingsStore.menuBarComposition.visibleSegments.contains(where: { $0.kind == .sessionReset }) else { return }
-                self.usageStore.refreshResetCountdown()
+                self.forEachClaudeStore { $0.refreshResetCountdown() }
             }
             .store(in: &cancellables)
 
@@ -165,8 +188,10 @@ final class StatusBarController: NSObject {
             .sink { [weak self] newMargin in
                 self?.codexStore.pacingMargin = newMargin
                 self?.codexStore.recalculatePacing()
-                self?.usageStore.pacingMargin = newMargin
-                self?.usageStore.recalculatePacing()
+                self?.forEachClaudeStore { store in
+                    store.pacingMargin = newMargin
+                    store.recalculatePacing()
+                }
             }
             .store(in: &cancellables)
 
@@ -187,8 +212,11 @@ final class StatusBarController: NSObject {
             guard let self else { return }
             self.codexStore.pacingSchedule = self.settingsStore.pacingSchedule
             self.codexStore.recalculatePacing()
-            self.usageStore.pacingSchedule = self.settingsStore.pacingSchedule
-            self.usageStore.recalculatePacing()
+            let schedule = self.settingsStore.pacingSchedule
+            self.forEachClaudeStore { store in
+                store.pacingSchedule = schedule
+                store.recalculatePacing()
+            }
             WidgetReloader.scheduleReload()
         }
         .store(in: &cancellables)
@@ -196,7 +224,7 @@ final class StatusBarController: NSObject {
         settingsStore.$refreshInterval
             .removeDuplicates()
             .sink { [weak self] newInterval in
-                self?.usageStore.refreshIntervalSeconds = TimeInterval(newInterval)
+                self?.forEachClaudeStore { $0.refreshIntervalSeconds = TimeInterval(newInterval) }
                 self?.codexStore.refreshIntervalSeconds = TimeInterval(newInterval)
                 self?.codexStore.startAutoRefresh()
             }
@@ -208,12 +236,15 @@ final class StatusBarController: NSObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] enabled in
                 guard let self, self.settingsStore.hasCompletedOnboarding else { return }
+                // The master switch for every Claude account: off, none of
+                // them is contacted; on, each starts again unless paused.
                 if enabled {
                     self.usageStore.reloadConfig(thresholds: self.themeStore.thresholds)
                     self.usageStore.startAutoRefresh(thresholds: self.themeStore.thresholds)
                 } else {
                     self.usageStore.stopAutoRefresh()
                 }
+                self.accountsStore.configureAll()
                 self.updateMenuBarIcon()
             }
             .store(in: &cancellables)
@@ -236,7 +267,9 @@ final class StatusBarController: NSObject {
         .receive(on: RunLoop.main)
         .sink { [weak self] _ in
             guard let self else { return }
-            self.codexStore.proxyConfig = self.settingsStore.proxyConfig
+            let proxy = self.settingsStore.proxyConfig
+            self.codexStore.proxyConfig = proxy
+            self.forEachClaudeStore { $0.proxyConfig = proxy }
         }
         .store(in: &cancellables)
 
@@ -273,6 +306,65 @@ final class StatusBarController: NSObject {
                 self?.statusItem.isVisible = visible
             }
             .store(in: &cancellables)
+
+        // The settings mirror of the account list drives the mode switcher
+        // and the composition keys; removing an account purges the layouts
+        // that pointed at it.
+        accountsStore.$records
+            .map { $0.map(\.summary) }
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] summaries in
+                guard let self, self.settingsStore.claudeAccounts != summaries else { return }
+                self.settingsStore.claudeAccounts = summaries
+            }
+            .store(in: &cancellables)
+
+        accountsStore.accountRemoved
+            .receive(on: RunLoop.main)
+            .sink { [weak self] id in self?.settingsStore.purgeAccount(id) }
+            .store(in: &cancellables)
+
+        // The file watcher and the session scan follow the accounts: the
+        // main account's folder (#294) and each running added account's.
+        accountsStore.$records
+            .map { records in records.map { [$0.id.rawValue, $0.configDir ?? "", $0.isPaused ? "p" : ""] } }
+            .removeDuplicates()
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.applyClaudeSources() }
+            .store(in: &cancellables)
+
+        accountsStore.mainScopeChanged
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.applyClaudeSources()
+                guard self.settingsStore.hasCompletedOnboarding, self.settingsStore.claudeEnabled else { return }
+                self.usageStore.reloadConfig(thresholds: self.themeStore.thresholds)
+            }
+            .store(in: &cancellables)
+    }
+
+    /// Points the credential watcher and the Agent Watchers scan at the
+    /// folders the Claude accounts read. The watcher leaves paused accounts
+    /// out: they read nothing, so a change to their login has nothing to
+    /// wake. The scan keeps them: a session running in a paused account's
+    /// folder is still a session on this Mac.
+    private func applyClaudeSources() {
+        let home = ClaudeConfigDirResolver.realHome()
+        let main = accountsStore.mainRecord.scope
+        var extras: [AccountID: URL] = [:]
+        for record in accountsStore.records.dropFirst() where !record.isPaused {
+            extras[record.id] = URL(fileURLWithPath: record.scope.credentialsFilePath(home: home))
+        }
+        tokenFileMonitor.setClaudeCredentialFiles(
+            main: URL(fileURLWithPath: main.credentialsFilePath(home: home)),
+            includeDesktopConfig: main.includesClaudeDesktop,
+            extras: extras
+        )
+        sessionStore.setRoots(accountsStore.records.map { record in
+            ClaudeConfigRoot(account: record.id, scope: record.scope, home: home)
+        })
     }
 
     private func bootstrapRefresh() {
@@ -286,16 +378,22 @@ final class StatusBarController: NSObject {
         usageStore.pacingMargin = settingsStore.pacingMargin
         usageStore.pacingSchedule = settingsStore.pacingSchedule
         usageStore.refreshIntervalSeconds = TimeInterval(settingsStore.refreshInterval)
-        usageStore.notifTogglesProvider = { [weak self] in self?.makeNotificationToggles() }
+        usageStore.notifTogglesProvider = { [weak self] in self?.makeNotificationToggles(for: .main) }
         vendorStatusStore.notifTogglesProvider = { [weak self] in self?.makeNotificationToggles() }
         vendorStatusStore.healthyPollInterval = TimeInterval(settingsStore.statusPollInterval)
         usageStore.reloadConfig(thresholds: themeStore.thresholds)
         if settingsStore.claudeEnabled {
             usageStore.startAutoRefresh(thresholds: themeStore.thresholds)
         }
+        accountsStore.configureStore = { [weak self] store, record, index, count in
+            self?.configureAccountStore(store, record: record, index: index, count: count)
+        }
+        accountsStore.configureAll()
         themeStore.syncToSharedFile()
 
-        // Monitor token files (credentials + config.json) for changes
+        // Monitor token files (credentials + config.json) for changes, in the
+        // folders the accounts actually read.
+        applyClaudeSources()
         tokenFileMonitor.startMonitoring()
         tokenFileMonitor.tokenChanged
             .receive(on: RunLoop.main)
@@ -303,6 +401,17 @@ final class StatusBarController: NSObject {
                 guard let self else { return }
                 self.usageStore.handleTokenChange()
                 Task { await self.usageStore.refresh(force: true) }
+            }
+            .store(in: &cancellables)
+
+        tokenFileMonitor.accountTokenChanged
+            .receive(on: RunLoop.main)
+            .sink { [weak self] id in
+                guard let self, self.settingsStore.claudeEnabled,
+                      let record = self.accountsStore.record(for: id), !record.isPaused,
+                      let store = self.accountsStore.usageStore(for: id) else { return }
+                store.handleTokenChange()
+                Task { await store.refresh(force: true) }
             }
             .store(in: &cancellables)
 
@@ -326,12 +435,62 @@ final class StatusBarController: NSObject {
                 async let claude: Void = self.usageStore.refreshIfStale()
                 async let codex: Void = self.codexStore.refreshIfStale()
                 _ = await (claude, codex)
+                guard self.settingsStore.claudeEnabled else { return }
+                for id in self.accountsStore.activeAccountIDs where !id.isMain {
+                    await self.accountsStore.usageStore(for: id)?.refreshIfStale()
+                }
             }
         }
 
         if settingsStore.outageMonitoringEnabled && settingsStore.claudeEnabled {
             vendorStatusStore.start()
         }
+    }
+
+    /// An added account's store, set up like the main one. It stays idle,
+    /// showing its cached numbers, while Claude is off or the account is
+    /// paused, and reads no credential then. Running accounts start apart:
+    /// the first fetch waits five seconds per position, and the refresh
+    /// loops are spread across one interval, so N accounts never hit the
+    /// usage endpoint in the same second.
+    private func configureAccountStore(_ store: UsageStore, record: ClaudeAccountRecord, index: Int, count: Int) {
+        store.proxyConfig = settingsStore.proxyConfig
+        store.pacingMargin = settingsStore.pacingMargin
+        store.pacingSchedule = settingsStore.pacingSchedule
+        store.refreshIntervalSeconds = TimeInterval(settingsStore.refreshInterval)
+        // The account's alerts follow the app's settings and its own switch.
+        let id = record.id
+        store.notifTogglesProvider = { [weak self] in self?.makeNotificationToggles(for: id) }
+
+        // The last numbers show at once, whatever happens next: a running
+        // account's first fetch waits its turn below, and a login that is
+        // refused then keeps them on screen, dated, rather than a blank 0%.
+        if store.lastUsage == nil { store.loadCached() }
+        guard settingsStore.claudeEnabled, !record.isPaused else {
+            store.stopAutoRefresh()
+            store.loadCached()
+            return
+        }
+        let thresholds = themeStore.thresholds
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(Double(index) * 5))
+            guard let self, self.settingsStore.claudeEnabled,
+                  let current = self.accountsStore.record(for: id), !current.isPaused,
+                  self.accountsStore.usageStore(for: id) === store else { return }
+            store.reloadConfig(thresholds: thresholds)
+        }
+        let spread = Double(index) * Double(settingsStore.refreshInterval) / Double(max(count, 1))
+        store.startAutoRefresh(interval: 600 + spread, thresholds: thresholds)
+    }
+
+    /// What one Claude account's store alerts with: the shared bundle, muted
+    /// for Claude when the user switched that account's alerts off in
+    /// Settings > Notifications.
+    private func makeNotificationToggles(for account: AccountID) -> NotificationToggles {
+        makeNotificationToggles().scoped(
+            to: accountsStore.record(for: account),
+            tracksSeveralAccounts: accountsStore.tracksMultipleAccounts
+        )
     }
 
     /// Single source of truth for the notification-toggle bundle, shared by the
@@ -423,10 +582,15 @@ final class StatusBarController: NSObject {
             menuBarRepaintDeferred = true
             return
         }
-        let image = MenuBarRenderer.render(
-            .live(usage: usageStore, theme: themeStore, settings: settingsStore, vendor: vendorStatusStore, codex: codexStore)
+        let data = MenuBarRenderer.RenderData.live(
+            usage: usageStore, theme: themeStore, settings: settingsStore, vendor: vendorStatusStore,
+            codex: codexStore, accounts: accountsStore
         )
-        statusItem.button?.image = image
+        statusItem.button?.image = MenuBarRenderer.render(data)
+        // The bar marks accounts by colour only; hovering it names every
+        // account it marks, in full and in the bar's order.
+        let toolTip = MenuBarRenderer.accountsToolTip(data)
+        if statusItem.button?.toolTip != toolTip { statusItem.button?.toolTip = toolTip }
     }
 
     /// Run a 1-second redraw ONLY while an outage badge is visible, so the
@@ -610,6 +774,11 @@ final class StatusBarController: NSObject {
     @objc private func contextRefresh() {
         Task { await usageStore.refresh(force: true) }
         Task { await codexStore.refresh(force: true) }
+        // Every running added account too: the bar shows them all.
+        guard settingsStore.claudeEnabled else { return }
+        for store in accountsStore.runningExtraStores {
+            Task { await store.refresh(force: true) }
+        }
     }
 
     @objc private func contextOpenDashboard() {
@@ -761,6 +930,7 @@ final class StatusBarController: NSObject {
             .environmentObject(updateStore)
             .environmentObject(sessionStore)
             .environmentObject(vendorStatusStore)
+            .environmentObject(accountsStore)
 
         let isOnboarding = !settingsStore.hasCompletedOnboarding
         let onboardingSize = NSSize(

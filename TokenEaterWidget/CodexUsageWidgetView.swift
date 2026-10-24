@@ -32,7 +32,8 @@ struct CodexUsageWidgetView: View {
                 }
             }
             Spacer(minLength: 0)
-            HStack(spacing: 8) {
+            // Top-aligned: the rings line up whatever the text under each.
+            HStack(alignment: .top, spacing: 8) {
                 ForEach(family == .systemSmall ? Array(windows.prefix(1)) : windows) { window in
                     ring(window)
                 }
@@ -127,8 +128,9 @@ struct CodexUsageWidgetView: View {
             Text(window.label)
                 .font(.system(size: 10, weight: .bold))
                 .foregroundStyle(Color(hex: WidgetTheme.theme.widgetText).opacity(0.85))
+            // Bold and a step up, like the Claude usage widget's (#295).
             Text(window.relativeReset)
-                .font(.system(size: 8))
+                .font(DS.Typography.countdown(10))
                 .foregroundStyle(Color(hex: WidgetTheme.theme.widgetText).opacity(0.45))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)

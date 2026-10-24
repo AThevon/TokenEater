@@ -12,8 +12,21 @@ import SwiftUI
 /// It is the Coverage page's grid, applied to settings.
 struct NotificationsSectionView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var accountsStore: AccountsStore
+    @EnvironmentObject private var usageStore: UsageStore
+
+    /// Follows the added accounts' stores, so the Sonnet row appears as soon
+    /// as any of them reports that limit.
+    @StateObject private var accountStores = UsageStoresObserver()
 
     @State private var notifTestCooldown = false
+
+    /// Sonnet is a model-scoped weekly limit Anthropic no longer sends to most
+    /// accounts. Its row only shows while at least one Claude account's
+    /// response carries it: a switch for an alert that cannot fire is noise.
+    private var anyAccountHasSonnet: Bool {
+        usageStore.hasSonnet || accountsStore.runningExtraStores.contains { $0.hasSonnet }
+    }
 
     /// Wide enough for a mini switch plus breathing room, and identical in
     /// every card so the columns line up down the whole page.
@@ -46,6 +59,7 @@ struct NotificationsSectionView: View {
 
             authorizationCard
             if showsColumns { providerCard }
+            if showsAccounts { accountsCard }
             usageCard
             pacingCard
             resetRemindersCard
@@ -59,6 +73,7 @@ struct NotificationsSectionView: View {
         }
         .padding(24)
         .task { await settingsStore.refreshNotificationStatus() }
+        .followingAccountStores(accountStores, accounts: accountsStore, accountList: settingsStore.claudeAccounts)
     }
 
     private func resetToDefaults() {
@@ -125,6 +140,48 @@ struct NotificationsSectionView: View {
         switch provider {
         case .claude: return $settingsStore.notification.claudeEnabled
         case .codex:  return $settingsStore.notification.codexEnabled
+        }
+    }
+
+    // MARK: - Claude accounts
+
+    /// From two tracked accounts, paused ones included: one switch each, in
+    /// the Claude column. Below that the page is the 6.0 page.
+    private var showsAccounts: Bool {
+        providers.contains(.claude) && accountsStore.tracksMultipleAccounts
+    }
+
+    /// The events, thresholds and offsets on this page are the same for every
+    /// account; this card only says which accounts may alert at all.
+    private var accountsCard: some View {
+        glassCard {
+            VStack(alignment: .leading, spacing: 10) {
+                groupHeader(String(localized: "settings.notifications.group.accounts"),
+                            String(localized: "settings.notifications.group.accounts.hint"))
+                ForEach(accountsStore.records) { record in
+                    HStack(alignment: .center, spacing: 10) {
+                        AccountNotificationLabel(record: record)
+                        Spacer(minLength: 8)
+                        ForEach(providers) { provider in
+                            accountCell(record, provider: provider)
+                                .frame(width: showsColumns ? columnWidth : nil)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func accountCell(_ record: ClaudeAccountRecord, provider: MetricProvider) -> some View {
+        if provider == .claude {
+            let claudeOn = settingsStore.notification.claudeEnabled
+            AccountNotificationToggle(record: record)
+                .disabled(!claudeOn)
+                .opacity(claudeOn ? 1 : 0.35)
+        } else {
+            // Another provider's column: nothing to say per Claude account.
+            Color.clear.frame(height: 1)
         }
     }
 
@@ -279,7 +336,15 @@ struct NotificationsSectionView: View {
             settingsStore.sendTestNotification()
         } else {
             for provider in providers {
-                settingsStore.sendTestNotification(for: provider)
+                // Several running Claude accounts: one test each, named and
+                // threaded like that account's real alerts.
+                if provider == .claude, accountsStore.showsAccountMarkers {
+                    for id in accountsStore.activeAccountIDs {
+                        settingsStore.sendTestNotification(forClaudeAccount: accountsStore.notificationScope(for: id))
+                    }
+                } else {
+                    settingsStore.sendTestNotification(for: provider)
+                }
             }
         }
         notifTestCooldown = true
@@ -323,9 +388,11 @@ struct NotificationsSectionView: View {
                     .claude: $settingsStore.notification.trackWeekly,
                     .codex: $settingsStore.notification.codexTrackWeekly,
                 ])
-                eventRow(String(localized: "settings.notifications.row.sonnet"), [
-                    .claude: $settingsStore.notification.trackSonnet,
-                ])
+                if anyAccountHasSonnet {
+                    eventRow(String(localized: "settings.notifications.row.sonnet"), [
+                        .claude: $settingsStore.notification.trackSonnet,
+                    ])
+                }
                 eventRow(String(localized: "settings.notifications.row.fable"), [
                     .claude: $settingsStore.notification.trackFable,
                 ])
@@ -451,5 +518,56 @@ struct NotificationsSectionView: View {
                 ])
             }
         }
+    }
+}
+
+/// A tracked account's mark and full name, with its pause state, at the head
+/// of its row in the notifications accounts card.
+private struct AccountNotificationLabel: View {
+    let record: ClaudeAccountRecord
+
+    var body: some View {
+        HStack(spacing: 7) {
+            AccountDot(colorHex: record.colorHex, size: 8)
+            Text(record.name)
+                .font(.system(size: 12))
+                .foregroundStyle(record.isPaused ? DS.Palette.textTertiary : DS.Palette.textPrimary)
+                .lineLimit(1)
+            if record.id.isMain {
+                Text(String(localized: "accounts.row.main"))
+                    .font(.system(size: 10))
+                    .foregroundStyle(DS.Palette.textTertiary)
+            }
+            if record.isPaused {
+                Text(String(localized: "accounts.health.paused"))
+                    .font(.system(size: 10))
+                    .foregroundStyle(DS.Palette.textTertiary)
+            }
+        }
+        .help(record.name)
+    }
+}
+
+/// One account's alerts switch. It keeps a local copy of the record's value
+/// and writes it back through `AccountsStore.update`, rather than binding to
+/// the store, so no hand-rolled `Binding` is needed.
+private struct AccountNotificationToggle: View {
+    let record: ClaudeAccountRecord
+
+    @EnvironmentObject private var accountsStore: AccountsStore
+    @State private var isOn = true
+
+    var body: some View {
+        Toggle("", isOn: $isOn)
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .labelsHidden()
+            .help(String(format: String(localized: "settings.notifications.account.help"), record.name))
+            .onAppear { isOn = record.notificationsEnabled }
+            .onChange(of: record.notificationsEnabled) { _, enabled in isOn = enabled }
+            .onChange(of: isOn) { _, enabled in
+                guard enabled != record.notificationsEnabled else { return }
+                accountsStore.update(record.id) { $0.notificationsEnabled = enabled }
+            }
     }
 }

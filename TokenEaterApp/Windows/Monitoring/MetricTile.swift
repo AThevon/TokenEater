@@ -10,11 +10,22 @@ struct TileDescriptor {
     let resetText: String?
     let resetDate: Date?
     let windowDuration: TimeInterval
+    /// The column's name ("Claude", "Codex") when the tile has to say whose
+    /// it is, dropped first when the tile runs short of room.
+    var prefix: String? = nil
+    /// Set while the numbers are the last known ones of a login that no
+    /// longer answers: see `MetricTile.lastNumbersDate`.
+    var lastNumbersDate: Date? = nil
+    /// False for a login that failed with nothing to show: see
+    /// `MetricTile.hasNumbers`.
+    var hasNumbers: Bool = true
 }
 
 struct MetricTile: View {
     let id: String
     var label: String
+    /// See `TileDescriptor.prefix`.
+    var labelPrefix: String? = nil
     let icon: String
     let pct: Int
     let resetText: String?
@@ -30,6 +41,19 @@ struct MetricTile: View {
     /// True once the insights store has done its first load. Lets the
     /// back face show a "loading..." placeholder vs a "no data" one.
     let insightsLoaded: Bool
+    /// Set while the numbers are the last known ones of a login that no
+    /// longer answers: the tile turns grey and says how old they are instead
+    /// of counting down to a reset that may already have passed.
+    var lastNumbersDate: Date? = nil
+    /// False for a login that failed with nothing to show: the tile reads
+    /// "--" in grey, never a 0% that would pass for a fresh reading.
+    var hasNumbers: Bool = true
+
+    /// Set by the grid for all its cards at once; nil lets this card shed
+    /// words on its own.
+    @Environment(\.dashboardTileStyle) private var style
+    /// A header above the section names it: the label drops the prefix.
+    @Environment(\.dashboardColumnHeaded) private var columnHeaded
 
     @State private var isHovered: Bool = false
     @State private var showBack: Bool = false
@@ -37,7 +61,7 @@ struct MetricTile: View {
     @State private var isFlipping: Bool = false
 
     var body: some View {
-        let color = GaugeColorResolver.color(
+        let color = lastNumbersDate != nil || !hasNumbers ? DS.Palette.textTertiary : GaugeColorResolver.color(
             mode: GaugeColorResolver.mode(smartColorEnabled: smartEnabled, windowDuration: windowDuration),
             utilization: pct,
             resetDate: resetDate,
@@ -95,25 +119,23 @@ struct MetricTile: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(color.opacity(0.8))
                     .frame(width: 14)
-                Text(label.uppercased())
-                    .font(DS.Typography.micro)
-                    .tracking(1.2)
-                    .foregroundStyle(DS.Palette.textSecondary)
-                    .lineLimit(1)
+                tileLabel(suffix: nil)
                 Spacer(minLength: 0)
             }
 
             HStack(alignment: .firstTextBaseline, spacing: 1) {
-                Text("\(pct)")
+                Text(hasNumbers ? "\(pct)" : "--")
                     .font(.system(size: 30, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(color)
                     .contentTransition(.numericText(value: Double(pct)))
                     .animation(DS.Motion.springLiquid, value: pct)
-                Text("%")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(color.opacity(0.55))
-                    .baselineOffset(3)
+                if hasNumbers {
+                    Text("%")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(color.opacity(0.55))
+                        .baselineOffset(3)
+                }
             }
 
             GeometryReader { geo in
@@ -130,36 +152,125 @@ struct MetricTile: View {
             .frame(height: 3)
             .animation(DS.Motion.springLiquid, value: pct)
 
-            Group {
-                if let resetText, !resetText.isEmpty {
-                    HStack(spacing: 5) {
-                        Image(systemName: "clock.arrow.circlepath")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(DS.Palette.textTertiary)
-                        Text(String(localized: "dashboard.hero.resetsIn").uppercased())
-                            .font(.system(size: 8, weight: .bold))
-                            .tracking(1)
-                            .foregroundStyle(DS.Palette.textTertiary)
-                        Text(resetText)
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
-                            .foregroundStyle(DS.Palette.textSecondary)
-                        if let resetDate {
-                            Text("·")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(DS.Palette.textTertiary.opacity(0.5))
-                            Text(absoluteResetText(date: resetDate))
-                                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                .foregroundStyle(DS.Palette.textSecondary)
+            ZStack(alignment: .leading) {
+                // Holds the line at the countdown's height whatever it shows
+                // ("last numbers", nothing at all), so cards side by side
+                // stay level.
+                Text(" ")
+                    .font(Self.countdownFont)
+                    .hidden()
+                    .accessibilityHidden(true)
+                if let lastNumbersDate, hasNumbers {
+                    lastNumbersLine(lastNumbersDate)
+                } else if hasNumbers, let resetText, !resetText.isEmpty {
+                    if let style {
+                        resetLine(resetText, words: style.resetWords, absolute: style.clock)
+                    } else {
+                        // Sheds the "resets in" words, then the clock time,
+                        // before anything would truncate.
+                        ViewThatFits(in: .horizontal) {
+                            resetLine(resetText, words: true, absolute: true)
+                            resetLine(resetText, words: false, absolute: true)
+                            resetLine(resetText, words: false, absolute: false)
                         }
                     }
-                } else {
-                    Text(" ")
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.clear)
                 }
             }
             .lineLimit(1)
         }
+    }
+
+    /// The tile's label, with the column's name in front while it fits and
+    /// without it once it does not. The name is what goes first: the tile's
+    /// place under its column's hero still says whose it is.
+    /// The back face adds its window ("7D"), which goes before the label
+    /// would be cut.
+    private func tileLabel(suffix: String?) -> some View {
+        let named = columnHeaded ? nil : labelPrefix.flatMap { prefix in (style?.prefix ?? true) ? prefix : nil }
+        return ViewThatFits(in: .horizontal) {
+            if let named {
+                tileLabelText(named + " · " + label + (suffix.map { " · " + $0 } ?? ""))
+            }
+            // With a style set by the grid the name is either always there
+            // or never, so cards side by side keep reading alike.
+            if named == nil || style == nil {
+                tileLabelText(label + (suffix.map { " · " + $0 } ?? ""))
+            }
+            if suffix != nil {
+                tileLabelText(label)
+            }
+        }
+    }
+
+    private func tileLabelText(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(DS.Typography.micro)
+            .tracking(1.2)
+            .foregroundStyle(DS.Palette.textSecondary)
+            .lineLimit(1)
+    }
+
+    /// The time left on the reset line: two steps above the 10 pt clock time
+    /// next to it (#295).
+    private static let countdownFont = DS.Typography.countdown(12, monospaced: true)
+
+    /// The countdown is the line's largest text (#295), so the words and the
+    /// clock time sit on its baseline rather than on its centre.
+    private func resetLine(_ resetText: String, words: Bool, absolute: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(DS.Palette.textTertiary)
+            if words {
+                Text(String(localized: "dashboard.hero.resetsIn").uppercased())
+                    .font(.system(size: 8, weight: .bold))
+                    .tracking(1)
+                    .foregroundStyle(DS.Palette.textTertiary)
+            }
+            Text(resetText)
+                .font(Self.countdownFont)
+                .foregroundStyle(DS.Palette.textPrimary)
+            if absolute, let resetDate {
+                Text("·")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(DS.Palette.textTertiary.opacity(0.5))
+                Text(absoluteResetText(date: resetDate))
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(DS.Palette.textSecondary)
+            }
+        }
+        .lineLimit(1)
+    }
+
+    /// "LAST NUMBERS 2 days ago", re-read every minute so the age keeps up
+    /// with the hero's while the window stays open. The words go first when
+    /// room runs out.
+    private func lastNumbersLine(_ date: Date) -> some View {
+        TimelineView(.periodic(from: .now, by: 60)) { _ in
+            let age = date.formatted(.relative(presentation: .named))
+            ViewThatFits(in: .horizontal) {
+                lastNumbersLine(age: age, words: true)
+                lastNumbersLine(age: age, words: false)
+            }
+        }
+    }
+
+    private func lastNumbersLine(age: String, words: Bool) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: "clock.badge.exclamationmark")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(DS.Palette.textTertiary)
+            if words {
+                Text(String(localized: "dashboard.hero.lastNumbers").uppercased())
+                    .font(.system(size: 8, weight: .bold))
+                    .tracking(1)
+                    .foregroundStyle(DS.Palette.textTertiary)
+            }
+            Text(age)
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .foregroundStyle(DS.Palette.textSecondary)
+        }
+        .lineLimit(1)
     }
 
     /// "16:32" for sub-day windows (5h), "Tue 16:32" for multi-day
@@ -172,8 +283,8 @@ struct MetricTile: View {
         return date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
     }
 
-    /// Back face - "details" view. When `insights` is available (weekly,
-    /// sonnet, opus tiles) we show a rich 7d breakdown; otherwise we
+    /// Back face - "details" view. When `insights` is available (the 7-day
+    /// tiles) we show a rich 7d breakdown; otherwise we
     /// fall back to a minimal placeholder. Card dimensions match the
     /// front via the parent's fixed height.
     @ViewBuilder
@@ -186,11 +297,7 @@ struct MetricTile: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(color.opacity(0.8))
                     .frame(width: 14)
-                Text("\(label.uppercased()) · 7D")
-                    .font(DS.Typography.micro)
-                    .tracking(1.2)
-                    .foregroundStyle(DS.Palette.textSecondary)
-                    .lineLimit(1)
+                tileLabel(suffix: "7D")
                 Spacer(minLength: 0)
                 if let delta = insights?.deltaPercent {
                     Text(String(format: "%+.0f%%", delta))

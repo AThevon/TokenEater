@@ -18,13 +18,18 @@ import SwiftUI
 /// Picking a scope here switches the app's mode for real, and leaving Studio
 /// keeps it: the layout you just edited is the one you see afterwards (#285).
 /// The header switcher is back on screen outside Studio to change it.
+///
+/// Each running Claude account is a scope of its own, since its Claude mode
+/// keeps its own layouts. When their names no longer fit the row, the pills
+/// drop the names and keep the mark and the colour dot, the full name staying
+/// in the tooltip.
 struct StudioScopePicker: View {
     @EnvironmentObject private var settingsStore: SettingsStore
 
-    private var modes: [ProviderMode] { settingsStore.availableProviderModes }
+    private var choices: [ModeChoice] { settingsStore.modeChoices }
 
     var body: some View {
-        if modes.count > 1 {
+        if choices.count > 1 {
             HStack(spacing: DS.Spacing.sm) {
                 Text("studio.scope.label")
                     .font(DS.Typography.micro)
@@ -32,10 +37,9 @@ struct StudioScopePicker: View {
                     .textCase(.uppercase)
                     .foregroundStyle(DS.Palette.textTertiary)
 
-                HStack(spacing: 5) {
-                    ForEach(modes) { mode in
-                        pill(mode)
-                    }
+                ViewThatFits(in: .horizontal) {
+                    pills(showsNames: true)
+                    pills(showsNames: false)
                 }
 
                 Spacer(minLength: DS.Spacing.sm)
@@ -59,17 +63,35 @@ struct StudioScopePicker: View {
         }
     }
 
-    private func pill(_ mode: ProviderMode) -> some View {
-        let isActive = settingsStore.activeProviderMode == mode
+    private func pills(showsNames: Bool) -> some View {
+        HStack(spacing: 5) {
+            ForEach(choices) { choice in
+                pill(choice, showsName: showsNames)
+            }
+        }
+        .fixedSize()
+    }
+
+    private func pill(_ choice: ModeChoice, showsName: Bool) -> some View {
+        let isActive = settingsStore.isSelected(choice)
+        let account = settingsStore.showsAccountMarkers ? choice.account.flatMap(settingsStore.claudeAccount) : nil
         return Button {
             guard !isActive else { return }
-            settingsStore.activeProviderMode = mode
+            settingsStore.selectScope(choice.mode, account: choice.account ?? .main)
         } label: {
             HStack(spacing: 4) {
-                if let provider = mode.provider {
+                if let provider = choice.mode.provider {
                     ProviderGlyph(provider: provider, size: 14)
                 }
-                Text(mode.localizedLabel)
+                if let account {
+                    AccountDot(colorHex: account.colorHex, size: 8)
+                    if showsName {
+                        Text(account.name)
+                            .lineLimit(1)
+                    }
+                } else {
+                    Text(choice.mode.localizedLabel)
+                }
             }
             // Bigger than the header switcher on purpose. This one is a
             // deliberate, occasional choice rather than a control you flick
@@ -94,6 +116,10 @@ struct StudioScopePicker: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        // The full name for the narrow variant, nothing for the plain pills,
+        // which carry their whole label already.
+        .help(account?.name ?? "")
+        .accessibilityLabel(account?.name ?? choice.mode.localizedLabel)
         .accessibilityAddTraits(isActive ? [.isSelected] : [])
     }
 }

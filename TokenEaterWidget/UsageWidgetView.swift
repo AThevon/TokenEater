@@ -24,14 +24,26 @@ enum WidgetTheme {
 
 struct WidgetBackgroundModifier: ViewModifier {
     var backgroundColor: Color = Color(hex: WidgetTheme.theme.widgetBackground).opacity(0.85)
+    /// Set only inside the "Claude · Account" widget. A paused account's last
+    /// numbers stay readable but recede, over the same background.
+    @Environment(\.widgetAccount) private var account
 
     func body(content: Content) -> some View {
         if #available(macOS 14.0, *) {
-            content.containerBackground(for: .widget) {
+            dimmedIfPaused(content).containerBackground(for: .widget) {
                 backgroundColor
             }
         } else {
-            content.padding().background(backgroundColor)
+            dimmedIfPaused(content).padding().background(backgroundColor)
+        }
+    }
+
+    @ViewBuilder
+    private func dimmedIfPaused(_ content: Content) -> some View {
+        if account?.isPaused == true {
+            content.opacity(WidgetAccountBadge.pausedOpacity)
+        } else {
+            content
         }
     }
 }
@@ -71,8 +83,10 @@ struct UsageWidgetView: View {
             WidgetHeader("widget.title.usage")
                 .padding(.bottom, 14)
 
-            // Circular gauges
-            HStack(spacing: 0) {
+            // Circular gauges. Top-aligned so the rings line up whatever the
+            // height of the text under each one (a bold countdown, a 7 pt
+            // pacing message).
+            HStack(alignment: .top, spacing: 0) {
                 if let fiveHour = usage.fiveHour {
                     CircularUsageView(
                         label: String(localized: "widget.session"),
@@ -106,7 +120,8 @@ struct UsageWidgetView: View {
                         windowDuration: 0,
                         smartEnabled: false,
                         unscaledValue: spend,
-                        unscaledHasSpend: extra.hasUncappedSpend
+                        unscaledHasSpend: extra.hasUncappedSpend,
+                        resetIsTime: false
                     )
                 }
             }
@@ -322,6 +337,10 @@ struct CircularUsageView: View {
     /// Whether that amount is above zero: neutral text colour at zero, the
     /// theme's warning colour once spent (`ThemeColors.uncappedSpendColor`).
     var unscaledHasSpend: Bool = false
+    /// `resetInfo` says when the window resets (a countdown, or the weekly
+    /// reset's day and time): bold and a step up so it reads at a glance
+    /// (#295). False for Extra Credits, whose line is an amount or "Monthly".
+    var resetIsTime: Bool = true
 
     private var unscaledColor: Color {
         theme.uncappedSpendColor(
@@ -377,7 +396,7 @@ struct CircularUsageView: View {
                     .tracking(0.2)
                     .foregroundStyle(Color(hex: theme.widgetText).opacity(0.85))
                 Text(resetInfo)
-                    .font(.system(size: 8, weight: .medium))
+                    .font(resetIsTime ? DS.Typography.countdown(10) : .system(size: 8, weight: .medium))
                     .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
             }
         }
@@ -583,9 +602,11 @@ struct LargeUsageBarView: View {
                     .foregroundStyle(accentColor)
 
                 if !resetInfo.isEmpty {
+                    // When the window resets, bold and at full strength so it
+                    // reads at a glance; same size, the row has no room (#295).
                     Text(resetInfo)
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
+                        .font(DS.Typography.countdown(10, monospaced: true))
+                        .foregroundStyle(Color(hex: theme.widgetText).opacity(WidgetTokens.primary))
                 }
             }
 

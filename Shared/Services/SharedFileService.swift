@@ -5,6 +5,9 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
     private static let legacyDirectoryName = "com.tokeneater.shared"
     private static let oldDirectoryName = "com.claudeusagewidget.shared"
     private static let fileName = "shared.json"
+    /// The file this instance reads and writes. A second Claude account keeps
+    /// its own file so it never overwrites the main account's widget data.
+    private let instanceFileName: String
 
     private var realHomeDirectory: String {
         guard let pw = getpwuid(getuid()) else { return NSHomeDirectory() }
@@ -36,7 +39,7 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
     }
 
     private var sharedFileURL: URL {
-        rootDirectoryURL.appendingPathComponent(Self.fileName)
+        rootDirectoryURL.appendingPathComponent(instanceFileName)
     }
 
     private var legacyHomeRelativeFileURL: URL {
@@ -54,8 +57,14 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
     }
 
     init() {
+        instanceFileName = Self.fileName
         migrateFromOldProductName()
         migrateFromGroupContainerToHomeRelative()
+    }
+
+    /// A side file next to `shared.json`, with no migrations.
+    init(fileName: String) {
+        instanceFileName = fileName
     }
 
     // MARK: - Migrations
@@ -146,6 +155,12 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         var pacingHoursEnabled: Bool?
         var pacingStartHour: Int?
         var pacingEndHour: Int?
+        /// The tracked Claude accounts, for the account picker of the
+        /// "Claude · Account" widget: identifier, name, colour, paused. No
+        /// identity (see `AccountIndexEntry`). Absent until a second account
+        /// or a renamed main account makes it say something the widget
+        /// would not assume on its own.
+        var accountsIndex: StoredAccountsIndex?
     }
 
     /// In-memory cache - avoids redundant disk reads within the same process.
@@ -236,6 +251,14 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         save(data)
     }
 
+    func clearUsage() {
+        var data = loadFresh()
+        guard data.cachedUsage != nil || data.lastSyncDate != nil else { return }
+        data.cachedUsage = nil
+        data.lastSyncDate = nil
+        save(data)
+    }
+
     func updateTheme(_ theme: ThemeColors, thresholds: UsageThresholds) {
         var data = loadFresh()
         data.theme = theme
@@ -291,6 +314,18 @@ final class SharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
         var data = loadFresh()
         data.lastWeekDailyTotals = totals
         data.lastWeekTotalsRefreshedAt = refreshedAt
+        save(data)
+    }
+
+    /// The tracked Claude accounts as the widget knows them, nil until the
+    /// app first writes them (the widget then assumes the main account alone).
+    var accountsIndex: [AccountIndexEntry]? {
+        load().accountsIndex?.entries
+    }
+
+    func updateAccountsIndex(_ index: [AccountIndexEntry]) {
+        var data = loadFresh()
+        data.accountsIndex = StoredAccountsIndex(index)
         save(data)
     }
 

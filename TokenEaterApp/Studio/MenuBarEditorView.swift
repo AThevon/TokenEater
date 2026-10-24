@@ -17,6 +17,7 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var codexStore: CodexUsageStore
+    @EnvironmentObject private var accountsStore: AccountsStore
 
     @State private var selectedSegmentID: UUID?
     @State private var showSaveDialog = false
@@ -108,7 +109,7 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
 
     private var activeBuiltin: MenuBarBuiltinTemplate? {
         guard activeUserTemplateID == nil else { return nil }
-        return MenuBarBuiltinTemplate.allCases.first { $0.composition.isEquivalent(to: current) }
+        return MenuBarBuiltinTemplate.allCases.first { $0.matches(current) }
     }
 
     private var isModified: Bool {
@@ -231,23 +232,18 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
     private var addSegmentMenu: some View {
         AddElementMenuButton(title: String(localized: "menuBar.editor.addSegment")) {
             // Same rule as the popover editor: provider first, family second,
-            // derived from the kinds rather than listed by hand.
+            // derived from the kinds rather than listed by hand. With several
+            // Claude accounts in All, each account is a group of its own, and
+            // what is added there reads that account.
             ForEach(scopedProviders) { provider in
-                let metrics = MenuBarSegmentKind.allCases.filter {
-                    $0.provider == provider && !$0.isPacing
-                }
-                let pacing = MenuBarSegmentKind.allCases.filter {
-                    $0.provider == provider && $0.isPacing
-                }
-                if !metrics.isEmpty {
-                    Section(pickerSectionTitle(provider, "menuBar.editor.family.metrics")) {
-                        ForEach(metrics) { addButton(for: $0) }
+                if provider == .claude && showsAccountGroups {
+                    ForEach(settingsStore.activeClaudeAccounts) { account in
+                        Menu(String(format: String(localized: "editor.add.accountGroup"), account.name)) {
+                            familySections(provider, account: account.id, titled: false)
+                        }
                     }
-                }
-                if !pacing.isEmpty {
-                    Section(pickerSectionTitle(provider, "menuBar.editor.family.pacing")) {
-                        ForEach(pacing) { addButton(for: $0) }
-                    }
+                } else {
+                    familySections(provider, account: nil, titled: true)
                 }
             }
             Section(String(localized: "menuBar.editor.family.status")) {
@@ -255,6 +251,37 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
                 addButton(for: .serviceStatus)
             }
         }
+    }
+
+    /// One provider's metrics then pacing segments, for one account when
+    /// `account` is set. `titled` prefixes the provider's name when there is
+    /// another one to tell it from; inside an account's own group the group
+    /// already says whose.
+    @ViewBuilder
+    private func familySections(_ provider: MetricProvider, account: AccountID?, titled: Bool) -> some View {
+        let metrics = MenuBarSegmentKind.allCases.filter {
+            $0.provider == provider && !$0.isPacing
+        }
+        let pacing = MenuBarSegmentKind.allCases.filter {
+            $0.provider == provider && $0.isPacing
+        }
+        if !metrics.isEmpty {
+            Section(titled ? pickerSectionTitle(provider, "menuBar.editor.family.metrics") : String(localized: "menuBar.editor.family.metrics")) {
+                ForEach(metrics) { addButton(for: $0, account: account) }
+            }
+        }
+        if !pacing.isEmpty {
+            Section(titled ? pickerSectionTitle(provider, "menuBar.editor.family.pacing") : String(localized: "menuBar.editor.family.pacing")) {
+                ForEach(pacing) { addButton(for: $0, account: account) }
+            }
+        }
+    }
+
+    /// Accounts are picked per segment in All only: Claude mode edits one
+    /// account's own layout, where a segment with no account reads that
+    /// account and the layout stays portable.
+    private var showsAccountGroups: Bool {
+        settingsStore.activeProviderMode == .all && settingsStore.showsAccountMarkers
     }
 
     /// The providers this scope can actually render, matching the renderer's
@@ -271,14 +298,14 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
     }
 
     @ViewBuilder
-    private func addButton(for kind: MenuBarSegmentKind) -> some View {
+    private func addButton(for kind: MenuBarSegmentKind, account: AccountID? = nil) -> some View {
         // Not disabled when unavailable: let the user pre-place a metric the
         // account does not have yet so the layout is future-proof; the
         // renderer keeps it hidden until the data actually shows up. The label
         // says why it would not draw, in the words of the actual reason.
-        let blocked = unavailability(kind)
+        let blocked = unavailability(MenuBarSegment.added(kind: kind, account: account))
         Button {
-            addSegment(kind)
+            addSegment(kind, account: account)
         } label: {
             Label(
                 blocked.map { "\(kind.localizedLabel) (\($0.label))" } ?? kind.localizedLabel,
@@ -290,15 +317,14 @@ struct MenuBarEditorView<PreviewHeader: View, PreviewFooter: View>: View {
     /// Why this kind would draw nothing, or nil when it draws. Asked of the
     /// same gate the renderer uses, so the menu and the menu bar cannot
     /// disagree about what an account has.
-    private func unavailability(_ kind: MenuBarSegmentKind) -> EditorUnavailability? {
+    private func unavailability(_ segment: MenuBarSegment) -> EditorUnavailability? {
         EditorUnavailability.reason(
-            for: kind, settings: settingsStore, usage: usageStore, codex: codexStore
+            for: segment, settings: settingsStore, accounts: accountsStore, usage: usageStore, codex: codexStore
         )
     }
 
-    private func addSegment(_ kind: MenuBarSegmentKind) {
-        let style = kind.allowedStyles.first ?? .text
-        let segment = MenuBarSegment(kind: kind, style: style)
+    private func addSegment(_ kind: MenuBarSegmentKind, account: AccountID?) {
+        let segment = MenuBarSegment.added(kind: kind, account: account)
         withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
             settingsStore.menuBarComposition.segments.insert(segment, at: 0)
         }
@@ -461,6 +487,11 @@ private struct MenuBarLivePreview: View {
     @EnvironmentObject private var themeStore: ThemeStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var vendorStatusStore: VendorStatusStore
+    @EnvironmentObject private var accountsStore: AccountsStore
+
+    /// The preview draws every running account's numbers, not only the
+    /// main account's in the environment.
+    @StateObject private var accountStores = UsageStoresObserver()
 
     @Binding var selectedSegmentID: UUID?
 
@@ -469,7 +500,7 @@ private struct MenuBarLivePreview: View {
     var body: some View {
         let data = MenuBarRenderer.RenderData.live(
             usage: usageStore, theme: themeStore, settings: settingsStore, vendor: vendorStatusStore,
-            codex: codexStore
+            codex: codexStore, accounts: accountsStore
         )
         let rendered = MenuBarRenderer.renderWithHitRects(data)
         let w = rendered.image.size.width * scale
@@ -529,8 +560,35 @@ private struct MenuBarLivePreview: View {
                 .foregroundStyle(.white.opacity(0.3))
                 .frame(maxWidth: .infinity)
                 .multilineTextAlignment(.center)
+
+            // Several accounts make a long bar quickly, and the notch of a
+            // small screen hides what does not fit next to it. Only said
+            // once account markers are on: a single account's bar looks
+            // and warns exactly as it always did.
+            if settingsStore.showsAccountMarkers,
+               rendered.image.size.width > MenuBarRenderer.notchSafeWidth {
+                Label(String(localized: "menuBar.editor.tooWide"), systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(DS.Palette.semanticWarning.opacity(0.85))
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            // Accounts are told apart by their ring's colour alone, which a
+            // monochrome bar does not have: it adds each account's initial,
+            // and says so here.
+            if settingsStore.showsAccountMarkers && themeStore.menuBarMonochrome {
+                Text("menuBar.editor.accounts.monochrome")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.white.opacity(0.3))
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .frame(maxWidth: .infinity)
+        .followingAccountStores(accountStores, accounts: accountsStore, accountList: settingsStore.claudeAccounts)
     }
 }
 
@@ -540,6 +598,9 @@ private struct MenuBarSegmentListEditor: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var codexStore: CodexUsageStore
+    @EnvironmentObject private var accountsStore: AccountsStore
+    /// The availability badges read the added accounts' stores too.
+    @StateObject private var accountStores = UsageStoresObserver()
 
     @Binding var selectedSegmentID: UUID?
     @State private var draggingID: UUID?
@@ -553,6 +614,7 @@ private struct MenuBarSegmentListEditor: View {
             }
         }
         .onDrop(of: [.text], delegate: ReorderGapDropDelegate(draggingID: $draggingID))
+        .followingAccountStores(accountStores, accounts: accountsStore, accountList: settingsStore.claudeAccounts)
     }
 
     private var emptyHint: some View {
@@ -569,7 +631,10 @@ private struct MenuBarSegmentListEditor: View {
                 segment: segment,
                 isSelected: selectedSegmentID == segment.id,
                 isDragging: draggingID == segment.id,
-                unavailable: unavailability(segment.kind),
+                unavailable: unavailability(segment),
+                account: accountMark(for: segment),
+                accountChoices: settingsStore.activeClaudeAccounts,
+                onAccount: { id in mutate(segment.id) { $0.account = id.isMain ? nil : id } },
                 onSelect: {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
                         selectedSegmentID = (selectedSegmentID == segment.id) ? nil : segment.id
@@ -597,10 +662,19 @@ private struct MenuBarSegmentListEditor: View {
     /// Why this segment would not draw, or nil when it draws. The decision
     /// itself still belongs to `MenuBarSegmentAvailability`, which mirrors the
     /// renderer; this only picks the sentence that explains it.
-    private func unavailability(_ kind: MenuBarSegmentKind) -> EditorUnavailability? {
+    private func unavailability(_ segment: MenuBarSegment) -> EditorUnavailability? {
         EditorUnavailability.reason(
-            for: kind, settings: settingsStore, usage: usageStore, codex: codexStore
+            for: segment, settings: settingsStore, accounts: accountsStore, usage: usageStore, codex: codexStore
         )
+    }
+
+    /// The account a Claude row belongs to, for its dot and its account
+    /// menu, in All once two accounts run. Nil everywhere else.
+    private func accountMark(for segment: MenuBarSegment) -> ClaudeAccountSummary? {
+        guard segment.kind.provider == .claude,
+              settingsStore.activeProviderMode == .all,
+              settingsStore.showsAccountMarkers else { return nil }
+        return settingsStore.claudeAccount(segment.account ?? .main)
     }
 
     private func mutate(_ id: UUID, _ transform: (inout MenuBarSegment) -> Void) {
@@ -629,6 +703,10 @@ private struct MenuBarSegmentRow: View {
     let isSelected: Bool
     let isDragging: Bool
     let unavailable: EditorUnavailability?
+    /// The Claude account the row reads, once there are several to pick from.
+    let account: ClaudeAccountSummary?
+    let accountChoices: [ClaudeAccountSummary]
+    let onAccount: (AccountID) -> Void
     let onSelect: () -> Void
     let onToggleHidden: () -> Void
     let onDelete: () -> Void
@@ -645,11 +723,17 @@ private struct MenuBarSegmentRow: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(segment.isHidden ? .white.opacity(0.3) : .white.opacity(0.7)).frame(width: 16)
                 VStack(alignment: .leading, spacing: 1) {
-                    KindLabel(
-                        provider: segment.kind.provider,
-                        text: segment.kind.localizedLabel,
-                        color: segment.isHidden ? .white.opacity(0.35) : .white.opacity(0.9)
-                    )
+                    HStack(spacing: 5) {
+                        if let account {
+                            AccountDot(colorHex: account.colorHex, size: 7)
+                                .opacity(segment.isHidden || account.isPaused ? 0.4 : 1)
+                        }
+                        KindLabel(
+                            provider: segment.kind.provider,
+                            text: segment.kind.localizedLabel,
+                            color: segment.isHidden ? .white.opacity(0.35) : .white.opacity(0.9)
+                        )
+                    }
                     if let unavailable {
                         Text(unavailable.label)
                             .font(.system(size: 9)).foregroundStyle(.orange.opacity(0.7))
@@ -671,6 +755,7 @@ private struct MenuBarSegmentRow: View {
             }
 
             HStack(spacing: 8) {
+                if let account { AccountPickerMenu(current: account, choices: accountChoices, onPick: onAccount) }
                 if segment.kind.allowedStyles.count > 1 { styleMenu }
                 if segment.kind.family == .pacing { shapeMenu }
                 if segment.kind == .sessionReset { formatMenu }
@@ -772,6 +857,31 @@ struct EditorPickerLabel: View {
     }
 }
 
+/// The account a Claude row of a Studio layout reads, as a menu of the
+/// running accounts. Shared by the menu bar and popover editors, styled like
+/// the style and width menus next to it.
+struct AccountPickerMenu: View {
+    let current: ClaudeAccountSummary
+    let choices: [ClaudeAccountSummary]
+    let onPick: (AccountID) -> Void
+
+    var body: some View {
+        Menu {
+            ForEach(choices) { choice in
+                Button {
+                    onPick(choice.id)
+                } label: {
+                    if choice.id == current.id { Label(choice.name, systemImage: "checkmark") }
+                    else { Text(choice.name) }
+                }
+            }
+        } label: {
+            EditorPickerLabel(caption: "editor.pick.account", value: current.name)
+        }
+        .menuStyle(.button).buttonStyle(.bordered).controlSize(.small).tint(.secondary).menuIndicator(.hidden).fixedSize()
+    }
+}
+
 // MARK: - Availability
 
 /// Whether a segment would be drawn at all, asked by the add menu and by the
@@ -797,6 +907,7 @@ enum MenuBarSegmentAvailability {
             guard settings.activeProviderMode.shows(provider) else { return false }
         }
         switch kind {
+        case .sonnet: return usage.hasSonnet
         case .fable, .fablePacing: return usage.hasFable
         case .extraCredits: return usage.hasExtraCredits
         case .codexSession, .codexSessionPacing:

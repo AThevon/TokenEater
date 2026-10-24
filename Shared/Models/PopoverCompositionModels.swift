@@ -205,6 +205,12 @@ struct PopoverElement: Codable, Equatable, Identifiable {
     /// Kept in the list but not rendered (the editor's eye toggle).
     var isHidden: Bool
     var options: PopoverElementOptions
+    /// The Claude account a Claude element reads. Nil is the account the mode
+    /// shows (the main one, or the focused one in Claude mode), so every
+    /// element written before accounts existed keeps meaning what it meant.
+    /// Ignored by Codex and neutral kinds. Encoded only when set, so a layout
+    /// that never targets an account stays byte for byte what 6.0 wrote.
+    var account: AccountID?
 
     init(
         id: UUID = UUID(),
@@ -212,7 +218,8 @@ struct PopoverElement: Codable, Equatable, Identifiable {
         style: PopoverElementStyle,
         width: PopoverElementWidth,
         isHidden: Bool = false,
-        options: PopoverElementOptions = PopoverElementOptions()
+        options: PopoverElementOptions = PopoverElementOptions(),
+        account: AccountID? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -220,6 +227,7 @@ struct PopoverElement: Codable, Equatable, Identifiable {
         self.width = width
         self.isHidden = isHidden
         self.options = options
+        self.account = account
     }
 
     init(from decoder: Decoder) throws {
@@ -233,6 +241,9 @@ struct PopoverElement: Codable, Equatable, Identifiable {
         id = (try? c.decodeIfPresent(UUID.self, forKey: .id)) ?? UUID()
         isHidden = (try? c.decodeIfPresent(Bool.self, forKey: .isHidden)) ?? false
         options = (try? c.decodeIfPresent(PopoverElementOptions.self, forKey: .options)) ?? PopoverElementOptions()
+        // An unreadable account falls back to the mode's account rather than
+        // dropping the element.
+        account = (try? c.decodeIfPresent(AccountID.self, forKey: .account)) ?? nil
     }
 
     /// Width clamped to what the style allows - a decoded or programmatic
@@ -326,13 +337,30 @@ struct PopoverComposition: Codable, Equatable {
         guard elements.count == other.elements.count else { return false }
         for (a, b) in zip(elements, other.elements) where
             a.kind != b.kind || a.style != b.style || a.width != b.width
-            || a.isHidden != b.isHidden || a.options != b.options {
+            || a.isHidden != b.isHidden || a.options != b.options
+            || a.account != b.account {
             return false
         }
         return true
     }
 
     static let `default` = PopoverBuiltinTemplate.classic.composition
+
+    /// The layout with a compact section for an added account: its session
+    /// and weekly limits as two half-width chips, right after the last Claude
+    /// element so the Claude accounts stay together above Codex. Unchanged
+    /// when the account already has an element here.
+    func addingAccountSection(_ id: AccountID) -> PopoverComposition {
+        guard !id.isMain, !elements.contains(where: { $0.account == id }) else { return self }
+        let added = [
+            PopoverElement(kind: .session, style: .chip, width: .half, options: .init(showReset: true), account: id),
+            PopoverElement(kind: .weekly, style: .chip, width: .half, options: .init(showReset: true), account: id),
+        ]
+        var next = self
+        let insertAt = elements.lastIndex { $0.kind.provider == .claude }.map { $0 + 1 } ?? elements.count
+        next.elements.insert(contentsOf: added, at: insertAt)
+        return next
+    }
 }
 
 // MARK: - Templates
@@ -512,7 +540,6 @@ enum PopoverBuiltinTemplate: String, CaseIterable, Identifiable {
             return PopoverComposition(elements: Self.chromeRow + [
                 PopoverElement(kind: .session, style: .gaugeRing, width: .full, options: .init(showReset: true)),
                 PopoverElement(kind: .weekly, style: .gaugeRing, width: .third),
-                PopoverElement(kind: .sonnet, style: .gaugeRing, width: .third),
                 PopoverElement(kind: .fable, style: .gaugeRing, width: .third),
                 PopoverElement(kind: .extraCredits, style: .gaugeRing, width: .third),
                 PopoverElement(kind: .sessionPacing, style: .paceBar, width: .full),
@@ -523,6 +550,19 @@ enum PopoverBuiltinTemplate: String, CaseIterable, Identifiable {
                 PopoverElement(kind: .quitButton, style: .actionButton, width: .half),
             ])
         }
+    }
+
+    /// Whether `composition` is this template, as it ships now or as an
+    /// earlier version shipped it: a popover applied from Complete while it
+    /// still had a Sonnet ring after the weekly one keeps reading as Complete
+    /// in the editor.
+    func matches(_ composition: PopoverComposition) -> Bool {
+        if self.composition.isEquivalent(to: composition) { return true }
+        guard self == .complete else { return false }
+        var legacy = self.composition
+        guard let weekly = legacy.elements.firstIndex(where: { $0.kind == .weekly }) else { return false }
+        legacy.elements.insert(PopoverElement(kind: .sonnet, style: .gaugeRing, width: .third), at: weekly + 1)
+        return legacy.isEquivalent(to: composition)
     }
 }
 
@@ -581,5 +621,26 @@ extension PopoverElementWidth {
         case .half: return "rectangle.split.2x1.fill"
         case .third: return "rectangle.split.3x1.fill"
         }
+    }
+}
+
+// MARK: - Adding from the editor
+
+extension PopoverElement {
+    /// A new element as the Studio editor adds it: the kind's first style at
+    /// its default width, the reset line on for the two windows that have
+    /// one, and the account of the group it was picked from. Only a Claude
+    /// kind of an added account carries an account; the main account and
+    /// every other kind leave it unset, which is what the mode's default
+    /// reads anyway and keeps a layout portable between accounts.
+    static func added(kind: PopoverElementKind, account: AccountID?) -> PopoverElement {
+        let style = kind.allowedStyles.first ?? .utilityRow
+        return PopoverElement(
+            kind: kind,
+            style: style,
+            width: style.defaultWidth,
+            options: PopoverElementOptions(showReset: kind == .session || kind == .weekly),
+            account: kind.provider == .claude && account?.isMain == false ? account : nil
+        )
     }
 }

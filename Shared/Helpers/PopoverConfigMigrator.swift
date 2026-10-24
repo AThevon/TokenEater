@@ -13,7 +13,8 @@ enum PopoverConfigMigrator {
     /// usage in shared.json. The legacy renderer gated the Fable / Extra
     /// Credits satellites on `displayX && hasX` at every render; migration
     /// must apply the same gate or a stale toggle would flip the layout shape
-    /// the user never saw. Sonnet was never presence-gated.
+    /// the user never saw. Sonnet was not gated here: the migrated element
+    /// is kept, and the popover now hides it while the limit is absent.
     struct AccountPresence {
         var hasFable: Bool
         var hasExtraCredits: Bool

@@ -143,6 +143,9 @@ private struct StudioMenuBarThumbnail: View {
     @EnvironmentObject private var themeStore: ThemeStore
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var vendorStatusStore: VendorStatusStore
+    @EnvironmentObject private var accountsStore: AccountsStore
+    /// The thumbnail draws every running account's numbers.
+    @StateObject private var accountStores = UsageStoresObserver()
 
     var body: some View {
         let data = MenuBarRenderer.RenderData.live(
@@ -150,7 +153,8 @@ private struct StudioMenuBarThumbnail: View {
             theme: themeStore,
             settings: settingsStore,
             vendor: vendorStatusStore,
-            codex: codexStore
+            codex: codexStore,
+            accounts: accountsStore
         )
         // Same RenderData as the real status item -> `render(_:)` is the
         // memoized path shared with StatusBarController, so this is a cache
@@ -171,6 +175,7 @@ private struct StudioMenuBarThumbnail: View {
                 .frame(maxWidth: 96, maxHeight: 18)
         }
         .environment(\.colorScheme, .dark)
+        .followingAccountStores(accountStores, accounts: accountsStore, accountList: settingsStore.claudeAccounts)
     }
 }
 

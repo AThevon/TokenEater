@@ -1,7 +1,7 @@
 import Foundation
 
 final class MockSharedFileService: SharedFileServiceProtocol, @unchecked Sendable {
-    var fileURL: URL { URL(fileURLWithPath: "/tmp/mock-shared.json") }
+    var fileURL: URL = URL(fileURLWithPath: "/tmp/mock-shared.json")
 
     var _cachedUsage: CachedUsage?
     var _lastSyncDate: Date?
@@ -12,6 +12,8 @@ final class MockSharedFileService: SharedFileServiceProtocol, @unchecked Sendabl
     var _pacingSchedule: PacingSchedule = .rolling
     var _lastWeekDailyTotals: [Int]?
     var _lastWeekTotalsRefreshedAt: Date?
+    var _accountsIndex: [AccountIndexEntry]?
+    var updateAccountsIndexCallCount = 0
     var updateAfterSyncCallCount = 0
     var updateThemeCallCount = 0
     var updateSmartColorCallCount = 0
@@ -30,11 +32,25 @@ final class MockSharedFileService: SharedFileServiceProtocol, @unchecked Sendabl
     var pacingSchedule: PacingSchedule { _pacingSchedule }
     var lastWeekDailyTotals: [Int]? { _lastWeekDailyTotals }
     var lastWeekTotalsRefreshedAt: Date? { _lastWeekTotalsRefreshedAt }
+    var accountsIndex: [AccountIndexEntry]? { _accountsIndex }
+
+    func updateAccountsIndex(_ index: [AccountIndexEntry]) {
+        updateAccountsIndexCallCount += 1
+        _accountsIndex = index
+    }
 
     func updateAfterSync(usage: CachedUsage, syncDate: Date) {
         updateAfterSyncCallCount += 1
         _cachedUsage = usage
         _lastSyncDate = syncDate
+    }
+
+    var clearUsageCallCount = 0
+
+    func clearUsage() {
+        clearUsageCallCount += 1
+        _cachedUsage = nil
+        _lastSyncDate = nil
     }
 
     func updateTheme(_ theme: ThemeColors, thresholds: UsageThresholds) {

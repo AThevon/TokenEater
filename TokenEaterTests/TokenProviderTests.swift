@@ -699,3 +699,144 @@ struct TokenProviderTests {
         #expect(provider.refreshTokenIfChanged() == false)
     }
 }
+
+@Suite("TokenProvider scopes")
+struct TokenProviderScopeTests {
+
+    private let expiredAt = Date().addingTimeInterval(-3 * 3600)
+    private let validUntil = Date().addingTimeInterval(5 * 3600)
+
+    private func tempDir() throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("TokenProviderScope-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    /// A provider whose sources for any scope are the given mocks, except
+    /// that a folder scope keeps the real no-op Desktop readers: those are
+    /// what keep Claude Desktop out of an added account.
+    private func makeScoped(
+        security: MockSecurityCLIReader,
+        credentials: MockCredentialsFileReader,
+        desktop: MockClaudeConfigReader,
+        decryption: MockElectronDecryptionService
+    ) -> TokenProvider {
+        TokenProvider(
+            securityCLIReader: security,
+            credentialsFileReader: credentials,
+            configReader: desktop,
+            decryptionService: decryption,
+            keychainReader: { nil },
+            readerFactory: { scope in
+                let real = TokenProvider.readers(for: scope, home: "/nonexistent")
+                return TokenProvider.Readers(
+                    securityCLI: security,
+                    credentialsFile: credentials,
+                    config: scope.includesClaudeDesktop ? desktop : real.config,
+                    decryption: scope.includesClaudeDesktop ? decryption : real.decryption,
+                    keychain: { nil }
+                )
+            }
+        )
+    }
+
+    @Test("a folder scope never reads Claude Desktop")
+    func folderScopeHasNoDesktop() throws {
+        let readers = TokenProvider.readers(for: .configDir(path: "/x", service: "Claude Code-credentials-00000000"), home: "/x")
+        #expect(readers.config.readEncryptedToken() == nil)
+        #expect(!readers.decryption.hasEncryptionKey)
+        #expect(!readers.decryption.trySilentRebootstrap())
+        #expect(throws: (any Error).self) { try readers.decryption.decrypt("djEwAAAA") }
+    }
+
+    @Test("a folder scope reads that folder's own credentials file")
+    func folderScopeReadsItsFile() throws {
+        let dir = try tempDir()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let payload = #"{"claudeAiOauth":{"accessToken":"sk-ant-folder","expiresAt":4102444800000}}"#
+        try Data(payload.utf8).write(to: dir.appendingPathComponent(".credentials.json"))
+
+        let readers = TokenProvider.readers(for: .configDir(path: dir.path, service: "S"), home: "/nonexistent")
+        #expect(readers.credentialsFile.readCredential()?.token == "sk-ant-folder")
+        let main = TokenProvider.readers(for: .defaultChain, home: dir.deletingLastPathComponent().path)
+        #expect(main.credentialsFile.readCredential() == nil)
+    }
+
+    @Test("reconfigure drops the cache, reads nothing, and the next read uses the new scope")
+    func reconfigureDropsCache() {
+        let security = MockSecurityCLIReader()
+        security.token = "tok-main"
+        let provider = makeScoped(
+            security: security,
+            credentials: MockCredentialsFileReader(),
+            desktop: MockClaudeConfigReader(),
+            decryption: MockElectronDecryptionService()
+        )
+        #expect(provider.currentToken() == "tok-main")
+        #expect(security.readCallCount == 1)
+
+        let scope = CredentialScope.configDir(path: "/Users/x/.claude-perso", service: "S")
+        provider.reconfigure(scope: scope)
+        #expect(provider.scope == scope)
+        #expect(security.readCallCount == 1)
+        #expect(provider.tokenDiagnostic == .unknown)
+
+        security.token = "tok-perso"
+        #expect(provider.currentToken() == "tok-perso")
+        #expect(security.readCallCount == 2)
+    }
+
+    @Test("in a folder scope an expired Keychain token gives way to the folder's file")
+    func folderFallbackPrefersFreshFile() {
+        let security = MockSecurityCLIReader()
+        security.token = "tok-keychain"
+        security.expiresAt = expiredAt
+        let credentials = MockCredentialsFileReader()
+        credentials.storedToken = "tok-file"
+        credentials.storedExpiresAt = validUntil
+        let desktop = MockClaudeConfigReader()
+        desktop.encryptedToken = "djEw"
+        let provider = makeScoped(security: security, credentials: credentials,
+                                  desktop: desktop, decryption: MockElectronDecryptionService())
+        provider.reconfigure(scope: .configDir(path: "/x", service: "S"))
+
+        #expect(provider.currentToken() == "tok-file")
+        #expect(provider.tokenDiagnostic.source == .credentialsFile)
+    }
+
+    @Test("in a folder scope with everything expired, the Keychain token stays and Desktop is never asked")
+    func folderFallbackNeverBorrowsDesktop() {
+        let security = MockSecurityCLIReader()
+        security.token = "tok-keychain"
+        security.expiresAt = expiredAt
+        let credentials = MockCredentialsFileReader()
+        credentials.storedToken = "tok-file"
+        credentials.storedExpiresAt = expiredAt.addingTimeInterval(-60)
+        let desktop = MockClaudeConfigReader()
+        desktop.encryptedToken = "djEw"
+        let decryption = MockElectronDecryptionService()
+        decryption._hasEncryptionKey = true
+        decryption.decryptedData = Data(#"{"claudeAiOauth":{"accessToken":"tok-desktop","expiresAt":4102444800000}}"#.utf8)
+        let provider = makeScoped(security: security, credentials: credentials,
+                                  desktop: desktop, decryption: decryption)
+        provider.reconfigure(scope: .configDir(path: "/x", service: "S"))
+
+        #expect(provider.currentToken() == "tok-keychain")
+        #expect(provider.tokenDiagnostic.source == .keychainCLI)
+        #expect(decryption.decryptCallCount == 0)
+    }
+
+    @Test("the main account's provider follows the folder stored for it")
+    func mainAccountScopeFromDefaults() throws {
+        let defaults = try #require(UserDefaults(suiteName: "TokenProviderScopeTests"))
+        defaults.removePersistentDomain(forName: "TokenProviderScopeTests")
+        defer { defaults.removePersistentDomain(forName: "TokenProviderScopeTests") }
+
+        #expect(TokenProvider.forMainAccount(defaults: defaults).scope == .defaultChain)
+
+        let main = ClaudeAccountRecord(id: .main, configDir: "/Users/x/.claude-perso", service: "S", name: "Perso", colorHex: "#5B8DEF")
+        defaults.set(ClaudeAccountsStorage.encode([main]), forKey: ClaudeAccountsStorage.defaultsKey)
+        #expect(TokenProvider.forMainAccount(defaults: defaults).scope == .configDir(path: "/Users/x/.claude-perso", service: "S"))
+    }
+}

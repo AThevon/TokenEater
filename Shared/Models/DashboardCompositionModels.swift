@@ -21,7 +21,8 @@ import Foundation
 enum DashboardBlock: String, Codable, CaseIterable, Identifiable, Sendable {
     /// The big gauge. One per provider.
     case hero
-    /// The secondary windows: weekly, Sonnet, Opus, Fable for Claude; the
+    /// The secondary windows: weekly plus whichever per-model limits the
+    /// account carries (Fable, rarely Sonnet or Opus) for Claude; the
     /// windows the plan declares for Codex.
     case windows
     /// Pacing cards for every window that has a rate.
@@ -118,5 +119,139 @@ struct DashboardComposition: Codable, Equatable, Sendable {
         // written by a newer build is dropped rather than failing the decode
         // and throwing the user's whole layout away.
         entries = container.decodeLossyArray(Entry.self, forKey: .entries)
+    }
+}
+
+// MARK: - Home sections
+
+/// One section of the home page in All: a Claude account, or Codex. A
+/// section is drawn whole (header, notice, blocks), the way a provider mode
+/// draws its one provider.
+enum HomeSection: Hashable, Identifiable, Sendable {
+    case claude(AccountID)
+    case codex
+
+    /// What `sectionOrder` stores: the account's own identifier (`main`,
+    /// `acct-<id>`) or `codex`.
+    var storageID: String {
+        switch self {
+        case .claude(let account): return account.rawValue
+        case .codex: return Self.codexID
+        }
+    }
+
+    var id: String { storageID }
+
+    var provider: MetricProvider {
+        switch self {
+        case .claude: return .claude
+        case .codex: return .codex
+        }
+    }
+
+    static let codexID = "codex"
+
+    /// Nil for anything this build would never have written, so a stored
+    /// order cannot smuggle an arbitrary string into an account id.
+    init?(storageID: String) {
+        if storageID == Self.codexID {
+            self = .codex
+        } else if AccountID.isValid(storageID) {
+            self = .claude(AccountID(rawValue: storageID))
+        } else {
+            return nil
+        }
+    }
+}
+
+/// How the home page in All lays its sections out.
+enum HomeLayout: String, Codable, CaseIterable, Identifiable, Sendable {
+    /// One section full width, two side by side, three or more stacked.
+    case auto
+    /// Always stacked, full width.
+    case oneColumn
+    /// Two per row, in order, top aligned.
+    case twoColumns
+
+    var id: String { rawValue }
+
+    var localizedName: String {
+        switch self {
+        case .auto:       return String(localized: "dashboard.layout.auto")
+        case .oneColumn:  return String(localized: "dashboard.layout.oneColumn")
+        case .twoColumns: return String(localized: "dashboard.layout.twoColumns")
+        }
+    }
+
+    var localizedHelp: String {
+        switch self {
+        case .auto:       return String(localized: "dashboard.layout.auto.help")
+        case .oneColumn:  return String(localized: "dashboard.layout.oneColumn.help")
+        case .twoColumns: return String(localized: "dashboard.layout.twoColumns.help")
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .auto:       return "sparkles"
+        case .oneColumn:  return "rectangle.grid.1x2"
+        case .twoColumns: return "rectangle.split.2x1"
+        }
+    }
+}
+
+/// The order of the sections, as the user arranged them in Studio. It sorts
+/// the home sections, the popover's account sections in All and the mode
+/// pills, so an account sits at the same place everywhere. The menu bar keeps
+/// its own composition order.
+///
+/// Pure, so the reconciliation is unit tested: the stored list is only ever
+/// written by the Studio control, and every reader goes through `reconciled`.
+enum HomeSectionOrder {
+    /// The order with nothing stored: the main account then Codex, as 6.0
+    /// laid them out, then the added accounts in the order they were added.
+    /// A new account lands at the end whether or not the order was ever
+    /// rearranged, so two people with the same order on screen see a new
+    /// account land at the same place.
+    static func defaultOrder(accounts: [AccountID]) -> [HomeSection] {
+        accounts.filter(\.isMain).map(HomeSection.claude)
+            + [.codex]
+            + accounts.filter { !$0.isMain }.map(HomeSection.claude)
+    }
+
+    /// Every tracked account and Codex, once each. The stored ids come first
+    /// in their order; an id that is malformed, repeated or no longer tracked
+    /// (a removed account) is dropped; a section the stored list does not name
+    /// yet (an account added since) goes at the end.
+    static func reconciled(_ stored: [String], accounts: [AccountID]) -> [HomeSection] {
+        let known = defaultOrder(accounts: accounts)
+        let knownSet = Set(known)
+        var result: [HomeSection] = []
+        for id in stored {
+            guard let section = HomeSection(storageID: id),
+                  knownSet.contains(section),
+                  !result.contains(section) else { continue }
+            result.append(section)
+        }
+        for section in known where !result.contains(section) {
+            result.append(section)
+        }
+        return result
+    }
+
+    /// The full order once the sections on screen were rearranged: they take
+    /// the places they already held in `full`, in their new order, so a
+    /// paused account or Codex switched off keeps its own place.
+    static func applying(_ visible: [HomeSection], to full: [HomeSection]) -> [HomeSection] {
+        let shown = Set(visible)
+        var queue = visible.filter { full.contains($0) }[...]
+        var result = full.map { section -> HomeSection in
+            guard shown.contains(section), let next = queue.popFirst() else { return section }
+            return next
+        }
+        // A visible section `full` did not hold (never the case once both
+        // come from the same store) still lands somewhere.
+        result.append(contentsOf: visible.filter { !full.contains($0) })
+        return result
     }
 }

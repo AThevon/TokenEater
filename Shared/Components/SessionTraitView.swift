@@ -13,6 +13,10 @@ struct SessionTraitView: View {
     /// style the user has selected. Live overlay rendering and onboarding
     /// previews leave this nil so they follow the user's choice.
     var forcedStyle: WatcherStyle? = nil
+    /// The colour of the Claude account the session runs under, drawn as a
+    /// dot before its title. Nil (one running account, previews) draws
+    /// nothing, so the card is the one it always was.
+    var accountColorHex: String? = nil
     var onTap: (() -> Void)?
 
     @EnvironmentObject private var settingsStore: SettingsStore
@@ -392,22 +396,14 @@ struct SessionTraitView: View {
             VStack(alignment: leftSide ? .trailing : .leading, spacing: 2 * scale) {
                 switch displayMode {
                 case .branchPriority:
-                    Text(session.displayName)
-                        .font(.system(size: 11.5 * scale, weight: .semibold, design: fontDesign))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                    titleRow(session.displayName)
 
                     Text(stateLabel)
                         .font(.system(size: 9 * scale, weight: .medium, design: fontDesign))
                         .foregroundStyle(activeColor.opacity(0.85))
 
                 case .projectAndBranch:
-                    Text(session.userSessionName ?? session.projectName)
-                        .font(.system(size: 11.5 * scale, weight: .semibold, design: fontDesign))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                    titleRow(session.userSessionName ?? session.projectName)
 
                     HStack(spacing: 4 * scale) {
                         Text(stateLabel)
@@ -437,6 +433,26 @@ struct SessionTraitView: View {
 
             if !leftSide {
                 Spacer(minLength: 0)
+            }
+        }
+    }
+
+    /// The card's title, after the account's dot when there is one.
+    @ViewBuilder
+    private func titleRow(_ title: String) -> some View {
+        HStack(spacing: 4 * scale) {
+            if let accountColorHex, !leftSide {
+                AccountDot(colorHex: accountColorHex, size: 6 * scale)
+            }
+            Text(title)
+                .font(.system(size: 11.5 * scale, weight: .semibold, design: fontDesign))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            // Docked on the left the text is right-aligned, so the dot sits
+            // on the outer edge, after the title.
+            if let accountColorHex, leftSide {
+                AccountDot(colorHex: accountColorHex, size: 6 * scale)
             }
         }
     }

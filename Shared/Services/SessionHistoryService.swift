@@ -7,9 +7,9 @@ import Foundation
 /// - per-file persisted cache keyed by path + mtime -> repeated opens after
 ///   the first cold scan re-use the previous result and only re-parse the
 ///   handful of files that changed since
-/// - line streaming via `enumerateLines` + `contains("input_tokens")` cheap
-///   pre-filter -> JSON parse only the assistant turns that actually carry
-///   token usage
+/// - block-by-block streaming (`forEachLine`) + an `input_tokens` byte
+///   pre-filter -> a transcript is never held whole in memory, and only the
+///   assistant turns that actually carry token usage are JSON-parsed
 /// - TaskGroup with concurrency cap -> uses cores without saturating
 /// - cooperative cancellation via `Task.checkCancellation()`
 final class SessionHistoryService: SessionHistoryServiceProtocol {
@@ -17,7 +17,13 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
     /// Cache file path. Same dir as the shared usage file so it's easy
     /// to nuke during dev. Falls back to `NSHomeDirectory()` when the
     /// user domain isn't fully resolved (some CI / sandboxed envs).
-    private static var cacheURL: URL {
+    private static var cacheURL: URL { cacheURL(for: .main) }
+
+    /// The cache of one Claude account's transcripts: `history-cache.json`
+    /// for the main account, as it has always been, and
+    /// `history-cache.acct-<uuid>.json` for an added one, so two folders
+    /// never prune each other's entries. Paths and token counts only.
+    static func cacheURL(for account: AccountID) -> URL {
         let support = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask)
             .first
@@ -25,20 +31,17 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
                 .appendingPathComponent("Library/Application Support", isDirectory: true)
         return support
             .appendingPathComponent("com.tokeneater.shared", isDirectory: true)
-            .appendingPathComponent("history-cache.json")
+            .appendingPathComponent("history-cache\(account.storageSuffix).json")
     }
 
-    /// Root scan dir. Real home, not the sandbox container -> we resolve via
-    /// `getpwuid` (same trick used in `SharedFileService` for the widget).
-    private static var projectsURL: URL {
-        let pw = getpwuid(getuid())
-        let home: URL
-        if let home_str = pw?.pointee.pw_dir.flatMap({ String(cString: $0) }), !home_str.isEmpty {
-            home = URL(fileURLWithPath: home_str)
-        } else {
-            home = FileManager.default.homeDirectoryForCurrentUser
-        }
-        return home.appendingPathComponent(".claude/projects", isDirectory: true)
+    /// Where the main Claude account keeps its transcripts: `<dir>/projects`
+    /// of the config folder the user chose for it, `~/.claude/projects` when
+    /// they never chose one (#294). Real home, not the sandbox container, via
+    /// `getpwuid` (same trick as `SharedFileService`). Read on every load,
+    /// so moving the main account to another folder takes effect on the next
+    /// History refresh without rebuilding anything.
+    private static func mainProjectsURL() -> URL {
+        ClaudeAccountsStorage.mainScope().projectsURL(home: ClaudeConfigDirResolver.realHome())
     }
 
     /// 4 files in parallel keeps the work tight without saturating the IO
@@ -58,18 +61,38 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
     }
 
     private let source: Source
-    private let roots: [URL]
+    /// The directories to scan, evaluated at every load. Only the files under
+    /// them are aggregated, so entries the persisted cache still holds for a
+    /// previous root never leak into the totals.
+    private let rootsProvider: @Sendable () -> [URL]
     private let persistedCacheURL: URL
 
-    init(source: Source = .claude, rootURL: URL? = nil, cacheURL: URL? = nil) {
+    /// - Parameters:
+    ///   - rootURL: a fixed root (tests, or a known folder). Without it, Claude
+    ///     follows the main account's config folder and Codex `CODEX_HOME`.
+    ///   - rootsProvider: roots computed at each load, for tests that move
+    ///     the root between two loads. Wins over `rootURL`.
+    init(
+        source: Source = .claude,
+        rootURL: URL? = nil,
+        cacheURL: URL? = nil,
+        rootsProvider: (@Sendable () -> [URL])? = nil
+    ) {
         self.source = source
         switch source {
         case .claude:
-            roots = [rootURL ?? Self.projectsURL]
+            if let rootsProvider {
+                self.rootsProvider = rootsProvider
+            } else if let rootURL {
+                self.rootsProvider = { [rootURL] }
+            } else {
+                self.rootsProvider = { [Self.mainProjectsURL()] }
+            }
             persistedCacheURL = cacheURL ?? Self.cacheURL
         case .codex:
             let home = rootURL ?? CodexAuthReader().codexHomeURL
-            roots = [home.appendingPathComponent("sessions"), home.appendingPathComponent("archived_sessions")]
+            let roots = [home.appendingPathComponent("sessions"), home.appendingPathComponent("archived_sessions")]
+            self.rootsProvider = rootsProvider ?? { roots }
             persistedCacheURL = cacheURL ?? Self.cacheURL.deletingLastPathComponent()
                 .appendingPathComponent("codex-history-cache.json")
         }
@@ -168,6 +191,11 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
         }
         saveCache(persisted)
 
+        // A scan frees its read buffers at once, but malloc keeps the large
+        // ones dirty for tens of seconds before handing them back, which is
+        // what Activity Monitor shows. Give them back now.
+        malloc_zone_pressure_relief(nil, 0)
+
         // 5. Aggregate across files into the requested bucketing.
         return Self.aggregate(
             entries: deduplicatedEntries(Array(newEntries.values)),
@@ -183,7 +211,7 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
         let fm = FileManager.default
         var results: [URL] = []
 
-        for root in roots {
+        for root in rootsProvider() {
             guard let enumerator = fm.enumerator(
                 at: root,
                 includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
@@ -224,81 +252,83 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
             return cached
         }
 
-        // Cache miss: stream the file line by line.
-        let content: String
-        do {
-            content = try String(contentsOf: url, encoding: .utf8)
-        } catch {
-            return nil
-        }
-
         if source == .codex {
+            guard let content = try? String(contentsOf: url, encoding: .utf8) else { return nil }
             return try CodexHistoryParser.parse(content, path: url.path, mtime: mtime)
         }
+
+        // Cache miss: stream the file in blocks rather than reading it whole.
+        // A Claude Code transcript can weigh tens of megabytes, four parse at
+        // once, and a whole-file `String` per file is what pushed a cold
+        // launch past 900 MB. Only lines carrying token usage are decoded.
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
 
         var bucketsByHour: [Date: HistoryBucket] = [:]
         var sessionIds: Set<String> = []
 
-        content.enumerateLines { line, _ in
-            // Cheap pre-filter: lines without token usage are ignored. Skips
-            // user prompts, tool_use blocks, system messages, etc.
-            guard line.contains("input_tokens") else { return }
-            guard let data = line.data(using: .utf8),
-                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-            else { return }
+        // A read that fails partway (an I/O error, a cloud file not yet
+        // downloaded) skips this transcript, as the whole-file read it
+        // replaced did, rather than failing the History scan of every file.
+        let read: Void? = try skippingUnreadable {
+            try forEachLine(in: handle, containing: usageMarker) { data in
+                guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                else { return }
 
-            // Timestamp -> bucket date (start of hour).
-            guard let tsString = obj["timestamp"] as? String,
-                  let date = isoDate(tsString) else { return }
-            let bucketDate = startOfHour(date)
+                // Timestamp -> bucket date (start of hour).
+                guard let tsString = obj["timestamp"] as? String,
+                      let date = isoDate(tsString) else { return }
+                let bucketDate = startOfHour(date)
 
-            // Session id -> contributes to the distinct count.
-            if let sessionId = obj["sessionId"] as? String {
-                sessionIds.insert(sessionId)
+                // Session id -> contributes to the distinct count.
+                if let sessionId = obj["sessionId"] as? String {
+                    sessionIds.insert(sessionId)
+                }
+
+                // Project path: prefer the per-event `cwd` field. The
+                // directory-name decoding fallback is lossy for project paths
+                // that contain hyphens (`/` -> `-` collapses `/a/b-c` and
+                // `/a/b/c` to the same key).
+                let projectPath: String
+                if let cwd = obj["cwd"] as? String, !cwd.isEmpty {
+                    projectPath = cwd
+                } else {
+                    projectPath = decodedProject(from: url)
+                }
+
+                // Pull message + usage payload.
+                guard let message = obj["message"] as? [String: Any],
+                      let usage = message["usage"] as? [String: Any] else { return }
+
+                let modelString = (message["model"] as? String) ?? ""
+                let kind = ModelKind(rawModel: modelString)
+
+                let input = (usage["input_tokens"] as? Int) ?? 0
+                let output = (usage["output_tokens"] as? Int) ?? 0
+                let cacheRead = (usage["cache_read_input_tokens"] as? Int) ?? 0
+                let cacheCreate = (usage["cache_creation_input_tokens"] as? Int) ?? 0
+                let active = input + cacheCreate + output
+
+                var bucket = bucketsByHour[bucketDate] ?? HistoryBucket(
+                    date: bucketDate,
+                    tokensByModel: [:],
+                    tokensByProject: [:],
+                    sessionsCount: 0,
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    cacheReadTokens: 0,
+                    cacheCreateTokens: 0
+                )
+                bucket.tokensByModel[kind, default: 0] += active
+                bucket.tokensByProject[projectPath, default: 0] += active
+                bucket.inputTokens += input
+                bucket.outputTokens += output
+                bucket.cacheReadTokens += cacheRead
+                bucket.cacheCreateTokens += cacheCreate
+                bucketsByHour[bucketDate] = bucket
             }
-
-            // Project path: prefer the per-event `cwd` field. The
-            // directory-name decoding fallback is lossy for project paths
-            // that contain hyphens (`/` -> `-` collapses `/a/b-c` and
-            // `/a/b/c` to the same key).
-            let projectPath: String
-            if let cwd = obj["cwd"] as? String, !cwd.isEmpty {
-                projectPath = cwd
-            } else {
-                projectPath = decodedProject(from: url)
-            }
-
-            // Pull message + usage payload.
-            guard let message = obj["message"] as? [String: Any],
-                  let usage = message["usage"] as? [String: Any] else { return }
-
-            let modelString = (message["model"] as? String) ?? ""
-            let kind = ModelKind(rawModel: modelString)
-
-            let input = (usage["input_tokens"] as? Int) ?? 0
-            let output = (usage["output_tokens"] as? Int) ?? 0
-            let cacheRead = (usage["cache_read_input_tokens"] as? Int) ?? 0
-            let cacheCreate = (usage["cache_creation_input_tokens"] as? Int) ?? 0
-            let active = input + cacheCreate + output
-
-            var bucket = bucketsByHour[bucketDate] ?? HistoryBucket(
-                date: bucketDate,
-                tokensByModel: [:],
-                tokensByProject: [:],
-                sessionsCount: 0,
-                inputTokens: 0,
-                outputTokens: 0,
-                cacheReadTokens: 0,
-                cacheCreateTokens: 0
-            )
-            bucket.tokensByModel[kind, default: 0] += active
-            bucket.tokensByProject[projectPath, default: 0] += active
-            bucket.inputTokens += input
-            bucket.outputTokens += output
-            bucket.cacheReadTokens += cacheRead
-            bucket.cacheCreateTokens += cacheCreate
-            bucketsByHour[bucketDate] = bucket
         }
+        guard read != nil else { return nil }
 
         // Each file is a single session. The session-count contribution is 1
         // per *distinct* session id we observed. In practice that's always 1
@@ -318,6 +348,75 @@ final class SessionHistoryService: SessionHistoryServiceProtocol {
             buckets: Array(output.values).sorted { $0.date < $1.date },
             sessionIds: Array(sessionIds)
         )
+    }
+
+    /// The bytes a JSONL line must hold to be worth decoding: lines without
+    /// token usage (prompts, tool calls, system messages) are skipped unread.
+    private static let usageMarker = Data("input_tokens".utf8)
+
+    /// Runs one transcript's read, turning any failure but cancellation into
+    /// nil, so one unreadable file is skipped instead of ending the scan.
+    static func skippingUnreadable<T>(_ read: () throws -> T) throws -> T? {
+        do {
+            return try read()
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            return nil
+        }
+    }
+
+    /// Size of each read. Bounds what one file holds in memory at a time,
+    /// whatever its length.
+    private static let readChunkSize = 1 << 20
+
+    /// Calls `body` with each newline-terminated line of `handle` (the last
+    /// one too when it has no newline) that contains `marker`, reading one
+    /// block at a time. Lines are split on `\n` only: a JSONL record never
+    /// holds a raw newline, while a Unicode line separator can sit inside one
+    /// of its strings.
+    static func forEachLine(
+        in handle: FileHandle,
+        containing marker: Data,
+        _ body: (Data) throws -> Void
+    ) throws {
+        var pending = Data()
+        // How much of `pending` is already known to hold no newline. A line
+        // longer than one block is searched once, not again from its start
+        // with each block it grows by: a line of tens of megabytes (a large
+        // tool output, an image in base64) then cost quadratic time.
+        var scanned = 0
+        while true {
+            try Task.checkCancellation()
+            let chunk = try autoreleasepool { try handle.read(upToCount: readChunkSize) ?? Data() }
+            if chunk.isEmpty { break }
+            pending.append(chunk)
+            var start = 0
+            var searchFrom = scanned
+            while let newline = newlineOffset(in: pending, from: searchFrom) {
+                let line = pending.subdata(in: start..<newline)
+                if line.range(of: marker) != nil { try body(line) }
+                start = newline + 1
+                searchFrom = start
+            }
+            // Only the unfinished line is carried over, and only copied when
+            // something before it was consumed.
+            if start > 0 { pending = pending.subdata(in: start..<pending.count) }
+            scanned = pending.count
+        }
+        if !pending.isEmpty, pending.range(of: marker) != nil { try body(pending) }
+    }
+
+    /// The offset of the first `\n` in `data` at or after `offset`, found
+    /// with `memchr` rather than a byte-by-byte collection walk. `data`
+    /// starts at index 0, which `forEachLine` keeps true.
+    private static func newlineOffset(in data: Data, from offset: Int) -> Int? {
+        guard offset < data.count else { return nil }
+        return data.withUnsafeBytes { raw -> Int? in
+            guard let base = raw.baseAddress,
+                  let hit = memchr(base + offset, 0x0A, raw.count - offset) else { return nil }
+            return base.distance(to: UnsafeRawPointer(hit))
+        }
     }
 
     // MARK: - Aggregation across files

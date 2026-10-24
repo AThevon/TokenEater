@@ -26,6 +26,9 @@ enum WidgetTokens {
     static let micro: Font = .system(size: 9, weight: .medium)
     static let microMono: Font = .system(size: 10, weight: .medium, design: .monospaced)
     static let pillLabel: Font = .system(size: 10, weight: .bold, design: .rounded)
+    /// The time left before a reset on a countdown row: bold, two steps
+    /// above the 10 pt captions, drawn at `primary` opacity (#295).
+    static let countdownMono: Font = DS.Typography.countdown(12, monospaced: true)
 
     // Tracking
     static let headerTracking: CGFloat = 0.5
@@ -46,6 +49,9 @@ enum WidgetTokens {
 struct WidgetHeader<Accessory: View>: View {
     let label: LocalizedStringKey
     let accessory: () -> Accessory
+    /// Set only inside the "Claude · Account" widget: the header then names
+    /// the account. Nil everywhere else, where it draws exactly as before.
+    @Environment(\.widgetAccount) private var account
 
     init(_ label: LocalizedStringKey, @ViewBuilder accessory: @escaping () -> Accessory = { EmptyView() }) {
         self.label = label
@@ -54,15 +60,19 @@ struct WidgetHeader<Accessory: View>: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            Image("WidgetLogo")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: 12, height: 12)
-            Text(label)
-                .font(WidgetTokens.header)
-                .tracking(WidgetTokens.headerTracking)
-                .foregroundStyle(Color(hex: WidgetTheme.theme.widgetText).opacity(WidgetTokens.secondary))
-                .textCase(.uppercase)
+            if let account {
+                AccountWidgetHeaderTitle(account: account, label: label)
+            } else {
+                Image("WidgetLogo")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 12, height: 12)
+                Text(label)
+                    .font(WidgetTokens.header)
+                    .tracking(WidgetTokens.headerTracking)
+                    .foregroundStyle(Color(hex: WidgetTheme.theme.widgetText).opacity(WidgetTokens.secondary))
+                    .textCase(.uppercase)
+            }
             Spacer(minLength: 0)
             accessory()
         }
@@ -124,8 +134,8 @@ struct ResetCountdownRow: View {
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(Color(hex: WidgetTheme.theme.widgetText).opacity(WidgetTokens.tertiary))
             Text(formatResetTime(date))
-                .font(WidgetTokens.microMono)
-                .foregroundStyle(Color(hex: WidgetTheme.theme.widgetText).opacity(WidgetTokens.secondary))
+                .font(WidgetTokens.countdownMono)
+                .foregroundStyle(Color(hex: WidgetTheme.theme.widgetText).opacity(WidgetTokens.primary))
             if alignment == .leading { Spacer(minLength: 0) }
         }
     }
@@ -137,6 +147,11 @@ struct ResetCountdownRow: View {
 
 struct SessionRingWidgetView: View {
     let entry: UsageEntry
+
+    /// Set only by the "Claude · Account" widget. A paused account's reset
+    /// countdown means nothing (no refresh moves it), so its last sync date
+    /// takes that row: the numbers above are dated, as they are in medium.
+    @Environment(\.widgetAccount) private var account
 
     private var theme: ThemeColors { WidgetTheme.theme }
     private var thresholds: UsageThresholds { WidgetTheme.thresholds }
@@ -197,7 +212,30 @@ struct SessionRingWidgetView: View {
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 6)
             Spacer(minLength: 8)
-            ResetCountdownRow(date: resetDate)
+            if account?.isPaused == true {
+                PausedSinceRow(date: entry.lastSync)
+            } else {
+                ResetCountdownRow(date: resetDate)
+            }
+        }
+    }
+}
+
+/// When a paused account's numbers were last fetched.
+struct PausedSinceRow: View {
+    let date: Date?
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "pause.circle")
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(Color(hex: WidgetTheme.theme.widgetText).opacity(WidgetTokens.tertiary))
+            Text(date.map { String(format: String(localized: "widget.updated"), $0.relativeFormatted) } ?? "-")
+                .font(WidgetTokens.microMono)
+                .foregroundStyle(Color(hex: WidgetTheme.theme.widgetText).opacity(WidgetTokens.secondary))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 0)
         }
     }
 }
@@ -278,8 +316,8 @@ struct PacingGraphWidgetView: View {
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(Color(hex: theme.widgetText).opacity(WidgetTokens.tertiary))
                 Text(formatResetTime(bucket.resetsAtDate))
-                    .font(WidgetTokens.microMono)
-                    .foregroundStyle(Color(hex: theme.widgetText).opacity(WidgetTokens.secondary))
+                    .font(WidgetTokens.countdownMono)
+                    .foregroundStyle(Color(hex: theme.widgetText).opacity(WidgetTokens.primary))
             }
         }
     }

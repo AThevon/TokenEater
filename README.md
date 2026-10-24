@@ -53,13 +53,14 @@ A native menu bar app, desktop widgets, and a floating overlay that track your C
 - **Menu bar.** Live percentages with color-coded thresholds, and a popover dashboard you compose element by element (rings, chips, arcs, pacing bars at full, half, or third width), start from built-in templates, and save as your own.
 - **Dashboard.** A four-space window (Monitoring / History / Studio / Settings) with flippable tiles, 7-day sparklines, peak day, and a pacing-vs-equilibrium graph. Its blocks reorder and hide from Studio, like the popover and the menu bar.
 - **Two providers, one app.** Claude and OpenAI Codex are equals: the menu bar, the popover, the dashboard, widgets, notifications and History cover both. An All / Claude / Codex mode scopes every surface at once, All puts the two side by side, and each mode keeps its own layouts. Track only one and you never see a trace of the other.
+- **Several Claude accounts.** Track another Claude Code login kept in its own `CLAUDE_CONFIG_DIR`, with a name and colour you choose, next to your main account in the menu bar, popover, dashboard, notifications and History. Your main account can live in a custom config folder too.
 - **History.** Combined Claude Code and Codex tokens from local session logs: a stacked chart by model, project ranking, session counts, and cache hit rate, filterable by Claude family or Codex model across 24h to 90d ranges. The History widget shows the combined daily totals.
-- **Widgets.** Native WidgetKit gauges, progress bars, and pacing, refreshed reactively, with a Codex Usage widget alongside the Claude ones.
+- **Widgets.** Native WidgetKit gauges, progress bars, and pacing, refreshed reactively, with a Codex Usage widget alongside the Claude ones and a Claude Account widget you point at any tracked account.
 - **Agent Watchers.** A floating overlay of your live Claude Code sessions, terminals and VSCode-family extensions alike. Click a session to jump to its terminal or editor (Terminal, iTerm2, tmux, Kitty, WezTerm), right-click for quick actions.
 - **Smart Color.** Blends how much you have used with how fast you are burning, so the color warns you before the number does. Three temperaments set how cautious it is.
 - **Smart pacing.** Are you burning through tokens or cruising? Four zones: chill, on track, warning, hot.
 - **Themes.** Four presets plus full custom colors, a glow or flat look, and configurable warning thresholds.
-- **Notifications.** Per-event toggles for each provider: escalation, recovery, pacing, scheduled reset reminders, extra credits, token expiry. Every alert names the provider it is about.
+- **Notifications.** Per-event toggles for each provider: escalation, recovery, pacing, scheduled reset reminders, extra credits, token expiry. Every alert names the provider it is about, and the account once you track several.
 
 Everything in detail on the [website](https://tokeneater.athevon.dev).
 
@@ -130,7 +131,9 @@ When Codex tracking is enabled, the app also reads the Codex CLI access token fr
 
 These usage and profile calls are read-only. TokenEater does not send messages, read conversations, or modify either account. Each access token is sent only to its own provider. TokenEater never writes to either provider's credentials and never refreshes their tokens: if one expires, open Claude Code or Codex (or run `codex login`) and it picks the new one up. API-key and keyring-only Codex logins are not supported in this version.
 
-Widgets read local JSON files with no network or Keychain access. The Codex widget reads `codex.json` for usage and `shared.json` for theme preferences; its cache contains no token, email, or account ID. History reads Claude Code and Codex local session logs without uploading them; Agent Watchers reads Claude Code sessions.
+Each additional Claude account is read the same way, from its own config folder and its own Keychain item, and only after you click Connect (see [Several Claude accounts](#several-claude-accounts-or-a-claude_config_dir)).
+
+Widgets read local JSON files with no network or Keychain access. The Codex widget reads `codex.json` for usage and `shared.json` for theme preferences; its cache contains no token, email, or account ID. The same goes for the per-account files (`shared-acct-*.json`) and for the diagnostic you copy from Settings: no email, account ID or organization. The account names you choose are stored in `shared.json` so the Claude Account widget can list them, so pick names you are fine having on disk. History reads Claude Code and Codex local session logs without uploading them; Agent Watchers reads Claude Code sessions.
 
 Anthropic does not offer a third-party OAuth flow or scoped tokens yet, so reading the existing token is the only way an app like this can exist. If scoped tokens become available, TokenEater will adopt them immediately. The relevant code is short and auditable: keychain access in [`SecurityCLIReader.swift`](Shared/Services/SecurityCLIReader.swift) and [`TokenProvider.swift`](Shared/Services/TokenProvider.swift), the Claude calls in [`APIClient.swift`](Shared/Services/APIClient.swift), and Codex access in [`CodexAuthReader.swift`](Shared/Services/CodexAuthReader.swift) and [`CodexAPIClient.swift`](Shared/Services/CodexAPIClient.swift).
 
@@ -141,6 +144,22 @@ Sign in to the Codex CLI with your ChatGPT account. TokenEater enables Codex tra
 History includes local sessions from both providers, independently of quota authentication. It reads Codex `sessions/` and `archived_sessions/` under `CODEX_HOME` (default `~/.codex`). `All` sums uncached input, cache writes, and output tokens for both providers. Only cache reads count as reused tokens in the cache breakdown. Guardian / auto-review sessions are excluded from all History statistics and the History widget. Reasoning tokens are already included in Codex output. Models are discovered from the logs and have individual filters. The History widget receives seven calendar-day totals from the app, refreshed every minute while TokenEater runs; it does not read session files itself.
 
 In **Edit Widgets > TokenEater**, choose **Codex Usage** (small or medium) alongside **Claude Overview**, **Claude Session Ring**, or the other Claude widgets. Existing Claude widgets keep their identity when upgrading; only their gallery names change. Codex windows are labelled by duration, so weekly-only plans show a weekly window rather than an invented five-hour session.
+
+## Several Claude accounts, or a CLAUDE_CONFIG_DIR
+
+Claude Code keeps one login per config folder: `~/.claude` by default, or the folder `CLAUDE_CONFIG_DIR` points at. TokenEater tracks one Claude account per folder.
+
+**Track another account.** Go to **Settings > Providers > Track another Claude account…**. It lists your `~/.claude-*` folders and whether each one holds a login; **Choose a folder…** covers any other path. If a folder has no login yet, copy the command shown (for example `CLAUDE_CONFIG_DIR=~/.claude-work claude`), run `/login` in it, then come back. Click **Connect**, then give the account a name (12 characters at most) and a colour, and leave **Add to the menu bar** checked to see it there right away. The colour marks the account everywhere; the numbers keep their usual risk colours. In the menu bar each account's numbers follow a ring of its colour, with no name (a monochrome bar adds the account's initial), and hovering the bar lists the names. When two accounts wear the same or a close colour, the colour picker says so. From the account's row you can rename it, pause it (it keeps its last numbers) or remove it. Notifications share one set of thresholds, with a switch per account under **Settings > Notifications**.
+
+**Point your main account at a custom folder.** If you run Claude Code with `CLAUDE_CONFIG_DIR` set, open **Settings > Providers**, click **Change…** next to the Claude card's folder, and pick that folder. The token, History and Agent Watchers follow it, and TokenEater reads only that folder's login (not the Claude desktop app's). **Back to ~/.claude** restores the default. The first-run setup offers the same choice.
+
+**What is read, and when.** Nothing before you click Connect: the folder list only checks that a Keychain item exists, without opening it. Connect reads that folder's login once, through Apple's `security` tool on the folder's own Keychain item (`Claude Code-credentials-` followed by a short hash of the path), or from the folder's `.credentials.json`, then asks Anthropic which account it is, so the same account cannot be added twice. macOS may ask once per account: click **Always Allow**. After that, each account makes the same two read-only calls as the main one.
+
+**Switching logins.** With one account, TokenEater follows whatever login is active. With two or more, each account stays tied to the login it was connected with: if a folder signs in to another account, its numbers pause until you switch back or click **Use this account** in its row.
+
+**Expired login.** TokenEater never renews a login. Run Claude Code on that folder once (TokenEater shows the exact command, `CLAUDE_CONFIG_DIR=<folder> claude`) and it picks the new token up.
+
+**Widget.** In **Edit Widgets > TokenEater**, add **Claude Account**, then right-click it > **Edit Widget** to choose the account. Place it once per account. The other Claude widgets follow the main account.
 
 ## If something breaks
 

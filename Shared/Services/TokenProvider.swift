@@ -5,11 +5,71 @@ import os.log
 private let logger = Logger(subsystem: "com.tokeneater.app", category: "TokenProvider")
 
 final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
-    private let securityCLIReader: SecurityCLIReaderProtocol
-    private let credentialsFileReader: CredentialsFileReaderProtocol
-    private let configReader: ClaudeConfigReaderProtocol
-    private let decryptionService: ElectronDecryptionServiceProtocol
-    private let keychainReader: KeychainTokenReader
+    /// The four sources one scope reads, in priority order.
+    struct Readers {
+        let securityCLI: SecurityCLIReaderProtocol
+        let credentialsFile: CredentialsFileReaderProtocol
+        let config: ClaudeConfigReaderProtocol
+        let decryption: ElectronDecryptionServiceProtocol
+        let keychain: KeychainTokenReader
+    }
+
+    typealias ReaderFactory = (CredentialScope) -> Readers
+
+    private var securityCLIReader: SecurityCLIReaderProtocol
+    private var credentialsFileReader: CredentialsFileReaderProtocol
+    private var configReader: ClaudeConfigReaderProtocol
+    private var decryptionService: ElectronDecryptionServiceProtocol
+    private var keychainReader: KeychainTokenReader
+    /// Builds the readers for a scope on `reconfigure(scope:)`.
+    private let makeReaders: ReaderFactory
+    private var currentScope: CredentialScope
+
+    var scope: CredentialScope { withState { currentScope } }
+
+    /// The stores read their token off the main thread, so the provider is
+    /// reached from several threads. `stateLock` guards every field and is
+    /// only ever held for an assignment, never across a read of the sources,
+    /// so the main thread asking for the scope or the diagnostic never waits
+    /// on a `security` child. `readLock` serializes the reads themselves:
+    /// two refreshes never run the same `security` read twice at once.
+    private let stateLock = NSLock()
+    private let readLock = NSLock()
+    /// Bumped whenever the cache is dropped. A read that started before
+    /// does not put its token back in the cache.
+    private var cacheEpoch = 0
+    /// Bumped when the provider moves to another scope. A read that started
+    /// before answers nothing: its token belongs to the previous folder.
+    private var scopeEpoch = 0
+
+    private func withState<T>(_ body: () -> T) -> T {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return body()
+    }
+
+    /// The readers and epochs a read works with, taken in one go.
+    private struct ReadContext {
+        let securityCLI: SecurityCLIReaderProtocol
+        let credentialsFile: CredentialsFileReaderProtocol
+        let config: ClaudeConfigReaderProtocol
+        let decryption: ElectronDecryptionServiceProtocol
+        let cacheEpoch: Int
+        let scopeEpoch: Int
+    }
+
+    private func readContext() -> ReadContext {
+        withState {
+            ReadContext(
+                securityCLI: securityCLIReader,
+                credentialsFile: credentialsFileReader,
+                config: configReader,
+                decryption: decryptionService,
+                cacheEpoch: cacheEpoch,
+                scopeEpoch: scopeEpoch
+            )
+        }
+    }
 
     /// In-memory token cache - avoids hitting the Keychain on every refresh.
     /// Only cleared on 401 (token expired) via `invalidateToken()`.
@@ -20,7 +80,7 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     /// expired (#273).
     private var diagnostic: TokenDiagnostic = .unknown
 
-    var tokenDiagnostic: TokenDiagnostic { diagnostic }
+    var tokenDiagnostic: TokenDiagnostic { withState { diagnostic } }
 
     /// Whether this launch already tried to re-derive the Claude Desktop key
     /// from "Claude Safe Storage". That read goes through TokenEater's own
@@ -43,13 +103,89 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
         credentialsFileReader: CredentialsFileReaderProtocol = CredentialsFileReader(),
         configReader: ClaudeConfigReaderProtocol = ClaudeConfigReader(),
         decryptionService: ElectronDecryptionServiceProtocol = ElectronDecryptionService(),
-        keychainReader: KeychainTokenReader? = nil
+        keychainReader: KeychainTokenReader? = nil,
+        scope: CredentialScope = .defaultChain,
+        readerFactory: ReaderFactory? = nil
     ) {
         self.securityCLIReader = securityCLIReader
         self.credentialsFileReader = credentialsFileReader
         self.configReader = configReader
         self.decryptionService = decryptionService
-        self.keychainReader = keychainReader ?? Self.defaultKeychainReader
+        self.keychainReader = keychainReader ?? { Self.nativeKeychainRead(service: ClaudeConfigDirResolver.baseService) }
+        self.currentScope = scope
+        self.makeReaders = readerFactory ?? { Self.readers(for: $0) }
+    }
+
+    /// A provider bounded to one account's sources. `.defaultChain` builds
+    /// exactly the readers the app has always used; `.configDir` reads that
+    /// folder's exact Keychain service and its `.credentials.json`, and never
+    /// Claude Desktop, so a token can only ever belong to that folder.
+    convenience init(scope: CredentialScope, home: String = ClaudeConfigDirResolver.realHome()) {
+        let readers = Self.readers(for: scope, home: home)
+        self.init(
+            securityCLIReader: readers.securityCLI,
+            credentialsFileReader: readers.credentialsFile,
+            configReader: readers.config,
+            decryptionService: readers.decryption,
+            keychainReader: readers.keychain,
+            scope: scope,
+            readerFactory: { Self.readers(for: $0, home: home) }
+        )
+    }
+
+    /// The main account's provider, scoped to the folder the user chose for
+    /// it, or to the default chain when they never chose one (#294). Only
+    /// reads `UserDefaults`; nothing touches a credential until a token is
+    /// asked for.
+    static func forMainAccount(defaults: UserDefaults = .standard) -> TokenProvider {
+        let main = ClaudeAccountsStorage.load(from: defaults).first ?? .defaultMain()
+        return TokenProvider(scope: main.scope)
+    }
+
+    /// The readers a scope is allowed to use.
+    static func readers(
+        for scope: CredentialScope,
+        home: String = ClaudeConfigDirResolver.realHome()
+    ) -> Readers {
+        switch scope {
+        case .defaultChain:
+            return Readers(
+                securityCLI: SecurityCLIReader(),
+                credentialsFile: CredentialsFileReader(filePath: scope.credentialsFilePath(home: home)),
+                config: ClaudeConfigReader(),
+                decryption: ElectronDecryptionService(),
+                keychain: { nativeKeychainRead(service: ClaudeConfigDirResolver.baseService) }
+            )
+        case .configDir(_, let service):
+            return Readers(
+                securityCLI: SecurityCLIReader(service: service),
+                credentialsFile: CredentialsFileReader(filePath: scope.credentialsFilePath(home: home)),
+                config: NoClaudeDesktopConfig(),
+                decryption: NoDecryptionService(),
+                keychain: { nativeKeychainRead(service: service) }
+            )
+        }
+    }
+
+    /// Points the provider at another scope. Drops everything tied to the
+    /// previous one (cached token, diagnostic, the once-per-launch Desktop
+    /// key attempt) and reads nothing: the next `currentToken()` does.
+    func reconfigure(scope: CredentialScope) {
+        let readers = makeReaders(scope)
+        withState {
+            securityCLIReader = readers.securityCLI
+            credentialsFileReader = readers.credentialsFile
+            configReader = readers.config
+            decryptionService = readers.decryption
+            keychainReader = readers.keychain
+            currentScope = scope
+            cachedToken = nil
+            diagnostic = .unknown
+            safeStorageRebootstrapAttempted = false
+            cacheEpoch += 1
+            scopeEpoch += 1
+        }
+        logger.info("Token scope reconfigured")
     }
 
     var isBootstrapped: Bool { true }
@@ -62,11 +198,12 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     /// a listing that comes back empty on some setup cannot hide a working
     /// login behind a "not installed" card.
     func hasTokenSource() -> Bool {
-        if cachedToken != nil { return true }
-        if securityCLIReader.hasCredentialItem() { return true }
-        if credentialsFileReader.readToken() != nil { return true }
-        if configReader.readEncryptedToken() != nil { return true }
-        if securityCLIReader.readToken() != nil { return true }
+        if withState({ cachedToken }) != nil { return true }
+        let context = readContext()
+        if context.securityCLI.hasCredentialItem() { return true }
+        if context.credentialsFile.readToken() != nil { return true }
+        if context.config.readEncryptedToken() != nil { return true }
+        if context.securityCLI.readToken() != nil { return true }
         return false
     }
 
@@ -90,10 +227,18 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     /// it put a TokenEater-named Keychain prompt on a timer whenever the
     /// `security` read failed (#225).
     func currentToken() -> String? {
-        if let token = cachedToken { return token }
-        let token = readFromSources()
-        cachedToken = token
-        return token
+        if let token = withState({ cachedToken }) { return token }
+        readLock.lock()
+        defer { readLock.unlock() }
+        // Another thread may have filled the cache while this one waited.
+        if let token = withState({ cachedToken }) { return token }
+        let context = readContext()
+        let token = readFromSources(context)
+        return withState {
+            guard scopeEpoch == context.scopeEpoch else { return nil }
+            if cacheEpoch == context.cacheEpoch { cachedToken = token }
+            return token
+        }
     }
 
     /// Reads the token from all sources in priority order, bypassing the
@@ -107,8 +252,8 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     /// expired one is used only when nothing better exists, which keeps the
     /// 401 path and its diagnostic working (#268). Nothing here writes or
     /// refreshes anything.
-    private func readFromSources(now: Date = Date()) -> String? {
-        let keychain = securityCLIReader.read()
+    private func readFromSources(_ context: ReadContext, now: Date = Date()) -> String? {
+        let keychain = context.securityCLI.read()
         let items = keychain.matchingItems
         // The failure is carried through the fall-through rather than logged
         // and dropped, so the caller can tell a machine that keeps its
@@ -116,13 +261,18 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
         let keychainFailure = keychain.failure
 
         func record(_ source: TokenSource?, _ credential: ClaudeCredential?) {
-            diagnostic = TokenDiagnostic(
+            let next = TokenDiagnostic(
                 source: source,
                 keychainFailure: keychainFailure,
                 matchingKeychainItems: items,
                 tokenExpiresAt: credential?.expiresAt,
                 keychainExpiresAt: keychain.token != nil ? keychain.expiresAt : nil
             )
+            withState {
+                // A read that outlived a move to another folder describes
+                // the previous one.
+                if scopeEpoch == context.scopeEpoch { diagnostic = next }
+            }
         }
 
         // The first expired token met, kept in case nothing fresher turns up.
@@ -141,7 +291,7 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
             logger.info("security read failed: \(keychainFailure?.rawValue ?? "unknown", privacy: .public)")
         }
 
-        if let credential = credentialsFileReader.readCredential() {
+        if let credential = context.credentialsFile.readCredential() {
             if !TokenExpiryPolicy.isExpired(credential.expiresAt, now: now) {
                 record(.credentialsFile, credential)
                 return credential.token
@@ -153,7 +303,7 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
         // so the search for a fresher token only uses a key already cached.
         // Only the plain fall-through, with no token anywhere else, may try
         // it, exactly as before.
-        if let credential = tokenFromConfigJSON(mayRederiveKey: expired == nil) {
+        if let credential = tokenFromConfigJSON(context, mayRederiveKey: expired == nil) {
             if expired == nil || !TokenExpiryPolicy.isExpired(credential.expiresAt, now: now) {
                 record(.claudeDesktop, credential)
                 return credential.token
@@ -183,15 +333,21 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     /// non-nil tokens; first population and transient read failures return false
     /// so a working token is never dropped.
     func refreshTokenIfChanged() -> Bool {
-        guard let fresh = readFromSources() else { return false }
-        let previous = cachedToken
-        cachedToken = fresh
-        guard let previous else { return false }
-        if previous != fresh {
-            logger.info("Token changed on Keychain/disk - cache refreshed for new account")
-            return true
+        readLock.lock()
+        defer { readLock.unlock() }
+        let context = readContext()
+        guard let fresh = readFromSources(context) else { return false }
+        let changed: Bool = withState {
+            guard scopeEpoch == context.scopeEpoch else { return false }
+            let previous = cachedToken
+            cachedToken = fresh
+            guard let previous else { return false }
+            return previous != fresh
         }
-        return false
+        if changed {
+            logger.info("Token changed on Keychain/disk - cache refreshed for new account")
+        }
+        return changed
     }
 
     /// Decrypts Claude Desktop's config.json with the cached key. Without a
@@ -201,19 +357,25 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     /// back the recurring prompt of #225 for Claude Desktop users. A caller
     /// that already holds a token passes `mayRederiveKey: false`, so looking
     /// for a fresher one never costs a prompt.
-    private func tokenFromConfigJSON(mayRederiveKey: Bool) -> ClaudeCredential? {
-        guard let encrypted = configReader.readEncryptedToken() else { return nil }
+    private func tokenFromConfigJSON(_ context: ReadContext, mayRederiveKey: Bool) -> ClaudeCredential? {
+        guard let encrypted = context.config.readEncryptedToken() else { return nil }
+        let decryption = context.decryption
 
-        if decryptionService.hasEncryptionKey,
-           let credential = decryptFromConfigJSON(encrypted) {
+        if decryption.hasEncryptionKey,
+           let credential = decryptFromConfigJSON(encrypted, using: decryption) {
             return credential
         }
 
-        guard mayRederiveKey, !safeStorageRebootstrapAttempted else { return nil }
-        safeStorageRebootstrapAttempted = true
+        guard mayRederiveKey else { return nil }
+        let mayTry: Bool = withState {
+            guard !safeStorageRebootstrapAttempted else { return false }
+            safeStorageRebootstrapAttempted = true
+            return true
+        }
+        guard mayTry else { return nil }
 
-        if decryptionService.trySilentRebootstrap(),
-           let credential = decryptFromConfigJSON(encrypted) {
+        if decryption.trySilentRebootstrap(),
+           let credential = decryptFromConfigJSON(encrypted, using: decryption) {
             logger.info("Token recovered by re-deriving the Claude Desktop decryption key")
             return credential
         }
@@ -224,7 +386,10 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     /// Call this after a 401 - clears the in-memory cache so the next `currentToken()`
     /// re-reads from Keychain/file to pick up a refreshed token.
     func invalidateToken() {
-        cachedToken = nil
+        withState {
+            cachedToken = nil
+            cacheEpoch += 1
+        }
         logger.info("Token cache invalidated - next read will check Keychain")
     }
 
@@ -238,22 +403,27 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
     /// the request behind it: people were reinstalling the app, and losing
     /// every setting, to get back a connection (#268).
     func resetConnection() -> String? {
-        cachedToken = nil
-        diagnostic = .unknown
-        safeStorageRebootstrapAttempted = false
-        decryptionService.clearCachedKey()
+        let decryption: ElectronDecryptionServiceProtocol = withState {
+            cachedToken = nil
+            diagnostic = .unknown
+            safeStorageRebootstrapAttempted = false
+            cacheEpoch += 1
+            return decryptionService
+        }
+        decryption.clearCachedKey()
         logger.info("Connection reset: caches dropped, re-reading sources")
         return currentToken()
     }
 
     func bootstrap() throws {
-        if let token = keychainReader() {
-            cachedToken = token
+        let (reader, decryption) = withState { (keychainReader, decryptionService) }
+        if let token = reader() {
+            withState { cachedToken = token }
             logger.info("Bootstrap succeeded via interactive Keychain read")
         }
 
         do {
-            try decryptionService.bootstrapEncryptionKey()
+            try decryption.bootstrapEncryptionKey()
         } catch {
             logger.info("Decryption key bootstrap skipped: \(error)")
         }
@@ -261,10 +431,10 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
 
     // MARK: - Keychain (static, no instance state)
 
-    private static func defaultKeychainReader() -> String? {
+    private static func nativeKeychainRead(service: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "Claude Code-credentials",
+            kSecAttrService as String: service,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne,
         ]
@@ -285,9 +455,12 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
 
     // MARK: - Config.json Decryption (fallback)
 
-    private func decryptFromConfigJSON(_ encrypted: String) -> ClaudeCredential? {
+    private func decryptFromConfigJSON(
+        _ encrypted: String,
+        using decryption: ElectronDecryptionServiceProtocol
+    ) -> ClaudeCredential? {
         do {
-            let data = try decryptionService.decrypt(encrypted)
+            let data = try decryption.decrypt(encrypted)
             return Self.extractCredential(from: data)
         } catch {
             return nil
@@ -310,4 +483,23 @@ final class TokenProvider: TokenProviderProtocol, @unchecked Sendable {
         }
         return nil
     }
+}
+
+// MARK: - Scoped no-op sources
+
+/// Claude Desktop's login is not tied to any `CLAUDE_CONFIG_DIR`, so a folder
+/// scope never reads it.
+private struct NoClaudeDesktopConfig: ClaudeConfigReaderProtocol {
+    func readEncryptedToken() -> String? { nil }
+}
+
+/// The decryption a folder scope never needs. No migration in its init and
+/// nothing to clear, so resetting an added account's connection leaves the
+/// main account's cached `decryption.key` alone.
+private struct NoDecryptionService: ElectronDecryptionServiceProtocol {
+    func decrypt(_ encryptedBase64: String) throws -> Data { throw ElectronDecryptionError.keyDerivationFailed }
+    var hasEncryptionKey: Bool { false }
+    func bootstrapEncryptionKey() throws {}
+    func clearCachedKey() {}
+    func trySilentRebootstrap() -> Bool { false }
 }

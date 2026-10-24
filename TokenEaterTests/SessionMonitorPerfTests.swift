@@ -78,6 +78,45 @@ struct SessionMonitorPerfTests {
         )
     }
 
+    @Test("three account folders scan within the same budget, and a warm pass stays cheap")
+    func threeRootsStayFast() async throws {
+        var roots: [ClaudeConfigRoot] = []
+        var cleanup: [URL] = []
+        for index in 0..<3 {
+            let projects = try makeSyntheticProjects(dirCount: 17, filesPerDir: 20)
+            let sessions = try makeEmptySessionsDir()
+            cleanup += [projects, sessions]
+            roots.append(ClaudeConfigRoot(
+                account: index == 0 ? .main : AccountID(rawValue: "acct-perf\(index)"),
+                projectsURL: projects,
+                sessionsURL: sessions
+            ))
+        }
+        defer { cleanup.forEach { try? FileManager.default.removeItem(at: $0) } }
+
+        let fakeProcess = ClaudeProcessInfo(pid: 99_998, parentPid: 1, cwd: "/nonexistent/project/path", sourceKind: .terminal)
+        let service = SessionMonitorService(
+            scanInterval: 999,
+            projectDirFreshness: 24 * 60 * 60,
+            claudeProjectsDirOverride: roots[0].projectsURL,
+            claudeSessionsDirOverride: roots[0].sessionsURL,
+            processProvider: { [fakeProcess] }
+        )
+        service.setRoots(roots)
+        service.waitForPendingChanges()
+
+        let coldStart = ContinuousClock.now
+        service.scan()
+        let cold = ContinuousClock.now - coldStart
+        // ~1000 files over three folders: the same bound as one big folder.
+        #expect(cold < .milliseconds(2000), "cold scan took \(cold) over three folders")
+
+        let warmStart = ContinuousClock.now
+        service.scan()
+        let warm = ContinuousClock.now - warmStart
+        #expect(warm < cold, "warm scan (\(warm)) should beat the cold one (\(cold)) across folders too")
+    }
+
     @Test("a warm scan over an unchanged tree beats the cold scan (#255)")
     func warmScanBeatsColdScan() async throws {
         let projectsDir = try makeSyntheticProjects(dirCount: 50, filesPerDir: 20)

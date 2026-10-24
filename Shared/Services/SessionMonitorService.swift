@@ -13,8 +13,9 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
     // race-free despite the @unchecked Sendable conformance.
     private var scanInterval: TimeInterval
     private var projectDirFreshness: TimeInterval
-    private let claudeProjectsDirOverride: URL?
-    private let claudeSessionsDirOverride: URL?
+    /// The config folders scanned, the main account's first. Mutated only on
+    /// `queue` (see `setRoots`), like the interval and the freshness.
+    private var roots: [ClaudeConfigRoot]
     private let processProvider: @Sendable () -> [ClaudeProcessInfo]
 
     // Cross-tick caches (#255). All three are touched only inside `scan()`,
@@ -51,28 +52,10 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
     /// transcript.
     private var parseCache: [String: (stamp: FileStamp, result: JSONLParseResult)] = [:]
 
-    private var claudeProjectsDir: URL {
-        if let override = claudeProjectsDirOverride { return override }
-        let home: String
-        if let pw = getpwuid(getuid()) {
-            home = String(cString: pw.pointee.pw_dir)
-        } else {
-            home = NSHomeDirectory()
-        }
-        return URL(fileURLWithPath: home).appendingPathComponent(".claude/projects")
-    }
-
-    private var claudeSessionsDir: URL {
-        if let override = claudeSessionsDirOverride { return override }
-        let home: String
-        if let pw = getpwuid(getuid()) {
-            home = String(cString: pw.pointee.pw_dir)
-        } else {
-            home = NSHomeDirectory()
-        }
-        return URL(fileURLWithPath: home).appendingPathComponent(".claude/sessions")
-    }
-
+    /// - Parameters:
+    ///   - claudeProjectsDirOverride, claudeSessionsDirOverride: fixed folders
+    ///     for the main account (tests). Without them the scan follows the
+    ///     folder the main account is set to, `~/.claude` by default.
     init(
         scanInterval: TimeInterval = 2.0,
         projectDirFreshness: TimeInterval = 30 * 60,
@@ -82,9 +65,35 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
     ) {
         self.scanInterval = scanInterval
         self.projectDirFreshness = projectDirFreshness
-        self.claudeProjectsDirOverride = claudeProjectsDirOverride
-        self.claudeSessionsDirOverride = claudeSessionsDirOverride
+        let main = ClaudeConfigRoot(account: .main, scope: ClaudeAccountsStorage.mainScope())
+        self.roots = [ClaudeConfigRoot(
+            account: .main,
+            projectsURL: claudeProjectsDirOverride ?? main.projectsURL,
+            sessionsURL: claudeSessionsDirOverride ?? main.sessionsURL
+        )]
         self.processProvider = processProvider
+    }
+
+    /// Points the scan at the config folders of every tracked Claude account,
+    /// the main account's first. Every cache is keyed by full path, so two
+    /// folders never collide, but a listing or a parse that belongs to a
+    /// folder no longer scanned is dropped rather than kept around.
+    func setRoots(_ roots: [ClaudeConfigRoot]) {
+        guard !roots.isEmpty else { return }
+        queue.async { [weak self] in
+            guard let self, self.roots != roots else { return }
+            self.roots = roots
+            self.dirListings.removeAll()
+            self.startedAtCache.removeAll()
+            self.parseCache.removeAll()
+        }
+    }
+
+    /// Returns once every change queued before it (`setRoots`, the interval,
+    /// the visibility) has been applied. For tests that drive `scan()`
+    /// synchronously.
+    func waitForPendingChanges() {
+        queue.sync {}
     }
 
     func startMonitoring() {
@@ -142,51 +151,77 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
         }
 
         let fm = FileManager.default
-        let projectsDir = claudeProjectsDir
+        let roots = self.roots
 
-        guard fm.fileExists(atPath: projectsDir.path) else {
+        // Every root's project dirs, each tagged with the root it lives in.
+        // A folder that does not exist (an account never used yet) adds
+        // nothing; the scan only gives up when no folder has anything.
+        var projectDirs: [URL] = []
+        var rootOfDir: [String: Int] = [:]
+        for (index, root) in roots.enumerated() {
+            guard fm.fileExists(atPath: root.projectsURL.path),
+                  let dirs = try? fm.contentsOfDirectory(
+                    at: root.projectsURL,
+                    includingPropertiesForKeys: [.contentModificationDateKey, .isDirectoryKey],
+                    options: .skipsHiddenFiles
+                  ) else { continue }
+            for dir in dirs where rootOfDir[dir.path] == nil {
+                rootOfDir[dir.path] = index
+                projectDirs.append(dir)
+            }
+        }
+        guard !projectDirs.isEmpty else {
             sessionsSubject.send([])
             return
         }
 
-        guard let projectDirs = try? fm.contentsOfDirectory(
-            at: projectsDir,
-            includingPropertiesForKeys: [.contentModificationDateKey, .isDirectoryKey],
-            options: .skipsHiddenFiles
-        ) else {
-            sessionsSubject.send([])
-            return
+        // Authoritative pid -> session mapping from each folder's registry
+        // (`<dir>/sessions/<pid>.json`), for the running pids only. A pid
+        // belongs to the folder that declares it: that is the
+        // `CLAUDE_CONFIG_DIR` the process runs with. The main account's
+        // folder is read first and wins the (theoretical) tie.
+        var registry: [Int32: (entry: SessionRegistryEntry, root: Int)] = [:]
+        let runningPids = Set(processes.map { $0.pid })
+        for (index, root) in roots.enumerated() {
+            let unclaimed = runningPids.subtracting(registry.keys)
+            guard !unclaimed.isEmpty else { break }
+            for (pid, entry) in readSessionRegistry(pids: unclaimed, in: root.sessionsURL) {
+                registry[pid] = (entry, index)
+            }
         }
-
-        // Authoritative pid -> session mapping from Claude Code's registry
-        // (`~/.claude/sessions/<pid>.json`), for the running pids only.
-        let registry = readSessionRegistry(pids: Set(processes.map { $0.pid }))
 
         refreshDirListings(projectDirs: projectDirs, fm: fm)
 
         // Resolve a transcript for each sessionId the registry names, and only
-        // those: the cached listings already say where a "<sessionId>.jsonl"
-        // lives, so a handful of fresh stats replaces the every-file mtime
-        // sweep the old full index paid on each tick (#255). A transcript
-        // resolves wherever it lives, which is how a `--resume`d session whose
-        // transcript sits under its ORIGINAL project dir, not the directory
-        // the process was launched from, is found (#233). When the same
-        // sessionId exists under several dirs, the newest mtime wins (dirs are
-        // walked in stable path order so equal-mtime ties cannot flap between
-        // ticks with the dictionary's hashing).
+        // those, inside the folder that named it: the cached listings already
+        // say where a "<sessionId>.jsonl" lives, so a handful of fresh stats
+        // replaces the every-file mtime sweep the old full index paid on each
+        // tick (#255). Within its folder a transcript resolves wherever it
+        // lives, which is how a `--resume`d session whose transcript sits
+        // under its ORIGINAL project dir, not the directory the process was
+        // launched from, is found (#233). When the same sessionId exists under
+        // several dirs, the newest mtime wins (dirs are walked in stable path
+        // order so equal-mtime ties cannot flap between ticks with the
+        // dictionary's hashing).
         struct TranscriptRef { let url: URL; let stamp: FileStamp; let dir: URL }
-        var neededSids = Set<String>()
+        struct RootSession: Hashable { let root: Int; let sessionId: String }
+        var needed = Set<RootSession>()
         for proc in processes {
-            if let sid = registry[proc.pid]?.sessionId { neededSids.insert(sid) }
+            if let declared = registry[proc.pid], let sid = declared.entry.sessionId {
+                needed.insert(RootSession(root: declared.root, sessionId: sid))
+            }
         }
-        var bySessionId: [String: TranscriptRef] = [:]
-        if !neededSids.isEmpty {
-            bySessionId.reserveCapacity(neededSids.count)
+        var bySession: [RootSession: TranscriptRef] = [:]
+        if !needed.isEmpty {
+            bySession.reserveCapacity(needed.count)
             for (dirPath, listing) in dirListings.sorted(by: { $0.key < $1.key }) {
-                for entry in listing.files where neededSids.contains(entry.sessionId) {
+                guard let root = rootOfDir[dirPath] else { continue }
+                for entry in listing.files {
+                    let key = RootSession(root: root, sessionId: entry.sessionId)
+                    guard needed.contains(key) else { continue }
                     let stamp = fileStamp(atPath: entry.url.path, fm: fm)
-                    if let existing = bySessionId[entry.sessionId], existing.stamp.mtime >= stamp.mtime { continue }
-                    bySessionId[entry.sessionId] = TranscriptRef(
+                    if let existing = bySession[key], existing.stamp.mtime >= stamp.mtime { continue }
+                    bySession[key] = TranscriptRef(
                         url: entry.url,
                         stamp: stamp,
                         dir: URL(fileURLWithPath: dirPath, isDirectory: true)
@@ -204,9 +239,9 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
         // working directory. No freshness gate here: the process is provably
         // alive, so its session is live even if idle for a while.
         for proc in processes {
-            guard let entry = registry[proc.pid],
-                  let sid = entry.sessionId,
-                  let ref = bySessionId[sid],
+            guard let declared = registry[proc.pid],
+                  let sid = declared.entry.sessionId,
+                  let ref = bySession[RootSession(root: declared.root, sessionId: sid)],
                   let result = cachedReadAndParse(file: ref.url, stamp: ref.stamp) else { continue }
 
             let startedAt = cachedStartedAt(of: ref.url) ?? ref.stamp.mtime
@@ -221,7 +256,7 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
                 id: sid,
                 projectPath: result.projectPath,
                 gitBranch: result.gitBranch,
-                userSessionName: userName(from: entry, sessionId: sid),
+                userSessionName: userName(from: declared.entry, sessionId: sid),
                 model: result.model,
                 state: resolvedState,
                 lastUpdate: ref.stamp.mtime,
@@ -230,7 +265,8 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
                 sourceKind: proc.sourceKind,
                 transcriptPath: ref.url.path,
                 contextTokens: result.contextTokens,
-                contextMax: result.contextMax
+                contextMax: result.contextMax,
+                account: roots[declared.root].account
             ))
             consumedPids.insert(proc.pid)
             emittedSessionIds.insert(sid)
@@ -239,21 +275,22 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
         // FALLBACK pass: the pre-registry heuristic for any process without a
         // usable registry entry (older Claude Code, or a transcript we could
         // not locate) - match by working directory, newest transcript first,
-        // over fresh dirs only.
+        // over fresh dirs only, in every folder.
         let remaining = processes.filter { !consumedPids.contains($0.pid) }
         if !remaining.isEmpty {
             // The full per-file stat sweep is paid only here, when a process
             // has no usable registry entry (older Claude Code, or a transcript
             // the registry pass could not locate).
-            var dirFiles: [(dir: URL, files: [(url: URL, stamp: FileStamp)])] = []
+            var dirFiles: [(dir: URL, root: Int, files: [(url: URL, stamp: FileStamp)])] = []
             dirFiles.reserveCapacity(dirListings.count)
             for (dirPath, listing) in dirListings.sorted(by: { $0.key < $1.key }) where !listing.files.isEmpty {
+                guard let root = rootOfDir[dirPath] else { continue }
                 var files: [(url: URL, stamp: FileStamp)] = []
                 files.reserveCapacity(listing.files.count)
                 for entry in listing.files {
                     files.append((entry.url, fileStamp(atPath: entry.url.path, fm: fm)))
                 }
-                dirFiles.append((URL(fileURLWithPath: dirPath, isDirectory: true), files))
+                dirFiles.append((URL(fileURLWithPath: dirPath, isDirectory: true), root, files))
             }
 
             var cwdToProcesses: [String: [ClaudeProcessInfo]] = [:]
@@ -272,6 +309,7 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
             outer: for entry in sortedDirs {
                 let sortedFiles = entry.files.sorted { $0.stamp.mtime > $1.stamp.mtime }
                 guard let newest = sortedFiles.first, newest.stamp.mtime >= freshnessCutoff else { continue }
+                let root = roots[entry.root]
 
                 // Per-file gate on top of the per-dir one: a short-lived
                 // helper process (e.g. the VSCode extension's bundled CLI
@@ -297,7 +335,7 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
                         id: sessionId,
                         projectPath: result.projectPath,
                         gitBranch: result.gitBranch,
-                        userSessionName: readUserSessionName(pid: process.pid, sessionId: sessionId),
+                        userSessionName: readUserSessionName(pid: process.pid, sessionId: sessionId, in: root.sessionsURL),
                         model: result.model,
                         state: resolvedState,
                         lastUpdate: stamp.mtime,
@@ -306,7 +344,8 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
                         sourceKind: process.sourceKind,
                         transcriptPath: file.path,
                         contextTokens: result.contextTokens,
-                        contextMax: result.contextMax
+                        contextMax: result.contextMax,
+                        account: root.account
                     ))
                     emittedSessionIds.insert(sessionId)
 
@@ -479,8 +518,8 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
         let nameSource: String?
     }
 
-    private func readUserSessionName(pid: Int32, sessionId: String) -> String? {
-        let file = claudeSessionsDir.appendingPathComponent("\(pid).json")
+    private func readUserSessionName(pid: Int32, sessionId: String, in sessionsDir: URL) -> String? {
+        let file = sessionsDir.appendingPathComponent("\(pid).json")
         guard let data = try? Data(contentsOf: file),
               let entry = try? JSONDecoder().decode(SessionRegistryEntry.self, from: data) else {
             return nil
@@ -492,10 +531,10 @@ final class SessionMonitorService: SessionMonitorServiceProtocol, @unchecked Sen
     /// pid. Each `<pid>.json` carries the exact `sessionId` the process is on,
     /// which is what lets the scan pick the right transcript for a `--resume`d
     /// session instead of guessing by working directory (#233).
-    private func readSessionRegistry(pids: Set<Int32>) -> [Int32: SessionRegistryEntry] {
+    private func readSessionRegistry(pids: Set<Int32>, in sessionsDir: URL) -> [Int32: SessionRegistryEntry] {
         let fm = FileManager.default
         guard let files = try? fm.contentsOfDirectory(
-            at: claudeSessionsDir,
+            at: sessionsDir,
             includingPropertiesForKeys: nil,
             options: [.skipsHiddenFiles]
         ) else { return [:] }

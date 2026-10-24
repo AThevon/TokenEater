@@ -30,6 +30,38 @@ struct SessionStoreTests {
         )
     }
 
+    @Test("the scan roots are handed to the monitor as given")
+    func setRootsRelayed() {
+        let (store, mock) = makeStore()
+        let roots = [
+            ClaudeConfigRoot(account: .main, scope: .defaultChain, home: "/Users/x"),
+            ClaudeConfigRoot(account: AccountID(rawValue: "acct-w"),
+                             scope: .configDir(path: "/Users/x/.claude-work", service: "S"), home: "/Users/x"),
+        ]
+        store.setRoots(roots)
+        #expect(mock.lastRoots == roots)
+    }
+
+    @Test("an account's sessions and top model are its own; unattributed ones are the main account's")
+    func sessionsPerAccount() async throws {
+        let (store, mock) = makeStore()
+        store.bind()
+        let work = AccountID(rawValue: "acct-w")
+        var mainSession = makeSampleSession(id: "m", model: "claude-opus-4-6")
+        mainSession.account = .main
+        let legacy = makeSampleSession(id: "legacy", model: "claude-opus-4-6")
+        var workSession = makeSampleSession(id: "w", model: "claude-sonnet-4-6")
+        workSession.account = work
+        mock.emit([mainSession, legacy, workSession])
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        #expect(store.activeSessions(for: .main).map(\.id) == ["m", "legacy"])
+        #expect(store.activeSessions(for: work).map(\.id) == ["w"])
+        #expect(store.topActiveModelName(for: work) == ModelKind(rawModel: "claude-sonnet-4-6").displayName)
+        #expect(store.topActiveModelName(for: AccountID(rawValue: "acct-none")) == nil)
+        #expect(store.activeSessions.count == 3)
+    }
+
     @Test("sessions starts empty")
     func sessionsStartsEmpty() {
         let (store, _) = makeStore()

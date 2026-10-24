@@ -66,6 +66,11 @@ struct ClaudeSession: Identifiable, Sendable {
     /// Ratio 0.0 - 1.0 of the context window consumed. Nil when context data
     /// isn't available yet. The `activeSessionsTrait` UI uses this to drive
     /// the per-tile progress indicator on both Frost and Neon themes.
+    /// The Claude account whose config folder the session runs in, set by
+    /// the scan from the folder that declared it. Nil for sessions built
+    /// outside the scan (previews, tests), read as the main account.
+    var account: AccountID? = nil
+
     var contextFraction: Double? {
         guard let tokens = contextTokens, let max = contextMax, max > 0 else { return nil }
         return min(Double(tokens) / Double(max), 1.0)
@@ -73,4 +78,31 @@ struct ClaudeSession: Identifiable, Sendable {
 
     var isStale: Bool { Date().timeIntervalSince(lastUpdate) > 10 }
     var isDead: Bool { processPid == nil && Date().timeIntervalSince(lastUpdate) > 60 }
+}
+
+/// One Claude Code config folder the session scan reads: its transcripts and
+/// its live session registry. The main account's by default, `~/.claude`
+/// unless the user chose another folder for it (#294).
+struct ClaudeConfigRoot: Equatable, Sendable {
+    let account: AccountID
+    let projectsURL: URL
+    let sessionsURL: URL
+
+    init(account: AccountID, projectsURL: URL, sessionsURL: URL) {
+        self.account = account
+        self.projectsURL = projectsURL
+        self.sessionsURL = sessionsURL
+    }
+
+    init(account: AccountID, scope: CredentialScope, home: String = ClaudeConfigDirResolver.realHome()) {
+        self.init(account: account, projectsURL: scope.projectsURL(home: home), sessionsURL: scope.sessionsURL(home: home))
+    }
+}
+
+/// One Claude account's transcripts as History reads them: the folder they
+/// sit in and the cache file kept for it.
+struct ClaudeHistoryRoot: Equatable, Sendable {
+    let account: AccountID
+    let projectsURL: URL
+    let cacheURL: URL
 }

@@ -57,9 +57,10 @@ final class UsageStore: ObservableObject {
     @Published var hasOpus: Bool = false
     @Published var hasCowork: Bool = false
     @Published var hasFable: Bool = false
-    /// True when the plan carries a dedicated weekly Sonnet pool. Most plans
-    /// don't (Sonnet usage only counts toward the shared 5h/weekly buckets),
-    /// so surfaces gated on this avoid showing a permanently-0% Sonnet gauge.
+    /// True when the response carries a Sonnet weekly limit (a flat
+    /// `seven_day_sonnet` utilization or a `limits[]` entry). Anthropic no
+    /// longer sends one to most accounts, so every Sonnet surface (menu bar,
+    /// popover, dashboard, widget, alerts) is gated on this.
     @Published var hasSonnet: Bool = false
     @Published var fableReset: String = ""
     @Published var fableResetAbsolute: String = ""
@@ -69,6 +70,10 @@ final class UsageStore: ObservableObject {
     @Published var planType: PlanType = .unknown
     @Published var rateLimitTier: String?
     @Published var organizationName: String?
+    /// The login's email as "m•••@acme.com", for telling accounts apart in
+    /// Settings. Memory only: never persisted, never in a shared file or the
+    /// diagnostic report.
+    @Published private(set) var maskedEmail: String?
     @Published private(set) var lastUsage: UsageResponse?
     /// Snapshot of the most recent API failure for the diagnostic report.
     /// Cleared on every successful refresh.
@@ -88,6 +93,44 @@ final class UsageStore: ObservableObject {
     /// (fresh install, never connected) `isDisconnected` stays the right signal.
     var isAwaitingRefresh: Bool {
         errorState == .tokenUnavailable && lastUsage != nil
+    }
+
+    /// When the numbers on screen were fetched, once they are the old numbers
+    /// of a login that no longer answers; nil while they are live, and nil
+    /// through the calm wait for Claude Code's next run (#218), when they are
+    /// still minutes old. The surfaces then draw them greyed and dated ("last
+    /// numbers 2 days ago") rather than in risk colours with a countdown that
+    /// may already have passed, so a frozen snapshot never reads as a fresh
+    /// one.
+    var lastNumbersDate: Date? {
+        Self.lastNumbersDate(
+            isAwaitingRefresh: isAwaitingRefresh,
+            lastUpdate: lastUpdate,
+            loginExpiredSince: loginExpiredSince,
+            now: Date()
+        )
+    }
+
+    /// The numbers turn into old ones when the login is known to have been
+    /// expired past the hour of calm, or, its expiry unknown, when they are
+    /// themselves older than that hour: a routine token blip over fresh
+    /// numbers changes nothing on screen.
+    nonisolated static func lastNumbersDate(
+        isAwaitingRefresh: Bool,
+        lastUpdate: Date?,
+        loginExpiredSince: Date?,
+        now: Date
+    ) -> Date? {
+        guard isAwaitingRefresh, let lastUpdate else { return nil }
+        if loginExpiredSince != nil { return lastUpdate }
+        return now.timeIntervalSince(lastUpdate) > TokenExpiryPolicy.escalationDelay ? lastUpdate : nil
+    }
+
+    /// True when a login that failed has no numbers at all to show (never
+    /// fetched, or its cache is gone): the surfaces draw "--" rather than a
+    /// 0% that would pass for a fresh reading.
+    var hasNoNumbers: Bool {
+        lastUsage == nil && errorState != .none
     }
 
     /// True when the paid Extra Credits pool is provisioned and turned on for
@@ -121,6 +164,21 @@ final class UsageStore: ObservableObject {
     private let notificationService: NotificationServiceProtocol
     private var refreshTask: Task<Void, Never>?
     private var autoRefreshTask: Task<Void, Never>?
+    /// The usage request on the wire, cancelled when the store stops, moves
+    /// to another folder or is retired.
+    private var inFlightFetch: Task<UsageResponse, Error>?
+
+    /// Bumped whenever what the store reads stops being what it was: the
+    /// account is paused, removed, switched off, or moved to another folder.
+    /// A refresh compares it after every `await` and drops its result when
+    /// it moved, so an answer that left before the change never writes the
+    /// shared file, the samples, the screen or an alert.
+    private var generation = 0
+    /// One refresh at a time. Not `isLoading`, which only covers the network
+    /// part and repaints the surfaces.
+    private var refreshing = false
+    /// Set once an added account is removed: nothing about it runs again.
+    private(set) var isRetired = false
 
     /// Current adaptive speed for rate limiting
     private(set) var currentSpeed: RefreshSpeed = .normal
@@ -154,25 +212,89 @@ final class UsageStore: ObservableObject {
         sharedFileService.cachedUsage
     }
 
+    // MARK: - Identity (several Claude accounts)
+
+    /// Decides whether the login behind a token is this account's. Set by
+    /// `AccountsStore` only while two or more accounts are tracked: with one,
+    /// the store follows whatever login is active (cswap, #153) and never
+    /// fetches a profile on the refresh path.
+    var identityGate: ((String) -> IdentityVerdict)? {
+        didSet {
+            guard identityGate == nil else { return }
+            verifiedToken = nil
+            if identityState != .unchecked { identityState = .unchecked }
+        }
+    }
+
+    /// Hands every fetched profile's identity digest to `AccountsStore`, which
+    /// keeps the main account's digest current while it is the only one.
+    var onIdentityDigest: ((String) -> Void)?
+
+    /// Where the identity check stands. Stays `.unchecked` with one account.
+    @Published private(set) var identityState: IdentityState = .unchecked
+
+    /// The token whose login the gate last accepted. A rotation (a new token
+    /// for the same folder) is checked again before its numbers are written.
+    private var verifiedToken: String?
+
+    /// The identity digest of the last profile fetched, for `AccountsStore`
+    /// to compare a newly connected folder against.
+    private(set) var lastIdentityDigest: String?
+
+    /// Where this store's token may come from.
+    var credentialScope: CredentialScope { tokenProvider.scope }
+
+    /// What renews this store's login once it has expired, for the popover
+    /// banner and the dashboard notice.
+    var loginExpiredHint: String {
+        Self.loginExpiredHint(scope: credentialScope, home: ClaudeConfigDirResolver.realHome())
+    }
+
+    /// A plain `claude` renews only the login of `~/.claude`, so a config
+    /// folder (an added account, or the main account moved there, #294) is
+    /// named in the command. The default chain keeps the 6.0 wording.
+    nonisolated static func loginExpiredHint(scope: CredentialScope, home: String) -> String {
+        guard let command = renewCommand(scope: scope, home: home) else {
+            return String(localized: "error.login.expired.hint")
+        }
+        return String(format: String(localized: "error.login.expired.hint.dir"), command)
+    }
+
+    /// The command that renews a config folder's login, nil for the default
+    /// chain, where a plain `claude` or the Claude desktop app does it.
+    nonisolated static func renewCommand(scope: CredentialScope, home: String) -> String? {
+        guard case .configDir(let path, _) = scope else { return nil }
+        return ClaudeConfigDirResolver.loginCommand(forConfigDir: path, home: home)
+    }
+
     init(
         repository: UsageRepositoryProtocol = UsageRepository(),
-        tokenProvider: TokenProviderProtocol = TokenProvider(),
+        tokenProvider: TokenProviderProtocol = TokenProvider.forMainAccount(),
         sharedFileService: SharedFileServiceProtocol = SharedFileService(),
-        notificationService: NotificationServiceProtocol = NotificationService()
+        notificationService: NotificationServiceProtocol = NotificationService(),
+        sessionSamplesKey: String = "sessionPacingSamples",
+        reloadWidgets: @escaping @MainActor () -> Void = { WidgetReloader.scheduleReload() }
     ) {
+        self.sessionSamplesKey = sessionSamplesKey
         self.repository = repository
         self.tokenProvider = tokenProvider
         self.sharedFileService = sharedFileService
         self.notificationService = notificationService
-        self.sessionSamples = Self.loadSessionSamples()
+        self.reloadWidgets = reloadWidgets
+        self.sessionSamples = Self.loadSessionSamples(key: sessionSamplesKey)
     }
+
+    /// Reloads the widgets that read this store's shared file. The main
+    /// account reloads the existing kinds; an added account passes a no-op,
+    /// since none of those kinds reads its file.
+    private let reloadWidgets: @MainActor () -> Void
 
     // MARK: - Session pacing samples (#240)
 
-    private static let sessionSamplesKey = "sessionPacingSamples"
+    private let sessionSamplesKey: String
 
-    private static func loadSessionSamples() -> [PacingSample] {
-        guard let data = UserDefaults.standard.data(forKey: sessionSamplesKey),
+    private static func loadSessionSamples(key: String) -> [PacingSample] {
+        guard let data = UserDefaults.standard.data(forKey: key),
               let decoded = try? JSONDecoder().decode([PacingSample].self, from: data) else {
             return []
         }
@@ -192,16 +314,28 @@ final class UsageStore: ObservableObject {
             now: Date()
         )
         if let data = try? JSONEncoder().encode(sessionSamples) {
-            UserDefaults.standard.set(data, forKey: Self.sessionSamplesKey)
+            UserDefaults.standard.set(data, forKey: sessionSamplesKey)
         }
     }
 
     func refresh(thresholds: UsageThresholds = .default, force: Bool = false) async {
         // Prevent concurrent refreshes
-        guard !isLoading else { return }
+        guard !refreshing, !isRetired else { return }
+        refreshing = true
+        let started = generation
+        defer { if generation == started { refreshing = false } }
 
-        // Resolve token
-        guard let token = tokenProvider.currentToken() else {
+        // A refresh can come before the cache was ever loaded (a token
+        // change, a wake, an added account still waiting its turn). Showing
+        // the last numbers first means a refused login keeps them on screen,
+        // dated, instead of a blank 0% that looks like a fresh reading.
+        if lastUsage == nil { loadCached() }
+
+        // Resolve token, off the main thread: a `security` read can take
+        // seconds when the Keychain is slow to answer.
+        let resolved = await readToken()
+        guard generation == started else { return }
+        guard let token = resolved else {
             hasConfig = false
             errorState = .tokenUnavailable
             updateLoginExpiry()
@@ -228,25 +362,55 @@ final class UsageStore: ObservableObject {
         }
 
         isLoading = true
-        defer { isLoading = false }
+        defer { if generation == started { isLoading = false } }
 
         do {
-            let usage = try await repository.refreshUsage(token: token, proxyConfig: proxyConfig)
+            // With several accounts, a login is checked before its numbers
+            // are written anywhere, so one account's usage can never land
+            // under another's name. Nothing runs here with a single account.
+            // A login whose profile is refused is not checked, so it takes
+            // the 401 path below without fetching any usage.
+            if identityGate != nil {
+                switch await verifyIdentity(token: token, generation: started) {
+                case .proceed: break
+                case .stop: return
+                case .unauthorized(let error): throw error
+                }
+            }
+            let usage = try await fetchUsage(token: token)
+            guard generation == started else { return }
             applySuccess(usage: usage)
         } catch let error as APIError {
+            guard generation == started else { return }
             lastAPIError = error.diagnosticSnapshot
             switch error {
             case .tokenExpired, .noToken:
                 // Invalidate cached token so next read re-checks Keychain for a fresh one
                 tokenProvider.invalidateToken()
                 // Retry once with a fresh token
-                if let freshToken = tokenProvider.currentToken(), freshToken != token {
-                    do {
-                        let usage = try await repository.refreshUsage(token: freshToken, proxyConfig: proxyConfig)
-                        applySuccess(usage: usage)
+                let fresh = await readToken()
+                guard generation == started else { return }
+                if let freshToken = fresh, freshToken != token {
+                    var check = IdentityCheck.proceed
+                    if identityGate != nil {
+                        check = await verifyIdentity(token: freshToken, generation: started)
+                    }
+                    guard generation == started else { return }
+                    switch check {
+                    case .stop:
                         return
-                    } catch {
-                        // Retry also failed - fall through to set error
+                    case .unauthorized:
+                        break
+                    case .proceed:
+                        do {
+                            let usage = try await fetchUsage(token: freshToken)
+                            guard generation == started else { return }
+                            applySuccess(usage: usage)
+                            return
+                        } catch {
+                            // Retry also failed - fall through to set error
+                            guard generation == started else { return }
+                        }
                     }
                 }
                 errorState = .tokenUnavailable
@@ -284,6 +448,7 @@ final class UsageStore: ObservableObject {
                 errorState = .networkError
             }
         } catch {
+            guard generation == started else { return }
             lastAPIError = LastAPIError(
                 httpStatusCode: nil,
                 retryAfterHeader: nil,
@@ -292,6 +457,73 @@ final class UsageStore: ObservableObject {
                 underlyingError: error.localizedDescription
             )
             errorState = .networkError
+        }
+    }
+
+    /// The store's token, read off the main thread. `TokenProvider` answers
+    /// from memory when it can; when it cannot it runs `security`, which a
+    /// locked or slow Keychain can hold for seconds, once per account.
+    private func readToken() async -> String? {
+        let provider = tokenProvider
+        return await Task.detached(priority: .utility) { provider.currentToken() }.value
+    }
+
+    /// The usage call, kept so stopping the store can cancel it. A
+    /// cancelled caller cancels it too.
+    private func fetchUsage(token: String) async throws -> UsageResponse {
+        let repository = self.repository
+        let proxy = proxyConfig
+        let task = Task { try await repository.fetchUsage(token: token, proxyConfig: proxy) }
+        inFlightFetch = task
+        defer { if inFlightFetch == task { inFlightFetch = nil } }
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
+    private enum IdentityCheck {
+        case proceed
+        case stop
+        /// The profile call refused the token: the 401 path takes over.
+        case unauthorized(APIError)
+    }
+
+    /// Asks the gate about the login behind `token`, fetching its profile
+    /// once per token. The profile is taken in (plan, organization, masked
+    /// email) only once the gate accepted it, so an account in conflict
+    /// never shows another login's facts. A profile that cannot be fetched
+    /// keeps the last numbers and writes nothing until a later tick gets an
+    /// answer.
+    private func verifyIdentity(token: String, generation started: Int) async -> IdentityCheck {
+        guard identityGate != nil else { return .proceed }
+        guard token != verifiedToken else { return .proceed }
+        do {
+            let profile = try await repository.fetchProfile(token: token, proxyConfig: proxyConfig)
+            guard generation == started, let gate = identityGate else { return .stop }
+            let verdict = gate(Self.identityDigest(of: profile))
+            guard verdict == .accepted else {
+                identityState = .conflict(verdict)
+                return .stop
+            }
+            applyProfile(profile)
+            verifiedToken = token
+            identityState = .verified
+            return .proceed
+        } catch let error as APIError {
+            guard generation == started else { return .stop }
+            switch error {
+            case .tokenExpired, .noToken:
+                return .unauthorized(error)
+            default:
+                identityState = .pending
+                return .stop
+            }
+        } catch {
+            guard generation == started else { return .stop }
+            identityState = .pending
+            return .stop
         }
     }
 
@@ -347,8 +579,12 @@ final class UsageStore: ObservableObject {
     /// stale state is dropped: clear the rate-limit backoff, force a profile
     /// re-fetch, and switch to fast mode so the new account's data shows up
     /// promptly. Returns true when the caller should force a usage refresh.
-    func reconcileTokenIfChanged() -> Bool {
-        guard tokenProvider.refreshTokenIfChanged() else { return false }
+    func reconcileTokenIfChanged() async -> Bool {
+        guard !isRetired else { return false }
+        let provider = tokenProvider
+        let started = generation
+        let rotated = await Task.detached(priority: .utility) { provider.refreshTokenIfChanged() }.value
+        guard rotated, generation == started else { return false }
         retryAfterDate = nil
         consecutiveRateLimits = 0
         lastProfileFetch = nil
@@ -364,26 +600,30 @@ final class UsageStore: ObservableObject {
     }
 
     func reloadConfig(thresholds: UsageThresholds = .default) {
-        let token = tokenProvider.currentToken()
-        hasConfig = token != nil
-        errorState = token != nil ? .none : .tokenUnavailable
+        guard !isRetired else { return }
         loadCached()
         notificationService.requestPermission()
-        WidgetReloader.scheduleReload()
+        reloadWidgets()
         refreshTask?.cancel()
-        refreshTask = Task {
-            await refresh(thresholds: thresholds, force: true)
+        refreshTask = Task { [weak self] in
+            guard let self else { return }
+            let token = await self.readToken()
+            guard !Task.isCancelled else { return }
+            self.hasConfig = token != nil
+            self.errorState = token != nil ? .none : .tokenUnavailable
+            await self.refresh(thresholds: thresholds, force: true)
             // Fetch the profile right after the first usage refresh so the
             // plan badge (PRO / MAX / TEAM) shows up immediately instead of
             // waiting 10 minutes for the auto-refresh cycle. `refreshProfile`
             // is internally throttled to 5 min, so this is safe to call on
             // every reload.
-            await refreshProfile()
+            await self.refreshProfile()
         }
     }
 
     func startAutoRefresh(interval: TimeInterval = 600, thresholds: UsageThresholds = .default) {
         autoRefreshTask?.cancel()
+        guard !isRetired else { return }
         autoRefreshTask = Task { [weak self] in
             // Wait first - reloadConfig already triggers an initial refresh
             try? await Task.sleep(for: .seconds(interval))
@@ -393,7 +633,7 @@ final class UsageStore: ObservableObject {
                 guard let self else { return }
                 // Catch account swaps (cswap / claude login) the file watcher
                 // misses because the token rotates in the Keychain.
-                let rotated = self.reconcileTokenIfChanged()
+                let rotated = await self.reconcileTokenIfChanged()
                 await self.refresh(thresholds: thresholds, force: rotated)
                 if rotated { await self.refreshProfile() }
                 let delay = self.effectiveInterval
@@ -402,8 +642,33 @@ final class UsageStore: ObservableObject {
         }
     }
 
+    /// Stops the loop and drops whatever was in flight: a refresh that
+    /// left before writes nothing when it comes back.
     func stopAutoRefresh() {
         autoRefreshTask?.cancel()
+        autoRefreshTask = nil
+        abandonInFlightWork()
+    }
+
+    /// Stops the store for good, for an account that was removed: nothing
+    /// in flight writes its file, its samples or an alert any more, and no
+    /// call can start it again.
+    func retire() {
+        isRetired = true
+        stopAutoRefresh()
+        identityGate = nil
+        notifTogglesProvider = nil
+        onIdentityDigest = nil
+    }
+
+    private func abandonInFlightWork() {
+        refreshTask?.cancel()
+        refreshTask = nil
+        inFlightFetch?.cancel()
+        inFlightFetch = nil
+        generation += 1
+        refreshing = false
+        if isLoading { isLoading = false }
     }
 
     func reauthenticate() async {
@@ -411,7 +676,7 @@ final class UsageStore: ObservableObject {
     }
 
     func testConnection() async -> ConnectionTestResult {
-        guard let token = tokenProvider.currentToken() else {
+        guard let token = await readToken() else {
             return ConnectionTestResult(success: false, message: String(localized: "error.notoken"))
         }
         do {
@@ -437,7 +702,8 @@ final class UsageStore: ObservableObject {
         consecutiveRateLimits = 0
         currentSpeed = .fast
         sharedFileService.invalidateCache()
-        _ = tokenProvider.resetConnection()
+        let provider = tokenProvider
+        _ = await Task.detached(priority: .userInitiated) { provider.resetConnection() }.value
 
         let result = await connectAutoDetect()
         if result.success {
@@ -447,7 +713,7 @@ final class UsageStore: ObservableObject {
     }
 
     func connectAutoDetect() async -> ConnectionTestResult {
-        guard let token = tokenProvider.currentToken() else {
+        guard let token = await readToken() else {
             return ConnectionTestResult(
                 success: false,
                 message: tokenProvider.tokenDiagnostic.authFailureHint
@@ -474,18 +740,139 @@ final class UsageStore: ObservableObject {
     private var lastProfileFetch: Date?
 
     func refreshProfile() async {
-        guard let token = tokenProvider.currentToken() else { return }
+        guard !isRetired else { return }
+        let started = generation
+        guard let token = await readToken(), generation == started else { return }
+        // With several accounts, only a login the gate accepted shows its
+        // profile; a rotated token waits for the refresh path to check it.
+        if identityGate != nil, token != verifiedToken { return }
         // Throttle: profile rarely changes, skip if fetched less than 5min ago
         if let last = lastProfileFetch, Date().timeIntervalSince(last) < 300 { return }
         do {
             let profile = try await repository.fetchProfile(token: token, proxyConfig: proxyConfig)
-            planType = PlanType(from: profile.account, organization: profile.organization)
-            rateLimitTier = profile.organization?.rateLimitTier
-            organizationName = profile.organization?.name
-            lastProfileFetch = Date()
+            guard generation == started else { return }
+            if identityGate != nil, token != verifiedToken { return }
+            applyProfile(profile)
         } catch {
             // Profile fetch failure is non-critical - don't update errorState
         }
+    }
+
+    /// Takes in a fetched profile and returns its identity digest, after
+    /// handing it to `onIdentityDigest`. The uuids go no further than here.
+    @discardableResult
+    private func applyProfile(_ profile: ProfileResponse) -> String {
+        planType = PlanType(from: profile.account, organization: profile.organization)
+        rateLimitTier = profile.organization?.rateLimitTier
+        organizationName = profile.organization?.name
+        let masked = ClaudeConfigDirResolver.maskEmail(profile.account.email)
+        if masked != maskedEmail { maskedEmail = masked }
+        lastProfileFetch = Date()
+        let digest = Self.identityDigest(of: profile)
+        lastIdentityDigest = digest
+        onIdentityDigest?(digest)
+        return digest
+    }
+
+    nonisolated static func identityDigest(of profile: ProfileResponse) -> String {
+        ClaudeConfigDirResolver.identityDigest(
+            accountUUID: profile.account.uuid,
+            organizationUUID: profile.organization?.uuid
+        )
+    }
+
+    /// The digest of the login this store reads right now, for refusing a
+    /// second copy of this account when another folder is connected. Never
+    /// answered from memory: the sources are read again first, since a
+    /// cswap or a `claude /login` changes the login with no event, then the
+    /// profile is fetched. Nil when there is no token or the profile cannot
+    /// be fetched, which `AccountsStore.connect` turns into a refusal when
+    /// a login exists. With the gate on, nothing is taken in: the refresh
+    /// path checks the login before showing it.
+    func freshIdentityDigest() async -> String? {
+        guard !isRetired else { return nil }
+        let started = generation
+        if await reconcileTokenIfChanged() {
+            // The numbers on screen are the previous login's.
+            Task { [weak self] in await self?.refresh(force: true) }
+        }
+        guard let token = await readToken(), generation == started else { return nil }
+        guard let profile = try? await repository.fetchProfile(token: token, proxyConfig: proxyConfig),
+              generation == started else { return nil }
+        guard identityGate == nil else { return Self.identityDigest(of: profile) }
+        return applyProfile(profile)
+    }
+
+    /// Whether this store's scope holds any login at all. Attributes only for
+    /// the Keychain, like onboarding's detection.
+    func hasTokenSource() -> Bool {
+        tokenProvider.hasTokenSource()
+    }
+
+    /// The same question off the main thread.
+    func detectTokenSource() async -> Bool {
+        let provider = tokenProvider
+        return await Task.detached(priority: .userInitiated) { provider.hasTokenSource() }.value
+    }
+
+    /// Points the store at another config folder (#294). Everything shown
+    /// came from the previous login, so it is dropped rather than left on
+    /// screen under the new folder: from memory, from the shared file the
+    /// widgets and the next `loadCached()` read, and from whatever refresh
+    /// was still out. The next refresh fills it again.
+    func reconfigure(scope: CredentialScope) {
+        abandonInFlightWork()
+        tokenProvider.reconfigure(scope: scope)
+        sharedFileService.clearUsage()
+        sharedFileService.invalidateCache()
+        resetDisplayedUsage()
+        errorState = .none
+        authFailureHint = nil
+        lastAPIError = nil
+        hasConfig = false
+        retryAfterDate = nil
+        consecutiveRateLimits = 0
+        currentSpeed = .normal
+        fastModeStart = nil
+        lastProfileFetch = nil
+        verifiedToken = nil
+        if identityState != .unchecked { identityState = .unchecked }
+        reloadWidgets()
+    }
+
+    /// Every number, date and plan fact back to its empty state, pacing
+    /// samples included.
+    private func resetDisplayedUsage() {
+        lastUsage = nil
+        lastUpdate = nil
+        fiveHourPct = 0
+        sevenDayPct = 0
+        sonnetPct = 0
+        opusPct = 0
+        coworkPct = 0
+        fablePct = 0
+        oauthAppsPct = 0
+        hasOpus = false
+        hasCowork = false
+        hasFable = false
+        hasSonnet = false
+        extraUsage = nil
+        planType = .unknown
+        rateLimitTier = nil
+        organizationName = nil
+        maskedEmail = nil
+        lastIdentityDigest = nil
+        fiveHourReset = ""
+        fiveHourResetAbsolute = ""
+        sevenDayReset = ""
+        sevenDayResetAbsolute = ""
+        fableReset = ""
+        fableResetAbsolute = ""
+        sonnetReset = ""
+        sonnetResetAbsolute = ""
+        applyPacing([:])
+        sessionSamples = []
+        UserDefaults.standard.removeObject(forKey: sessionSamplesKey)
     }
 
     /// Applies a successful usage fetch: updates the published UI state, clears
@@ -493,6 +880,7 @@ final class UsageStore: ObservableObject {
     /// notification + widget side effects. Shared by the nominal path and the
     /// post-401 retry so the two can never drift.
     private func applySuccess(usage: UsageResponse) {
+        repository.saveUsage(usage, fetchedAt: Date())
         updateUI(from: usage)
         appendSessionSample(from: usage)
         errorState = .none
@@ -505,7 +893,7 @@ final class UsageStore: ObservableObject {
         retryAfterDate = nil
         consecutiveRateLimits = 0
         notificationService.endTokenAlertEpisode()
-        WidgetReloader.scheduleReload()
+        reloadWidgets()
         evaluateNotifications(usage: usage)
     }
 
@@ -572,18 +960,26 @@ final class UsageStore: ObservableObject {
             windowDuration: 7 * 86_400,
             utilization: usage.sevenDay?.utilization ?? Double(sevenDayPct)
         )
-        let sonnetSnap = MetricSnapshot(
-            pct: sonnetPct,
-            resetsAt: usage.sevenDaySonnet?.resetsAtDate,
-            windowDuration: 7 * 86_400,
-            utilization: usage.sevenDaySonnet?.utilization ?? Double(sonnetPct)
-        )
-        let fableSnap = MetricSnapshot(
-            pct: fablePct,
-            resetsAt: usage.sevenDayFable?.resetsAtDate,
-            windowDuration: 7 * 86_400,
-            utilization: usage.sevenDayFable?.utilization ?? Double(fablePct)
-        )
+        // Nil when the response carries no Sonnet limit, so no alert can
+        // fire for a quota this account does not have.
+        let sonnetSnap = usage.sevenDaySonnet.map { bucket in
+            MetricSnapshot(
+                pct: sonnetPct,
+                resetsAt: bucket.resetsAtDate,
+                windowDuration: 7 * 86_400,
+                utilization: bucket.utilization
+            )
+        }
+        // Same for Fable: an account without that limit has nothing to alert
+        // on, not a 0% that could end a "recovered" episode on its own.
+        let fableSnap = usage.sevenDayFable.map { bucket in
+            MetricSnapshot(
+                pct: fablePct,
+                resetsAt: bucket.resetsAtDate,
+                windowDuration: 7 * 86_400,
+                utilization: bucket.utilization
+            )
+        }
 
         notificationService.evaluate(
             fiveHour: fiveHourSnap,

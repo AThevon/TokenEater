@@ -6,8 +6,8 @@ final class MockNotificationService: NotificationServiceProtocol {
     var lastEvaluation: (
         fiveHour: MetricSnapshot,
         sevenDay: MetricSnapshot,
-        sonnet: MetricSnapshot,
-        fable: MetricSnapshot,
+        sonnet: MetricSnapshot?,
+        fable: MetricSnapshot?,
         sessionPacing: PacingZone?,
         weeklyPacing: PacingZone?,
         extraUsage: ExtraUsage?,
@@ -32,11 +32,18 @@ final class MockNotificationService: NotificationServiceProtocol {
         testedProviders.append(provider)
     }
 
+    var testedAccounts: [AccountID] = []
+
+    func sendTest(forClaudeAccount account: NotificationScope) {
+        testSent = true
+        testedAccounts.append(account.account)
+    }
+
     func evaluate(
         fiveHour: MetricSnapshot,
         sevenDay: MetricSnapshot,
-        sonnet: MetricSnapshot,
-        fable: MetricSnapshot,
+        sonnet: MetricSnapshot?,
+        fable: MetricSnapshot?,
         sessionPacing: PacingZone?,
         weeklyPacing: PacingZone?,
         extraUsage: ExtraUsage?,
@@ -87,5 +94,11 @@ final class MockNotificationService: NotificationServiceProtocol {
 
     func checkVendorHealth(_ status: VendorStatus, toggles: NotificationToggles) {
         vendorHealthChecks.append((status, toggles))
+    }
+
+    var purges: [(account: AccountID, includingDelivered: Bool)] = []
+
+    func purge(account: AccountID, includingDelivered: Bool) {
+        purges.append((account, includingDelivered))
     }
 }

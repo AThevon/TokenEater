@@ -23,6 +23,12 @@ protocol TokenProviderProtocol: Sendable {
     /// Drops every cache tied to the connection and re-reads the sources.
     /// Preferences are not its business (#268).
     func resetConnection() -> String?
+    /// Points the provider at another account's sources (a different
+    /// `CLAUDE_CONFIG_DIR` for the main account, #294). Drops the cached token
+    /// and reads nothing.
+    func reconfigure(scope: CredentialScope)
+    /// The sources this provider is bounded to.
+    var scope: CredentialScope { get }
 }
 
 extension TokenProviderProtocol {

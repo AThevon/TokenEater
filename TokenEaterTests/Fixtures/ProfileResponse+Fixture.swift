@@ -2,6 +2,8 @@ import Foundation
 
 extension ProfileResponse {
     static func fixture(
+        accountUUID: String = "test-uuid",
+        orgUUID: String = "org-uuid",
         fullName: String = "Test User",
         displayName: String = "Test",
         email: String = "test@example.com",
@@ -13,7 +15,7 @@ extension ProfileResponse {
     ) -> ProfileResponse {
         ProfileResponse(
             account: AccountInfo(
-                uuid: "test-uuid",
+                uuid: accountUUID,
                 fullName: fullName,
                 displayName: displayName,
                 email: email,
@@ -22,7 +24,7 @@ extension ProfileResponse {
             ),
             organization: orgName.map { name in
                 OrganizationInfo(
-                    uuid: "org-uuid",
+                    uuid: orgUUID,
                     name: name,
                     organizationType: orgType,
                     billingType: "stripe",

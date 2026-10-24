@@ -23,4 +23,6 @@ final class MockNotificationCenter: NotificationCenterProtocol {
         added.last { $0.identifier == id }?.content
     }
     func removePending(identifiers: [String]) { removedIDs.append(contentsOf: identifiers) }
+    private(set) var removedDeliveredIDs: [String] = []
+    func removeDelivered(identifiers: [String]) { removedDeliveredIDs.append(contentsOf: identifiers) }
 }

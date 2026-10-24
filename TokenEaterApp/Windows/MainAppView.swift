@@ -6,6 +6,7 @@ struct MainAppView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var updateStore: UpdateStore
     @EnvironmentObject private var sessionStore: SessionStore
+    @EnvironmentObject private var accountsStore: AccountsStore
 
     @State private var selectedSpace: AppSpace = .monitoring
     @State private var selectedSettingsSection: SettingsSection = .general
@@ -111,7 +112,11 @@ struct MainAppView: View {
             Group {
                 switch displayedSpace {
                 case .monitoring:
-                    MonitoringView(insightsStore: insightsStore)
+                    // Claude mode on an added account: the dashboard reads
+                    // that account's store. Only the dashboard: Settings and
+                    // Studio keep the main account's.
+                    MonitoringView(insightsStore: dashboardInsights)
+                        .environmentObject(dashboardStore)
                 case .history:
                     HistoryView(store: historyStore)
                 case .studio:
@@ -178,6 +183,13 @@ struct MainAppView: View {
                 }
             )
         }
+        .onReceive(accountsStore.mainScopeChanged) { _ in
+            // History and the insights read the main account's folder; a
+            // move (#294) must not leave the previous folder's numbers up.
+            insightsStore.invalidate()
+            insightsStore.warmIfStale()
+            historyStore.reload()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .navigateToSection)) { notification in
             guard let payload = notification.userInfo?["section"] as? String,
                   let target = NavigationTarget.parse(payload) else { return }
@@ -202,6 +214,27 @@ struct MainAppView: View {
                 settingsStore.hasSeenStudioIntro = true
             }
         }
+    }
+
+    /// The Claude store the dashboard reads: the focused account's in Claude
+    /// mode, the main one otherwise.
+    private var dashboardStore: UsageStore {
+        let focused = settingsStore.focusedClaudeAccount
+        guard settingsStore.activeProviderMode == .claude, !focused.isMain,
+              settingsStore.runningClaudeAccountIDs.contains(focused),
+              let store = accountsStore.usageStore(for: focused) else { return usageStore }
+        return store
+    }
+
+    /// The insights behind the dashboard's tiles, from the same account as
+    /// `dashboardStore`: an added account's own folder in Claude mode on it,
+    /// the main account's otherwise.
+    private var dashboardInsights: MonitoringInsightsStore {
+        let focused = settingsStore.focusedClaudeAccount
+        guard settingsStore.activeProviderMode == .claude, !focused.isMain,
+              settingsStore.runningClaudeAccountIDs.contains(focused),
+              let insights = accountsStore.insightsStore(for: focused) else { return insightsStore }
+        return insights
     }
 
     /// The one-shot Studio discovery bubble: upgrading users only (fresh

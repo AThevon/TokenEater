@@ -136,7 +136,7 @@ enum MenuBarSegmentKind: String, Codable, CaseIterable, Identifiable {
     /// account lacks the metric, matching the pre-5.10 menu bar.
     var isPresenceGated: Bool {
         switch self {
-        case .fable, .extraCredits, .fablePacing,
+        case .sonnet, .fable, .extraCredits, .fablePacing,
              .codexSession, .codexWeekly, .codexSessionPacing, .codexWeeklyPacing:
             return true
         default:
@@ -220,19 +220,27 @@ struct MenuBarSegment: Codable, Equatable, Identifiable {
     var style: MenuBarSegmentStyle
     var isHidden: Bool
     var options: MenuBarSegmentOptions
+    /// The Claude account a Claude segment reads. Nil is the account the mode
+    /// shows (the main one, or the focused one in Claude mode), so every
+    /// segment written before accounts existed keeps meaning what it meant.
+    /// Ignored by Codex and neutral kinds. Encoded only when set, so a layout
+    /// that never targets an account stays byte for byte what 6.0 wrote.
+    var account: AccountID?
 
     init(
         id: UUID = UUID(),
         kind: MenuBarSegmentKind,
         style: MenuBarSegmentStyle,
         isHidden: Bool = false,
-        options: MenuBarSegmentOptions = MenuBarSegmentOptions()
+        options: MenuBarSegmentOptions = MenuBarSegmentOptions(),
+        account: AccountID? = nil
     ) {
         self.id = id
         self.kind = kind
         self.style = style
         self.isHidden = isHidden
         self.options = options
+        self.account = account
     }
 
     init(from decoder: Decoder) throws {
@@ -245,6 +253,9 @@ struct MenuBarSegment: Codable, Equatable, Identifiable {
         id = (try? c.decodeIfPresent(UUID.self, forKey: .id)) ?? UUID()
         isHidden = (try? c.decodeIfPresent(Bool.self, forKey: .isHidden)) ?? false
         options = (try? c.decodeIfPresent(MenuBarSegmentOptions.self, forKey: .options)) ?? MenuBarSegmentOptions()
+        // An unreadable account falls back to the mode's account rather than
+        // dropping the segment.
+        account = (try? c.decodeIfPresent(AccountID.self, forKey: .account)) ?? nil
     }
 
     /// Style clamped to what the kind allows - a decoded or programmatic
@@ -264,6 +275,9 @@ struct MenuBarComposition: Codable, Equatable {
         self.segments = segments
     }
 
+    /// Unknown keys are ignored: an `accountLabel` written by a 6.1
+    /// pre-release (dots, or dots and names) is dropped the next time the
+    /// layout is saved, since the bar now marks accounts by colour alone.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         segments = c.decodeLossyArray(MenuBarSegment.self, forKey: .segments)
@@ -284,13 +298,52 @@ struct MenuBarComposition: Codable, Equatable {
         guard segments.count == other.segments.count else { return false }
         for (a, b) in zip(segments, other.segments) where
             a.kind != b.kind || a.style != b.style
-            || a.isHidden != b.isHidden || a.options != b.options {
+            || a.isHidden != b.isHidden || a.options != b.options
+            || a.account != b.account {
             return false
         }
         return true
     }
 
     static let `default` = MenuBarBuiltinTemplate.classic.composition
+
+    /// The layout with an added account's segments, put right after the
+    /// last Claude segment so every Claude account reads as one run before
+    /// Codex. They copy the main account's visible Claude usage segments,
+    /// kind and style, two at most (the session alone when it shows none),
+    /// so the new account reads like the rest of the bar. From the third
+    /// account in the bar on, only the first of them: next to the notch a
+    /// bar runs out of room fast. Unchanged when the account already has a
+    /// segment here.
+    func addingAccountSegments(_ id: AccountID) -> MenuBarComposition {
+        guard !id.isMain, !segments.contains(where: { $0.account == id }) else { return self }
+        // Sonnet is left out: almost no account gets that limit any more, so
+        // a copy would most likely draw nothing and take one of the two
+        // places. Fable and Extra Credits are copied as they always were.
+        let mainUsage = visibleSegments.filter {
+            $0.kind.provider == .claude && $0.kind.family == .usage && $0.kind != .sonnet
+                && ($0.account ?? .main).isMain
+        }
+        var models: [MenuBarSegment] = []
+        for segment in mainUsage where !models.contains(where: { $0.kind == segment.kind }) {
+            models.append(segment)
+        }
+        var added = models.prefix(2).map {
+            MenuBarSegment(kind: $0.kind, style: $0.effectiveStyle, account: id)
+        }
+        if added.isEmpty {
+            let style = visibleSegments
+                .first { $0.kind.provider == .claude && $0.kind.family == .usage }?
+                .effectiveStyle ?? .labelValue
+            added = [MenuBarSegment(kind: .session, style: style, account: id)]
+        }
+        let accountsInBar = Set(segments.compactMap(\.account).filter { !$0.isMain })
+        if !accountsInBar.isEmpty { added = Array(added.prefix(1)) }
+        var next = self
+        let insertAt = segments.lastIndex { $0.kind.provider == .claude }.map { $0 + 1 } ?? segments.count
+        next.segments.insert(contentsOf: added, at: insertAt)
+        return next
+    }
 }
 
 // MARK: - Templates
@@ -383,9 +436,19 @@ enum MenuBarBuiltinTemplate: String, CaseIterable, Identifiable {
                 MenuBarSegment(kind: .weekly, style: .labelValue),
                 MenuBarSegment(kind: .sessionPacing, style: .dotDelta),
                 MenuBarSegment(kind: .weeklyPacing, style: .dotDelta),
-                MenuBarSegment(kind: .sonnet, style: .labelValue),
             ])
         }
+    }
+
+    /// Whether `composition` is this template, as it ships now or as an
+    /// earlier version shipped it: a bar applied from Complete while it still
+    /// ended on a Sonnet segment keeps reading as Complete in the editor.
+    func matches(_ composition: MenuBarComposition) -> Bool {
+        if self.composition.isEquivalent(to: composition) { return true }
+        guard self == .complete else { return false }
+        var legacy = self.composition
+        legacy.segments.append(MenuBarSegment(kind: .sonnet, style: .labelValue))
+        return legacy.isEquivalent(to: composition)
     }
 }
 
@@ -414,5 +477,20 @@ extension MenuBarSegmentKind {
         case .sessionReset: return "clock.arrow.circlepath"
         case .serviceStatus: return "dot.radiowaves.left.and.right"
         }
+    }
+}
+
+// MARK: - Adding from the editor
+
+extension MenuBarSegment {
+    /// A new segment as the Studio editor adds it: the kind's first style,
+    /// and the account of the group it was picked from. Only a Claude kind of
+    /// an added account carries an account (see `PopoverElement.added`).
+    static func added(kind: MenuBarSegmentKind, account: AccountID?) -> MenuBarSegment {
+        MenuBarSegment(
+            kind: kind,
+            style: kind.allowedStyles.first ?? .text,
+            account: kind.provider == .claude && account?.isMain == false ? account : nil
+        )
     }
 }

@@ -24,6 +24,9 @@ enum EditorUnavailability {
     case notOnPlan(MetricProvider)
     /// Nothing fetched yet, so nothing can be said about the plan.
     case noDataYet
+    /// Pinned to a Claude account that is paused (or gone): drawn again
+    /// once it is tracked. Carries the account's name when it is known.
+    case accountPaused(String?)
 
     var label: String {
         switch self {
@@ -35,6 +38,9 @@ enum EditorUnavailability {
             return String(format: String(localized: "editor.unavailable.plan"), provider.displayName)
         case .noDataYet:
             return String(localized: "editor.unavailable.noData")
+        case .accountPaused(let name):
+            guard let name else { return String(localized: "editor.unavailable.accountGone") }
+            return String(format: String(localized: "editor.unavailable.accountPaused"), name)
         }
     }
 }
@@ -42,6 +48,75 @@ enum EditorUnavailability {
 // MARK: - Resolution
 
 extension EditorUnavailability {
+    /// The Claude store a row of a layout reads: the account its element or
+    /// segment resolves to in the mode being edited (`AccountID.effective`),
+    /// or `fallback` (the scope's own store) for anything that is not a
+    /// Claude kind. Nil for a Claude kind whose account is not running.
+    static func store(
+        declared: AccountID?,
+        provider: MetricProvider?,
+        settings: SettingsStore,
+        accounts: AccountsStore,
+        fallback: UsageStore
+    ) -> UsageStore? {
+        guard provider == .claude else { return fallback }
+        guard let account = settings.effectiveAccount(for: declared) else { return nil }
+        return accounts.usageStore(for: account) ?? fallback
+    }
+
+    /// Why a segment of the layout being edited would draw nothing, its
+    /// account taken into account: a segment pinned to a paused account says
+    /// so before anything else about it.
+    static func reason(
+        for segment: MenuBarSegment,
+        settings: SettingsStore,
+        accounts: AccountsStore,
+        usage: UsageStore,
+        codex: CodexUsageStore
+    ) -> EditorUnavailability? {
+        guard let store = store(
+            declared: segment.account, provider: segment.kind.provider,
+            settings: settings, accounts: accounts, fallback: usage
+        ) else {
+            return pausedReason(provider: segment.kind.provider, declared: segment.account, settings: settings)
+        }
+        return reason(for: segment.kind, settings: settings, usage: store, codex: codex)
+    }
+
+    /// Same contract for an element of the popover being edited.
+    static func reason(
+        for element: PopoverElement,
+        settings: SettingsStore,
+        accounts: AccountsStore,
+        usage: UsageStore,
+        codex: CodexUsageStore
+    ) -> EditorUnavailability? {
+        guard let store = store(
+            declared: element.account, provider: element.kind.provider,
+            settings: settings, accounts: accounts, fallback: usage
+        ) else {
+            return pausedReason(provider: element.kind.provider, declared: element.account, settings: settings)
+        }
+        return reason(for: element.kind, settings: settings, usage: store, codex: codex)
+    }
+
+    /// A Claude row whose account is not running: Claude itself switched
+    /// off or out of scope first, since that is the switch to flip; then the
+    /// paused account.
+    private static func pausedReason(
+        provider: MetricProvider?,
+        declared: AccountID?,
+        settings: SettingsStore
+    ) -> EditorUnavailability {
+        if let provider {
+            guard settings.activeProviders.contains(provider) else { return .providerOff(provider) }
+            guard settings.activeProviderMode.shows(provider) else {
+                return .outOfScope(mode: settings.activeProviderMode.localizedLabel)
+            }
+        }
+        return .accountPaused(declared.flatMap { settings.claudeAccount($0)?.name })
+    }
+
     /// nil when the segment draws. Availability itself is still asked of
     /// `MenuBarSegmentAvailability`, which mirrors the renderer: this type
     /// only explains a "no" that has already been decided elsewhere.
@@ -123,7 +198,7 @@ extension EditorUnavailability {
     /// grant. Everything else that reports unavailable is missing data.
     private static func isPlanFact(_ kind: MenuBarSegmentKind) -> Bool {
         switch kind {
-        case .fable, .fablePacing, .extraCredits,
+        case .sonnet, .fable, .fablePacing, .extraCredits,
              .codexSession, .codexSessionPacing,
              .codexWeekly, .codexWeeklyPacing:
             return true
@@ -134,7 +209,7 @@ extension EditorUnavailability {
 
     private static func isPlanFact(_ kind: PopoverElementKind) -> Bool {
         switch kind {
-        case .fable, .fablePacing, .extraCredits,
+        case .sonnet, .fable, .fablePacing, .extraCredits,
              .codexSession, .codexSessionPacing,
              .codexWeekly, .codexWeeklyPacing:
             return true

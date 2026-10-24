@@ -189,15 +189,13 @@ private struct GaugeRingCell: View {
                 // truncated to "Resets in…", which is the one word the reader
                 // could already infer and none of the number they could not.
                 // An abbreviation would fit and read like a licence plate.
-                Text(width == .full
-                     ? String(format: String(localized: "metric.reset"), snapshot.resetText)
-                     : snapshot.resetText)
-                    .font(.system(size: width == .third ? 8 : 9, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.35))
-                    .lineLimit(1)
-                    .allowsTightening(true)
-                    .minimumScaleFactor(0.85)
-                    .help(String(format: String(localized: "metric.reset"), snapshot.resetText))
+                PopoverResetLine(
+                    countdown: snapshot.resetText,
+                    sentence: width == .full,
+                    wordsFont: .system(size: 9, weight: .medium),
+                    wordsColor: .white.opacity(0.35),
+                    countdownSize: width == .third ? 10 : 11
+                )
             }
         }
         .padding(.vertical, width == .full ? 8 : 2)
@@ -284,15 +282,13 @@ private struct ChipCell: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if showReset && !snapshot.resetText.isEmpty {
-                    Text(width == .full
-                         ? String(format: String(localized: "metric.reset"), snapshot.resetText)
-                         : snapshot.resetText)
-                        .font(.system(size: 9))
-                        .foregroundStyle(.white.opacity(0.5))
-                        .lineLimit(1)
-                        .allowsTightening(true)
-                        .minimumScaleFactor(0.85)
-                        .help(String(format: String(localized: "metric.reset"), snapshot.resetText))
+                    PopoverResetLine(
+                        countdown: snapshot.resetText,
+                        sentence: width == .full,
+                        wordsFont: .system(size: 9),
+                        wordsColor: .white.opacity(0.5),
+                        countdownSize: 11
+                    )
                 }
             }
             Spacer(minLength: 0)
@@ -300,6 +296,63 @@ private struct ChipCell: View {
         .padding(10)
         .popoverCard()
         .unscaledHelp(snapshot.unscaledNote)
+    }
+}
+
+// MARK: - Reset line (ring and chip cells)
+
+/// The time left before a reset under a ring or in a chip: bold, a step or
+/// two above the words and in a softened primary text colour: it reads before
+/// the caption without being the brightest thing in the popover (#295). With `sentence` the localized "Resets in" words stand
+/// before it in the caption's own style, a little further off than a plain
+/// space so the two do not run together.
+private struct PopoverResetLine: View {
+    let countdown: String
+    let sentence: Bool
+    let wordsFont: Font
+    let wordsColor: Color
+    let countdownSize: CGFloat
+
+    var body: some View {
+        let format = String(localized: "metric.reset")
+        Group {
+            if sentence, let parts = ResetCountdownFormatter.sentenceParts(format) {
+                HStack(alignment: .firstTextBaseline, spacing: 0) {
+                    if !parts.before.isEmpty { words(parts.before) }
+                    value.padding(.leading, parts.before.isEmpty ? 0 : Self.gap)
+                    if !parts.after.isEmpty {
+                        // Punctuation stays against the value ("in 2h14.").
+                        words(parts.after)
+                            .padding(.leading, parts.after.first?.isPunctuation == true ? 0 : Self.gap)
+                    }
+                }
+            } else if sentence {
+                words(String(format: format, countdown))
+            } else {
+                value
+            }
+        }
+        .lineLimit(1)
+        .allowsTightening(true)
+        .minimumScaleFactor(0.85)
+        .help(String(format: format, countdown))
+        // One VoiceOver element reading the whole sentence, not its pieces.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(String(format: format, countdown))
+    }
+
+    private static let gap: CGFloat = 4
+
+    private var value: some View {
+        Text(countdown)
+            .font(DS.Typography.countdown(countdownSize))
+            .foregroundStyle(DS.Palette.textPrimary.opacity(0.65))
+    }
+
+    private func words(_ text: String) -> some View {
+        Text(text)
+            .font(wordsFont)
+            .foregroundStyle(wordsColor)
     }
 }
 
@@ -631,33 +684,58 @@ private struct PopoverQuitButtonCell: View {
 /// merely unlabelled. It follows the mode now, and in All it shows both side
 /// by side, because with two providers on there are two plans and picking one
 /// to display would be choosing a favourite.
+///
+/// Once two Claude accounts run, All shows one badge per account, marked
+/// with the account's dot instead of the Claude mark, and folds to the dots
+/// alone when the row cannot hold every plan.
 private struct PlanBadgeCell: View {
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var accountsStore: AccountsStore
+
+    /// Follows the added accounts' plans, which arrive with their profile.
+    @StateObject private var accountStores = UsageStoresObserver()
 
     private var visible: [MetricProvider] {
         settingsStore.activeProviders.filter { settingsStore.activeProviderMode.shows($0) }
     }
 
+    private var badgesPerAccount: Bool {
+        settingsStore.activeProviderMode == .all && settingsStore.showsAccountMarkers
+    }
+
     var body: some View {
-        HStack(spacing: 4) {
-            ForEach(visible) { provider in
-                switch provider {
-                case .claude:
-                    if usageStore.planType != .unknown {
-                        badge(provider, usageStore.planType.displayLabel,
-                              usageStore.planType.badgeColor)
-                    }
-                case .codex:
-                    if codexStore.planType != .unknown {
-                        badge(provider, codexStore.planType.displayLabel,
-                              codexStore.planType.badgeColor)
+        Group {
+            if badgesPerAccount {
+                ViewThatFits(in: .horizontal) {
+                    accountBadges(showsPlans: true)
+                    accountBadges(showsPlans: false)
+                }
+            } else {
+                HStack(spacing: 4) {
+                    ForEach(visible) { provider in
+                        switch provider {
+                        case .claude:
+                            if usageStore.planType != .unknown {
+                                badge(provider, usageStore.planType.displayLabel,
+                                      usageStore.planType.badgeColor)
+                            }
+                        case .codex:
+                            if codexStore.planType != .unknown {
+                                badge(provider, codexStore.planType.displayLabel,
+                                      codexStore.planType.badgeColor)
+                            }
+                        }
                     }
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear { accountStores.track(accountsStore.runningExtraStores) }
+        .onChange(of: settingsStore.claudeAccounts) { _, _ in
+            accountStores.track(accountsStore.runningExtraStores)
+        }
     }
 
     private func badge(_ provider: MetricProvider, _ plan: String, _ tint: Color) -> some View {
@@ -669,12 +747,59 @@ private struct PlanBadgeCell: View {
             }
             Text(plan)
         }
+        // Several badges can crowd the row: a badge truncates rather than
+        // wraps or pushes the row wider than the popover.
+        .lineLimit(1)
+        .truncationMode(.tail)
         .font(.system(size: 8, weight: .bold))
         .foregroundStyle(.white)
         .padding(.horizontal, 5)
         .padding(.vertical, 2)
         .background(tint.opacity(0.3))
         .clipShape(Capsule())
+    }
+
+    /// One badge per running Claude account whose plan is known, then
+    /// Codex's. Without plans, each badge keeps its dot (or mark) and says
+    /// the rest in its tooltip.
+    private func accountBadges(showsPlans: Bool) -> some View {
+        HStack(spacing: 4) {
+            ForEach(settingsStore.activeClaudeAccounts) { account in
+                if let plan = accountsStore.usageStore(for: account.id)?.planType, plan != .unknown {
+                    HStack(spacing: 3) {
+                        AccountDot(colorHex: account.colorHex, size: 6)
+                        if showsPlans { Text(plan.displayLabel) }
+                    }
+                    .modifier(PlanCapsule(tint: plan.badgeColor))
+                    .help(account.name + " · " + plan.displayLabel)
+                }
+            }
+            if visible.contains(.codex), codexStore.planType != .unknown {
+                HStack(spacing: 3) {
+                    ProviderGlyph(provider: .codex, size: 7)
+                    if showsPlans { Text(codexStore.planType.displayLabel) }
+                }
+                .modifier(PlanCapsule(tint: codexStore.planType.badgeColor))
+                .help(ProviderMode.codex.localizedLabel + " · " + codexStore.planType.displayLabel)
+            }
+        }
+        .fixedSize()
+    }
+}
+
+/// The capsule a plan badge sits in.
+private struct PlanCapsule: ViewModifier {
+    let tint: Color
+
+    func body(content: Content) -> some View {
+        content
+            .lineLimit(1)
+            .font(.system(size: 8, weight: .bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(tint.opacity(0.3))
+            .clipShape(Capsule())
     }
 }
 
@@ -685,12 +810,20 @@ private struct PlanBadgeCell: View {
 
 private struct PopoverRefreshButtonCell: View {
     @EnvironmentObject private var usageStore: UsageStore
+    @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var accountsStore: AccountsStore
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var refreshHovering = false
 
     var body: some View {
         Button {
             Task { await usageStore.refresh(force: true) }
+            // All shows every running account, so it refreshes them all.
+            if settingsStore.activeProviderMode == .all {
+                for store in accountsStore.runningExtraStores {
+                    Task { await store.refresh(force: true) }
+                }
+            }
         } label: {
             Group {
                 if usageStore.isLoading {

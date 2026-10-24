@@ -63,12 +63,29 @@ struct ProviderStatusNotice: View {
             if usageStore.errorState == .tokenUnavailable, let since = usageStore.loginExpiredSince {
                 let headline = String(format: String(localized: "error.login.expired"),
                                       since.formatted(.relative(presentation: .named)))
-                return headline + ". " + String(localized: "error.login.expired.hint")
+                return headline + ". " + usageStore.loginExpiredHint
             }
-            guard !usageStore.isAwaitingRefresh else { return nil }
+            if usageStore.isAwaitingRefresh {
+                // Old numbers of a config folder whose expiry is unknown, so
+                // the hour of calm never ends: say which command renews it,
+                // as the greyed, dated numbers above already say it stopped.
+                guard usageStore.lastNumbersDate != nil, usageStore.authFailureHint == nil,
+                      UsageStore.renewCommand(scope: usageStore.credentialScope,
+                                              home: ClaudeConfigDirResolver.realHome()) != nil
+                else { return nil }
+                return usageStore.loginExpiredHint
+            }
             switch usageStore.errorState {
             case .tokenUnavailable:
-                return usageStore.authFailureHint ?? String(localized: "error.banner.reauth.hint")
+                if let hint = usageStore.authFailureHint { return hint }
+                let generic = String(localized: "error.banner.reauth.hint")
+                // A config folder's login is renewed by one command naming
+                // that folder: say it now rather than only after the hour of
+                // calm, since with no numbers on screen there is no calm to keep.
+                guard UsageStore.renewCommand(scope: usageStore.credentialScope,
+                                              home: ClaudeConfigDirResolver.realHome()) != nil
+                else { return generic }
+                return generic + ". " + usageStore.loginExpiredHint
             case .rateLimited:      return String(localized: "error.banner.apiunavailable")
             case .networkError:     return String(localized: "error.network.generic")
             case .none:             return nil

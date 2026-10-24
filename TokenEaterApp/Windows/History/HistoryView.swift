@@ -42,6 +42,7 @@ struct HistoryView: View {
         .animation(DS.Motion.easeInOut, value: isLoaderActive)
         .onAppear {
             store.providerMode = settingsStore.activeProviderMode
+            syncAccountFilter(modeChanged: false)
             // Refresh on every entry to the tab, not just the first. The
             // store is hoisted in `MainAppView`, so it survives navigation
             // and would otherwise keep showing the last load until the user
@@ -51,6 +52,20 @@ struct HistoryView: View {
         }
         .onChange(of: settingsStore.activeProviderMode) { _, mode in
             store.providerMode = mode
+            syncAccountFilter(modeChanged: true)
+            triggerChartReveal()
+        }
+        .onChange(of: settingsStore.focusedClaudeAccount) { _, _ in
+            syncAccountFilter(modeChanged: false)
+        }
+        .onChange(of: accounts.map(\.id)) { _, _ in
+            // An account added or removed changes what "all accounts" adds
+            // up, and a removed one cannot stay selected.
+            let before = store.accountFilter
+            syncAccountFilter(modeChanged: false)
+            if store.accountFilter == before { store.reload() }
+        }
+        .onChange(of: store.accountFilter) { _, _ in
             triggerChartReveal()
         }
         .onChange(of: store.filter) { _, _ in
@@ -231,9 +246,105 @@ struct HistoryView: View {
 
     private var toolbar: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-            rangePicker
+            if showsAccountPicker {
+                // Side by side while the window is wide enough, stacked below.
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: DS.Spacing.sm) {
+                        rangePicker
+                        Spacer(minLength: DS.Spacing.sm)
+                        accountPicker
+                    }
+                    VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                        rangePicker
+                        accountPicker
+                    }
+                }
+            } else {
+                rangePicker
+            }
             filterChips
         }
+    }
+
+    // MARK: - Claude accounts
+
+    /// Every tracked Claude account, paused ones included: their transcripts
+    /// are on disk whether or not their usage is being polled.
+    private var accounts: [ClaudeAccountSummary] { settingsStore.claudeAccounts }
+
+    /// In All, from two tracked accounts. Claude mode already names its
+    /// account in the window bar, and one account has nothing to choose.
+    private var showsAccountPicker: Bool {
+        settingsStore.activeProviderMode == .all && accounts.count >= 2
+    }
+
+    /// Points History at the right Claude folders: the account Claude mode
+    /// shows, every account in Codex mode (whose Claude half is gated off
+    /// anyway), and in All the account the chips picked, which a mode switch
+    /// resets to all of them.
+    private func syncAccountFilter(modeChanged: Bool) {
+        let target: AccountID?
+        switch settingsStore.activeProviderMode {
+        case .claude:
+            target = accounts.count >= 2 ? settingsStore.focusedClaudeAccount : nil
+        case .codex:
+            target = nil
+        case .all:
+            if !modeChanged, let current = store.accountFilter,
+               accounts.count >= 2, accounts.contains(where: { $0.id == current }) {
+                target = current
+            } else {
+                target = nil
+            }
+        }
+        if store.accountFilter != target { store.accountFilter = target }
+    }
+
+    /// Which Claude accounts History adds up: all of them, or one. Codex,
+    /// when tracked, stays in either way: these chips only narrow Claude.
+    private var accountPicker: some View {
+        HStack(spacing: 2) {
+            ProviderGlyph(provider: .claude, size: 10)
+                .foregroundStyle(DS.Palette.textTertiary)
+                .padding(.horizontal, 6)
+                .help(String(localized: "history.accounts.help"))
+            accountSegment(nil, label: String(localized: "history.accounts.all"), colorHex: nil)
+            ForEach(accounts) { account in
+                accountSegment(account.id, label: account.name, colorHex: account.colorHex)
+                    .help(account.name)
+            }
+        }
+        .padding(3)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(DS.Palette.glassFill)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(DS.Palette.glassBorderLo, lineWidth: 1)
+                )
+        )
+    }
+
+    private func accountSegment(_ id: AccountID?, label: String, colorHex: String?) -> some View {
+        let isActive = store.accountFilter == id
+        return Button {
+            store.accountFilter = id
+        } label: {
+            HStack(spacing: 5) {
+                if let colorHex {
+                    AccountDot(colorHex: colorHex, size: 7)
+                }
+                Text(label)
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(1)
+                    .foregroundStyle(isActive ? DS.Palette.textPrimary : DS.Palette.textTertiary)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(rangeBackground(active: isActive))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var rangePicker: some View {

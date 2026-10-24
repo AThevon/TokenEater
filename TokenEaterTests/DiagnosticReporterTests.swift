@@ -151,4 +151,52 @@ struct DiagnosticReporterTests {
         #expect(!report.contains("1080"))
         #expect(report.contains("Proxy configured: yes"))
     }
+
+    // MARK: - Claude config dir and accounts
+
+    @Test("the default config folder is reported as such")
+    func defaultConfigDirLine() {
+        let (store, settings) = makeStores()
+        let report = DiagnosticReporter.makeReport(usageStore: store, settingsStore: settings, home: "/Users/tester")
+        #expect(report.contains("Claude config dir: default (~/.claude, defaultChain)"))
+    }
+
+    @Test("a custom config folder shows in its ~ form with the service tail, and no identity")
+    func customConfigDirLine() async {
+        let repo = MockUsageRepository()
+        repo.stubbedProfile = .fixture(accountUUID: "acc-secret-uuid", orgUUID: "org-secret-uuid", email: "someone@acme.com", orgName: "Acme Secret")
+        let provider = MockTokenProvider()
+        provider.token = "tok"
+        let store = UsageStore(
+            repository: repo, tokenProvider: provider,
+            sharedFileService: MockSharedFileService(), notificationService: MockNotificationService(),
+            sessionSamplesKey: "DiagnosticReporterTests.custom"
+        )
+        store.reconfigure(scope: .configDir(path: "/Users/tester/.claude-perso", service: "Claude Code-credentials-1a2b3c4d"))
+        await store.refreshProfile()
+        let settings = SettingsStore(notificationService: MockNotificationService(), tokenProvider: MockTokenProvider())
+
+        let accounts = MockAccountsStore(
+            records: [
+                ClaudeAccountRecord(id: .main, configDir: "/Users/tester/.claude-perso", service: "Claude Code-credentials-1a2b3c4d", name: "Perso", colorHex: "#5B8DEF"),
+                ClaudeAccountRecord(id: AccountID(rawValue: "acct-1"), configDir: "/Volumes/Work/claude", service: "Claude Code-credentials-99887766", name: "Acme Secret", colorHex: "#6366F1", isPaused: true),
+            ],
+            stores: [.main: store]
+        )
+        let report = DiagnosticReporter.makeReport(usageStore: store, settingsStore: settings, accounts: accounts, home: "/Users/tester")
+        #expect(report.contains("Claude config dir: custom (~/.claude-perso, configDir, service -1a2b3c4d)"))
+        #expect(report.contains("**Claude accounts**"))
+        #expect(report.contains("- Tracked: 2 (running: 1)"))
+        #expect(report.contains("#2 added: custom (/Volumes/Work/claude, configDir, service -99887766), state paused"))
+        for secret in ["acc-secret-uuid", "org-secret-uuid", "someone@acme.com", "Acme Secret", "/Users/tester/", "Perso"] {
+            #expect(!report.contains(secret), "\(secret)")
+        }
+    }
+
+    @Test("one account adds no accounts section")
+    func singleAccountNoSection() {
+        let (store, settings) = makeStores()
+        let report = DiagnosticReporter.makeReport(usageStore: store, settingsStore: settings, accounts: MockAccountsStore())
+        #expect(!report.contains("**Claude accounts**"))
+    }
 }

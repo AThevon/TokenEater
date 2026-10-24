@@ -18,6 +18,10 @@ struct ProviderSetupCard: View {
     let provider: MetricProvider
     @ObservedObject var viewModel: OnboardingViewModel
     @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var accountsStore: AccountsStore
+
+    @State private var isMovingFolder = false
+    @State private var folderFailure: AccountConnectResult?
 
     private let accent = DS.Palette.brandPrimary
 
@@ -79,8 +83,100 @@ struct ProviderSetupCard: View {
 
     // MARK: - Scene
 
+    /// Claude's scene, plus the way out for someone whose Claude Code runs
+    /// with `CLAUDE_CONFIG_DIR` (#294): until the main account points at
+    /// that folder, nothing is found in `~/.claude`.
     @ViewBuilder
     private var scene: some View {
+        if provider == .claude, showsConfigDirLink {
+            VStack(spacing: 0) {
+                sceneBody
+                configDirLink
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 8)
+            }
+        } else {
+            sceneBody
+        }
+    }
+
+    private var showsConfigDirLink: Bool {
+        switch state {
+        case .notInstalled, .needsAction, .failed: return true
+        case .checking, .ready: return false
+        }
+    }
+
+    private var configDirLink: some View {
+        let custom = accountsStore.mainRecord.configDir
+        let label = custom.map {
+            String(
+                format: String(localized: "onboarding.claude.configDir.current"),
+                ClaudeConfigDirResolver.displayPath($0, home: ClaudeConfigDirResolver.realHome())
+            )
+        } ?? String(localized: "onboarding.claude.configDir")
+        return VStack(spacing: 4) {
+            Button(action: chooseConfigDir) {
+                HStack(spacing: 4) {
+                    if isMovingFolder {
+                        ProgressView().controlSize(.mini).tint(.white)
+                    } else {
+                        Image(systemName: "folder")
+                    }
+                    Text(label)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.white.opacity(0.6))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(isMovingFolder)
+
+            if let folderFailure {
+                Text(folderFailure.userMessage)
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(DS.Palette.semanticWarning)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func chooseConfigDir() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = false
+        panel.canCreateDirectories = false
+        panel.showsHiddenFiles = true
+        panel.directoryURL = URL(fileURLWithPath: ClaudeConfigDirResolver.realHome(), isDirectory: true)
+        panel.prompt = String(localized: "accounts.add.choose.prompt")
+        panel.message = String(localized: "accounts.mainFolder.choose.message")
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        isMovingFolder = true
+        folderFailure = nil
+        let proxy = settingsStore.proxyConfig
+        Task {
+            let result = await accountsStore.setMainConfigDir(url.path, proxyConfig: proxy)
+            isMovingFolder = false
+            NSApp.activate(ignoringOtherApps: true)
+            switch result {
+            case .moved:
+                viewModel.connectionStatus = .idle
+                refresh()
+            case .refused(let reason):
+                folderFailure = reason
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var sceneBody: some View {
         switch state {
         case .checking:
             VStack(spacing: 8) {

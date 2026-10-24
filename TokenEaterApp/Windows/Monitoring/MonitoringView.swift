@@ -15,10 +15,23 @@ struct MonitoringView: View {
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var sessionStore: SessionStore
     @EnvironmentObject private var vendorStatusStore: VendorStatusStore
+    @EnvironmentObject private var accountsStore: AccountsStore
+
+    /// Set when this view draws one added Claude account as a column of the
+    /// All dashboard: only that account's notice and Claude blocks, over the
+    /// account's own `UsageStore`, which the caller injects into the
+    /// environment. No header and no scroll view, since the page around it
+    /// has both.
+    var embeddedAccount: AccountID? = nil
+    /// Whether an embedded copy lays its pacing cards side by side, which a
+    /// column does once it has the page's width to itself.
+    var embeddedPacingAbreast: Bool = false
 
     /// Lightweight 7d daily-buckets store for the back-of-card stats.
-    /// Loaded once on appear, refreshed if older than 60s. Owned by
-    /// `MainAppView` so the cache survives navigation between spaces.
+    /// Loaded once on appear, refreshed if older than 60s. The main
+    /// account's is owned by `MainAppView` so the cache survives navigation
+    /// between spaces; an added account's lives on its `AccountRuntime`, and
+    /// reads that account's own folder.
     @ObservedObject var insightsStore: MonitoringInsightsStore
 
     @State private var lastUpdateText = ""
@@ -33,30 +46,32 @@ struct MonitoringView: View {
     @Environment(\.glowIntensity) private var glowIntensity
 
     var body: some View {
+        if embeddedAccount != nil {
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                ProviderStatusNotice(provider: .claude)
+                blocks(for: .claude, pacingAbreast: embeddedPacingAbreast)
+            }
+            .onAppear { insightsStore.warmIfStale() }
+        } else {
+            page
+        }
+    }
+
+    private var page: some View {
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
                 header
 
-                // One ordered list drives all three modes. A provider mode
-                // renders it once; All renders it once per provider, side by
-                // side, which is what makes the columns line up row for row
-                // without anything coordinating them. The order and the
-                // visibility come from Studio.
+                // One ordered list of blocks drives all three modes. A
+                // provider mode renders it once; All renders it once per
+                // section, each section a stack of its own, laid out as
+                // Studio's Layout and Section order say.
                 if isComparing {
-                    HStack(alignment: .top, spacing: DS.Spacing.md) {
-                        ForEach(visibleProviders) { provider in
-                            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                                ProviderStatusNotice(provider: provider)
-                                blocks(for: provider)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .transition(.glanceCard)
-                        }
-                    }
-                } else if let provider = visibleProviders.first {
+                    comparison
+                } else if let column = columns.first {
                     VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                        ProviderStatusNotice(provider: provider)
-                        blocks(for: provider)
+                        ProviderStatusNotice(provider: column.provider)
+                        blocks(for: column.provider, pacingAbreast: true)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .transition(.glanceCard)
@@ -67,7 +82,7 @@ struct MonitoringView: View {
             // band it used to live on, so the animation moved up with it. One
             // value drives it, and `glide` has no overshoot because these
             // cards are expensive to rasterise at a new size.
-            .animation(reduceMotion ? nil : DS.Motion.glide, value: visibleProviders)
+            .animation(reduceMotion ? nil : DS.Motion.glide, value: columns)
             .padding(DS.Spacing.md)
         }
         .task {
@@ -78,6 +93,9 @@ struct MonitoringView: View {
             }
         }
         .onAppear { insightsStore.warmIfStale() }
+        // Claude mode moving to another account hands this page that
+        // account's insights; the view stays, so appear does not fire again.
+        .onChange(of: ObjectIdentifier(insightsStore)) { _, _ in insightsStore.warmIfStale() }
         .onChange(of: usageStore.lastUpdate) { _, _ in refreshLastUpdateText() }
     }
 
@@ -124,8 +142,16 @@ struct MonitoringView: View {
         var duration: TimeInterval { self == .session ? 5 * 3600 : 7 * 86_400 }
     }
 
+    /// The account whose glance card this view draws: the embedded one, the
+    /// one Claude mode is focused on, or the main account.
+    private var heroAccount: AccountID {
+        if let embeddedAccount { return embeddedAccount }
+        return settingsStore.activeProviderMode == .claude ? settingsStore.focusedClaudeAccount : .main
+    }
+
     var claudeHeroWindow: ClaudeHeroWindow {
-        settingsStore.heroWindow(for: .claude).flatMap(ClaudeHeroWindow.init(rawValue:)) ?? .session
+        settingsStore.heroWindow(for: .claude, account: heroAccount)
+            .flatMap(ClaudeHeroWindow.init(rawValue:)) ?? .session
     }
 
     /// The window picker lives in a context menu rather than on the card.
@@ -135,18 +161,19 @@ struct MonitoringView: View {
     @ViewBuilder
     private func heroWindowMenu(for provider: MetricProvider, options: [(id: String, label: String)]) -> some View {
         Section(String(localized: "dashboard.hero.window.menu")) {
+            let account = provider == .claude ? heroAccount : .main
             Button {
-                settingsStore.setHeroWindow(nil, for: provider)
+                settingsStore.setHeroWindow(nil, for: provider, account: account)
             } label: {
                 Label(String(localized: "dashboard.hero.window.auto"),
-                      systemImage: settingsStore.heroWindow(for: provider) == nil ? "checkmark" : "")
+                      systemImage: settingsStore.heroWindow(for: provider, account: account) == nil ? "checkmark" : "")
             }
             ForEach(options, id: \.id) { option in
                 Button {
-                    settingsStore.setHeroWindow(option.id, for: provider)
+                    settingsStore.setHeroWindow(option.id, for: provider, account: account)
                 } label: {
                     Label(option.label,
-                          systemImage: settingsStore.heroWindow(for: provider) == option.id ? "checkmark" : "")
+                          systemImage: settingsStore.heroWindow(for: provider, account: account) == option.id ? "checkmark" : "")
                 }
             }
         }
@@ -165,26 +192,160 @@ struct MonitoringView: View {
 
     var showsCodex: Bool { visibleProviders.contains(.codex) }
 
-    /// True when the page has two providers to put side by side. A provider
-    /// mode, or a single active provider, gets that provider's own full page
-    /// instead: there is nothing to compare, and half a comparison is worse
-    /// than none.
-    private var isComparing: Bool {
-        settingsStore.activeProviderMode == .all && visibleProviders.count > 1
+    /// The page's sections: in All, every running Claude account and Codex
+    /// in the section order of Studio; in a provider mode, the one it shows.
+    private var columns: [HomeSection] {
+        MonitoringColumns.columns(
+            mode: settingsStore.activeProviderMode,
+            focused: settingsStore.focusedClaudeAccount,
+            sections: settingsStore.runningSections
+        )
     }
+
+    /// True when the page has two sections or more. A provider mode, or a
+    /// single active provider with a single account, gets that provider's
+    /// own full page instead, with nothing to tell apart. An embedded
+    /// account section is always part of several.
+    private var isComparing: Bool {
+        embeddedAccount != nil || columns.count > 1
+    }
+
+    /// The sections All shows. An added account whose store is not there
+    /// yet (just added, or resumed) is left out rather than drawn empty.
+    private var comparisonColumns: [HomeSection] {
+        columns.filter { column in
+            guard case .claude(let account) = column, !account.isMain else { return true }
+            return accountsStore.usageStore(for: account) != nil
+        }
+    }
+
+    /// All's sections, laid out as Studio's Arrangement asks (see
+    /// `MonitoringColumns.perRow`): stacked full width, or two per row.
+    /// Two per row only where two fit side by side; a narrower page stacks
+    /// them in every layout.
+    ///
+    /// The width decides through `ViewThatFits`, not a measured `@State`:
+    /// nothing to store on every frame of a resize, nothing stale after a
+    /// mode switch, and the first frame is already the right layout.
+    @ViewBuilder
+    private var comparison: some View {
+        let shown = comparisonColumns
+        if MonitoringColumns.perRow(layout: settingsStore.homeLayout, sections: shown.count) > 1 {
+            let minimum = MonitoringColumns.twoAbreastMinimumWidth(spacing: DS.Spacing.md)
+            ViewThatFits(in: .horizontal) {
+                sectionRows(shown, perRow: 2)
+                    .frame(minWidth: minimum, idealWidth: minimum, maxWidth: .infinity)
+                sectionRows(shown, perRow: 1)
+            }
+        } else {
+            sectionRows(shown, perRow: 1)
+        }
+    }
+
+    private func sectionRows(_ sections: [HomeSection], perRow: Int) -> some View {
+        let sideBySide = perRow > 1
+        // A header names every section once two Claude accounts share the
+        // page, and whenever the sections stack, where a section's cards
+        // would otherwise run into the next one's with only a name in front
+        // of some labels to tell them apart. Claude and Codex side by side
+        // keep 6.0's look: no header, the provider's name in front of each
+        // card's label.
+        let headed = settingsStore.showsAccountMarkers || !sideBySide
+        // Rows sit further apart than cards, so a section reads as a unit
+        // and the next header starts a new one.
+        return VStack(alignment: .leading, spacing: DS.Spacing.xl) {
+            ForEach(MonitoringColumns.rows(sections, perRow: perRow), id: \.self) { row in
+                // Each section is its own top-aligned stack, at one shared
+                // width. A last row with one section left keeps the width of
+                // the ones above, so its cards never spread to the full page.
+                // The next row starts under the taller section.
+                EqualWidthRow(spacing: DS.Spacing.md) {
+                    ForEach(row) { section in
+                        sectionView(section, pacingAbreast: !sideBySide, headed: headed)
+                    }
+                    if row.count < perRow {
+                        Color.clear.frame(height: 0)
+                    }
+                }
+            }
+        }
+        // Two small cards per row at most in a section that shares its row,
+        // three where it has the page (and only when three fit).
+        .environment(\.dashboardTilesPerRow, MetricsGridLayout.maxPerRow(sideBySide: sideBySide))
+        // Under a header the cards drop the name in front of their labels.
+        .environment(\.dashboardColumnHeaded, headed)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// One section, top to bottom: its header, its notice, then its blocks.
+    /// The main account and Codex draw here as they always have; an added
+    /// account draws through an embedded copy of this view over its own
+    /// `UsageStore`.
+    private func sectionView(_ section: HomeSection, pacingAbreast: Bool, headed: Bool) -> some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            if headed {
+                columnHeader(section)
+            }
+            switch section {
+            case .claude(let account) where !account.isMain:
+                if let store = accountsStore.usageStore(for: account) {
+                    MonitoringView(
+                        embeddedAccount: account,
+                        embeddedPacingAbreast: pacingAbreast,
+                        insightsStore: accountsStore.insightsStore(for: account) ?? insightsStore
+                    )
+                        .environmentObject(store)
+                }
+            default:
+                ProviderStatusNotice(provider: section.provider)
+                blocks(for: section.provider, pacingAbreast: pacingAbreast)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .transition(.glanceCard)
+    }
+
+    /// What a section is: the account's identity dot and full name over a
+    /// Claude section once several accounts share the page, the provider's
+    /// mark and name otherwise ("Claude", or "Codex" as on its mode pill).
+    /// The dot only names the account; the values keep their risk colours.
+    @ViewBuilder
+    private func columnHeader(_ column: HomeSection) -> some View {
+        switch column {
+        case .claude(let account):
+            if settingsStore.showsAccountMarkers {
+                let summary = settingsStore.claudeAccount(account)
+                DashboardColumnHeader(
+                    accountName: summary?.name ?? MetricProvider.claude.displayName,
+                    colorHex: summary?.colorHex ?? AccountPalette.presets[0]
+                )
+            } else {
+                DashboardColumnHeader(title: ProviderMode.claude.localizedLabel) {
+                    ProviderGlyph(provider: .claude, size: 11)
+                        .foregroundStyle(DS.Palette.textTertiary)
+                }
+            }
+        case .codex:
+            DashboardColumnHeader(title: ProviderMode.codex.localizedLabel) {
+                ProviderGlyph(provider: .codex, size: 11)
+                    .foregroundStyle(DS.Palette.textTertiary)
+            }
+        }
+    }
+
 
     /// Renders one provider's blocks, in the order Studio put them.
     @ViewBuilder
-    private func blocks(for provider: MetricProvider) -> some View {
+    private func blocks(for provider: MetricProvider, pacingAbreast: Bool) -> some View {
         ForEach(settingsStore.dashboardComposition.visibleBlocks) { block in
             if block.providers.contains(provider) {
-                blockContent(block, for: provider)
+                blockContent(block, for: provider, pacingAbreast: pacingAbreast)
             }
         }
     }
 
     @ViewBuilder
-    private func blockContent(_ block: DashboardBlock, for provider: MetricProvider) -> some View {
+    private func blockContent(_ block: DashboardBlock, for provider: MetricProvider, pacingAbreast: Bool) -> some View {
         switch (block, provider) {
         case (.hero, .claude):
             heroTile
@@ -203,15 +364,15 @@ struct MonitoringView: View {
 
         case (.windows, .claude):
             // The hero already shows one window, so the grid never repeats it.
-            // In every mode: the duplicate showed up as soon as the hero was
-            // pinned to Weekly, which a Claude-only user can do just as well.
-            grid(of: secondaryTiles
-                .filter { $0.id != claudeHeroTileID }
-                .map { labelled($0, for: .claude) })
+            grid(of: claudeGridTiles
+                .map { tile in
+                    var copy = labelled(tile, for: .claude)
+                    copy.lastNumbersDate = usageStore.lastNumbersDate
+                    copy.hasNumbers = !usageStore.hasNoNumbers
+                    return copy
+                })
         case (.windows, .codex):
-            grid(of: codexStore.windows
-                .sorted { $0.windowDuration < $1.windowDuration }
-                .filter { $0.id != codexHeroWindow?.id }
+            grid(of: codexGridWindows
                 .map { window in
                     labelled(TileDescriptor(
                         id: "codex-" + window.id,
@@ -225,9 +386,13 @@ struct MonitoringView: View {
                 })
 
         case (.pacing, .claude):
-            claudePacing
+            // A pace measures frozen numbers against a clock that kept
+            // running: meaningless once the login stopped answering.
+            if usageStore.lastNumbersDate == nil, !usageStore.hasNoNumbers {
+                claudePacing(abreast: pacingAbreast)
+            }
         case (.pacing, .codex):
-            codexPacing
+            codexPacing(abreast: pacingAbreast)
 
         case (.extraCredits, .claude):
             if let extra = usageStore.extraUsage, extra.isEnabled {
@@ -243,62 +408,82 @@ struct MonitoringView: View {
         }
     }
 
-    /// Stacked in a column, side by side on a single-provider page: the
-    /// pacing row has always been two cards abreast and that is the layout
-    /// Claude alone keeps.
+    /// Side by side when the column has the page's width (a single-provider
+    /// page, or a column stacked alone on its row), one under the other in a
+    /// column that shares the page: the pacing row has always been two cards
+    /// abreast where there was room for it.
     @ViewBuilder
-    private var claudePacing: some View {
+    private func claudePacing(abreast: Bool) -> some View {
         let cards = [
             usageStore.fiveHourPacing.map {
-                (pacing: $0, label: labelled(String(localized: "pacing.session.label"), for: .claude),
+                (pacing: $0, label: String(localized: "pacing.session.label"),
                  icon: "clock.fill", workweek: false, cooldown: false)
             },
             usageStore.pacingResult.map {
-                (pacing: $0, label: labelled(String(localized: "pacing.weekly.label"), for: .claude),
+                (pacing: $0, label: String(localized: "pacing.weekly.label"),
                  icon: "calendar.badge.clock", workweek: true, cooldown: true)
             },
         ].compactMap { $0 }
+        let prefix = labelPrefix(for: .claude)
 
-        if isComparing {
-            ForEach(Array(cards.enumerated()), id: \.offset) { _, card in
-                pacingCard(pacing: card.pacing, label: card.label, icon: card.icon,
-                           showWorkweekBadge: card.workweek, showCooldown: card.cooldown)
-            }
-        } else {
+        if abreast {
             HStack(spacing: DS.Spacing.sm) {
                 ForEach(Array(cards.enumerated()), id: \.offset) { _, card in
-                    pacingCard(pacing: card.pacing, label: card.label, icon: card.icon,
+                    pacingCard(pacing: card.pacing, label: card.label, prefix: prefix, icon: card.icon,
                                showWorkweekBadge: card.workweek, showCooldown: card.cooldown)
                         .frame(maxWidth: .infinity)
+                }
+            }
+        } else {
+            VStack(spacing: DS.Spacing.sm) {
+                ForEach(Array(cards.enumerated()), id: \.offset) { _, card in
+                    pacingCard(pacing: card.pacing, label: card.label, prefix: prefix, icon: card.icon,
+                               showWorkweekBadge: card.workweek, showCooldown: card.cooldown)
                 }
             }
         }
     }
 
     @ViewBuilder
-    private var codexPacing: some View {
+    private func codexPacing(abreast: Bool) -> some View {
         let windows = codexStore.windows
             .sorted { $0.windowDuration < $1.windowDuration }
             .filter { $0.pacing != nil }
-        if isComparing {
-            ForEach(windows) { window in
-                CodexPacingCard(
-                    pacing: window.pacing!,
-                    windowLabel: labelled(window.kind.heroLabel(for: window.windowDuration), for: .codex),
-                    isSession: window.kind == .session
-                )
-            }
-        } else {
+        if abreast {
             HStack(spacing: DS.Spacing.sm) {
                 ForEach(windows) { window in
                     CodexPacingCard(
                         pacing: window.pacing!,
-                        windowLabel: labelled(window.kind.heroLabel(for: window.windowDuration), for: .codex),
-                        isSession: window.kind == .session
+                        windowLabel: codexPacingLabel(window),
+                        isSession: window.kind == .session,
+                        labelPrefix: labelPrefix(for: .codex)
                     )
                     .frame(maxWidth: .infinity)
                 }
             }
+        } else {
+            VStack(spacing: DS.Spacing.sm) {
+                ForEach(windows) { window in
+                    CodexPacingCard(
+                        pacing: window.pacing!,
+                        windowLabel: codexPacingLabel(window),
+                        isSession: window.kind == .session,
+                        labelPrefix: labelPrefix(for: .codex)
+                    )
+                }
+            }
+        }
+    }
+
+    /// "Session pacing", "Weekly pacing", like Claude's cards. The bare
+    /// window name read exactly like the window's own tile once no provider
+    /// prefix stood in front of it (a headed column, Codex mode).
+    private func codexPacingLabel(_ window: CodexWindowSnapshot) -> String {
+        switch window.kind {
+        case .session: return String(localized: "pacing.session.label")
+        case .weekly: return String(localized: "pacing.weekly.label")
+        case .other:
+            return window.kind.heroLabel(for: window.windowDuration) + " · " + String(localized: "pacing.label")
         }
     }
 
@@ -309,6 +494,20 @@ struct MonitoringView: View {
         claudeHeroWindow == .weekly ? "weekly" : nil
     }
 
+    /// The small cards of a Claude column: every window but the one its hero
+    /// already shows. In every mode: the duplicate showed up as soon as the
+    /// hero was pinned to Weekly, which a Claude-only user can do as well.
+    private var claudeGridTiles: [TileDescriptor] {
+        secondaryTiles.filter { $0.id != claudeHeroTileID }
+    }
+
+    /// Codex's small cards: every window but the hero's.
+    private var codexGridWindows: [CodexWindowSnapshot] {
+        codexStore.windows
+            .sorted { $0.windowDuration < $1.windowDuration }
+            .filter { $0.id != codexHeroWindow?.id }
+    }
+
     private var codexHeroWindow: CodexWindowSnapshot? {
         if let pinned = settingsStore.heroWindow(for: .codex),
            let match = codexStore.windows.first(where: { $0.kind.rawValue == pinned }) {
@@ -317,15 +516,34 @@ struct MonitoringView: View {
         return codexStore.windows.min { $0.windowDuration < $1.windowDuration }
     }
 
-    /// One rule for every card label on this page: name the provider when
-    /// there is another one on screen, never when there is not.
-    private func labelled(_ base: String, for provider: MetricProvider) -> String {
-        isComparing ? provider.displayName + " · " + base : base
+    /// The name a card label starts with while several sections share the
+    /// page: the provider's, as in 6.0, or the account's. The card drops it
+    /// when a header above the section already names it
+    /// (`dashboardColumnHeaded`, which the page sets per arrangement): "WORK ·
+    /// WEEKLY" under "Work" only costs the label its room.
+    private func labelPrefix(for provider: MetricProvider) -> String? {
+        isComparing ? columnName(for: provider) : nil
     }
 
+    /// The name a card label gives its column: the provider, or once two
+    /// Claude accounts run, the account's own name, since every Claude
+    /// column draws with Claude's provider.
+    private func columnName(for provider: MetricProvider) -> String {
+        guard provider == .claude, let name = accountName else { return provider.displayName }
+        return name
+    }
+
+    /// The name of the account this view draws, once there are several to
+    /// tell apart.
+    private var accountName: String? {
+        guard settingsStore.showsAccountMarkers else { return nil }
+        return settingsStore.claudeAccount(heroAccount)?.name
+    }
+
+    /// A tile keeps the name apart, so it can drop it when it runs short.
     private func labelled(_ tile: TileDescriptor, for provider: MetricProvider) -> TileDescriptor {
         var copy = tile
-        copy.label = labelled(tile.label, for: provider)
+        copy.prefix = labelPrefix(for: provider)
         return copy
     }
 
@@ -333,34 +551,18 @@ struct MonitoringView: View {
 
     @ViewBuilder
     private var providerBadges: some View {
-        HStack(spacing: 5) {
-            if showsClaude, usageStore.planType != .unknown {
-                planBadge(.claude, usageStore.planType.displayLabel, DS.Palette.brandPrimary)
-            }
-            if showsCodex, codexStore.planType != .unknown {
-                planBadge(.codex, codexStore.planType.displayLabel, codexStore.planType.badgeColor)
+        if settingsStore.showsAccountMarkers && showsClaude {
+            DashboardAccountPlanBadges(columns: columns)
+        } else {
+            HStack(spacing: 5) {
+                if showsClaude, usageStore.planType != .unknown {
+                    DashboardPlanBadge(provider: .claude, plan: usageStore.planType.displayLabel, tint: DS.Palette.brandPrimary)
+                }
+                if showsCodex, codexStore.planType != .unknown {
+                    DashboardPlanBadge(provider: .codex, plan: codexStore.planType.displayLabel, tint: codexStore.planType.badgeColor)
+                }
             }
         }
-    }
-
-    private func planBadge(_ provider: MetricProvider, _ plan: String, _ tint: Color) -> some View {
-        HStack(spacing: 4) {
-            ProviderGlyph(provider: provider, size: 10)
-            Text(plan)
-                .font(.system(size: 9, weight: .bold))
-                .tracking(0.5)
-        }
-        .foregroundStyle(DS.Palette.textPrimary)
-        .padding(.horizontal, 7)
-        .padding(.vertical, 3)
-        .background(
-            RoundedRectangle(cornerRadius: DS.Radius.input, style: .continuous)
-                .fill(tint.opacity(0.22))
-                .overlay(
-                    RoundedRectangle(cornerRadius: DS.Radius.input, style: .continuous)
-                        .stroke(tint.opacity(0.45), lineWidth: 0.6)
-                )
-        )
     }
 
     private var header: some View {
@@ -398,10 +600,18 @@ struct MonitoringView: View {
             // provider mode is that one provider.
             if !visibleProviders.isEmpty {
                 Button {
-                    for provider in visibleProviders {
-                        switch provider {
-                        case .claude: Task { await usageStore.refresh(force: true) }
-                        case .codex:  Task { await codexStore.refresh(force: true) }
+                    // Every column on the page: each Claude account's own
+                    // store, and Codex. In Claude mode the page's store is
+                    // the focused account's.
+                    for column in columns {
+                        switch column {
+                        case .claude(let account):
+                            let store = settingsStore.activeProviderMode == .claude
+                                ? usageStore
+                                : (accountsStore.usageStore(for: account) ?? usageStore)
+                            Task { await store.refresh(force: true) }
+                        case .codex:
+                            Task { await codexStore.refresh(force: true) }
                         }
                     }
                 } label: {
@@ -482,10 +692,21 @@ struct MonitoringView: View {
             ? usageStore.lastUsage?.fiveHour?.resetsAtDate
             : usageStore.lastUsage?.sevenDay?.resetsAtDate
         let resetText = isSession ? usageStore.fiveHourReset : usageStore.sevenDayReset
-        let gaugeColor = gaugeColor(pct: pct, resetDate: resetDate, windowDuration: window.duration)
-        let gaugeGradient = gaugeGradient(pct: pct, resetDate: resetDate, windowDuration: window.duration)
-        let zone = isSession ? usageStore.fiveHourPacing?.zone : usageStore.pacingResult?.zone
-        let pacing = isSession ? usageStore.fiveHourPacing : usageStore.pacingResult
+        // A login that no longer answers keeps its last numbers, greyed and
+        // dated: no risk colour, no pace, no countdown that may have passed.
+        // One that never had any reads "--", greyed the same way.
+        let lastNumbers = usageStore.lastNumbersDate
+        let hasNumbers = !usageStore.hasNoNumbers
+        let muted = lastNumbers != nil || !hasNumbers
+        let gaugeColor = muted
+            ? DS.Palette.textSecondary
+            : gaugeColor(pct: pct, resetDate: resetDate, windowDuration: window.duration)
+        let gaugeGradient = muted
+            ? LinearGradient(colors: [DS.Palette.textSecondary, DS.Palette.textTertiary],
+                             startPoint: .topLeading, endPoint: .bottomTrailing)
+            : gaugeGradient(pct: pct, resetDate: resetDate, windowDuration: window.duration)
+        let zone = muted ? nil : (isSession ? usageStore.fiveHourPacing?.zone : usageStore.pacingResult?.zone)
+        let pacing = muted ? nil : (isSession ? usageStore.fiveHourPacing : usageStore.pacingResult)
         // Ambient tint follows the gauge color so the wash, the big
         // number, and the ring all read as a single signal.
         let accent = gaugeColor
@@ -514,7 +735,9 @@ struct MonitoringView: View {
                         zone: zone,
                         window: window,
                         resetText: resetText,
-                        resetDate: resetDate
+                        resetDate: resetDate,
+                        lastNumbers: lastNumbers,
+                        hasNumbers: hasNumbers
                     )
                 }
             }
@@ -562,7 +785,8 @@ struct MonitoringView: View {
     @ViewBuilder
     private func heroFrontContent(
         pct: Int, gaugeColor: Color, gaugeGradient: LinearGradient, zone: PacingZone?,
-        window: ClaudeHeroWindow, resetText: String, resetDate: Date?
+        window: ClaudeHeroWindow, resetText: String, resetDate: Date?, lastNumbers: Date?,
+        hasNumbers: Bool
     ) -> some View {
         ProviderHeroFace(
             provider: .claude,
@@ -572,7 +796,10 @@ struct MonitoringView: View {
             gaugeGradient: gaugeGradient,
             zone: zone,
             resetText: resetText,
-            resetDate: resetDate
+            resetDate: resetDate,
+            name: accountName,
+            lastNumbersDate: lastNumbers,
+            hasNumbers: hasNumbers
         )
     }
 
@@ -586,97 +813,123 @@ struct MonitoringView: View {
         pacing: PacingResult?,
         resetDate: Date?
     ) -> some View {
-        HStack(alignment: .center, spacing: DS.Spacing.lg) {
-            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                HStack(spacing: DS.Spacing.xs) {
-                    ProviderGlyph(provider: .claude, size: 11)
-                        .foregroundStyle(gaugeColor)
-                        .dsGlow(gaugeColor, radius: 4, opacity: 0.6)
-                    Text(MetricProvider.claude.displayName.uppercased() + " · PACING")
-                        .font(DS.Typography.micro)
-                        .tracking(1.5)
-                        .foregroundStyle(DS.Palette.textSecondary)
-                    Spacer(minLength: 0)
-                    if let pacing {
-                        Text(String(format: "%+.1f%%", pacing.delta))
-                            .font(.system(size: 10, weight: .bold, design: .rounded))
-                            .foregroundStyle(pacing.delta > 0 ? DS.Palette.semanticWarning : DS.Palette.brandPrimary)
-                            .monospacedDigit()
-                    }
-                }
+        // The live column gives way before the graph does: full, then
+        // without its caption, then gone, so a narrow column keeps a graph
+        // wide enough to read and a header that is not cut.
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: DS.Spacing.lg) {
+                heroBackPacing(gaugeColor: gaugeColor, zone: zone, pacing: pacing)
+                    .frame(minWidth: 170, maxWidth: .infinity, alignment: .leading)
+                heroBackLive(gaugeColor: gaugeColor, compact: false)
+            }
+            HStack(alignment: .center, spacing: DS.Spacing.md) {
+                heroBackPacing(gaugeColor: gaugeColor, zone: zone, pacing: pacing)
+                    .frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
+                heroBackLive(gaugeColor: gaugeColor, compact: true)
+            }
+            heroBackPacing(gaugeColor: gaugeColor, zone: zone, pacing: pacing)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
 
+
+    @ViewBuilder
+    private func heroBackPacing(gaugeColor: Color, zone: PacingZone?, pacing: PacingResult?) -> some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            HStack(spacing: DS.Spacing.xs) {
+                ProviderGlyph(provider: .claude, size: 11)
+                    .foregroundStyle(gaugeColor)
+                    .dsGlow(gaugeColor, radius: 4, opacity: 0.6)
+                HeroPacingTitle(name: columnName(for: .claude))
+                    .lineLimit(1)
+                    .font(DS.Typography.micro)
+                    .tracking(1.5)
+                    .foregroundStyle(DS.Palette.textSecondary)
+                Spacer(minLength: 0)
                 if let pacing {
-                    HeroPacingGraph(
-                        actualUsage: pacing.actualUsage,
-                        expectedUsage: pacing.expectedUsage,
-                        deltaColor: pacing.delta > 0 ? DS.Palette.semanticWarning : DS.Palette.brandPrimary,
-                        trajectoryColor: gaugeColor,
-                        trajectory: PacingSampleBuffer.trajectory(
-                            usageStore.sessionSamples,
-                            resetDate: usageStore.lastUsage?.fiveHour?.resetsAtDate,
-                            windowDuration: 5 * 3600
-                        )
-                    )
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 92)
-                } else {
-                    Spacer(minLength: 0)
-                    Text("Pacing data unavailable")
-                        .font(.system(size: 10))
-                        .foregroundStyle(DS.Palette.textTertiary)
-                    Spacer(minLength: 0)
-                }
-
-                if let zone {
-                    HStack(spacing: 6) {
-                        Image(systemName: zoneGlyph(for: zone))
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(themeStore.current.pacingColor(for: zone))
-                        Text(zoneLabel(zone).uppercased())
-                            .font(.system(size: 10, weight: .bold))
-                            .tracking(1)
-                            .foregroundStyle(themeStore.current.pacingColor(for: zone))
-                    }
+                    Text(String(format: "%+.1f%%", pacing.delta))
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundStyle(pacing.delta > 0 ? DS.Palette.semanticWarning : DS.Palette.brandPrimary)
+                        .monospacedDigit()
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Right column: live session activity. Sessions count is the
-            // headline number; top model fills the line below. Pulls
-            // from SessionStore (kept in sync by the overlay watcher).
-            VStack(alignment: .trailing, spacing: 6) {
-                Text("LIVE")
-                    .font(DS.Typography.micro)
-                    .tracking(1.2)
+            if let pacing {
+                HeroPacingGraph(
+                    actualUsage: pacing.actualUsage,
+                    expectedUsage: pacing.expectedUsage,
+                    deltaColor: pacing.delta > 0 ? DS.Palette.semanticWarning : DS.Palette.brandPrimary,
+                    trajectoryColor: gaugeColor,
+                    trajectory: PacingSampleBuffer.trajectory(
+                        usageStore.sessionSamples,
+                        resetDate: usageStore.lastUsage?.fiveHour?.resetsAtDate,
+                        windowDuration: 5 * 3600
+                    )
+                )
+                .frame(maxWidth: .infinity)
+                .frame(height: 92)
+            } else {
+                Spacer(minLength: 0)
+                Text("Pacing data unavailable")
+                    .font(.system(size: 10))
                     .foregroundStyle(DS.Palette.textTertiary)
+                Spacer(minLength: 0)
+            }
 
-                let count = sessionStore.activeSessions.count
-                Text("\(count)")
-                    .font(.system(size: 34, weight: .bold, design: .rounded))
-                    .foregroundStyle(count > 0 ? DS.Palette.textPrimary : DS.Palette.textTertiary)
-                    .monospacedDigit()
-                    .contentTransition(.numericText(value: Double(count)))
-                    .animation(DS.Motion.springLiquid, value: count)
+            if let zone {
+                HStack(spacing: 6) {
+                    Image(systemName: zoneGlyph(for: zone))
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(themeStore.current.pacingColor(for: zone))
+                    Text(zoneLabel(zone).uppercased())
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(1)
+                        .foregroundStyle(themeStore.current.pacingColor(for: zone))
+                }
+            }
+        }
+    }
+
+    /// Right column: live session activity. Sessions count is the headline
+    /// number; top model fills the line below. Pulls from SessionStore (kept
+    /// in sync by the overlay watcher), narrowed to the sessions running in
+    /// this card's account folder.
+    private func heroBackLive(gaugeColor: Color, compact: Bool) -> some View {
+        VStack(alignment: .trailing, spacing: 6) {
+            Text("LIVE")
+                .font(DS.Typography.micro)
+                .tracking(1.2)
+                .foregroundStyle(DS.Palette.textTertiary)
+
+            let count = sessionStore.activeSessions(for: heroAccount).count
+            Text("\(count)")
+                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .foregroundStyle(count > 0 ? DS.Palette.textPrimary : DS.Palette.textTertiary)
+                .monospacedDigit()
+                .contentTransition(.numericText(value: Double(count)))
+                .animation(DS.Motion.springLiquid, value: count)
+            if !compact {
                 Text(count == 1 ? "active session" : "active sessions")
                     .font(.system(size: 9, weight: .medium))
                     .tracking(0.8)
                     .foregroundStyle(DS.Palette.textTertiary)
                     .textCase(.uppercase)
-
-                if let topModel = sessionStore.topActiveModelName {
-                    HStack(spacing: 5) {
-                        Circle()
-                            .fill(gaugeColor)
-                            .frame(width: 5, height: 5)
-                        Text(topModel)
-                            .font(.system(size: 11, weight: .semibold, design: .rounded))
-                            .foregroundStyle(DS.Palette.textSecondary)
-                    }
-                    .padding(.top, 2)
-                }
             }
-            .frame(width: 160, height: 160)
+
+            if let topModel = sessionStore.topActiveModelName(for: heroAccount) {
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(gaugeColor)
+                        .frame(width: 5, height: 5)
+                    Text(topModel)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(DS.Palette.textSecondary)
+                        .lineLimit(1)
+                }
+                .padding(.top, 2)
+            }
         }
+        .frame(width: compact ? 84 : 160, height: 160)
     }
 
     private func statValue(label: String, value: String, color: Color) -> some View {
@@ -713,15 +966,10 @@ struct MonitoringView: View {
         // API bucket exists), so a fixed grid left an empty trailing cell when
         // the count was not a multiple of 3. Each row's tiles stretch to fill
         // the full width, so there is never a hole regardless of tile count.
-        let rows = MetricsGridLayout.rows(tiles)
-        return VStack(spacing: DS.Spacing.sm) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                HStack(spacing: DS.Spacing.sm) {
-                    ForEach(row, id: \.id) { tile in
-                        metricTile(tile)
-                    }
-                }
-            }
+        // Two per row at most in a column that shares the page, see
+        // `DashboardTileGrid`.
+        DashboardTileGrid(tiles: tiles) { tile in
+            metricTile(tile)
         }
     }
 
@@ -729,6 +977,7 @@ struct MonitoringView: View {
         MetricTile(
             id: tile.id,
             label: tile.label,
+            labelPrefix: tile.prefix,
             icon: tile.icon,
             pct: tile.pct,
             resetText: tile.resetText,
@@ -741,8 +990,17 @@ struct MonitoringView: View {
             insights: hasRichBack(tileId: tile.id)
                 ? insightsStore.snapshot(for: tileFamily(for: tile.id))
                 : nil,
-            insightsLoaded: insightsStore.hasLoaded
+            insightsLoaded: insightsStore.hasLoaded,
+            lastNumbersDate: tile.lastNumbersDate,
+            hasNumbers: tile.hasNumbers
         )
+    }
+
+    /// The Opus weekly countdown, nil when the limit carries no reset.
+    private var opusResetText: String? {
+        guard let reset = usageStore.lastUsage?.sevenDayOpus?.resetsAtDate else { return nil }
+        let relative = ResetCountdownFormatter.weekly(from: reset).relative
+        return relative.isEmpty ? nil : relative
     }
 
     private var secondaryTiles: [TileDescriptor] {
@@ -778,8 +1036,8 @@ struct MonitoringView: View {
                 label: "Opus",
                 icon: "brain.head.profile",
                 pct: usageStore.opusPct,
-                resetText: nil,
-                resetDate: nil,
+                resetText: opusResetText,
+                resetDate: usageStore.lastUsage?.sevenDayOpus?.resetsAtDate,
                 windowDuration: weekWindow
             ))
         }
@@ -810,7 +1068,7 @@ struct MonitoringView: View {
 
     // MARK: - Pacing row
 
-    private func pacingCard(pacing: PacingResult, label: String, icon: String, showWorkweekBadge: Bool = false, showCooldown: Bool = false) -> some View {
+    private func pacingCard(pacing: PacingResult, label: String, prefix: String?, icon: String, showWorkweekBadge: Bool = false, showCooldown: Bool = false) -> some View {
         let tint = themeStore.current.pacingColor(for: pacing.zone)
         let sign = pacing.delta >= 0 ? "+" : ""
         // "back to 0% in 3d 14h" when ahead of pace (#245). Takes the caption
@@ -838,10 +1096,7 @@ struct MonitoringView: View {
                         Image(systemName: icon)
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(tint)
-                        Text(label.uppercased())
-                            .font(DS.Typography.micro)
-                            .tracking(1.4)
-                            .foregroundStyle(DS.Palette.textSecondary)
+                        DashboardCardLabel(label: label, prefix: prefix)
                         if showWorkweekBadge {
                             WorkweekBadge(schedule: settingsStore.pacingSchedule, tint: DS.Palette.textTertiary)
                         }
@@ -949,7 +1204,9 @@ struct MonitoringView: View {
         // spent, in the warning colour once something is.
         let uncapped = extra.isUncapped
         let spent = CurrencyFormatter.formatMinorUnits(used, currencyCode: currency, locale: Locale(identifier: "en_US"))
-        let tint: Color = uncapped
+        // Grey while these are the last numbers of a login that no longer
+        // answers: a frozen amount carries no risk colour.
+        let tint: Color = usageStore.lastNumbersDate != nil ? DS.Palette.textTertiary : uncapped
             ? (used > 0
                 ? themeStore.current.gaugeColor(for: Double(themeStore.thresholds.warningPercent), thresholds: themeStore.thresholds)
                 : DS.Palette.textSecondary)
@@ -1013,15 +1270,20 @@ struct MonitoringView: View {
     // MARK: - Footer pills
 
     private var footerPills: some View {
-        HStack(spacing: DS.Spacing.xs) {
-            if let tier = usageStore.rateLimitTier {
-                DashboardStatusPill(icon: "sparkles", label: String(localized: "dashboard.tier"), value: tier.formattedRateLimitTier, tint: DS.Palette.accentStats)
-            }
-            if let org = usageStore.organizationName {
-                DashboardStatusPill(icon: "building.2.fill", label: String(localized: "dashboard.org"), value: org, tint: DS.Palette.accentHistory)
-            }
-            Spacer()
+        DashboardPillRow(pills: claudePills)
+    }
+
+    private var claudePills: [DashboardPill] {
+        var pills: [DashboardPill] = []
+        if let tier = usageStore.rateLimitTier {
+            pills.append(DashboardPill(id: "tier", icon: "sparkles", label: String(localized: "dashboard.tier"),
+                                       value: tier.formattedRateLimitTier, tint: DS.Palette.accentStats))
         }
+        if let org = usageStore.organizationName {
+            pills.append(DashboardPill(id: "org", icon: "building.2.fill", label: String(localized: "dashboard.org"),
+                                       value: org, tint: DS.Palette.accentHistory))
+        }
+        return pills
     }
 
     // MARK: - Helpers
@@ -1077,3 +1339,118 @@ struct MonitoringView: View {
     }
 }
 
+// MARK: - Plan badges
+
+/// A plan badge of the dashboard header: whose plan (the provider's mark, or
+/// an account's dot and name) and which.
+private struct DashboardPlanBadge: View {
+    let provider: MetricProvider
+    let plan: String
+    let tint: Color
+    var account: ClaudeAccountSummary? = nil
+    /// How much an account's badge says when the header runs short of room:
+    /// its name and plan, then its plan, then its dot alone (the rest in the
+    /// tooltip).
+    var detail: Detail = .full
+
+    enum Detail { case full, plan, dot }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if let account {
+                AccountDot(colorHex: account.colorHex, size: 7)
+                if detail == .full {
+                    Text(account.name)
+                        .font(.system(size: 9, weight: .semibold))
+                        .lineLimit(1)
+                        .foregroundStyle(DS.Palette.textSecondary)
+                }
+            } else {
+                ProviderGlyph(provider: provider, size: 10)
+            }
+            if detail != .dot {
+                Text(plan)
+                    .font(.system(size: 9, weight: .bold))
+                    .tracking(0.5)
+                    .lineLimit(1)
+            }
+        }
+        .foregroundStyle(DS.Palette.textPrimary)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(
+            RoundedRectangle(cornerRadius: DS.Radius.input, style: .continuous)
+                .fill(tint.opacity(0.22))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DS.Radius.input, style: .continuous)
+                        .stroke(tint.opacity(0.45), lineWidth: 0.6)
+                )
+        )
+        .help(account.map { $0.name + " · " + plan } ?? plan)
+    }
+}
+
+/// The header's badges once two Claude accounts run: one per Claude column,
+/// dot and name and plan, then Codex's. It follows the added accounts'
+/// stores itself, since their plans arrive with their profiles.
+private struct DashboardAccountPlanBadges: View {
+    let columns: [HomeSection]
+
+    @EnvironmentObject private var usageStore: UsageStore
+    @EnvironmentObject private var codexStore: CodexUsageStore
+    @EnvironmentObject private var settingsStore: SettingsStore
+    @EnvironmentObject private var accountsStore: AccountsStore
+
+    @StateObject private var accountStores = UsageStoresObserver()
+
+    var body: some View {
+        // Three accounts and Codex next to the app's name do not always fit
+        // a narrow window: the badges shed the names, then the plans.
+        ViewThatFits(in: .horizontal) {
+            badges(.full)
+            badges(.plan)
+            badges(.dot)
+        }
+        .onAppear { accountStores.track(accountsStore.runningExtraStores) }
+        .onChange(of: settingsStore.claudeAccounts) { _, _ in
+            accountStores.track(accountsStore.runningExtraStores)
+        }
+    }
+
+    private func badges(_ detail: DashboardPlanBadge.Detail) -> some View {
+        HStack(spacing: 5) {
+            ForEach(columns) { column in
+                switch column {
+                case .claude(let account):
+                    if let summary = settingsStore.claudeAccount(account),
+                       let plan = store(for: account)?.planType, plan != .unknown {
+                        DashboardPlanBadge(provider: .claude, plan: plan.displayLabel, tint: DS.Palette.brandPrimary,
+                                           account: summary, detail: detail)
+                    }
+                case .codex:
+                    if codexStore.planType != .unknown {
+                        DashboardPlanBadge(provider: .codex, plan: codexStore.planType.displayLabel, tint: codexStore.planType.badgeColor)
+                    }
+                }
+            }
+        }
+        .fixedSize()
+    }
+
+    /// Claude mode hands the page the focused account's store already.
+    private func store(for account: AccountID) -> UsageStore? {
+        settingsStore.activeProviderMode == .claude ? usageStore : accountsStore.usageStore(for: account)
+    }
+}
+
+/// The hero back's "PACING", with the section's name in front, as the hero's
+/// front says it, unless a header above the section names it already.
+private struct HeroPacingTitle: View {
+    let name: String
+    @Environment(\.dashboardColumnHeaded) private var columnHeaded
+
+    var body: some View {
+        let pacing = String(localized: "pacing.label").uppercased()
+        Text(columnHeaded ? pacing : name.uppercased() + " · " + pacing)
+    }
+}

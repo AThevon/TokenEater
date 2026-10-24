@@ -100,23 +100,303 @@ final class SettingsStore: ObservableObject {
         return providers
     }
 
-    /// Modes worth offering: All plus one per active provider, and nothing at
-    /// all below two providers, where All and the single provider describe the
-    /// same thing.
-    var availableProviderModes: [ProviderMode] {
-        let providers = activeProviders
-        guard providers.count > 1 else { return [] }
-        return [.all] + providers.compactMap { provider in
-            ProviderMode.allCases.first { $0.provider == provider }
+    @Published var activeProviderMode: ProviderMode = .all {
+        didSet {
+            guard !isSwitchingScope, oldValue != activeProviderMode else { return }
+            transitionScope(
+                fromSuffix: Self.compositionSuffix(mode: oldValue, account: focusedClaudeAccount),
+                to: activeProviderMode,
+                account: focusedClaudeAccount
+            )
         }
     }
 
-    @Published var activeProviderMode: ProviderMode = .all {
+    // MARK: - Claude accounts
+
+    /// Every tracked Claude account, main first, as `AccountsStore` persists
+    /// them. Loaded here synchronously so the mode and the compositions are
+    /// restored for the right account before anything renders.
+    @Published var claudeAccounts: [ClaudeAccountSummary] {
         didSet {
-            guard oldValue != activeProviderMode else { return }
-            persistCompositions(for: oldValue)
-            loadCompositions(for: activeProviderMode)
-            UserDefaults.standard.set(activeProviderMode.rawValue, forKey: "activeProviderMode")
+            guard claudeAccounts != oldValue else { return }
+            reconcileProviderMode()
+        }
+    }
+
+    /// The account Claude mode shows. Kept while another mode is on, so going
+    /// back to Claude lands on the same account.
+    @Published private(set) var focusedClaudeAccount: AccountID = .main
+
+    /// Set while `selectScope` assigns the mode, so the mode's own `didSet`
+    /// does not run a second transition.
+    private var isSwitchingScope = false
+
+    /// The accounts that are running: not paused, and Claude switched on,
+    /// in the section order.
+    var activeClaudeAccounts: [ClaudeAccountSummary] {
+        guard claudeEnabled else { return [] }
+        return orderedSections.compactMap { section in
+            guard case .claude(let id) = section else { return nil }
+            return claudeAccounts.first { $0.id == id && !$0.isPaused }
+        }
+    }
+
+    // MARK: - Sections
+
+    /// How the home page in All lays its sections out.
+    @Published var homeLayout: HomeLayout {
+        didSet { UserDefaults.standard.set(homeLayout.rawValue, forKey: Self.homeLayoutKey) }
+    }
+
+    /// The section order as the user arranged it in Studio, empty until they
+    /// do. Read it through `orderedSections`, which reconciles it with the
+    /// accounts tracked now.
+    @Published private(set) var sectionOrder: [String] {
+        didSet { UserDefaults.standard.set(sectionOrder, forKey: Self.sectionOrderKey) }
+    }
+
+    static let homeLayoutKey = "dashboardLayout"
+    static let sectionOrderKey = "sectionOrder"
+
+    /// Every tracked account and Codex, in the order the user gave them,
+    /// running or not, so a paused account keeps its place.
+    var orderedSections: [HomeSection] {
+        HomeSectionOrder.reconciled(sectionOrder, accounts: claudeAccounts.map(\.id))
+    }
+
+    /// The sections that run, in order: the running Claude accounts and
+    /// Codex while it is on. What All shows on the home page.
+    var runningSections: [HomeSection] {
+        let running = runningClaudeAccountIDs
+        return orderedSections.filter { section in
+            switch section {
+            case .claude(let id): return running.contains(id)
+            case .codex: return codexEnabled
+            }
+        }
+    }
+
+    /// Stores the order of the sections on screen, keeping the place of the
+    /// ones that are not (a paused account, Codex switched off).
+    func setSectionOrder(_ visible: [HomeSection]) {
+        let next = HomeSectionOrder.applying(visible, to: orderedSections).map(\.storageID)
+        guard next != sectionOrder else { return }
+        sectionOrder = next
+    }
+
+    /// The pills of the mode switcher: All, then one per running section in
+    /// the section order. Empty below two, where All already says
+    /// everything, so a single provider with a single account sees no
+    /// switcher at all.
+    var modeChoices: [ModeChoice] {
+        let choices = runningSections.map { section -> ModeChoice in
+            switch section {
+            case .claude(let id): return ModeChoice(mode: .claude, account: id)
+            case .codex: return ModeChoice(mode: .codex)
+            }
+        }
+        guard choices.count > 1 else { return [] }
+        return [ModeChoice(mode: .all)] + choices
+    }
+
+    /// Two or more running Claude accounts. Every surface marks its Claude
+    /// numbers with their account from here on; below it, each one looks
+    /// exactly as it did before accounts existed.
+    var showsAccountMarkers: Bool { activeClaudeAccounts.count >= 2 }
+
+    /// The main account plus every added account that is not paused, empty
+    /// while Claude is off.
+    var runningClaudeAccountIDs: Set<AccountID> {
+        Set(activeClaudeAccounts.map(\.id))
+    }
+
+    func claudeAccount(_ id: AccountID) -> ClaudeAccountSummary? {
+        claudeAccounts.first { $0.id == id }
+    }
+
+    /// Whether a pill of the switcher is the scope on screen.
+    func isSelected(_ choice: ModeChoice) -> Bool {
+        guard choice.mode == activeProviderMode else { return false }
+        guard let account = choice.account else { return true }
+        return account == focusedClaudeAccount
+    }
+
+    /// The account a Claude element or segment reads in the mode on screen,
+    /// nil when the one it names is not running (see `AccountID.effective`).
+    func effectiveAccount(for declared: AccountID?) -> AccountID? {
+        AccountID.effective(
+            declared: declared,
+            mode: activeProviderMode,
+            focused: focusedClaudeAccount,
+            running: runningClaudeAccountIDs
+        )
+    }
+
+    /// The key suffix of the compositions on screen: the mode's, plus the
+    /// focused account's in Claude mode. The main account adds nothing, so a
+    /// single-account install reads and writes exactly the 6.0 keys.
+    var compositionSuffix: String {
+        Self.compositionSuffix(mode: activeProviderMode, account: focusedClaudeAccount)
+    }
+
+    static func compositionSuffix(mode: ProviderMode, account: AccountID) -> String {
+        mode.storageSuffix + (mode == .claude ? account.storageSuffix : "")
+    }
+
+    /// Switches mode and, for Claude, the account, in one step: the outgoing
+    /// layouts are saved under their own key before the incoming ones load,
+    /// so a layout can never be filed under the wrong mode or account.
+    func selectScope(_ mode: ProviderMode, account: AccountID = .main) {
+        let target = mode == .claude ? account : focusedClaudeAccount
+        let oldSuffix = compositionSuffix
+        guard mode != activeProviderMode || target != focusedClaudeAccount else { return }
+        transitionScope(fromSuffix: oldSuffix, to: mode, account: target)
+    }
+
+    private func transitionScope(fromSuffix oldSuffix: String, to mode: ProviderMode, account: AccountID) {
+        let newSuffix = Self.compositionSuffix(mode: mode, account: account)
+        // The published layouts still hold the outgoing scope's. Each surface
+        // saves itself on change, so this only matters when the key moves.
+        if newSuffix != oldSuffix { persistCompositions(suffix: oldSuffix) }
+        // `activeProviderMode` may already hold `mode`: its own didSet is how
+        // a plain assignment gets here.
+        let accountChanged = focusedClaudeAccount != account
+        isSwitchingScope = true
+        if activeProviderMode != mode { activeProviderMode = mode }
+        if accountChanged { focusedClaudeAccount = account }
+        isSwitchingScope = false
+        if newSuffix != oldSuffix {
+            loadCompositions(suffix: newSuffix, mode: mode, account: account)
+        }
+        if UserDefaults.standard.string(forKey: "activeProviderMode") != mode.rawValue {
+            UserDefaults.standard.set(mode.rawValue, forKey: "activeProviderMode")
+        }
+        if accountChanged {
+            if account.isMain {
+                UserDefaults.standard.removeObject(forKey: Self.focusedAccountKey)
+            } else {
+                UserDefaults.standard.set(account.rawValue, forKey: Self.focusedAccountKey)
+            }
+        }
+    }
+
+    private static let focusedAccountKey = "focusedClaudeAccount"
+
+    /// Points Claude mode back at the main account, whatever mode is on.
+    private func resetFocusToMain() {
+        guard !focusedClaudeAccount.isMain else { return }
+        transitionScope(fromSuffix: compositionSuffix, to: activeProviderMode, account: .main)
+    }
+
+    /// The `heroWindows` key of an account's glance card. The main account
+    /// keeps the provider's bare key, so its choice survives untouched.
+    func heroWindowKey(_ provider: MetricProvider, account: AccountID = .main) -> String {
+        provider == .claude ? provider.rawValue + account.storageSuffix : provider.rawValue
+    }
+
+    /// The All mode's menu bar layout, whichever mode is on screen: the
+    /// published one in All, the stored one otherwise.
+    var allModeMenuBarComposition: MenuBarComposition {
+        if activeProviderMode == .all { return menuBarComposition }
+        return UserDefaults.standard.data(forKey: "menuBarComposition" + ProviderMode.all.storageSuffix)
+            .flatMap { try? JSONDecoder().decode(MenuBarComposition.self, from: $0) }
+            ?? Self.seededMenuBar(for: .all)
+    }
+
+    /// Gives a newly added account its place in the All layouts: always a
+    /// compact section in the popover, and its segments in the menu bar when
+    /// the user kept "Add to the menu bar" checked. When All is not the mode
+    /// on screen, its stored layout is
+    /// updated in place and the one on screen is left alone; the sheet then
+    /// switches to All itself. The account's own Claude mode layouts are
+    /// seeded later, on its first visit.
+    func seedAccount(_ id: AccountID, addToMenuBar: Bool) {
+        guard !id.isMain else { return }
+        if activeProviderMode == .all {
+            popoverComposition = popoverComposition.addingAccountSection(id)
+            if addToMenuBar {
+                menuBarComposition = menuBarComposition.addingAccountSegments(id)
+            }
+            return
+        }
+        let defaults = UserDefaults.standard
+        let popoverKey = "popoverComposition" + ProviderMode.all.storageSuffix
+        let storedPopover = defaults.data(forKey: popoverKey)
+            .flatMap { try? JSONDecoder().decode(PopoverComposition.self, from: $0) }
+            .map(Self.reconcile) ?? Self.seededPopover(for: .all)
+        if let data = try? JSONEncoder().encode(storedPopover.addingAccountSection(id)) {
+            defaults.set(data, forKey: popoverKey)
+        }
+        guard addToMenuBar else { return }
+        let menuBarKey = "menuBarComposition" + ProviderMode.all.storageSuffix
+        if let data = try? JSONEncoder().encode(allModeMenuBarComposition.addingAccountSegments(id)) {
+            defaults.set(data, forKey: menuBarKey)
+        }
+    }
+
+    /// Forgets everything stored for a removed account: its own mode's
+    /// layouts, every segment and element that targeted it (saved layouts and
+    /// templates included), and its glance card choice.
+    func purgeAccount(_ id: AccountID) {
+        guard !id.isMain else { return }
+        if focusedClaudeAccount == id { resetFocusToMain() }
+
+        let defaults = UserDefaults.standard
+        let ownSuffix = ProviderMode.claude.storageSuffix + id.storageSuffix
+        for base in ["popoverComposition", "menuBarComposition", "dashboardComposition"] {
+            defaults.removeObject(forKey: base + ownSuffix)
+        }
+
+        for key in defaults.dictionaryRepresentation().keys {
+            if key == "popoverComposition" || key.hasPrefix("popoverComposition.") {
+                guard let data = defaults.data(forKey: key),
+                      var decoded = try? JSONDecoder().decode(PopoverComposition.self, from: data),
+                      decoded.elements.contains(where: { $0.account == id }) else { continue }
+                decoded.elements.removeAll { $0.account == id }
+                if let encoded = try? JSONEncoder().encode(decoded) { defaults.set(encoded, forKey: key) }
+            } else if key == "menuBarComposition" || key.hasPrefix("menuBarComposition.") {
+                guard let data = defaults.data(forKey: key),
+                      var decoded = try? JSONDecoder().decode(MenuBarComposition.self, from: data),
+                      decoded.segments.contains(where: { $0.account == id }) else { continue }
+                decoded.segments.removeAll { $0.account == id }
+                if let encoded = try? JSONEncoder().encode(decoded) { defaults.set(encoded, forKey: key) }
+            }
+        }
+
+        if popoverComposition.elements.contains(where: { $0.account == id }) {
+            var next = popoverComposition
+            next.elements.removeAll { $0.account == id }
+            popoverComposition = Self.reconcile(next)
+        }
+        if menuBarComposition.segments.contains(where: { $0.account == id }) {
+            var next = menuBarComposition
+            next.segments.removeAll { $0.account == id }
+            menuBarComposition = next
+        }
+        if popoverUserTemplates.contains(where: { $0.composition.elements.contains { $0.account == id } }) {
+            popoverUserTemplates = popoverUserTemplates.map { template in
+                var template = template
+                template.composition.elements.removeAll { $0.account == id }
+                return template
+            }
+        }
+        if menuBarUserTemplates.contains(where: { $0.composition.segments.contains { $0.account == id } }) {
+            menuBarUserTemplates = menuBarUserTemplates.map { template in
+                var template = template
+                template.composition.segments.removeAll { $0.account == id }
+                return template
+            }
+        }
+
+        if sectionOrder.contains(id.rawValue) {
+            sectionOrder.removeAll { $0 == id.rawValue }
+        }
+
+        let heroKey = heroWindowKey(.claude, account: id)
+        if heroWindows[heroKey] != nil {
+            var next = heroWindows
+            next.removeValue(forKey: heroKey)
+            heroWindows = next
         }
     }
 
@@ -212,10 +492,31 @@ final class SettingsStore: ObservableObject {
     /// what's-new screen turns into something people learn to dismiss blind.
     var needsWhatsNew: Bool {
         guard hasCompletedOnboarding else { return false }
-        func minorOf(_ version: String) -> String {
-            version.split(separator: ".").prefix(2).joined(separator: ".")
-        }
-        return minorOf(lastSeenVersion) != minorOf(Self.currentVersion)
+        return Self.isNewRelease(lastSeen: lastSeenVersion, current: Self.currentVersion)
+    }
+
+    /// Whether `current` is a release line (major.minor) the user has not
+    /// seen yet. Pure, so the 6.0.x to 6.1.x upgrade can be tested without a
+    /// bundle carrying that version. An empty `lastSeen` (an install older
+    /// than the key, or the Settings button that replays the screen) always
+    /// counts as new.
+    static func isNewRelease(lastSeen: String, current: String) -> Bool {
+        releaseLine(of: lastSeen) != releaseLine(of: current)
+    }
+
+    /// Whether `lastSeen` comes from before 6.0, the release that brought
+    /// Codex, so this screen is also the user's first word about it. An empty
+    /// value counts: the key arrived with 6.0, so an install that never
+    /// wrote it upgraded from 5.x (the Settings replay empties it too, where
+    /// one more line does no harm).
+    static func predatesCodex(lastSeen: String) -> Bool {
+        guard let major = lastSeen.split(separator: ".").first.flatMap({ Int($0) }) else { return true }
+        return major < 6
+    }
+
+    /// "6.1.2" -> "6.1". Anything after major.minor is a patch.
+    static func releaseLine(of version: String) -> String {
+        version.split(separator: ".").prefix(2).joined(separator: ".")
     }
 
     func markWhatsNewSeen() {
@@ -248,27 +549,36 @@ final class SettingsStore: ObservableObject {
     /// the mode filtered for a provider `activeProviders` no longer contained,
     /// and no surface had anything to draw. A mode is a view of what is on, so
     /// it cannot outlive what it was a view of.
-    /// Deliberately not widened to `availableProviderModes`: dropping to a
+    /// Deliberately not widened to `modeChoices`: dropping to a
     /// single provider leaves that provider's mode describing exactly what is
     /// on, so it stands, with its own layout, and the selector simply has
     /// nothing left to offer. Only a mode pointing at a provider that is off
     /// is incoherent.
+    ///
+    /// The same goes for an account: Claude mode pointed at an account that
+    /// was paused or removed goes back to the main account, its layout saved
+    /// first.
     private func reconcileProviderMode() {
+        if !focusedClaudeAccount.isMain,
+           !claudeAccounts.contains(where: { $0.id == focusedClaudeAccount && !$0.isPaused }) {
+            resetFocusToMain()
+        }
         guard let provider = activeProviderMode.provider else { return }
         guard !activeProviders.contains(provider) else { return }
         activeProviderMode = .all
     }
 
-    func heroWindow(for provider: MetricProvider) -> String? {
-        heroWindows[provider.rawValue]
+    func heroWindow(for provider: MetricProvider, account: AccountID = .main) -> String? {
+        heroWindows[heroWindowKey(provider, account: account)]
     }
 
     /// Nil puts the provider back on automatic and removes the key entirely,
     /// so "automatic" is the absence of a choice rather than a stored value
     /// that a later change of default would silently override.
-    func setHeroWindow(_ window: String?, for provider: MetricProvider) {
+    func setHeroWindow(_ window: String?, for provider: MetricProvider, account: AccountID = .main) {
+        let key = heroWindowKey(provider, account: account)
         var next = heroWindows
-        if let window { next[provider.rawValue] = window } else { next.removeValue(forKey: provider.rawValue) }
+        if let window { next[key] = window } else { next.removeValue(forKey: key) }
         heroWindows = next
     }
 
@@ -521,7 +831,7 @@ final class SettingsStore: ObservableObject {
 
     init(
         notificationService: NotificationServiceProtocol = NotificationService(),
-        tokenProvider: TokenProviderProtocol = TokenProvider(),
+        tokenProvider: TokenProviderProtocol = TokenProvider.forMainAccount(),
         sharedFileService: SharedFileServiceProtocol = SharedFileService(),
         codexAuthStateProvider: @escaping () -> CodexAuthState = { CodexAuthReader().authState() }
     ) {
@@ -537,6 +847,10 @@ final class SettingsStore: ObservableObject {
         let displayStore = DisplaySettingsStore(sharedFileService: sharedFileService)
         self.display = displayStore
 
+        self.claudeAccounts = ClaudeAccountsStorage.load(from: .standard).map(\.summary)
+        self.homeLayout = UserDefaults.standard.string(forKey: Self.homeLayoutKey)
+            .flatMap(HomeLayout.init(rawValue:)) ?? .auto
+        self.sectionOrder = UserDefaults.standard.stringArray(forKey: Self.sectionOrderKey) ?? []
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
         self.hasSeenStudioIntro = UserDefaults.standard.bool(forKey: "hasSeenStudioIntro")
         self.codexEnabled = Self.resolveCodexEnabled(authStateProvider: codexAuthStateProvider)
@@ -688,10 +1002,22 @@ final class SettingsStore: ObservableObject {
         // the All layout under the restored mode's key before that mode's own
         // layout has been read; `loadCompositions` then does the read, and its
         // assignments persist the seeded layout on a first visit.
-        if let raw = UserDefaults.standard.string(forKey: "activeProviderMode"),
-           let restored = ProviderMode(rawValue: raw), restored != .all {
-            self._activeProviderMode = Published(initialValue: restored)
-            loadCompositions(for: restored)
+        //
+        // The focused account is restored the same way, and only while it is
+        // still running: a paused or removed one leaves Claude mode on the
+        // main account, whose layout lives under the plain `.claude` key.
+        let restoredMode = UserDefaults.standard.string(forKey: "activeProviderMode")
+            .flatMap(ProviderMode.init(rawValue:)) ?? .all
+        let restoredAccount = UserDefaults.standard.string(forKey: Self.focusedAccountKey)
+            .map(AccountID.init(rawValue:))
+            .flatMap { id in claudeAccounts.contains { $0.id == id && !$0.isPaused } ? id : nil }
+            ?? .main
+        if !restoredAccount.isMain {
+            self._focusedClaudeAccount = Published(initialValue: restoredAccount)
+        }
+        if restoredMode != .all {
+            self._activeProviderMode = Published(initialValue: restoredMode)
+            loadCompositions(suffix: compositionSuffix, mode: restoredMode, account: focusedClaudeAccount)
         }
     }
 
@@ -699,7 +1025,7 @@ final class SettingsStore: ObservableObject {
 
     private func savePopoverComposition() {
         guard let data = try? JSONEncoder().encode(popoverComposition) else { return }
-        UserDefaults.standard.set(data, forKey: "popoverComposition" + activeProviderMode.storageSuffix)
+        UserDefaults.standard.set(data, forKey: "popoverComposition" + compositionSuffix)
     }
 
     // MARK: - Provider modes
@@ -709,26 +1035,30 @@ final class SettingsStore: ObservableObject {
     /// layout at that point.
     private func saveDashboardComposition() {
         guard let data = try? JSONEncoder().encode(dashboardComposition) else { return }
-        UserDefaults.standard.set(data, forKey: "dashboardComposition" + activeProviderMode.storageSuffix)
+        UserDefaults.standard.set(data, forKey: "dashboardComposition" + compositionSuffix)
     }
 
     static func loadDashboard(for mode: ProviderMode) -> DashboardComposition {
-        guard let data = UserDefaults.standard.data(forKey: "dashboardComposition" + mode.storageSuffix),
+        loadDashboard(suffix: mode.storageSuffix) ?? .default
+    }
+
+    private static func loadDashboard(suffix: String) -> DashboardComposition? {
+        guard let data = UserDefaults.standard.data(forKey: "dashboardComposition" + suffix),
               let decoded = try? JSONDecoder().decode(DashboardComposition.self, from: data),
               !decoded.entries.isEmpty
-        else { return .default }
+        else { return nil }
         return DashboardComposition.reconciled(decoded)
     }
 
-    private func persistCompositions(for mode: ProviderMode) {
+    private func persistCompositions(suffix: String) {
         if let data = try? JSONEncoder().encode(popoverComposition) {
-            UserDefaults.standard.set(data, forKey: "popoverComposition" + mode.storageSuffix)
+            UserDefaults.standard.set(data, forKey: "popoverComposition" + suffix)
         }
         if let data = try? JSONEncoder().encode(menuBarComposition) {
-            UserDefaults.standard.set(data, forKey: "menuBarComposition" + mode.storageSuffix)
+            UserDefaults.standard.set(data, forKey: "menuBarComposition" + suffix)
         }
         if let data = try? JSONEncoder().encode(dashboardComposition) {
-            UserDefaults.standard.set(data, forKey: "dashboardComposition" + mode.storageSuffix)
+            UserDefaults.standard.set(data, forKey: "dashboardComposition" + suffix)
         }
     }
 
@@ -736,7 +1066,7 @@ final class SettingsStore: ObservableObject {
     /// time a mode is visited. A key that has never been written is the
     /// nominal case, not an error: modes are created lazily so an install that
     /// never leaves All keeps exactly the keys it had before modes existed.
-    private func loadCompositions(for mode: ProviderMode) {
+    private func loadCompositions(suffix: String, mode: ProviderMode, account: AccountID) {
         // Self-healing: a layout saved by an older build, or one whose only
         // metrics belong to the other provider, would render an empty
         // popover. An empty surface reads as a broken app, so a mode with
@@ -747,7 +1077,7 @@ final class SettingsStore: ObservableObject {
         // watchers-only layout is a legitimate choice, and the built-in Pace
         // template is exactly one, so requiring a usage element here would
         // silently overwrite it on every mode switch.
-        let popoverKey = "popoverComposition" + mode.storageSuffix
+        let popoverKey = "popoverComposition" + suffix
         if let data = UserDefaults.standard.data(forKey: popoverKey),
            let decoded = try? JSONDecoder().decode(PopoverComposition.self, from: data),
            decoded.elements.contains(where: { element in
@@ -756,25 +1086,48 @@ final class SettingsStore: ObservableObject {
            }) {
             popoverComposition = Self.reconcile(decoded)
         } else {
-            popoverComposition = Self.seededPopover(for: mode)
+            popoverComposition = Self.seededPopover(for: mode, account: account)
         }
 
-        dashboardComposition = Self.loadDashboard(for: mode)
+        // An added account's dashboard starts as the main account's Claude
+        // one: same blocks, same order, its own numbers.
+        dashboardComposition = Self.loadDashboard(suffix: suffix)
+            ?? (account.isMain || mode != .claude ? nil : Self.loadDashboard(suffix: mode.storageSuffix))
+            ?? .default
 
-        let menuBarKey = "menuBarComposition" + mode.storageSuffix
+        let menuBarKey = "menuBarComposition" + suffix
         if let data = UserDefaults.standard.data(forKey: menuBarKey),
            let decoded = try? JSONDecoder().decode(MenuBarComposition.self, from: data),
            decoded.segments.contains(where: { mode.shows($0.kind.provider) }) {
             menuBarComposition = decoded
         } else {
-            menuBarComposition = Self.seededMenuBar(for: mode)
+            menuBarComposition = Self.seededMenuBar(for: mode, account: account)
         }
+    }
+
+    /// Claude mode shows one account. Elements and segments pinned to
+    /// another account make no sense there, and those pinned to this one
+    /// need no pin, so a seeded Claude layout keeps only the unpinned ones.
+    private static func keepsInClaudeMode(_ account: AccountID?, focused: AccountID) -> Bool {
+        account == nil || account == focused
     }
 
     /// The All layout, kept under the pre-modes key, filtered to the mode's
     /// provider. Chrome, utilities and actions carry no provider and survive
     /// every filter, so a seeded mode is never an empty shell.
-    private static func seededPopover(for mode: ProviderMode) -> PopoverComposition {
+    private static func seededPopover(for mode: ProviderMode, account: AccountID = .main) -> PopoverComposition {
+        // An added account copies the main account's Claude layout when
+        // there is one, so its mode looks like Claude's from the first visit.
+        if mode == .claude, !account.isMain,
+           let data = UserDefaults.standard.data(forKey: "popoverComposition" + mode.storageSuffix),
+           let decoded = try? JSONDecoder().decode(PopoverComposition.self, from: data),
+           decoded.elements.contains(where: { $0.kind.provider == .claude }) {
+            var seeded = reconcile(decoded)
+            seeded.elements = seeded.elements
+                .filter { mode.shows($0.kind.provider) && keepsInClaudeMode($0.account, focused: .main) }
+                .map { var element = $0; element.account = nil; return element }
+            return seeded.elements.isEmpty ? .default : seeded
+        }
         let base: PopoverComposition = {
             guard let data = UserDefaults.standard.data(forKey: "popoverComposition"),
                   let decoded = try? JSONDecoder().decode(PopoverComposition.self, from: data)
@@ -782,7 +1135,13 @@ final class SettingsStore: ObservableObject {
             return reconcile(decoded)
         }()
         var seeded = base
-        seeded.elements = base.elements.filter { mode.shows($0.kind.provider) }
+        seeded.elements = base.elements.filter {
+            mode.shows($0.kind.provider)
+                && (mode != .claude || keepsInClaudeMode($0.account, focused: .main))
+        }
+        if mode == .claude {
+            seeded.elements = seeded.elements.map { var element = $0; element.account = nil; return element }
+        }
         // A provider the user has never placed leaves only chrome behind.
         // Start from the built-in instead of handing them an empty popover.
         // Both single-provider modes need this: an All layout built entirely
@@ -795,7 +1154,17 @@ final class SettingsStore: ObservableObject {
         return seeded.elements.isEmpty ? .default : seeded
     }
 
-    private static func seededMenuBar(for mode: ProviderMode) -> MenuBarComposition {
+    private static func seededMenuBar(for mode: ProviderMode, account: AccountID = .main) -> MenuBarComposition {
+        if mode == .claude, !account.isMain,
+           let data = UserDefaults.standard.data(forKey: "menuBarComposition" + mode.storageSuffix),
+           let decoded = try? JSONDecoder().decode(MenuBarComposition.self, from: data),
+           decoded.segments.contains(where: { $0.kind.provider == .claude }) {
+            var seeded = decoded
+            seeded.segments = decoded.segments
+                .filter { mode.shows($0.kind.provider) && keepsInClaudeMode($0.account, focused: .main) }
+                .map { var segment = $0; segment.account = nil; return segment }
+            return seeded.segments.isEmpty ? .default : seeded
+        }
         let base: MenuBarComposition = {
             guard let data = UserDefaults.standard.data(forKey: "menuBarComposition"),
                   let decoded = try? JSONDecoder().decode(MenuBarComposition.self, from: data)
@@ -803,7 +1172,13 @@ final class SettingsStore: ObservableObject {
             return decoded
         }()
         var seeded = base
-        seeded.segments = base.segments.filter { mode.shows($0.kind.provider) }
+        seeded.segments = base.segments.filter {
+            mode.shows($0.kind.provider)
+                && (mode != .claude || keepsInClaudeMode($0.account, focused: .main))
+        }
+        if mode == .claude {
+            seeded.segments = seeded.segments.map { var segment = $0; segment.account = nil; return segment }
+        }
         if seeded.segments.isEmpty, mode == .codex {
             seeded.segments = [
                 MenuBarSegment(kind: .codexSession, style: .labelValue),
@@ -822,7 +1197,7 @@ final class SettingsStore: ObservableObject {
 
     private func saveMenuBarComposition() {
         guard let data = try? JSONEncoder().encode(menuBarComposition) else { return }
-        UserDefaults.standard.set(data, forKey: "menuBarComposition" + activeProviderMode.storageSuffix)
+        UserDefaults.standard.set(data, forKey: "menuBarComposition" + compositionSuffix)
     }
 
     private func saveMenuBarUserTemplates() {
@@ -857,6 +1232,12 @@ final class SettingsStore: ObservableObject {
 
     func sendTestNotification(for provider: MetricProvider? = nil) {
         notificationService.sendTest(for: provider)
+    }
+
+    /// One Claude test per account, for when several run and each real alert
+    /// carries its account's name.
+    func sendTestNotification(forClaudeAccount account: NotificationScope) {
+        notificationService.sendTest(forClaudeAccount: account)
     }
 
     func refreshNotificationStatus() async {

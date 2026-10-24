@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var updateStore: UpdateStore!
     var sessionStore: SessionStore!
     var vendorStatusStore: VendorStatusStore!
+    var accountsStore: AccountsStore!
 
     private var statusBarController: StatusBarController?
     private var overlayWindowController: OverlayWindowController?
@@ -45,7 +46,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             settingsStore: settingsStore,
             updateStore: updateStore,
             sessionStore: sessionStore,
-            vendorStatusStore: vendorStatusStore
+            vendorStatusStore: vendorStatusStore,
+            accountsStore: accountsStore
         )
         // Apply persisted watcher scan settings before the first tick uses them.
         sessionStore.setScanInterval(settingsStore.watcherScanInterval.seconds)
@@ -59,6 +61,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         historyWidgetStore.start()
+        // The sparkline sums every tracked account's transcripts; when the
+        // main account's folder moves (#294) or an account comes or goes,
+        // the next five-minute pass would be too late.
+        Publishers.Merge(
+            accountsStore.mainScopeChanged.map { _ in () },
+            accountsStore.$records.map { $0.map(\.id) }.removeDuplicates().dropFirst().map { _ in () }
+        )
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let store = self?.historyWidgetStore else { return }
+                Task { @MainActor in await store.refresh() }
+            }
+            .store(in: &cancellables)
 
         updateStore.checkBrewMigration()
         updateStore.checkForUpdates()
@@ -104,6 +119,7 @@ struct TokenEaterApp: App {
     private let updateStore: UpdateStore
     private let sessionStore: SessionStore
     private let vendorStatusStore: VendorStatusStore
+    private let accountsStore: AccountsStore
 
     init() {
         // NSRunningApplication only enumerates the current login session, so this
@@ -122,10 +138,33 @@ struct TokenEaterApp: App {
         // any store is constructed - store inits read UserDefaults.standard, so
         // missing this step would make every upgrading user land on onboarding.
         LegacyHelperCleanupService().migratePrefsIfNeeded()
+        // A build of the second-account prototype (#284) left a mode, menu
+        // bar and popover kinds and an account list this build does not
+        // have: read them into its terms before any store decodes them.
+        PrototypeAccountMigration.run()
 
         self.historyWidgetStore = HistoryWidgetStore()
         self.codexStore = CodexUsageStore()
-        self.usageStore = UsageStore()
+        // The main account's store reads the folder the user chose for it,
+        // `~/.claude` unless they chose another one (#294).
+        let mainNotifications = NotificationService()
+        let usageStore = UsageStore(
+            tokenProvider: TokenProvider.forMainAccount(),
+            notificationService: mainNotifications
+        )
+        self.usageStore = usageStore
+        // The accounts index for the "Claude · Account" widget goes into
+        // `shared.json`, next to the main account's numbers.
+        let accountsStore = AccountsStore(
+            mainStore: usageStore,
+            indexFile: SharedFileService(),
+            reloadAccountWidgets: { WidgetReloader.scheduleAccountReload() }
+        )
+        self.accountsStore = accountsStore
+        // The main account's alerts keep their historical identifiers and
+        // only name the account once a second one runs; the scope that knows
+        // when exists once the account list does.
+        mainNotifications.scope = accountsStore.notificationScope(for: .main)
         self.themeStore = ThemeStore()
         self.settingsStore = SettingsStore()
         self.updateStore = UpdateStore()
@@ -141,6 +180,7 @@ struct TokenEaterApp: App {
         appDelegate.updateStore = updateStore
         appDelegate.sessionStore = sessionStore
         appDelegate.vendorStatusStore = vendorStatusStore
+        appDelegate.accountsStore = accountsStore
     }
 
     var body: some Scene {

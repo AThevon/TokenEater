@@ -9,11 +9,18 @@ enum DiagnosticReporter {
 
     /// Public entry point.
     @MainActor
-    static func makeReport(usageStore: UsageStore, settingsStore: SettingsStore, codexStore: CodexUsageStore? = nil) -> String {
+    static func makeReport(
+        usageStore: UsageStore,
+        settingsStore: SettingsStore,
+        codexStore: CodexUsageStore? = nil,
+        accounts: AccountsStoreProtocol? = nil,
+        home: String = ClaudeConfigDirResolver.realHome()
+    ) -> String {
         let app = appSection()
         let system = systemSection()
-        let state = stateSection(usageStore: usageStore, settingsStore: settingsStore)
+        let state = stateSection(usageStore: usageStore, settingsStore: settingsStore, home: home)
         let apiError = apiErrorSection(usageStore.lastAPIError)
+        let extraAccounts = accounts.map { accountsSection($0, home: home) } ?? ""
         let codex = codexStore.map { codexSection($0) } ?? ""
 
         return """
@@ -27,8 +34,23 @@ enum DiagnosticReporter {
 
         \(apiError)
 
+        \(extraAccounts)
+
         \(codex)
         """
+    }
+
+    /// Where a Claude account reads its login: the default folder and chain,
+    /// or a custom folder in its `~` form with the short tail of its Keychain
+    /// service. Never the user name, never the full service hash input.
+    static func configDirLabel(_ scope: CredentialScope, home: String) -> String {
+        switch scope {
+        case .defaultChain:
+            return "default (~/.claude, defaultChain)"
+        case .configDir(let path, let service):
+            let tail = ClaudeConfigDirResolver.serviceSuffix(service)
+            return "custom (\(ClaudeConfigDirResolver.displayPath(path, home: home)), configDir, service \(tail.isEmpty ? "base" : tail))"
+        }
     }
 
     // MARK: - Sections
@@ -64,7 +86,7 @@ enum DiagnosticReporter {
     }
 
     @MainActor
-    private static func stateSection(usageStore: UsageStore, settingsStore: SettingsStore) -> String {
+    private static func stateSection(usageStore: UsageStore, settingsStore: SettingsStore, home: String) -> String {
         let errorState = errorStateName(usageStore.errorState)
         let speed = speedName(usageStore.currentSpeed)
         let interval = Int(usageStore.effectiveInterval)
@@ -99,8 +121,11 @@ enum DiagnosticReporter {
             proxyConfigured = "no"
         }
 
+        let configDir = configDirLabel(usageStore.credentialScope, home: home)
+
         return """
         **State**
+        - Claude config dir: \(configDir)
         - Error state: \(errorState)
         - Refresh speed: \(speed)
         - Effective interval: \(interval)s
@@ -117,6 +142,35 @@ enum DiagnosticReporter {
         - Expired-login escalation: \(escalation)
         - Proxy configured: \(proxyConfigured)
         """
+    }
+
+    /// The added Claude accounts, by position only: their names are the
+    /// user's own words and may name an employer, so they stay out.
+    @MainActor
+    private static func accountsSection(_ accounts: AccountsStoreProtocol, home: String) -> String {
+        guard accounts.records.count > 1 else { return "" }
+        var lines = ["**Claude accounts**", "- Tracked: \(accounts.records.count) (running: \(accounts.activeAccountIDs.count))"]
+        for (index, record) in accounts.records.enumerated() {
+            let store = accounts.usageStore(for: record.id)
+            let state = record.isPaused ? "paused" : (store.map { errorStateName($0.errorState) } ?? "-")
+            let identity = store.map { identityName($0.identityState) } ?? "-"
+            let updated = store.flatMap { formatDate($0.lastUpdate, relative: true) } ?? "never"
+            let role = record.id.isMain ? "main" : "added"
+            lines.append("- #\(index + 1) \(role): \(configDirLabel(record.scope, home: home)), state \(state), identity \(identity), updated \(updated)")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private static func identityName(_ state: IdentityState) -> String {
+        switch state {
+        case .unchecked: return "unchecked"
+        case .verified: return "verified"
+        case .pending: return "pending"
+        case .conflict(.belongsTo): return "conflict (another tracked account)"
+        case .conflict(.changed): return "conflict (new login)"
+        case .conflict(.untracked): return "conflict (account no longer tracked)"
+        case .conflict(.accepted): return "verified"
+        }
     }
 
     @MainActor

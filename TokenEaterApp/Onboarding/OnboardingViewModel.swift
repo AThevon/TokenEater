@@ -122,18 +122,35 @@ final class OnboardingViewModel: ObservableObject {
     }
 
     private let codexAuthStateProvider: () -> CodexAuthState
-    private let tokenProvider: TokenProviderProtocol
+    /// Builds the main account's provider. Asked again on every detection,
+    /// so pointing the main account at a custom config folder from the
+    /// Claude card (#294) is followed by the next check and the next connect.
+    private let makeTokenProvider: () -> TokenProviderProtocol
+    private let mainScope: () -> CredentialScope
+    private var tokenProvider: TokenProviderProtocol
     private let repository: UsageRepositoryProtocol
     private let notificationService: NotificationServiceProtocol
     private let settingsStore: SettingsStore
 
+    /// `tokenProvider` pins one provider for good (tests); without it,
+    /// `tokenProviderFactory` (the main account's provider by default) is
+    /// asked again whenever the main account's folder (`mainScope`) moved
+    /// since the provider in hand was built.
     init(
-        tokenProvider: TokenProviderProtocol = TokenProvider(),
+        tokenProvider: TokenProviderProtocol? = nil,
+        tokenProviderFactory: (() -> TokenProviderProtocol)? = nil,
+        mainScope: @escaping () -> CredentialScope = { ClaudeAccountsStorage.mainScope() },
         repository: UsageRepositoryProtocol = UsageRepository(),
         notificationService: NotificationServiceProtocol = NotificationService(),
         settingsStore: SettingsStore? = nil,
         codexAuthStateProvider: @escaping () -> CodexAuthState = { CodexAuthReader().authState() }
     ) {
+        let factory: () -> TokenProviderProtocol = tokenProviderFactory
+            ?? tokenProvider.map { pinned in { pinned } }
+            ?? { TokenProvider.forMainAccount() }
+        let tokenProvider = factory()
+        self.makeTokenProvider = factory
+        self.mainScope = mainScope
         self.codexAuthStateProvider = codexAuthStateProvider
         self.codexStatus = codexAuthStateProvider()
         self.tokenProvider = tokenProvider
@@ -185,6 +202,13 @@ final class OnboardingViewModel: ObservableObject {
 
     func checkClaudeCode() {
         claudeCodeStatus = .checking
+        // A new provider only when the main account's folder moved: each one
+        // starts with its once-per-launch Claude Desktop key attempt re-armed,
+        // and that attempt can show a Keychain dialog in TokenEater's name
+        // (#225), so "Check again" must not bring it back every time.
+        if tokenProvider.scope != mainScope() {
+            tokenProvider = makeTokenProvider()
+        }
         // Detect a token source OFF the main thread: hasTokenSource() can shell
         // out to /usr/bin/security, which may block for up to the reader's
         // watchdog timeout on macOS 26 (see #217). Running it on the main thread

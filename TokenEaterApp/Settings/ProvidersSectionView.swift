@@ -7,11 +7,14 @@ import SwiftUI
 /// question "so what do I get" becomes live, and answering it three screens
 /// away in a help page is how the app ended up feeling like it did something
 /// different depending on the provider without ever saying so.
-/// The two provider cards on their own, for hosts that bring their own
-/// framing: the what's-new step, which already explains itself above them.
+/// The provider cards on their own, for hosts that bring their own framing:
+/// the what's-new step, which already explains itself above them and may
+/// only need Claude's card.
 struct ProvidersSectionProviders: View {
+    var showsCodex: Bool = true
+
     var body: some View {
-        ProvidersSectionView(showsCoverage: false)
+        ProvidersSectionView(showsCoverage: false, showsCodex: showsCodex)
     }
 }
 
@@ -19,11 +22,15 @@ struct ProvidersSectionView: View {
     /// Settings shows the matrix under the cards; the what's-new step has its
     /// own pane for it and would be repeating itself.
     var showsCoverage: Bool = true
+    /// The 6.1 what's-new step is about Claude accounts; Codex's card there
+    /// would be a second subject on a screen that has one.
+    var showsCodex: Bool = true
 
     @EnvironmentObject private var settingsStore: SettingsStore
     @EnvironmentObject private var usageStore: UsageStore
     @EnvironmentObject private var codexStore: CodexUsageStore
     @EnvironmentObject private var themeStore: ThemeStore
+    @EnvironmentObject private var accountsStore: AccountsStore
 
     @State private var isRedetecting = false
     @State private var claudeMessage: String?
@@ -32,6 +39,7 @@ struct ProvidersSectionView: View {
     @State private var codexResult: ConnectionTestResult?
     @State private var isResettingClaude = false
     @State private var isResettingCodex = false
+    @State private var showsAddAccount = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
@@ -48,9 +56,11 @@ struct ProvidersSectionView: View {
                     enabled: $settingsStore.claudeEnabled
                 ) {
                     claudeActions
+                } footer: {
+                    claudeAccountsFooter
                 }
                 resultLine(claudeMessage, success: claudeSucceeded)
-                if usageStore.errorState == .rateLimited {
+                if usageStore.errorState == .rateLimited, !tracksSeveralAccounts {
                     Label {
                         Text("error.banner.apiunavailable.settings").font(.system(size: 11))
                     } icon: {
@@ -60,20 +70,22 @@ struct ProvidersSectionView: View {
                     .padding(.horizontal, DS.Spacing.xs)
                 }
 
-                ProviderCard(
-                    provider: .codex,
-                    name: "OpenAI Codex",
-                    isEnabled: settingsStore.codexEnabled,
-                    isLive: settingsStore.codexEnabled
-                        && codexStore.authState.isTrackable
-                        && !codexStore.authState.isExpired(),
-                    status: codexStore.connectionStatus,
-                    lockedReason: lockedReason(for: .codex),
-                    enabled: $settingsStore.codexEnabled
-                ) {
-                    codexActions
+                if showsCodex {
+                    ProviderCard(
+                        provider: .codex,
+                        name: "OpenAI Codex",
+                        isEnabled: settingsStore.codexEnabled,
+                        isLive: settingsStore.codexEnabled
+                            && codexStore.authState.isTrackable
+                            && !codexStore.authState.isExpired(),
+                        status: codexStore.connectionStatus,
+                        lockedReason: lockedReason(for: .codex),
+                        enabled: $settingsStore.codexEnabled
+                    ) {
+                        codexActions
+                    }
+                    resultLine(codexResult?.message, success: codexResult?.success ?? false)
                 }
-                resultLine(codexResult?.message, success: codexResult?.success ?? false)
 
                 // App-level, not provider-level: it reports on the whole
                 // install, and sitting inside one provider's card implied it
@@ -105,6 +117,65 @@ struct ProvidersSectionView: View {
                 )
             }
         }
+        .sheet(isPresented: $showsAddAccount) {
+            AddClaudeAccountSheet(isPresented: $showsAddAccount)
+        }
+    }
+
+    // MARK: - Claude accounts
+
+    /// What the Claude card holds beyond its connection: the accounts, and
+    /// the way to track one more. With a single account the card is the one
+    /// it always was, plus this one quiet line.
+    @ViewBuilder
+    private var claudeAccountsFooter: some View {
+        if tracksSeveralAccounts {
+            VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                ForEach(accountsStore.records) { record in
+                    if let store = accountsStore.usageStore(for: record.id) {
+                        if record.id.isMain {
+                            ClaudeAccountRow(record: record, store: store) {
+                                // The folder can change here, and the login
+                                // facts say which login it reads, like the
+                                // added accounts' rows.
+                                VStack(alignment: .leading, spacing: 3) {
+                                    MainConfigDirRow()
+                                    AccountLoginFacts(store: store)
+                                }
+                            }
+                        } else {
+                            ClaudeAccountRow(record: record, store: store)
+                        }
+                    }
+                }
+                addAccountLink
+                    .padding(.top, 2)
+            }
+            .padding(.top, 4)
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                MainConfigDirRow()
+                addAccountLink
+            }
+            .padding(.top, 2)
+        }
+    }
+
+    /// From two accounts each one gets its own row, with its own actions;
+    /// the card itself only says how many there are.
+    private var tracksSeveralAccounts: Bool { accountsStore.records.count >= 2 }
+
+    private var addAccountLink: some View {
+        Button {
+            showsAddAccount = true
+        } label: {
+            Label(String(localized: "accounts.add.link"), systemImage: "plus.circle")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(DS.Palette.textSecondary)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(String(localized: "accounts.add.link.hint"))
     }
 
     // MARK: - Per-provider actions
@@ -114,9 +185,11 @@ struct ProvidersSectionView: View {
     /// Two words for one idea is how a settings screen stops looking designed.
     @ViewBuilder
     private var claudeActions: some View {
-        HStack(spacing: 6) {
-            resetButton(isRunning: isResettingClaude, action: resetClaude)
-            checkButton(isRunning: isRedetecting, action: redetectClaude)
+        if !tracksSeveralAccounts {
+            HStack(spacing: 6) {
+                resetButton(isRunning: isResettingClaude, action: resetClaude)
+                checkButton(isRunning: isRedetecting, action: redetectClaude)
+            }
         }
     }
 
@@ -128,42 +201,12 @@ struct ProvidersSectionView: View {
         }
     }
 
-    /// Unbind and rebind, for a connection a stale cache has broken. Quieter
-    /// than the check button on purpose: it is the answer when checking has
-    /// already failed, not the first thing to reach for. People were
-    /// reinstalling the app, and losing every setting with it, for want of
-    /// this button (#268).
-    @ViewBuilder
     private func resetButton(isRunning: Bool, action: @escaping () -> Void) -> some View {
-        HStack(spacing: 6) {
-            if isRunning {
-                ProgressView().controlSize(.small).tint(DS.Palette.textSecondary)
-            }
-            Button(action: action) {
-                Text("settings.providers.reset")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(DS.Palette.textTertiary)
-                    .padding(.horizontal, DS.Spacing.sm)
-                    .padding(.vertical, 5)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(isRunning)
-            .opacity(isRunning ? 0.5 : 1)
-            .help(String(localized: "settings.providers.reset.hint"))
-        }
+        providerResetButton(isRunning: isRunning, action: action)
     }
 
-    @ViewBuilder
     private func checkButton(isRunning: Bool, action: @escaping () -> Void) -> some View {
-        HStack(spacing: 6) {
-            if isRunning {
-                ProgressView().controlSize(.small).tint(DS.Palette.textSecondary)
-            }
-            darkButton("settings.providers.check", action: action)
-                .disabled(isRunning)
-                .opacity(isRunning ? 0.5 : 1)
-        }
+        providerCheckButton(isRunning: isRunning, action: action)
     }
 
     /// Results sit under the card rather than inside it, so a card never
@@ -192,7 +235,22 @@ struct ProvidersSectionView: View {
     }
 
     private var claudeStatus: String {
+        if tracksSeveralAccounts {
+            let paused = accountsStore.records.filter(\.isPaused).count
+            var status = String(format: String(localized: "accounts.card.count"), accountsStore.records.count)
+            if paused > 0 {
+                status += " · " + String(format: String(localized: "accounts.card.paused"), paused)
+            }
+            return status
+        }
         if usageStore.errorState == .tokenUnavailable {
+            // A custom main folder (#294) with no usable login is not "no
+            // Claude Code": say what the folder lacks instead.
+            if accountsStore.mainRecord.configDir != nil {
+                return usageStore.tokenDiagnostic.source == nil
+                    ? String(localized: "accounts.status.noLogin")
+                    : String(localized: "accounts.status.expired")
+            }
             return String(localized: "codex.status.notInstalled.claude")
         }
         if !usageStore.hasConfig {
@@ -211,7 +269,9 @@ struct ProvidersSectionView: View {
     private func redetectClaude() {
         isRedetecting = true
         claudeMessage = nil
-        guard settingsStore.credentialsTokenExists() else {
+        // Asked of the store's own scope, so a main account pointed at a
+        // custom config folder is checked against that folder (#294).
+        guard usageStore.hasTokenSource() else {
             isRedetecting = false
             claudeMessage = String(localized: "connect.noclaudecode")
             claudeSucceeded = false
@@ -273,5 +333,48 @@ struct ProvidersSectionView: View {
             codexResult = await codexStore.testConnection()
             isTestingCodex = false
         }
+    }
+}
+
+// MARK: - Connection buttons
+
+// File-level so every provider card, one per Claude account included,
+// draws the same pair.
+
+/// Unbind and rebind, for a connection a stale cache has broken. Quieter
+/// than the check button on purpose: it is the answer when checking has
+/// already failed, not the first thing to reach for. People were
+/// reinstalling the app, and losing every setting with it, for want of
+/// this button (#268).
+@ViewBuilder
+func providerResetButton(isRunning: Bool, action: @escaping () -> Void) -> some View {
+    HStack(spacing: 6) {
+        if isRunning {
+            ProgressView().controlSize(.small).tint(DS.Palette.textSecondary)
+        }
+        Button(action: action) {
+            Text("settings.providers.reset")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(DS.Palette.textTertiary)
+                .padding(.horizontal, DS.Spacing.sm)
+                .padding(.vertical, 5)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isRunning)
+        .opacity(isRunning ? 0.5 : 1)
+        .help(String(localized: "settings.providers.reset.hint"))
+    }
+}
+
+@ViewBuilder
+func providerCheckButton(isRunning: Bool, action: @escaping () -> Void) -> some View {
+    HStack(spacing: 6) {
+        if isRunning {
+            ProgressView().controlSize(.small).tint(DS.Palette.textSecondary)
+        }
+        darkButton("settings.providers.check", action: action)
+            .disabled(isRunning)
+            .opacity(isRunning ? 0.5 : 1)
     }
 }

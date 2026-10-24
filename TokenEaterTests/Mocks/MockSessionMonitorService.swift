@@ -17,6 +17,9 @@ final class MockSessionMonitorService: SessionMonitorServiceProtocol {
     func setScanInterval(_ interval: TimeInterval) { lastScanInterval = interval }
     func setVisibility(_ freshness: TimeInterval) { lastVisibility = freshness }
 
+    var lastRoots: [ClaudeConfigRoot]?
+    func setRoots(_ roots: [ClaudeConfigRoot]) { lastRoots = roots }
+
     func emit(_ sessions: [ClaudeSession]) {
         subject.send(sessions)
     }

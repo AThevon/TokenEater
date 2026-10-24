@@ -12,13 +12,21 @@ protocol SharedFileServiceProtocol: Sendable {
     var pacingSchedule: PacingSchedule { get }
     var lastWeekDailyTotals: [Int]? { get }
     var lastWeekTotalsRefreshedAt: Date? { get }
+    /// The tracked Claude accounts as the widget's account picker sees them,
+    /// nil until the app first writes them.
+    var accountsIndex: [AccountIndexEntry]? { get }
 
     func invalidateCache()
     func updateAfterSync(usage: CachedUsage, syncDate: Date)
+    /// Forgets the cached usage and its sync date, keeping the theme, the
+    /// preferences and the accounts index. For an account that now reads
+    /// another login: its previous numbers must not come back from the file.
+    func clearUsage()
     func updateTheme(_ theme: ThemeColors, thresholds: UsageThresholds)
     func updateSmartColorEnabled(_ enabled: Bool)
     func updateSmartColorProfile(_ profile: SmartColorProfile)
     func updatePacingSchedule(_ schedule: PacingSchedule)
     func updateLastWeekDailyTotals(_ totals: [Int], refreshedAt: Date)
+    func updateAccountsIndex(_ index: [AccountIndexEntry])
     func clear()
 }

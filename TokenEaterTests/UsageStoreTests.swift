@@ -402,7 +402,7 @@ struct UsageStoreTests {
 
         #expect(notif.lastEvaluation?.fiveHour.pct == 42)
         #expect(notif.lastEvaluation?.sevenDay.pct == 65)
-        #expect(notif.lastEvaluation?.sonnet.pct == 30)
+        #expect(notif.lastEvaluation?.sonnet?.pct == 30)
     }
 
     @Test("refresh sets hasConfig true when token available")
@@ -960,7 +960,7 @@ struct UsageStoreTests {
         // The underlying Keychain token rotates to account B.
         tokenProvider.tokenDidChange = true
 
-        let rotated = store.reconcileTokenIfChanged()
+        let rotated = await store.reconcileTokenIfChanged()
 
         #expect(rotated == true)
         #expect(store.retryAfterDate == nil)
@@ -969,11 +969,11 @@ struct UsageStoreTests {
     }
 
     @Test("reconcileTokenIfChanged is a no-op when the token is unchanged")
-    func reconcileTokenIfChangedNoChange() {
+    func reconcileTokenIfChangedNoChange() async {
         let (store, _, tokenProvider, _, _) = makeSUT()
         tokenProvider.tokenDidChange = false
 
-        let rotated = store.reconcileTokenIfChanged()
+        let rotated = await store.reconcileTokenIfChanged()
 
         #expect(rotated == false)
         #expect(store.currentSpeed == .normal)

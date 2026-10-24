@@ -504,3 +504,325 @@ struct MenuBarFablePacingRenderTests {
         #expect(image.size.width > 0)
     }
 }
+
+@Suite("MenuBarRenderer.accounts")
+struct MenuBarAccountSegmentTests {
+
+    private let work = AccountID(rawValue: "acct-work")
+
+    private func data(_ segments: [MenuBarSegment]) -> MenuBarRenderer.RenderData {
+        MenuBarOutageBadgeTests.sampleRenderData(segments: segments)
+    }
+
+    @Test("a segment pinned to a running account reads that account's numbers")
+    func pinnedSegmentReadsItsAccount() {
+        var bar = data([
+            MenuBarSegment(kind: .session, style: .labelValue),
+            MenuBarSegment(kind: .session, style: .labelValue, account: work),
+        ])
+        var account = bar
+        account.composition = MenuBarComposition(segments: [])
+        bar.accountData[work.rawValue] = account
+
+        let pinned = bar.composition.segments[1]
+        #expect(MenuBarRenderer.source(for: pinned, data: bar) == account)
+        #expect(MenuBarRenderer.source(for: bar.composition.segments[0], data: bar) == bar)
+        #expect(MenuBarRenderer.renderWithHitRects(bar).hitRects.count == 2)
+    }
+
+    @Test("a segment whose account is not running draws nothing and the bar closes up")
+    func missingAccountIsSkipped() {
+        let bar = data([
+            MenuBarSegment(kind: .session, style: .labelValue),
+            MenuBarSegment(kind: .weekly, style: .labelValue, account: work),
+        ])
+        let rects = MenuBarRenderer.renderWithHitRects(bar).hitRects
+        #expect(rects.map(\.id) == [bar.composition.segments[0].id])
+    }
+
+    @Test("an explicit main account and the Codex kinds read the bar's own numbers")
+    func mainAndCodexIgnoreAccounts() {
+        let bar = data([
+            MenuBarSegment(kind: .session, style: .labelValue, account: .main),
+            MenuBarSegment(kind: .serviceStatus, style: .glyph, account: work),
+        ])
+        for segment in bar.composition.segments {
+            #expect(MenuBarRenderer.source(for: segment, data: bar) == bar)
+        }
+    }
+
+    @Test("a single account renders exactly as before")
+    func singleAccountUnchanged() {
+        let bar = data([
+            MenuBarSegment(kind: .session, style: .labelValue),
+            MenuBarSegment(kind: .weekly, style: .pill),
+        ])
+        var withEmptyAccounts = bar
+        withEmptyAccounts.accountData = [:]
+        #expect(withEmptyAccounts == bar)
+        let before = MenuBarRenderer.renderWithHitRects(bar)
+        #expect(before.hitRects.count == 2)
+        #expect(MenuBarRenderer.renderUncached(bar).size == before.image.size)
+    }
+
+    @Test("an account with no numbers yet shows a placeholder, never a 0%")
+    func placeholderWidth() {
+        let segment = MenuBarSegment(kind: .session, style: .valueOnly)
+        var placeholder = data([segment])
+        placeholder.showsPlaceholderValues = true
+        let real = data([segment])
+        // "--" and "10%" are different runs: the placeholder is not the value.
+        #expect(MenuBarRenderer.renderUncached(placeholder).size != MenuBarRenderer.renderUncached(real).size)
+        #expect(placeholder != real)
+    }
+}
+
+@Suite("MenuBarRenderer.accountMarkers")
+struct MenuBarAccountMarkerTests {
+
+    private let work = AccountID(rawValue: "acct-work")
+    private let main = AccountID.main.rawValue
+
+    private func twoAccounts(
+        _ segments: [MenuBarSegment],
+        monochrome: Bool = false
+    ) -> MenuBarRenderer.RenderData {
+        var bar = MenuBarOutageBadgeTests.sampleRenderData(segments: segments)
+        if monochrome {
+            bar = MenuBarRenderer.RenderData(
+                composition: bar.composition, fiveHourPct: 10, sevenDayPct: 5, sonnetPct: 0,
+                weeklyPacingDelta: 0, weeklyPacingZone: .onTrack, hasWeeklyPacing: false,
+                sessionPacingDelta: 0, sessionPacingZone: .onTrack, hasSessionPacing: false,
+                fablePacingDelta: 0, fablePacingZone: .onTrack, hasFablePacing: false,
+                hasConfig: true, hasError: false, isAwaitingRefresh: false,
+                themeColors: .default, thresholds: .default, menuBarMonochrome: true,
+                fiveHourReset: "", fiveHourResetAbsolute: "", fiveHourResetDate: nil,
+                sevenDayResetDate: nil, sonnetResetDate: nil, hasFiveHourBucket: true,
+                resetTextColorHex: "", sessionPeriodColorHex: "", smartResetColor: false,
+                smartColorProfile: .balanced, pacingMargin: 10, fablePct: 0, hasFable: false,
+                fableResetDate: nil, outageActive: false, outageHealth: .healthy, nextPollSeconds: nil,
+                extraCreditsPct: 0, hasExtraCredits: false, extraCreditsUncappedSpend: nil,
+                extraCreditsUncappedHasSpend: false, codexSession: nil, codexWeekly: nil,
+                visibleProviders: [.claude, .codex]
+            )
+        }
+        var account = bar
+        account.composition = MenuBarComposition(segments: [])
+        bar.accountData[work.rawValue] = account
+        bar.accountMarkers = [
+            main: MenuBarRenderer.AccountMarker(label: "Perso", colorHex: "#5B8DEF"),
+            work.rawValue: MenuBarRenderer.AccountMarker(label: "Work", colorHex: "#F472B6"),
+        ]
+        return bar
+    }
+
+    @Test("Every session style gets exactly one marker per account run, the main account's included")
+    func oneMarkerPerRunInEveryStyle() {
+        for style in MenuBarSegmentKind.session.allowedStyles {
+            let segments = [
+                MenuBarSegment(kind: .session, style: style),
+                MenuBarSegment(kind: .weekly, style: .labelValue),
+                MenuBarSegment(kind: .session, style: style, account: work),
+                MenuBarSegment(kind: .weekly, style: .labelValue, account: work),
+            ]
+            let bar = twoAccounts(segments)
+            #expect(MenuBarRenderer.layoutPlan(bar) == [
+                .marker(main), .segment(segments[0].id), .segment(segments[1].id),
+                .marker(work.rawValue), .segment(segments[2].id), .segment(segments[3].id),
+            ], "style \(style)")
+            // Markers belong to the segment they precede: one hit rect per
+            // segment, the first of each run starting at the marker.
+            let rects = MenuBarRenderer.renderWithHitRects(bar).hitRects
+            #expect(rects.map(\.id) == segments.map(\.id))
+            #expect(rects.first?.rect.minX == 1)
+        }
+    }
+
+    @Test("A single account plans its segments alone and draws exactly as before")
+    func singleAccountHasNoMarkers() {
+        let segments = [
+            MenuBarSegment(kind: .session, style: .labelValue),
+            MenuBarSegment(kind: .weekly, style: .pill),
+        ]
+        let bar = MenuBarOutageBadgeTests.sampleRenderData(segments: segments)
+        #expect(MenuBarRenderer.layoutPlan(bar) == segments.map { .segment($0.id) })
+        var marked = twoAccounts(segments)
+        marked.marksLoneAccount = true
+        #expect(MenuBarRenderer.renderUncached(marked).size.width > MenuBarRenderer.renderUncached(bar).size.width)
+        // Without the markers (one running account) the two are the same bar.
+        marked.accountMarkers = [:]
+        marked.accountData = [:]
+        marked.marksLoneAccount = false
+        #expect(marked == bar)
+        #expect(MenuBarRenderer.renderUncached(marked).size == MenuBarRenderer.renderUncached(bar).size)
+    }
+
+    @Test("A segment of a paused or removed account is not planned, nor is its marker")
+    func pausedAccountIsNotPlanned() {
+        let segments = [
+            MenuBarSegment(kind: .session, style: .labelValue),
+            MenuBarSegment(kind: .session, style: .labelValue, account: AccountID(rawValue: "acct-gone")),
+        ]
+        let bar = twoAccounts(segments)
+        // One account left in the bar: nothing to tell apart, no marker.
+        #expect(MenuBarRenderer.layoutPlan(bar) == [.segment(segments[0].id)])
+    }
+
+    @Test("In All, an account kept out of the bar adds no marker to the others")
+    func accountOutOfTheBarAddsNoMarker() {
+        let segments = [
+            MenuBarSegment(kind: .session, style: .labelValue),
+            MenuBarSegment(kind: .weekly, style: .labelValue),
+        ]
+        let bar = twoAccounts(segments)
+        #expect(MenuBarRenderer.layoutPlan(bar) == segments.map { .segment($0.id) })
+        var single = MenuBarOutageBadgeTests.sampleRenderData(segments: segments)
+        single.accountData = bar.accountData
+        #expect(MenuBarRenderer.renderUncached(bar).size == MenuBarRenderer.renderUncached(single).size)
+
+        // Claude mode keeps it: it says which account is on screen.
+        var claudeMode = bar
+        claudeMode.marksLoneAccount = true
+        #expect(MenuBarRenderer.layoutPlan(claudeMode).first == .marker(main))
+    }
+
+    @Test("Codex and neutral segments end a run, so a split account is marked again")
+    func codexEndsARun() {
+        let segments = [
+            MenuBarSegment(kind: .session, style: .labelValue),
+            MenuBarSegment(kind: .serviceStatus, style: .glyph),
+            MenuBarSegment(kind: .weekly, style: .labelValue),
+            MenuBarSegment(kind: .session, style: .labelValue, account: work),
+        ]
+        let bar = twoAccounts(segments)
+        #expect(MenuBarRenderer.layoutPlan(bar) == [
+            .marker(main), .segment(segments[0].id), .segment(segments[1].id),
+            .marker(main), .segment(segments[2].id),
+            .marker(work.rawValue), .segment(segments[3].id),
+        ])
+    }
+
+    @Test("Claude mode on an added account: segments with no account read that account")
+    func focusedAccountIsTheDefault() {
+        let segments = [MenuBarSegment(kind: .session, style: .valueOnly)]
+        var bar = twoAccounts(segments)
+        bar.defaultAccount = work.rawValue
+        bar.marksLoneAccount = true
+        #expect(MenuBarRenderer.source(for: segments[0], data: bar) == bar.accountData[work.rawValue])
+        #expect(MenuBarRenderer.layoutPlan(bar) == [.marker(work.rawValue), .segment(segments[0].id)])
+        // An explicit main account still reads the main account.
+        let pinned = MenuBarSegment(kind: .session, style: .valueOnly, account: .main)
+        #expect(MenuBarRenderer.source(for: pinned, data: bar) == bar)
+    }
+
+    @Test("A colour bar marks accounts by their ring alone, whatever their names")
+    func colourBarDrawsNoNames() {
+        let segments = [
+            MenuBarSegment(kind: .session, style: .valueOnly),
+            MenuBarSegment(kind: .session, style: .valueOnly, account: work),
+        ]
+        let bar = twoAccounts(segments)
+        var renamed = bar
+        renamed.accountMarkers[work.rawValue] = MenuBarRenderer.AccountMarker(label: "A much longer name", colorHex: "#F472B6")
+        renamed.accountMarkers[main] = MenuBarRenderer.AccountMarker(label: "X", colorHex: "#5B8DEF")
+        #expect(MenuBarRenderer.renderUncached(bar).size == MenuBarRenderer.renderUncached(renamed).size)
+    }
+
+    @Test("A monochrome bar follows each ring with an initial, never the whole name")
+    func monochromeDrawsInitials() {
+        let segments = [
+            MenuBarSegment(kind: .session, style: .valueOnly),
+            MenuBarSegment(kind: .session, style: .valueOnly, account: work),
+        ]
+        let colour = MenuBarRenderer.renderUncached(twoAccounts(segments)).size.width
+        let mono = twoAccounts(segments, monochrome: true)
+        let monoWidth = MenuBarRenderer.renderUncached(mono).size.width
+        #expect(monoWidth > colour)
+        // "Perso" and "Work" start differently: one letter each, so a longer
+        // name that keeps its initial leaves the bar the same width.
+        var longer = mono
+        longer.accountMarkers[work.rawValue] = MenuBarRenderer.AccountMarker(label: "Workstation", colorHex: "#F472B6")
+        #expect(MenuBarRenderer.renderUncached(longer).size.width == monoWidth)
+    }
+
+    @Test("A monochrome bar's initials only count the accounts it marks, in its order")
+    func monochromeInitialsFollowTheBar() {
+        let segments = [
+            MenuBarSegment(kind: .session, style: .valueOnly),
+            MenuBarSegment(kind: .session, style: .valueOnly, account: work),
+        ]
+        var bar = twoAccounts(segments, monochrome: true)
+        bar.accountMarkers[work.rawValue] = MenuBarRenderer.AccountMarker(label: "Work", colorHex: "#F472B6")
+        // "Wife" is tracked but kept out of the bar: "Work" stays "W".
+        bar.accountMarkers["acct-wife"] = MenuBarRenderer.AccountMarker(label: "Wife", colorHex: "#22D3EE")
+        let plan = MenuBarRenderer.layoutPlan(bar)
+        #expect(MenuBarRenderer.monochromeInitials(plan: plan, data: bar) == [main: "P", work.rawValue: "W"])
+        var alone = bar
+        alone.accountMarkers.removeValue(forKey: "acct-wife")
+        #expect(MenuBarRenderer.renderUncached(alone).size == MenuBarRenderer.renderUncached(bar).size)
+    }
+
+    @Test("The tooltip names one account per ring, in the bar's order")
+    func toolTipFollowsTheRings() {
+        let segments = [
+            MenuBarSegment(kind: .session, style: .labelValue),
+            MenuBarSegment(kind: .serviceStatus, style: .glyph),
+            MenuBarSegment(kind: .weekly, style: .labelValue),
+            MenuBarSegment(kind: .session, style: .labelValue, account: work),
+        ]
+        #expect(MenuBarRenderer.accountsToolTip(twoAccounts(segments)) == "Perso · Perso · Work")
+        let single = MenuBarOutageBadgeTests.sampleRenderData(segments: segments)
+        #expect(MenuBarRenderer.accountsToolTip(single) == nil)
+    }
+
+    @Test("With several accounts, one without numbers shows a placeholder and the bar keeps the others")
+    func accountWithoutNumbersKeepsTheBar() {
+        let segments = [
+            MenuBarSegment(kind: .session, style: .valueOnly),
+            MenuBarSegment(kind: .session, style: .valueOnly, account: work),
+        ]
+        var bar = twoAccounts(segments)
+        bar.accountData[work.rawValue]?.hasNumbers = false
+        #expect(MenuBarRenderer.renderWithHitRects(bar).hitRects.count == 2)
+
+        // The main account with no token at all no longer hides Work.
+        var noMainToken = twoAccounts(segments)
+        noMainToken = MenuBarRenderer.RenderData(
+            composition: noMainToken.composition, fiveHourPct: 0, sevenDayPct: 0, sonnetPct: 0,
+            weeklyPacingDelta: 0, weeklyPacingZone: .onTrack, hasWeeklyPacing: false,
+            sessionPacingDelta: 0, sessionPacingZone: .onTrack, hasSessionPacing: false,
+            fablePacingDelta: 0, fablePacingZone: .onTrack, hasFablePacing: false,
+            hasConfig: false, hasError: true, isAwaitingRefresh: false,
+            themeColors: .default, thresholds: .default, menuBarMonochrome: false,
+            fiveHourReset: "", fiveHourResetAbsolute: "", fiveHourResetDate: nil,
+            sevenDayResetDate: nil, sonnetResetDate: nil, hasFiveHourBucket: true,
+            resetTextColorHex: "", sessionPeriodColorHex: "", smartResetColor: false,
+            smartColorProfile: .balanced, pacingMargin: 10, fablePct: 0, hasFable: false,
+            fableResetDate: nil, outageActive: false, outageHealth: .healthy, nextPollSeconds: nil,
+            extraCreditsPct: 0, hasExtraCredits: false, extraCreditsUncappedSpend: nil,
+            extraCreditsUncappedHasSpend: false, codexSession: nil, codexWeekly: nil,
+            visibleProviders: [.claude, .codex],
+            accountData: noMainToken.accountData,
+            accountMarkers: noMainToken.accountMarkers,
+            hasNumbers: false
+        )
+        #expect(MenuBarRenderer.renderWithHitRects(noMainToken).hitRects.count == 2)
+        // Alone, the same main account shows the logo, as it always did.
+        var alone = noMainToken
+        alone.accountMarkers = [:]
+        alone.accountData = [:]
+        #expect(MenuBarRenderer.renderWithHitRects(alone).hitRects.isEmpty)
+    }
+
+    @Test("The render cache tells two bars apart by their accounts' numbers")
+    func cacheSeesAccountData() {
+        let segments = [MenuBarSegment(kind: .session, style: .valueOnly, account: work)]
+        let bar = twoAccounts(segments)
+        var changed = bar
+        changed.accountData[work.rawValue]?.showsPlaceholderValues = true
+        #expect(bar != changed)
+        var relabelled = bar
+        relabelled.accountMarkers[work.rawValue] = MenuBarRenderer.AccountMarker(label: "Side", colorHex: "#22D3EE")
+        #expect(bar != relabelled)
+    }
+}

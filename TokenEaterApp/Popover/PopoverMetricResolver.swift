@@ -13,8 +13,8 @@ enum PopoverMetricResolver {
         let pct: Int
         let resetDate: Date?
         /// Formatted countdown ("2h 15m"). Empty when the metric has no
-        /// reset window (Extra Credits) or no data yet.
-        let resetText: String
+        /// reset window (Extra Credits), no data yet, or only old numbers.
+        var resetText: String
         /// 0 = no rolling window -> threshold coloring (Extra Credits).
         let windowDuration: TimeInterval
         /// Whose number this is. The cell draws the provider's mark in front
@@ -50,6 +50,25 @@ enum PopoverMetricResolver {
     }
 
     static func usageSnapshot(for kind: PopoverElementKind, usage: UsageStore, codex: CodexUsageStore) -> UsageSnapshot? {
+        guard var snapshot = rawSnapshot(for: kind, usage: usage, codex: codex) else { return nil }
+        guard snapshot.provider == .claude else { return snapshot }
+        if usage.hasNoNumbers {
+            // A login that failed with nothing to show: "--" on an open
+            // track, never a 0% that would pass for a fresh reading.
+            snapshot.unscaledValue = "--"
+            snapshot.unscaledHasSpend = false
+            snapshot.unscaledNote = nil
+            snapshot.resetText = ""
+        } else if usage.lastNumbersDate != nil {
+            // Old numbers of a login that no longer answers: the cell is
+            // greyed and its section dated, and a countdown that may have
+            // passed long ago ("now") would contradict both.
+            snapshot.resetText = ""
+        }
+        return snapshot
+    }
+
+    private static func rawSnapshot(for kind: PopoverElementKind, usage: UsageStore, codex: CodexUsageStore) -> UsageSnapshot? {
         switch kind {
         case .codexSession, .codexWeekly:
             guard let window = codexWindow(kind == .codexSession ? .session : .weekly, codex) else { return nil }
@@ -114,6 +133,10 @@ enum PopoverMetricResolver {
     }
 
     static func pacing(for kind: PopoverElementKind, usage: UsageStore, codex: CodexUsageStore) -> PacingResult? {
+        // A pace measures frozen numbers against a clock that kept running:
+        // a Claude login with no numbers or only old ones gets the idle
+        // placeholder, as the dashboard drops its pacing cards.
+        if kind.provider == .claude, usage.hasNoNumbers || usage.lastNumbersDate != nil { return nil }
         switch kind {
         case .codexSessionPacing: return codexWindow(.session, codex)?.pacing
         case .codexWeeklyPacing: return codexWindow(.weekly, codex)?.pacing
@@ -161,6 +184,7 @@ enum PopoverMetricResolver {
         // not have disappears and the row recompacts.
         case .codexSession, .codexSessionPacing: return codexWindow(.session, codex) != nil
         case .codexWeekly, .codexWeeklyPacing: return codexWindow(.weekly, codex) != nil
+        case .sonnet: return usage.hasSonnet
         case .fable: return usage.hasFable
         case .extraCredits: return usage.hasExtraCredits
         // Pacing follows the 3-state model (absent / idle / active): available
