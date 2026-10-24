@@ -83,8 +83,10 @@ struct UsageWidgetView: View {
             WidgetHeader("widget.title.usage")
                 .padding(.bottom, 14)
 
-            // Circular gauges
-            HStack(spacing: 0) {
+            // Circular gauges. Top-aligned so the rings line up whatever the
+            // height of the text under each one (a bold countdown, a 7 pt
+            // pacing message).
+            HStack(alignment: .top, spacing: 0) {
                 if let fiveHour = usage.fiveHour {
                     CircularUsageView(
                         label: String(localized: "widget.session"),

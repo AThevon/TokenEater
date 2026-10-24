@@ -32,7 +32,8 @@ struct CodexUsageWidgetView: View {
                 }
             }
             Spacer(minLength: 0)
-            HStack(spacing: 8) {
+            // Top-aligned: the rings line up whatever the text under each.
+            HStack(alignment: .top, spacing: 8) {
                 ForEach(family == .systemSmall ? Array(windows.prefix(1)) : windows) { window in
                     ring(window)
                 }

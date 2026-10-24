@@ -317,10 +317,14 @@ private struct PopoverResetLine: View {
         let format = String(localized: "metric.reset")
         Group {
             if sentence, let parts = ResetCountdownFormatter.sentenceParts(format) {
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                HStack(alignment: .firstTextBaseline, spacing: 0) {
                     if !parts.before.isEmpty { words(parts.before) }
-                    value
-                    if !parts.after.isEmpty { words(parts.after) }
+                    value.padding(.leading, parts.before.isEmpty ? 0 : Self.gap)
+                    if !parts.after.isEmpty {
+                        // Punctuation stays against the value ("in 2h14.").
+                        words(parts.after)
+                            .padding(.leading, parts.after.first?.isPunctuation == true ? 0 : Self.gap)
+                    }
                 }
             } else if sentence {
                 words(String(format: format, countdown))
@@ -332,7 +336,12 @@ private struct PopoverResetLine: View {
         .allowsTightening(true)
         .minimumScaleFactor(0.85)
         .help(String(format: format, countdown))
+        // One VoiceOver element reading the whole sentence, not its pieces.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(String(format: format, countdown))
     }
+
+    private static let gap: CGFloat = 4
 
     private var value: some View {
         Text(countdown)
