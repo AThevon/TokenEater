@@ -250,8 +250,10 @@ struct ProviderHeroFace: View {
         return (late.date ?? .now).formatted(.dateTime.hour().minute())
     }()
 
+    /// The countdown is the line's largest text (#295), so everything else
+    /// sits on its baseline rather than on its centre.
     private func resetLine(words: Bool, countdown: String, clockTime: String?) -> some View {
-        HStack(spacing: DS.Spacing.xs) {
+        HStack(alignment: .firstTextBaseline, spacing: DS.Spacing.xs) {
             Image(systemName: "clock.arrow.circlepath")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(DS.Palette.textTertiary)
@@ -262,7 +264,7 @@ struct ProviderHeroFace: View {
                     .foregroundStyle(DS.Palette.textTertiary)
             }
             Text(countdown)
-                .font(DS.Typography.metricInline)
+                .font(DS.Typography.countdown(17, monospaced: true))
                 .foregroundStyle(DS.Palette.textPrimary)
             if let clockTime {
                 Text("·")

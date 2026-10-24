@@ -189,15 +189,13 @@ private struct GaugeRingCell: View {
                 // truncated to "Resets in…", which is the one word the reader
                 // could already infer and none of the number they could not.
                 // An abbreviation would fit and read like a licence plate.
-                Text(width == .full
-                     ? String(format: String(localized: "metric.reset"), snapshot.resetText)
-                     : snapshot.resetText)
-                    .font(.system(size: width == .third ? 8 : 9, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.35))
-                    .lineLimit(1)
-                    .allowsTightening(true)
-                    .minimumScaleFactor(0.85)
-                    .help(String(format: String(localized: "metric.reset"), snapshot.resetText))
+                PopoverResetLine(
+                    countdown: snapshot.resetText,
+                    sentence: width == .full,
+                    wordsFont: .system(size: 9, weight: .medium),
+                    wordsColor: .white.opacity(0.35),
+                    countdownSize: width == .third ? 10 : 11
+                )
             }
         }
         .padding(.vertical, width == .full ? 8 : 2)
@@ -284,15 +282,13 @@ private struct ChipCell: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if showReset && !snapshot.resetText.isEmpty {
-                    Text(width == .full
-                         ? String(format: String(localized: "metric.reset"), snapshot.resetText)
-                         : snapshot.resetText)
-                        .font(.system(size: 9))
-                        .foregroundStyle(.white.opacity(0.5))
-                        .lineLimit(1)
-                        .allowsTightening(true)
-                        .minimumScaleFactor(0.85)
-                        .help(String(format: String(localized: "metric.reset"), snapshot.resetText))
+                    PopoverResetLine(
+                        countdown: snapshot.resetText,
+                        sentence: width == .full,
+                        wordsFont: .system(size: 9),
+                        wordsColor: .white.opacity(0.5),
+                        countdownSize: 11
+                    )
                 }
             }
             Spacer(minLength: 0)
@@ -300,6 +296,54 @@ private struct ChipCell: View {
         .padding(10)
         .popoverCard()
         .unscaledHelp(snapshot.unscaledNote)
+    }
+}
+
+// MARK: - Reset line (ring and chip cells)
+
+/// The time left before a reset under a ring or in a chip: bold, a step or
+/// two above the words and in the primary text colour, so the number reads
+/// first (#295). With `sentence` the localized "Resets in" words stand
+/// before it in the caption's own style, a little further off than a plain
+/// space so the two do not run together.
+private struct PopoverResetLine: View {
+    let countdown: String
+    let sentence: Bool
+    let wordsFont: Font
+    let wordsColor: Color
+    let countdownSize: CGFloat
+
+    var body: some View {
+        let format = String(localized: "metric.reset")
+        Group {
+            if sentence, let parts = ResetCountdownFormatter.sentenceParts(format) {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    if !parts.before.isEmpty { words(parts.before) }
+                    value
+                    if !parts.after.isEmpty { words(parts.after) }
+                }
+            } else if sentence {
+                words(String(format: format, countdown))
+            } else {
+                value
+            }
+        }
+        .lineLimit(1)
+        .allowsTightening(true)
+        .minimumScaleFactor(0.85)
+        .help(String(format: format, countdown))
+    }
+
+    private var value: some View {
+        Text(countdown)
+            .font(DS.Typography.countdown(countdownSize))
+            .foregroundStyle(DS.Palette.textPrimary)
+    }
+
+    private func words(_ text: String) -> some View {
+        Text(text)
+            .font(wordsFont)
+            .foregroundStyle(wordsColor)
     }
 }
 

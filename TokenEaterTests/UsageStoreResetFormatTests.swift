@@ -97,4 +97,54 @@ struct ResetCountdownFormatterTests {
         let result = ResetCountdownFormatter.display(relative: "", absolute: "20:30", format: .both)
         #expect(result == "20:30")
     }
+
+    // MARK: - Sentence split (#295)
+
+    @Test("sentenceParts: English sentence splits before the countdown")
+    func sentencePartsEnglish() {
+        let parts = ResetCountdownFormatter.sentenceParts("Resets in %@")
+        #expect(parts?.before == "Resets in")
+        #expect(parts?.after == "")
+    }
+
+    @Test("sentenceParts: French sentence splits before the countdown")
+    func sentencePartsFrench() {
+        let parts = ResetCountdownFormatter.sentenceParts("Reset dans %@")
+        #expect(parts?.before == "Reset dans")
+        #expect(parts?.after == "")
+    }
+
+    @Test("sentenceParts: words after the placeholder are kept, trimmed")
+    func sentencePartsTrailingWords() {
+        let parts = ResetCountdownFormatter.sentenceParts("%@ before reset")
+        #expect(parts?.before == "")
+        #expect(parts?.after == "before reset")
+    }
+
+    @Test("sentenceParts: a positional placeholder splits too")
+    func sentencePartsPositional() {
+        let parts = ResetCountdownFormatter.sentenceParts("Reset in %1$@.")
+        #expect(parts?.before == "Reset in")
+        #expect(parts?.after == ".")
+    }
+
+    @Test("sentenceParts: nil without a placeholder")
+    func sentencePartsNoPlaceholder() {
+        #expect(ResetCountdownFormatter.sentenceParts("Resets soon") == nil)
+    }
+
+    @Test("sentenceParts: the shipped EN and FR strings both split")
+    func sentencePartsShippedStrings() throws {
+        let bundle = Bundle(for: SentencePartsBundleToken.self)
+        for language in ["en", "fr"] {
+            let path = try #require(bundle.path(forResource: "Localizable", ofType: "strings", inDirectory: nil, forLocalization: language))
+            let table = try #require(NSDictionary(contentsOfFile: path) as? [String: String])
+            let format = try #require(table["metric.reset"])
+            let parts = try #require(ResetCountdownFormatter.sentenceParts(format))
+            #expect(!parts.before.isEmpty)
+            #expect(parts.before + " " + "2h14" == String(format: format, "2h14"))
+        }
+    }
 }
+
+private final class SentencePartsBundleToken {}

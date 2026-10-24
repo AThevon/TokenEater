@@ -74,6 +74,23 @@ enum ResetCountdownFormatter {
         }
     }
 
+    /// Splits a localized sentence such as "Resets in %@" around its
+    /// placeholder, so the countdown can be drawn in its own style while the
+    /// words keep theirs. The words come back trimmed of the spaces that
+    /// touched the placeholder: the caller sets the gap itself. Nil when the
+    /// format carries no `%@` (or `%1$@`), in which case the caller formats
+    /// the sentence whole.
+    static func sentenceParts(_ format: String) -> (before: String, after: String)? {
+        let placeholder = format.range(of: "%1$@") ?? format.range(of: "%@")
+        guard let placeholder else { return nil }
+        let before = String(format[..<placeholder.lowerBound])
+        let after = String(format[placeholder.upperBound...])
+        return (
+            before.replacingOccurrences(of: "\\s+$", with: "", options: .regularExpression),
+            after.replacingOccurrences(of: "^\\s+", with: "", options: .regularExpression)
+        )
+    }
+
     // MARK: - Absolute formatting
 
     private enum AbsoluteMode { case session, weekly }

@@ -26,6 +26,9 @@ enum WidgetTokens {
     static let micro: Font = .system(size: 9, weight: .medium)
     static let microMono: Font = .system(size: 10, weight: .medium, design: .monospaced)
     static let pillLabel: Font = .system(size: 10, weight: .bold, design: .rounded)
+    /// The time left before a reset on a countdown row: bold, two steps
+    /// above the 10 pt captions, drawn at `primary` opacity (#295).
+    static let countdownMono: Font = DS.Typography.countdown(12, monospaced: true)
 
     // Tracking
     static let headerTracking: CGFloat = 0.5
@@ -131,8 +134,8 @@ struct ResetCountdownRow: View {
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(Color(hex: WidgetTheme.theme.widgetText).opacity(WidgetTokens.tertiary))
             Text(formatResetTime(date))
-                .font(WidgetTokens.microMono)
-                .foregroundStyle(Color(hex: WidgetTheme.theme.widgetText).opacity(WidgetTokens.secondary))
+                .font(WidgetTokens.countdownMono)
+                .foregroundStyle(Color(hex: WidgetTheme.theme.widgetText).opacity(WidgetTokens.primary))
             if alignment == .leading { Spacer(minLength: 0) }
         }
     }
@@ -313,8 +316,8 @@ struct PacingGraphWidgetView: View {
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(Color(hex: theme.widgetText).opacity(WidgetTokens.tertiary))
                 Text(formatResetTime(bucket.resetsAtDate))
-                    .font(WidgetTokens.microMono)
-                    .foregroundStyle(Color(hex: theme.widgetText).opacity(WidgetTokens.secondary))
+                    .font(WidgetTokens.countdownMono)
+                    .foregroundStyle(Color(hex: theme.widgetText).opacity(WidgetTokens.primary))
             }
         }
     }

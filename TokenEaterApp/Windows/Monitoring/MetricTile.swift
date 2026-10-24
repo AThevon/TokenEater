@@ -152,7 +152,14 @@ struct MetricTile: View {
             .frame(height: 3)
             .animation(DS.Motion.springLiquid, value: pct)
 
-            Group {
+            ZStack(alignment: .leading) {
+                // Holds the line at the countdown's height whatever it shows
+                // ("last numbers", nothing at all), so cards side by side
+                // stay level.
+                Text(" ")
+                    .font(Self.countdownFont)
+                    .hidden()
+                    .accessibilityHidden(true)
                 if let lastNumbersDate, hasNumbers {
                     lastNumbersLine(lastNumbersDate)
                 } else if hasNumbers, let resetText, !resetText.isEmpty {
@@ -167,10 +174,6 @@ struct MetricTile: View {
                             resetLine(resetText, words: false, absolute: false)
                         }
                     }
-                } else {
-                    Text(" ")
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.clear)
                 }
             }
             .lineLimit(1)
@@ -207,8 +210,14 @@ struct MetricTile: View {
             .lineLimit(1)
     }
 
+    /// The time left on the reset line: two steps above the 10 pt clock time
+    /// next to it (#295).
+    private static let countdownFont = DS.Typography.countdown(12, monospaced: true)
+
+    /// The countdown is the line's largest text (#295), so the words and the
+    /// clock time sit on its baseline rather than on its centre.
     private func resetLine(_ resetText: String, words: Bool, absolute: Bool) -> some View {
-        HStack(spacing: 5) {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
             Image(systemName: "clock.arrow.circlepath")
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(DS.Palette.textTertiary)
@@ -219,8 +228,8 @@ struct MetricTile: View {
                     .foregroundStyle(DS.Palette.textTertiary)
             }
             Text(resetText)
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .foregroundStyle(DS.Palette.textSecondary)
+                .font(Self.countdownFont)
+                .foregroundStyle(DS.Palette.textPrimary)
             if absolute, let resetDate {
                 Text("·")
                     .font(.system(size: 10, weight: .bold))

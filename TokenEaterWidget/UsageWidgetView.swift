@@ -118,7 +118,8 @@ struct UsageWidgetView: View {
                         windowDuration: 0,
                         smartEnabled: false,
                         unscaledValue: spend,
-                        unscaledHasSpend: extra.hasUncappedSpend
+                        unscaledHasSpend: extra.hasUncappedSpend,
+                        resetIsTime: false
                     )
                 }
             }
@@ -334,6 +335,10 @@ struct CircularUsageView: View {
     /// Whether that amount is above zero: neutral text colour at zero, the
     /// theme's warning colour once spent (`ThemeColors.uncappedSpendColor`).
     var unscaledHasSpend: Bool = false
+    /// `resetInfo` says when the window resets (a countdown, or the weekly
+    /// reset's day and time): bold and a step up so it reads at a glance
+    /// (#295). False for Extra Credits, whose line is an amount or "Monthly".
+    var resetIsTime: Bool = true
 
     private var unscaledColor: Color {
         theme.uncappedSpendColor(
@@ -389,7 +394,7 @@ struct CircularUsageView: View {
                     .tracking(0.2)
                     .foregroundStyle(Color(hex: theme.widgetText).opacity(0.85))
                 Text(resetInfo)
-                    .font(.system(size: 8, weight: .medium))
+                    .font(resetIsTime ? DS.Typography.countdown(10) : .system(size: 8, weight: .medium))
                     .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
             }
         }
@@ -595,9 +600,11 @@ struct LargeUsageBarView: View {
                     .foregroundStyle(accentColor)
 
                 if !resetInfo.isEmpty {
+                    // When the window resets, bold and at full strength so it
+                    // reads at a glance; same size, the row has no room (#295).
                     Text(resetInfo)
-                        .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundStyle(Color(hex: theme.widgetText).opacity(0.4))
+                        .font(DS.Typography.countdown(10, monospaced: true))
+                        .foregroundStyle(Color(hex: theme.widgetText).opacity(WidgetTokens.primary))
                 }
             }
 
