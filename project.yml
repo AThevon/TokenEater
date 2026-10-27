@@ -58,6 +58,7 @@ targets:
       - path: TokenEaterTests
       - path: Shared
       - path: TokenEaterApp/Onboarding/OnboardingViewModel.swift
+      - path: Tools/contract-check/Sources/ContractCore.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tokeneater.tests
