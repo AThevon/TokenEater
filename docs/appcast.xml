@@ -2,7 +2,7 @@
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
     <channel>
         <title>TokenEater</title>
-        <link>https://athevon.github.io/TokenEater/appcast.xml</link>
+        <link>https://raw.githubusercontent.com/AThevon/TokenEater/main/docs/appcast.xml</link>
         <description>TokenEater updates</description>
         <language>en</language>
         <item>
