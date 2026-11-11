@@ -1,0 +1,75 @@
+name: Contract drift PR
+
+# The local contract checker (Tools/contract-check) pushes new baselines and a
+# report to bot/contract-drift through the GitHub API. This workflow turns that
+# push into a pull request authored by github-actions[bot]: a PR opened with
+# the maintainer's own token would notify nobody, since GitHub never notifies
+# you of your own activity. Merging the PR is the acknowledgement.
+#
+# It also deletes either bot branch once its PR is merged or closed, so the
+# next drift starts again from main.
+#
+# GITHUB_TOKEN can only open PRs once "Allow GitHub Actions to create and
+# approve pull requests" is on (Settings > Actions > General).
+
+on:
+  push:
+    branches: [bot/contract-drift]
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: contract-drift-pr
+  cancel-in-progress: false
+
+jobs:
+  open-or-update:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      REPORT: Tools/contract-check/reports/latest-drift.md
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Open or update the pull request
+        run: |
+          set -euo pipefail
+          severity=$(sed -n 's/.*contract-drift severity=\([a-z]*\).*/\1/p' "$REPORT" | head -1)
+          title="Usage API contract drift (${severity:-active})"
+          gh label create contract-drift --color B60205 --force \
+            --description "A usage API response no longer matches its committed baseline"
+          number=$(gh pr list --head bot/contract-drift --base main --state open \
+            --json number --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh pr edit "$number" --title "$title" --body-file "$REPORT"
+            echo "Updated #$number"
+          else
+            gh pr create --head bot/contract-drift --base main \
+              --title "$title" --body-file "$REPORT" --label contract-drift
+          fi
+
+  delete-bot-branch:
+    if: >-
+      github.event_name == 'pull_request' &&
+      (github.event.pull_request.head.ref == 'bot/contract-drift' ||
+       github.event.pull_request.head.ref == 'bot/contract-upstream') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BRANCH: ${{ github.event.pull_request.head.ref }}
+    steps:
+      - name: Delete the bot branch
+        run: |
+          gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/$BRANCH" \
+            || echo "Already gone."

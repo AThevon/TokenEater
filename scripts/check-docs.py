@@ -16,6 +16,7 @@ No dependencies. Exit code 0 means the doc matches the tree.
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import sys
@@ -330,6 +331,60 @@ def check_no_magic_counts(doc: str) -> None:
         ok("magic-counts", "no bare inventory counts reintroduced")
 
 
+# --------------------------------------------------------------------------
+# 10. The contract canary's read set covers every key the decoders read
+# --------------------------------------------------------------------------
+READ_SET = ROOT / "Tools/contract-check/read-set.json"
+
+
+def coding_keys(path: Path) -> set[str]:
+    """Raw values of every `enum X: String, CodingKey` in a Swift file."""
+    keys: set[str] = set()
+    for body in re.findall(r"enum \w+: String, CodingKey \{(.*?)\n\s*\}", read(path), re.S):
+        for line in body.splitlines():
+            m = re.match(r"\s*case (.+)", line)
+            if not m:
+                continue
+            for item in m.group(1).split(","):
+                name, _, raw = item.partition("=")
+                key = raw.strip().strip('"') if raw else name.strip()
+                if key:
+                    keys.add(key)
+    return keys
+
+
+def check_read_set() -> None:
+    """Tools/contract-check grades usage API drift against read-set.json. A key
+    added to a decoder but not to the read set would be graded as unread, so a
+    break in it would never be reported as breaking. Keys are matched by name
+    against path leaves, not per parent, so this catches a new name, not a
+    known name decoded under a new parent."""
+    if not READ_SET.exists():
+        fail("read-set", "Tools/contract-check/read-set.json not found")
+        return
+    try:
+        providers = json.loads(read(READ_SET))["providers"]
+    except (ValueError, KeyError) as error:
+        fail("read-set", f"Tools/contract-check/read-set.json does not parse: {error}")
+        return
+    checked = 0
+    for name, provider in providers.items():
+        leaves = {p.split(".")[-1].replace("[]", "") for p in provider["paths"]}
+        ignored = set(provider.get("ignoredCodingKeys") or {})
+        for source in provider["decodedBy"]:
+            path = ROOT / source
+            if not path.exists():
+                fail("read-set", f"{name} lists {source} in decodedBy, which does not exist")
+                continue
+            keys = coding_keys(path)
+            checked += len(keys)
+            for key in sorted(keys - leaves - ignored):
+                fail("read-set", f"{source} decodes `{key}`, but the {name} read set in "
+                                 f"Tools/contract-check/read-set.json has no path for it")
+    if not any(f.startswith("read-set") for f in failures):
+        ok("read-set", f"{checked} decoded keys all covered by the contract read set")
+
+
 def main() -> int:
     if not DOC.exists():
         print("AGENTS.md not found", file=sys.stderr)
@@ -345,6 +400,7 @@ def main() -> int:
     check_swiftui_rules()
     check_cache_paths()
     check_no_magic_counts(doc)
+    check_read_set()
 
     for note in notes:
         print(f"  ok    {note}")
