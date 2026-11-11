@@ -200,12 +200,26 @@ struct ProviderHeroFace: View {
     private func resetLine(words: Bool, clock: Bool) -> some View {
         ZStack(alignment: .leading) {
             resetLine(words: words, countdown: Self.countdownTemplate(for: resetText),
-                      clockTime: clock ? Self.clockTemplate : nil)
+                      clockTime: clock ? (resetIsDaysAway ? Self.weekdayClockTemplate : Self.clockTemplate) : nil)
                 .hidden()
                 .accessibilityHidden(true)
             resetLine(words: words, countdown: resetText.isEmpty ? "-" : resetText,
-                      clockTime: clock ? resetDate?.formatted(.dateTime.hour().minute()) : nil)
+                      clockTime: clock ? resetClockTime : nil)
         }
+    }
+
+    /// A reset more than a day away (the week, on a plan whose glance card
+    /// shows it) names its day: "15:20" alone would read as today.
+    private var resetIsDaysAway: Bool {
+        guard let resetDate else { return false }
+        return resetDate.timeIntervalSinceNow > 86_400
+    }
+
+    private var resetClockTime: String? {
+        guard let resetDate else { return nil }
+        return resetIsDaysAway
+            ? resetDate.formatted(.dateTime.weekday(.abbreviated).hour().minute())
+            : resetDate.formatted(.dateTime.hour().minute())
     }
 
     /// "LAST NUMBERS 2 days ago", re-read every minute so the age keeps up
@@ -248,6 +262,13 @@ struct ProviderHeroFace: View {
     private static let clockTemplate: String = {
         let late = DateComponents(calendar: .current, year: 2026, month: 1, day: 1, hour: 22, minute: 58)
         return (late.date ?? .now).formatted(.dateTime.hour().minute())
+    }()
+
+    /// The same with the day in front ("Wed 22:58"), Wednesday being among
+    /// the longest abbreviations.
+    private static let weekdayClockTemplate: String = {
+        let late = DateComponents(calendar: .current, year: 2026, month: 1, day: 7, hour: 22, minute: 58)
+        return (late.date ?? .now).formatted(.dateTime.weekday(.abbreviated).hour().minute())
     }()
 
     /// The countdown is the line's largest text (#295), so everything else

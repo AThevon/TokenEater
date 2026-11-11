@@ -94,6 +94,7 @@ enum DiagnosticReporter {
         let retryAfter = formatDate(usageStore.retryAfterDate, relative: true) ?? "-"
         let plan = String(describing: usageStore.planType)
         let tier = usageStore.rateLimitTier ?? "-"
+        let sessionWindow = sessionWindowName(usageStore)
         let tokenPresent = usageStore.hasConfig ? "yes" : "no"
         // Which source answered, and why the Keychain did not when it did not.
         // Without it an unauthorized report cannot be told apart from a
@@ -133,6 +134,7 @@ enum DiagnosticReporter {
         - Retry-after deadline: \(retryAfter)
         - Plan: \(plan)
         - Rate limit tier: \(tier)
+        - Session window: \(sessionWindow)
         - Token present: \(tokenPresent)
         - Token source: \(tokenSource)
         - Keychain read: \(keychainRead)
@@ -156,9 +158,18 @@ enum DiagnosticReporter {
             let identity = store.map { identityName($0.identityState) } ?? "-"
             let updated = store.flatMap { formatDate($0.lastUpdate, relative: true) } ?? "never"
             let role = record.id.isMain ? "main" : "added"
-            lines.append("- #\(index + 1) \(role): \(configDirLabel(record.scope, home: home)), state \(state), identity \(identity), updated \(updated)")
+            let window = store.map(sessionWindowName) ?? "-"
+            lines.append("- #\(index + 1) \(role): \(configDirLabel(record.scope, home: home)), state \(state), identity \(identity), updated \(updated), session window \(window)")
         }
         return lines.joined(separator: "\n")
+    }
+
+    /// "no" on a plan without the 5-hour window (Claude Ultra), "unknown"
+    /// before any usage has landed.
+    @MainActor
+    private static func sessionWindowName(_ store: UsageStore) -> String {
+        guard store.lastUsage != nil else { return store.hasSessionWindow ? "unknown" : "no (plan)" }
+        return store.hasSessionWindow ? "yes" : "no"
     }
 
     private static func identityName(_ state: IdentityState) -> String {

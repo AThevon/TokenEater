@@ -28,6 +28,8 @@ struct PacingWidget: Widget {
 }
 
 /// Small widget : single big ring gauge for the 5h session, Smart Color v2 driven.
+/// On a plan with no session window (Ultra) the ring shows the week instead.
+/// The kind keeps its "SessionRing" name: kinds are frozen.
 struct SessionRingWidget: Widget {
     let kind: String = "SessionRingWidget"
 

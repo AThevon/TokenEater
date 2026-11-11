@@ -21,12 +21,18 @@ enum PacingSampleBuffer {
     /// clean, and capping the total. Returns the samples unchanged (no append)
     /// when there is no reset window to place the point in - a reading with no
     /// window can't be positioned on the chart.
+    ///
+    /// `minSpacing` thins a long window: the latest reading stays provisional
+    /// while it is closer than that to the one before it, and the next
+    /// reading replaces it instead of adding a point. The curve keeps one
+    /// point per spacing plus the latest reading.
     static func append(
         _ samples: [PacingSample],
         utilization: Double,
         resetDate: Date?,
         windowDuration: TimeInterval,
         now: Date,
+        minSpacing: TimeInterval = 0,
         maxCount: Int = maxCount
     ) -> [PacingSample] {
         guard let resetDate else { return samples }
@@ -34,6 +40,10 @@ enum PacingSampleBuffer {
         // Keep only current-window readings strictly before `now`, so a new
         // window (reset jumped forward) discards the previous window's curve.
         var out = samples.filter { $0.date >= windowStart && $0.date < now }
+        if minSpacing > 0, out.count >= 2,
+           out[out.count - 1].date.timeIntervalSince(out[out.count - 2].date) < minSpacing {
+            out.removeLast()
+        }
         out.append(PacingSample(date: now, utilization: utilization))
         if out.count > maxCount {
             out = Array(out.suffix(maxCount))

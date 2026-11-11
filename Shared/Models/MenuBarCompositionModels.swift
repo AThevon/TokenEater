@@ -314,8 +314,10 @@ struct MenuBarComposition: Codable, Equatable {
     /// so the new account reads like the rest of the bar. From the third
     /// account in the bar on, only the first of them: next to the notch a
     /// bar runs out of room fast. Unchanged when the account already has a
-    /// segment here.
-    func addingAccountSegments(_ id: AccountID) -> MenuBarComposition {
+    /// segment here. An account whose plan has no 5-hour window (Claude
+    /// Ultra, known from its profile at Connect) gets no session segment:
+    /// the week takes its place.
+    func addingAccountSegments(_ id: AccountID, hasSessionWindow: Bool = true) -> MenuBarComposition {
         guard !id.isMain, !segments.contains(where: { $0.account == id }) else { return self }
         // Sonnet is left out: almost no account gets that limit any more, so
         // a copy would most likely draw nothing and take one of the two
@@ -325,7 +327,9 @@ struct MenuBarComposition: Codable, Equatable {
                 && ($0.account ?? .main).isMain
         }
         var models: [MenuBarSegment] = []
-        for segment in mainUsage where !models.contains(where: { $0.kind == segment.kind }) {
+        for var segment in mainUsage {
+            if !hasSessionWindow, segment.kind == .session { segment.kind = .weekly }
+            guard !models.contains(where: { $0.kind == segment.kind }) else { continue }
             models.append(segment)
         }
         var added = models.prefix(2).map {
@@ -335,7 +339,7 @@ struct MenuBarComposition: Codable, Equatable {
             let style = visibleSegments
                 .first { $0.kind.provider == .claude && $0.kind.family == .usage }?
                 .effectiveStyle ?? .labelValue
-            added = [MenuBarSegment(kind: .session, style: style, account: id)]
+            added = [MenuBarSegment(kind: hasSessionWindow ? .session : .weekly, style: style, account: id)]
         }
         let accountsInBar = Set(segments.compactMap(\.account).filter { !$0.isMain })
         if !accountsInBar.isEmpty { added = Array(added.prefix(1)) }

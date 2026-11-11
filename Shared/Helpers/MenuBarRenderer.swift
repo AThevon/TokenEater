@@ -111,6 +111,11 @@ enum MenuBarRenderer {
         /// pace and no countdown, which describe a now they do not. False
         /// through the calm wait over fresh numbers.
         var showsLastNumbers: Bool = false
+        /// Whether the account's plan has the 5-hour window
+        /// (`UsageStore.hasSessionWindow`). Without it, a session segment
+        /// draws the week instead or steps aside (`SessionWindowFallback`).
+        /// Stored, so the render cache tells the two apart.
+        var hasSessionWindow: Bool = true
     }
 
     /// How an account's run of segments is marked: a ring in its colour,
@@ -490,7 +495,7 @@ enum MenuBarRenderer {
     /// The visible segments that will draw, in order, each with its source.
     private static func plannedSegments(_ data: RenderData) -> [PlannedSegment] {
         let marksAccounts = !data.accountMarkers.isEmpty
-        return data.composition.visibleSegments.compactMap { segment in
+        return drawnSegments(data).compactMap { segment in
             guard var source = source(for: segment, data: data),
                   isSegmentAvailable(segment.kind, data: source) else { return nil }
             let account = segment.kind.provider == .claude ? accountKey(for: segment, data: data) : nil
@@ -501,6 +506,30 @@ enum MenuBarRenderer {
             }
             return PlannedSegment(segment: segment, source: source, account: account)
         }
+    }
+
+    /// The visible segments whose account runs, with the session segments of
+    /// an account that has no 5-hour window drawing the week instead (same
+    /// id, so a click in Studio still selects the stored row). Never written
+    /// back to the composition.
+    static func drawnSegments(_ data: RenderData) -> [MenuBarSegment] {
+        let running = data.composition.visibleSegments.filter { source(for: $0, data: data) != nil }
+        return SessionWindowFallback.rendered(
+            running,
+            account: { AccountID(rawValue: accountKey(for: $0, data: data)) },
+            lacksSessionWindow: { source(for: $0, data: data)?.hasSessionWindow == false }
+        ).segments
+    }
+
+    /// What `drawnSegments` makes of each visible segment, for the editor's
+    /// captions.
+    static func sessionOutcomes(_ data: RenderData) -> [UUID: SessionWindowFallback.Outcome] {
+        let running = data.composition.visibleSegments.filter { source(for: $0, data: data) != nil }
+        return SessionWindowFallback.rendered(
+            running,
+            account: { AccountID(rawValue: accountKey(for: $0, data: data)) },
+            lacksSessionWindow: { source(for: $0, data: data)?.hasSessionWindow == false }
+        ).outcomes
     }
 
     /// What the bar draws, in order: a marker before each run of consecutive
@@ -664,7 +693,10 @@ enum MenuBarRenderer {
         // "-" placeholder from `pacingContent`; active -> shape + delta. So
         // availability here gates on the bucket's PRESENCE, and the window
         // check (`has*Pacing`) drives the placeholder in `pacingContent`.
-        case .sessionReset, .sessionPacing: return data.hasFiveHourBucket
+        // A plan without the 5-hour window (Claude Ultra) has none of them;
+        // `drawnSegments` has already handed such a slot over to the week.
+        case .session: return data.hasSessionWindow
+        case .sessionReset, .sessionPacing: return data.hasSessionWindow && data.hasFiveHourBucket
         case .fablePacing: return data.hasFable
         case .codexSession, .codexSessionPacing: return data.codexSession != nil
         case .codexWeekly, .codexWeeklyPacing: return data.codexWeekly != nil

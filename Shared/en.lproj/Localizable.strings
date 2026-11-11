@@ -40,7 +40,7 @@
 "widget.description.usage" = "Monitor your Claude usage in real time";
 "widget.description.pacing" = "Your Claude usage pace";
 "widget.title.sessionRing" = "Session Ring";
-"widget.description.sessionRing" = "Big ring gauge for your 5h session window with Smart Color";
+"widget.description.sessionRing" = "Big ring gauge for your 5h session window with Smart Color, or your week on plans without one";
 "widget.title.pacingGraph" = "Pacing Graph";
 "widget.description.pacingGraph" = "See your pace versus the ideal trajectory in one glance";
 "widget.title.historySparkline" = "Tokens History";
@@ -149,10 +149,11 @@
 "error.http" = "HTTP error %d";
 "error.ratelimited" = "Rate limited";
 "error.network" = "Network error: %@";
+"error.nodata" = "No data yet";
 "error.network.generic" = "Network error - couldn't reach the usage API. Check your connection.";
 "error.invalidresponse.short" = "Invalid response";
 "error.keychainlocked" = "Keychain locked - will retry automatically";
-"error.unsupportedplan" = "Usage data not available: a Claude Pro, Max or Team plan is required";
+"error.unsupportedplan" = "Usage data not available: a Claude Pro, Max, Ultra or Team plan is required";
 "error.banner.keychain" = "Keychain locked";
 "error.banner.keychain.hint" = "Will retry automatically - or open Settings to re-authorize";
 "error.keychain.shadowed" = "Several Keychain items are named Claude Code-credentials and none of them holds a Claude Code login, so TokenEater has no live token to read. Sign in to Claude Code again, or delete the extra item.";
@@ -455,6 +456,10 @@
 "dashboard.hero.resetsIn" = "Resets in";
 "dashboard.hero.lastNumbers" = "Last numbers";
 "dashboard.hero.noNumbers" = "No numbers yet";
+"dashboard.hero.back.noPacing" = "Pacing data unavailable";
+"dashboard.hero.back.live" = "LIVE";
+"dashboard.hero.back.activeSession" = "active session";
+"dashboard.hero.back.activeSessions" = "active sessions";
 "pacing.zone.chill" = "Chill";
 "pacing.zone.ontrack" = "On track";
 "pacing.zone.warning" = "Watch out";
@@ -756,6 +761,9 @@
 "editor.unavailable.noData" = "no data yet";
 "editor.unavailable.accountPaused" = "hidden while %@ is paused";
 "editor.unavailable.accountGone" = "its account is no longer tracked";
+"editor.unavailable.noSessionWindow" = "no 5-hour window on your %@ plan";
+"editor.session.showsWeekly" = "shows the week: no 5-hour window on your %@ plan";
+"editor.session.shownBySlot" = "shown by the wider session slot on your %@ plan";
 "menuBar.editor.tooWide" = "A menu bar this wide can slide under the notch on smaller screens";
 "editor.add.accountGroup" = "Claude · %@";
 "editor.pick.account" = "Account";
@@ -1219,6 +1227,7 @@
 "accounts.health.upToDate" = "Up to date · %@";
 "accounts.health.paused" = "Paused";
 "accounts.health.paused.numbers" = "Paused · %d%% / %d%% at %@";
+"accounts.health.paused.weekly" = "Paused · %d%% this week at %@";
 "accounts.health.expired" = "Login expired. Run the command below once in a terminal, and tracking resumes on its own.";
 "accounts.health.expired.since" = "Login expired %@. Run the command below once in a terminal, and tracking resumes on its own.";
 "accounts.health.accessDenied" = "macOS refused access to this account's Keychain item.";

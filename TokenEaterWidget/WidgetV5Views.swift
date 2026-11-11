@@ -126,6 +126,9 @@ struct HeroPercent: View {
 struct ResetCountdownRow: View {
     let date: Date?
     var alignment: HorizontalAlignment = .leading
+    /// A countdown by default; `formatWeeklyReset` for a window that lasts
+    /// days, where "3d" alone would say too little.
+    var format: (Date?) -> String = formatResetTime
 
     var body: some View {
         HStack(spacing: 5) {
@@ -133,7 +136,7 @@ struct ResetCountdownRow: View {
             Image(systemName: "clock")
                 .font(.system(size: 9, weight: .semibold))
                 .foregroundStyle(Color(hex: WidgetTheme.theme.widgetText).opacity(WidgetTokens.tertiary))
-            Text(formatResetTime(date))
+            Text(format(date))
                 .font(WidgetTokens.countdownMono)
                 .foregroundStyle(Color(hex: WidgetTheme.theme.widgetText).opacity(WidgetTokens.primary))
             if alignment == .leading { Spacer(minLength: 0) }
@@ -160,8 +163,15 @@ struct SessionRingWidgetView: View {
         Group {
             if entry.error != nil, entry.usage == nil {
                 ErrorContent(message: entry.error ?? String(localized: "error.nodata"))
-            } else if let usage = entry.usage, let fiveHour = usage.fiveHour {
-                ringContent(fiveHour, pacing: PacingCalculator.calculate(from: usage, activeDays: WidgetTheme.pacingSchedule.effectiveActiveDays, activeHours: WidgetTheme.pacingSchedule.effectiveHours))
+            } else if let usage = entry.usage {
+                // The session when the plan has one; on a plan without it
+                // (Ultra) the week, so the ring never waits for a window that
+                // will not come.
+                if let window = WidgetUsageWindow.primary(for: usage), let bucket = window.bucket(in: usage) {
+                    ringContent(bucket, window: window, pacing: PacingCalculator.calculate(from: usage, activeDays: WidgetTheme.pacingSchedule.effectiveActiveDays, activeHours: WidgetTheme.pacingSchedule.effectiveHours))
+                } else {
+                    ErrorContent(message: String(localized: "error.nodata"))
+                }
             } else {
                 PlaceholderContent()
             }
@@ -170,13 +180,13 @@ struct SessionRingWidgetView: View {
         .modifier(WidgetBackgroundModifier())
     }
 
-    private func ringContent(_ bucket: UsageBucket, pacing: PacingResult?) -> some View {
+    private func ringContent(_ bucket: UsageBucket, window: WidgetUsageWindow, pacing: PacingResult?) -> some View {
         let pct = bucket.utilization
         let resetDate = bucket.resetsAtDate
         let smartColor = theme.smartGaugeNSColor(
             utilization: pct,
             resetDate: resetDate,
-            windowDuration: 5 * 3600,
+            windowDuration: window.windowDuration,
             thresholds: thresholds,
             profile: WidgetTheme.smartColorProfile
         )
@@ -184,14 +194,21 @@ struct SessionRingWidgetView: View {
             ? theme.smartGaugeGradient(
                 utilization: pct,
                 resetDate: resetDate,
-                windowDuration: 5 * 3600,
+                windowDuration: window.windowDuration,
                 thresholds: thresholds,
                 profile: WidgetTheme.smartColorProfile
             )
             : theme.gaugeGradient(for: pct, thresholds: thresholds)
+        let label: LocalizedStringKey = {
+            switch window {
+            case .session: return "widget.session"
+            case .weekly: return "widget.weekly.full"
+            case .fable: return "widget.fable"
+            }
+        }()
 
         return VStack(spacing: 0) {
-            WidgetHeader("widget.session") {
+            WidgetHeader(label) {
                 if let pacing {
                     Image(systemName: pacing.zone.iconName)
                         .font(.system(size: 11, weight: .semibold))
@@ -215,7 +232,7 @@ struct SessionRingWidgetView: View {
             if account?.isPaused == true {
                 PausedSinceRow(date: entry.lastSync)
             } else {
-                ResetCountdownRow(date: resetDate)
+                ResetCountdownRow(date: resetDate, format: window.isMultiDay ? formatWeeklyReset : formatResetTime)
             }
         }
     }
@@ -700,4 +717,18 @@ func formatResetTime(_ date: Date?) -> String {
         return "\(hours)h\(String(format: "%02d", minutes))"
     }
     return "\(minutes)m"
+}
+
+private let weeklyResetFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateFormat = "EEE HH:mm"
+    return f
+}()
+
+/// When a window that lasts days resets, as a weekday and a time ("Tue
+/// 23:00"), the format the Overview's weekly ring uses.
+func formatWeeklyReset(_ date: Date?) -> String {
+    guard let date = date else { return "--" }
+    guard date.timeIntervalSinceNow > 0 else { return String(localized: "widget.soon") }
+    return weeklyResetFormatter.string(from: date)
 }

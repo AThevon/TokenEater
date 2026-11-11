@@ -632,6 +632,7 @@ private struct MenuBarSegmentListEditor: View {
                 isSelected: selectedSegmentID == segment.id,
                 isDragging: draggingID == segment.id,
                 unavailable: unavailability(segment),
+                note: sessionNote(segment),
                 account: accountMark(for: segment),
                 accountChoices: settingsStore.activeClaudeAccounts,
                 onAccount: { id in mutate(segment.id) { $0.account = id.isMain ? nil : id } },
@@ -661,11 +662,43 @@ private struct MenuBarSegmentListEditor: View {
 
     /// Why this segment would not draw, or nil when it draws. The decision
     /// itself still belongs to `MenuBarSegmentAvailability`, which mirrors the
-    /// renderer; this only picks the sentence that explains it.
+    /// renderer; this only picks the sentence that explains it. A session
+    /// segment the bar hands over to the week draws, and says so in its note.
     private func unavailability(_ segment: MenuBarSegment) -> EditorUnavailability? {
-        EditorUnavailability.reason(
-            for: segment, settings: settingsStore, accounts: accountsStore, usage: usageStore, codex: codexStore
+        switch sessionOutcomes[segment.id] {
+        case .renderedAsWeekly, .shownBySessionSlot:
+            return nil
+        case .dropped:
+            return .noSessionWindow(rowStore(segment).map(EditorUnavailability.planName(of:)) ?? MetricProvider.claude.displayName)
+        case .unchanged, nil:
+            return EditorUnavailability.reason(
+                for: segment, settings: settingsStore, accounts: accountsStore, usage: usageStore, codex: codexStore
+            )
+        }
+    }
+
+    /// The store a row reads, as the bar resolves it.
+    private func rowStore(_ segment: MenuBarSegment) -> UsageStore? {
+        EditorUnavailability.store(
+            declared: segment.account, provider: segment.kind.provider,
+            settings: settingsStore, accounts: accountsStore, fallback: usageStore
         )
+    }
+
+    /// What the bar makes of each visible segment on an account without the
+    /// 5-hour window, the same question `MenuBarRenderer.drawnSegments` asks.
+    private var sessionOutcomes: [UUID: SessionWindowFallback.Outcome] {
+        let running = settingsStore.menuBarComposition.visibleSegments.filter { rowStore($0) != nil }
+        return SessionWindowFallback.rendered(
+            running,
+            account: { settingsStore.effectiveAccount(for: $0.account) },
+            lacksSessionWindow: { rowStore($0)?.hasSessionWindow == false }
+        ).outcomes
+    }
+
+    private func sessionNote(_ segment: MenuBarSegment) -> String? {
+        guard let store = rowStore(segment) else { return nil }
+        return EditorUnavailability.sessionNote(sessionOutcomes[segment.id], usage: store)
     }
 
     /// The account a Claude row belongs to, for its dot and its account
@@ -703,6 +736,8 @@ private struct MenuBarSegmentRow: View {
     let isSelected: Bool
     let isDragging: Bool
     let unavailable: EditorUnavailability?
+    /// A neutral caption for a segment drawn differently than stored.
+    let note: String?
     /// The Claude account the row reads, once there are several to pick from.
     let account: ClaudeAccountSummary?
     let accountChoices: [ClaudeAccountSummary]
@@ -714,6 +749,9 @@ private struct MenuBarSegmentRow: View {
     let onShape: (PacingShape) -> Void
     let onFormat: (ResetDisplayFormat) -> Void
 
+    /// Hidden, or kept while it draws nothing: greyed, controls still live.
+    private var isDimmed: Bool { segment.isHidden || unavailable != nil }
+
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 10) {
@@ -721,7 +759,7 @@ private struct MenuBarSegmentRow: View {
                     .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white.opacity(0.35)).frame(width: 14)
                 Image(systemName: segment.kind.symbolName)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(segment.isHidden ? .white.opacity(0.3) : .white.opacity(0.7)).frame(width: 16)
+                    .foregroundStyle(isDimmed ? .white.opacity(0.3) : .white.opacity(0.7)).frame(width: 16)
                 VStack(alignment: .leading, spacing: 1) {
                     HStack(spacing: 5) {
                         if let account {
@@ -731,12 +769,15 @@ private struct MenuBarSegmentRow: View {
                         KindLabel(
                             provider: segment.kind.provider,
                             text: segment.kind.localizedLabel,
-                            color: segment.isHidden ? .white.opacity(0.35) : .white.opacity(0.9)
+                            color: isDimmed ? .white.opacity(0.35) : .white.opacity(0.9)
                         )
                     }
                     if let unavailable {
                         Text(unavailable.label)
                             .font(.system(size: 9)).foregroundStyle(.orange.opacity(0.7))
+                    } else if let note {
+                        Text(note)
+                            .font(.system(size: 9)).foregroundStyle(.white.opacity(0.5))
                     }
                 }
                 Spacer(minLength: 4)
@@ -907,6 +948,10 @@ enum MenuBarSegmentAvailability {
             guard settings.activeProviderMode.shows(provider) else { return false }
         }
         switch kind {
+        // Mirrors the renderer: no 5-hour window, no session segment as such
+        // (the bar may still draw the week in its slot, which the row says).
+        case .session: return usage.hasSessionWindow
+        case .sessionReset, .sessionPacing: return usage.hasSessionWindow && usage.lastUsage?.fiveHour != nil
         case .sonnet: return usage.hasSonnet
         case .fable, .fablePacing: return usage.hasFable
         case .extraCredits: return usage.hasExtraCredits

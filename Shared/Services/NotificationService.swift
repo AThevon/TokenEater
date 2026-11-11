@@ -246,7 +246,7 @@ final class NotificationService: NotificationServiceProtocol {
     // MARK: - Main evaluation
 
     func evaluate(
-        fiveHour: MetricSnapshot,
+        fiveHour: MetricSnapshot?,
         sevenDay: MetricSnapshot,
         sonnet: MetricSnapshot?,
         fable: MetricSnapshot?,
@@ -264,7 +264,9 @@ final class NotificationService: NotificationServiceProtocol {
         }
 
         // Threshold / smart-aware notifications, one surface at a time.
-        if toggles.trackFiveHour {
+        // No snapshot on a plan without the 5-hour window (Claude Ultra):
+        // nothing to alert on, and the stored level stays as it was.
+        if toggles.trackFiveHour, let fiveHour {
             checkSurface(.fiveHour, snapshot: fiveHour, pacing: sessionPacing, toggles: toggles)
         }
         if toggles.trackWeekly {

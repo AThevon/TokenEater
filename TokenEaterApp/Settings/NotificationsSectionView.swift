@@ -28,6 +28,26 @@ struct NotificationsSectionView: View {
         usageStore.hasSonnet || accountsStore.runningExtraStores.contains { $0.hasSonnet }
     }
 
+    /// Claude Ultra has no 5-hour window: the session rows keep their Claude
+    /// switch only while some running account has one. The preference itself
+    /// is never touched, so an account that has the window finds it as set.
+    private var anyAccountHasSessionWindow: Bool {
+        usageStore.hasSessionWindow || accountsStore.runningExtraStores.contains { $0.hasSessionWindow }
+    }
+
+    /// The providers whose dash on a session row means "not on your plan"
+    /// rather than "no such event".
+    private var sessionPlanless: Set<MetricProvider> {
+        anyAccountHasSessionWindow ? [] : [.claude]
+    }
+
+    /// A session row's bindings: Claude's only while an account has the window.
+    private func sessionBindings(
+        claude: Binding<Bool>, codex: Binding<Bool>
+    ) -> [MetricProvider: Binding<Bool>] {
+        anyAccountHasSessionWindow ? [.claude: claude, .codex: codex] : [.codex: codex]
+    }
+
     /// Wide enough for a mini switch plus breathing room, and identical in
     /// every card so the columns line up down the whole page.
     private let columnWidth: CGFloat = 58
@@ -194,6 +214,7 @@ struct NotificationsSectionView: View {
     private func eventRow(
         _ label: String,
         hint: String? = nil,
+        planless: Set<MetricProvider> = [],
         _ bindings: [MetricProvider: Binding<Bool>]
     ) -> some View {
         if providers.contains(where: { bindings[$0] != nil }) {
@@ -211,7 +232,7 @@ struct NotificationsSectionView: View {
                 }
                 Spacer(minLength: 8)
                 ForEach(providers) { provider in
-                    cell(for: provider, binding: bindings[provider])
+                    cell(for: provider, binding: bindings[provider], planless: planless.contains(provider))
                         .frame(width: showsColumns ? columnWidth : nil)
                 }
             }
@@ -219,7 +240,7 @@ struct NotificationsSectionView: View {
     }
 
     @ViewBuilder
-    private func cell(for provider: MetricProvider, binding: Binding<Bool>?) -> some View {
+    private func cell(for provider: MetricProvider, binding: Binding<Bool>?, planless: Bool = false) -> some View {
         if let binding {
             bareToggle(binding)
                 .disabled(!master(provider).wrappedValue)
@@ -228,8 +249,11 @@ struct NotificationsSectionView: View {
             Text(verbatim: "\u{2013}")
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.white.opacity(0.16))
-                .help(String(format: String(localized: "settings.notifications.unsupported"),
-                             provider.displayName))
+                .help(planless
+                      ? String(format: String(localized: "editor.unavailable.noSessionWindow"),
+                               usageStore.planType == .ultra ? "Ultra" : provider.displayName)
+                      : String(format: String(localized: "settings.notifications.unsupported"),
+                               provider.displayName))
         }
     }
 
@@ -380,10 +404,12 @@ struct NotificationsSectionView: View {
             VStack(alignment: .leading, spacing: 10) {
                 groupHeader(String(localized: "settings.notifications.group.usage"),
                             String(localized: "settings.notifications.group.usage.hint"))
-                eventRow(String(localized: "settings.notifications.row.session"), [
-                    .claude: $settingsStore.notification.trackFiveHour,
-                    .codex: $settingsStore.notification.codexTrackSession,
-                ])
+                eventRow(String(localized: "settings.notifications.row.session"),
+                         planless: sessionPlanless,
+                         sessionBindings(
+                            claude: $settingsStore.notification.trackFiveHour,
+                            codex: $settingsStore.notification.codexTrackSession
+                         ))
                 eventRow(String(localized: "settings.notifications.row.weekly"), [
                     .claude: $settingsStore.notification.trackWeekly,
                     .codex: $settingsStore.notification.codexTrackWeekly,
@@ -432,16 +458,22 @@ struct NotificationsSectionView: View {
             VStack(alignment: .leading, spacing: 10) {
                 groupHeader(String(localized: "settings.notifications.group.reset"),
                             String(localized: "settings.notifications.group.reset.hint"))
-                eventRow(String(localized: "settings.notifications.reset.session"), [
-                    .claude: $settingsStore.notification.resetReminderSession,
-                    .codex: $settingsStore.notification.codexResetReminderSession,
-                ])
-                reminderOffsetPicker(
-                    selection: $settingsStore.notification.resetReminderSessionOffset,
-                    options: [5, 10, 15, 30, 60],
-                    enabled: settingsStore.notification.resetReminderSession
-                        || settingsStore.notification.codexResetReminderSession
-                )
+                eventRow(String(localized: "settings.notifications.reset.session"),
+                         planless: sessionPlanless,
+                         sessionBindings(
+                            claude: $settingsStore.notification.resetReminderSession,
+                            codex: $settingsStore.notification.codexResetReminderSession
+                         ))
+                // Its picker goes with the row: with Codex off and no session
+                // window on any Claude account, neither is drawn.
+                if anyAccountHasSessionWindow || providers.contains(.codex) {
+                    reminderOffsetPicker(
+                        selection: $settingsStore.notification.resetReminderSessionOffset,
+                        options: [5, 10, 15, 30, 60],
+                        enabled: (anyAccountHasSessionWindow && settingsStore.notification.resetReminderSession)
+                            || settingsStore.notification.codexResetReminderSession
+                    )
+                }
                 eventRow(String(localized: "settings.notifications.reset.weekly"), [
                     .claude: $settingsStore.notification.resetReminderWeekly,
                     .codex: $settingsStore.notification.codexResetReminderWeekly,

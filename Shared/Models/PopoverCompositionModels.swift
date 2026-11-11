@@ -349,12 +349,16 @@ struct PopoverComposition: Codable, Equatable {
     /// The layout with a compact section for an added account: its session
     /// and weekly limits as two half-width chips, right after the last Claude
     /// element so the Claude accounts stay together above Codex. Unchanged
-    /// when the account already has an element here.
-    func addingAccountSection(_ id: AccountID) -> PopoverComposition {
+    /// when the account already has an element here. Without a 5-hour window
+    /// (Claude Ultra) the pair is the weekly limit and its pace.
+    func addingAccountSection(_ id: AccountID, hasSessionWindow: Bool = true) -> PopoverComposition {
         guard !id.isMain, !elements.contains(where: { $0.account == id }) else { return self }
-        let added = [
+        let added = hasSessionWindow ? [
             PopoverElement(kind: .session, style: .chip, width: .half, options: .init(showReset: true), account: id),
             PopoverElement(kind: .weekly, style: .chip, width: .half, options: .init(showReset: true), account: id),
+        ] : [
+            PopoverElement(kind: .weekly, style: .chip, width: .half, options: .init(showReset: true), account: id),
+            PopoverElement(kind: .weeklyPacing, style: .paceTile, width: .half, account: id),
         ]
         var next = self
         let insertAt = elements.lastIndex { $0.kind.provider == .claude }.map { $0 + 1 } ?? elements.count

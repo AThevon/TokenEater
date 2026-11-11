@@ -19,6 +19,10 @@ final class UsageStore: ObservableObject {
     /// the hero pacing graph's real trajectory (#240). Appended on each live
     /// refresh, persisted to UserDefaults so it survives relaunches.
     @Published var sessionSamples: [PacingSample] = []
+    /// The weekly window's dated readings, for the glance card's back when it
+    /// shows the week (an Ultra plan, or a card pinned to Weekly). Spaced
+    /// `weeklySampleSpacing` apart so a whole week fits under the buffer cap.
+    @Published var weeklySamples: [PacingSample] = []
     @Published var lastUpdate: Date?
     @Published var isLoading = false
     @Published var errorState: AppErrorState = .none {
@@ -137,6 +141,28 @@ final class UsageStore: ObservableObject {
     /// this account. Mirrors `hasOpus`: drives whether the metric
     /// can be pinned to the menu bar and shown in the widgets.
     var hasExtraCredits: Bool { extraUsage?.isEnabled == true }
+
+    /// Whether this account's plan has the 5-hour session window. Claude
+    /// Ultra has none: its response carries a null `five_hour` and no
+    /// `session` entry in `limits`, while every other plan always sends the
+    /// bucket (utilization 0 and no reset while idle). Every session surface
+    /// (the glance card, the 5h tile and pacing, menu bar segments, popover
+    /// elements, alerts, widgets) reads this, so the window disappears rather
+    /// than drawing a 0% that would pass for an idle session.
+    var hasSessionWindow: Bool {
+        Self.hasSessionWindow(usage: lastUsage, plan: planType)
+    }
+
+    /// The response decides as soon as it carries any window: a bucket is
+    /// there or it is not. Before any usage has landed, or when a degenerate
+    /// response carries neither window, the plan answers instead, so an Ultra
+    /// account whose profile is known does not draw a session first.
+    nonisolated static func hasSessionWindow(usage: UsageResponse?, plan: PlanType) -> Bool {
+        if let usage, usage.fiveHour != nil || usage.sevenDay != nil {
+            return usage.fiveHour != nil
+        }
+        return !plan.lacksSessionWindow
+    }
 
     /// Extra Credits utilization as a whole-number percentage (see
     /// `ExtraUsage.percent`). 0 when the pool is absent.
@@ -276,12 +302,14 @@ final class UsageStore: ObservableObject {
         reloadWidgets: @escaping @MainActor () -> Void = { WidgetReloader.scheduleReload() }
     ) {
         self.sessionSamplesKey = sessionSamplesKey
+        self.weeklySamplesKey = Self.weeklySamplesKey(forSessionKey: sessionSamplesKey)
         self.repository = repository
         self.tokenProvider = tokenProvider
         self.sharedFileService = sharedFileService
         self.notificationService = notificationService
         self.reloadWidgets = reloadWidgets
         self.sessionSamples = Self.loadSessionSamples(key: sessionSamplesKey)
+        self.weeklySamples = Self.loadSessionSamples(key: weeklySamplesKey)
     }
 
     /// Reloads the widgets that read this store's shared file. The main
@@ -292,6 +320,20 @@ final class UsageStore: ObservableObject {
     // MARK: - Session pacing samples (#240)
 
     private let sessionSamplesKey: String
+    private let weeklySamplesKey: String
+
+    /// Two weekly readings closer than this replace each other rather than
+    /// pile up: 336 points cover the week, under `PacingSampleBuffer.maxCount`.
+    nonisolated static let weeklySampleSpacing: TimeInterval = 30 * 60
+
+    /// `weeklyPacingSamples` plus the account's suffix, derived from the
+    /// session key so each account keeps both under the same suffix and
+    /// Remove, which deletes every key ending in it, takes both.
+    nonisolated static func weeklySamplesKey(forSessionKey key: String) -> String {
+        let prefix = "sessionPacingSamples"
+        guard key.hasPrefix(prefix) else { return key + ".weekly" }
+        return "weeklyPacingSamples" + key.dropFirst(prefix.count)
+    }
 
     private static func loadSessionSamples(key: String) -> [PacingSample] {
         guard let data = UserDefaults.standard.data(forKey: key),
@@ -305,6 +347,13 @@ final class UsageStore: ObservableObject {
     /// windowed buffer. Only called on a real successful sync (never on the
     /// cached-load path), so a relaunch doesn't inject a stale "now" point.
     private func appendSessionSample(from usage: UsageResponse) {
+        appendWeeklySample(from: usage)
+        if usage.fiveHour == nil, usage.sevenDay != nil, !sessionSamples.isEmpty {
+            // The plan lost its session window (Max to Ultra): a curve kept
+            // from back then must not come back if the window ever does.
+            sessionSamples = []
+            UserDefaults.standard.removeObject(forKey: sessionSamplesKey)
+        }
         guard let bucket = usage.fiveHour, let reset = bucket.resetsAtDate else { return }
         sessionSamples = PacingSampleBuffer.append(
             sessionSamples,
@@ -315,6 +364,24 @@ final class UsageStore: ObservableObject {
         )
         if let data = try? JSONEncoder().encode(sessionSamples) {
             UserDefaults.standard.set(data, forKey: sessionSamplesKey)
+        }
+    }
+
+    /// Same for the weekly window, thinned to one reading per
+    /// `weeklySampleSpacing` (the latest always kept), for the glance card's
+    /// back when it shows the week.
+    private func appendWeeklySample(from usage: UsageResponse) {
+        guard let bucket = usage.sevenDay, let reset = bucket.resetsAtDate else { return }
+        weeklySamples = PacingSampleBuffer.append(
+            weeklySamples,
+            utilization: bucket.utilization,
+            resetDate: reset,
+            windowDuration: 7 * 86_400,
+            now: Date(),
+            minSpacing: Self.weeklySampleSpacing
+        )
+        if let data = try? JSONEncoder().encode(weeklySamples) {
+            UserDefaults.standard.set(data, forKey: weeklySamplesKey)
         }
     }
 
@@ -873,6 +940,8 @@ final class UsageStore: ObservableObject {
         applyPacing([:])
         sessionSamples = []
         UserDefaults.standard.removeObject(forKey: sessionSamplesKey)
+        weeklySamples = []
+        UserDefaults.standard.removeObject(forKey: weeklySamplesKey)
     }
 
     /// Applies a successful usage fetch: updates the published UI state, clears
@@ -948,12 +1017,17 @@ final class UsageStore: ObservableObject {
     private func evaluateNotifications(usage: UsageResponse) {
         guard let toggles = notifTogglesProvider?() else { return }
 
-        let fiveHourSnap = MetricSnapshot(
-            pct: fiveHourPct,
-            resetsAt: usage.fiveHour?.resetsAtDate,
-            windowDuration: 5 * 3600,
-            utilization: usage.fiveHour?.utilization ?? Double(fiveHourPct)
-        )
+        // Nil on a plan without the 5-hour window (Claude Ultra), like the
+        // model-scoped limits below: a 0% snapshot of a window that does not
+        // exist would only overwrite the stored session level.
+        let fiveHourSnap = usage.fiveHour.map { bucket in
+            MetricSnapshot(
+                pct: fiveHourPct,
+                resetsAt: bucket.resetsAtDate,
+                windowDuration: 5 * 3600,
+                utilization: bucket.utilization
+            )
+        }
         let sevenDaySnap = MetricSnapshot(
             pct: sevenDayPct,
             resetsAt: usage.sevenDay?.resetsAtDate,

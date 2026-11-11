@@ -400,7 +400,7 @@ struct UsageStoreTests {
 
         await store.refresh()
 
-        #expect(notif.lastEvaluation?.fiveHour.pct == 42)
+        #expect(notif.lastEvaluation?.fiveHour?.pct == 42)
         #expect(notif.lastEvaluation?.sevenDay.pct == 65)
         #expect(notif.lastEvaluation?.sonnet?.pct == 30)
     }
