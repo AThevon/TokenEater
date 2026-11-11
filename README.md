@@ -21,7 +21,7 @@
   <img src="https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white" alt="macOS 14+">
   <img src="https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white" alt="Swift 5.9">
   <img src="https://img.shields.io/badge/WidgetKit-native-007AFF?logo=apple&logoColor=white" alt="WidgetKit">
-  <img src="https://img.shields.io/badge/Claude-Pro%20%2F%20Max%20%2F%20Team-D97706" alt="Claude Pro / Max / Team">
+  <img src="https://img.shields.io/badge/Claude-Pro%20%2F%20Max%20%2F%20Ultra%20%2F%20Team-D97706" alt="Claude Pro / Max / Ultra / Team">
   <img src="https://img.shields.io/badge/Codex-ChatGPT%20sign--in-10A37F" alt="OpenAI Codex with ChatGPT sign-in">
   <img src="https://img.shields.io/github/downloads/AThevon/TokenEater/total?color=F97316" alt="Downloads">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License">
@@ -31,7 +31,7 @@
 
 ---
 
-> **Requires a Claude Pro, Max, or Team plan, or the Codex CLI signed in with ChatGPT.** Either one is enough. Claude's free plan does not expose usage data, and Codex API-key accounts have no usage windows to track.
+> **Requires a Claude Pro, Max, Ultra, or Team plan, or the Codex CLI signed in with ChatGPT.** Either one is enough. Claude's free plan does not expose usage data, and Codex API-key accounts have no usage windows to track.
 
 <!--
 Screenshots slot. Four shots, ~200px wide each, dropped into docs/assets/readme/:
@@ -53,6 +53,7 @@ A native menu bar app, desktop widgets, and a floating overlay that track your C
 - **Menu bar.** Live percentages with color-coded thresholds, and a popover dashboard you compose element by element (rings, chips, arcs, pacing bars at full, half, or third width), start from built-in templates, and save as your own.
 - **Dashboard.** A four-space window (Monitoring / History / Studio / Settings) with flippable tiles, 7-day sparklines, peak day, and a pacing-vs-equilibrium graph. Its blocks reorder and hide from Studio, like the popover and the menu bar.
 - **Two providers, one app.** Claude and OpenAI Codex are equals: the menu bar, the popover, the dashboard, widgets, notifications and History cover both. An All / Claude / Codex mode scopes every surface at once, All puts the two side by side, and each mode keeps its own layouts. Track only one and you never see a trace of the other.
+- **Every Claude plan.** On Claude Ultra, which has a weekly limit and no 5-hour window, the week takes the big dashboard card, every 5-hour slot in the popover and menu bar shows the week instead, and Studio says so.
 - **Several Claude accounts.** Track another Claude Code login kept in its own `CLAUDE_CONFIG_DIR`, with a name and colour you choose, next to your main account in the menu bar, popover, dashboard, notifications and History. Your main account can live in a custom config folder too.
 - **History.** Combined Claude Code and Codex tokens from local session logs: a stacked chart by model, project ranking, session counts, and cache hit rate, filterable by Claude family or Codex model across 24h to 90d ranges. The History widget shows the combined daily totals.
 - **Widgets.** Native WidgetKit gauges, progress bars, and pacing, refreshed reactively, with a Codex Usage widget alongside the Claude ones and a Claude Account widget you point at any tracked account.
@@ -84,7 +85,7 @@ brew install --cask tokeneater
 
 ### First setup
 
-**Prerequisites:** at least one of [Claude Code](https://docs.anthropic.com/en/docs/claude-code) signed in on a **Pro, Max, or Team plan** (`claude` then `/login`), or the [Codex CLI](https://github.com/openai/codex) signed in with your **ChatGPT account** (`codex login`).
+**Prerequisites:** at least one of [Claude Code](https://docs.anthropic.com/en/docs/claude-code) signed in on a **Pro, Max, Ultra, or Team plan** (`claude` then `/login`), or the [Codex CLI](https://github.com/openai/codex) signed in with your **ChatGPT account** (`codex login`).
 
 1. Open TokenEater: a guided setup detects the providers on your Mac and walks you through connecting the ones you use
 2. Right-click on the desktop > **Edit Widgets** > search "TokenEater"

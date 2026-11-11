@@ -92,7 +92,7 @@ Shared/                      Shared code (compiled into all targets)
 - **Endpoint**: `GET https://api.anthropic.com/api/oauth/usage`
 - **Auth**: `Authorization: Bearer <oauth-token>`
 - **Response**:
-  - `five_hour.utilization` — Session (5h sliding window)
+  - `five_hour.utilization`: Session (5h sliding window). `five_hour` is null on Claude Ultra, which has no session window; the app then shows the week in its place.
   - `seven_day.utilization` — Weekly all models
   - `limits[]`: the same pools plus per-model weekly limits (`weekly_scoped` entries tagged with the model's `display_name`, Fable today). A model limit shows only when the account's response carries it; most accounts no longer get a Sonnet or Opus one, so `seven_day_sonnet` and `seven_day_opus` usually come back null.
 
