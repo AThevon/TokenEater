@@ -13,6 +13,13 @@
 # launchd starts jobs with PATH=/usr/bin:/bin:/usr/sbin:/sbin, which has no gh
 # on a Nix or Homebrew setup. The gh found now is baked into the plist (GH_BIN)
 # along with a full PATH.
+#
+# launchd does not inherit the shell either, so the login folders are baked in
+# the same way: CLAUDE_CONFIG_DIR and CODEX_HOME, when set in the shell that
+# runs this script, are copied into the plist exactly as typed (Claude Code
+# hashes that spelling into its Keychain service name). Run it from the shell
+# whose Claude Code login the canary should read, or set them for the call:
+#   CLAUDE_CONFIG_DIR=~/.claude-work Tools/contract-check/install.sh
 
 set -euo pipefail
 
@@ -43,6 +50,20 @@ GH="$(cd "$(dirname "$GH")" && pwd)/$(basename "$GH")"
 
 BUILD="$(git -C "$HERE" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 if ! git -C "$HERE" diff --quiet HEAD -- . 2>/dev/null; then BUILD="$BUILD-dirty"; fi
+# XML-escapes a value for the plist. Bash 5.2+ would expand `&` in the
+# replacement text (patsub_replacement), so turn that off where it exists.
+shopt -u patsub_replacement 2>/dev/null || true
+xml() { local v="${1//&/&amp;}"; v="${v//</&lt;}"; printf '%s' "${v//>/&gt;}"; }
+
+# Optional login folders, as one <key>/<string> pair each.
+LOGIN_ENV=""
+for name in CLAUDE_CONFIG_DIR CODEX_HOME; do
+  value="${!name:-}"
+  if [[ -n "$value" ]]; then
+    LOGIN_ENV+="        <key>$name</key>"$'\n'"        <string>$(xml "$value")</string>"$'\n'
+  fi
+done
+
 JOB_PATH="$(dirname "$GH"):$HOME/.nix-profile/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 plist() {
@@ -67,7 +88,7 @@ plist() {
         <string>$HOME</string>
         <key>CONTRACT_CHECK_BUILD</key>
         <string>$BUILD</string>
-    </dict>
+$LOGIN_ENV    </dict>
     <!-- Every hour, and at load. The binary runs the real check once a week,
          at the first hour a usable token exists, and exits silently otherwise. -->
     <key>StartCalendarInterval</key>
@@ -115,5 +136,7 @@ launchctl bootstrap "$DOMAIN" "$PLIST"
 echo "Installed $LABEL (build $BUILD)."
 echo "  binary: $BIN"
 echo "  gh:     $GH"
+echo "  claude: ${CLAUDE_CONFIG_DIR:-default chain (~/.claude)}"
+echo "  codex:  ${CODEX_HOME:-~/.codex}"
 echo "  log:    $LOG"
 echo "It ran once at load; follow it with: tail -f \"$LOG\""

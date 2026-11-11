@@ -9,7 +9,7 @@ TokenEater decodes the Claude and Codex usage responses tolerantly: a renamed ke
 | `contract-heartbeat.yml` | GitHub Actions, daily | That the local job is still reporting |
 | `contract-drift-pr.yml` | GitHub Actions, on push | Turns the local job's drift branch into a PR, deletes bot branches after merge |
 
-The Claude check has to run locally: the usage endpoint only accepts the Claude Code login (a `claude setup-token` token lacks the `user:profile` scope), and copying that login to CI would break the laptop session. It only reads the login, exactly like the app: Keychain through `/usr/bin/security` first, then `~/.claude/.credentials.json`. It never refreshes a token.
+The Claude check has to run locally: the usage endpoint only accepts the Claude Code login (a `claude setup-token` token lacks the `user:profile` scope), and copying that login to CI would break the laptop session. It only reads the login, exactly like the app: Keychain through `/usr/bin/security` first, then `~/.claude/.credentials.json`. With `CLAUDE_CONFIG_DIR` set it reads that folder's login instead, like an account added in the app: the suffixed Keychain service, then the folder's own `.credentials.json`, never `~/.claude`. It never refreshes a token.
 
 ## Install
 
@@ -18,6 +18,8 @@ Requirements: Xcode command line tools, and `gh` logged in with the `repo` scope
 ```bash
 Tools/contract-check/install.sh
 ```
+
+launchd does not inherit your shell, so `install.sh` copies `CLAUDE_CONFIG_DIR` and `CODEX_HOME` into the job, exactly as typed, when they are set in the shell that runs it. Run it from the shell whose Claude Code login the canary should read, or set the folder for the call (`CLAUDE_CONFIG_DIR=~/.claude-work Tools/contract-check/install.sh`). It prints the folders it baked in; rerun it if you move your login.
 
 This compiles the checker into `~/Library/Application Support/TokenEaterContractCheck/`, writes `~/Library/LaunchAgents/dev.athevon.tokeneater.contract-check.plist` with the absolute path of `gh` and a full `PATH`, and loads it. The job runs at load, then every hour at :17. Each provider is checked once every 7 days, at the first hour its token is usable (non-expired), and the job exits silently the rest of the time. The gate is per provider, so an expired Claude token never turns a Codex login into an hourly check. Rerun `install.sh` after changing `Sources/`.
 

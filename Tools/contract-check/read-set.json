@@ -9,33 +9,33 @@
       "dynamicKeys": [],
       "ignoredCodingKeys": {},
       "paths": {
-        "five_hour": { "types": ["object"], "use": "Session (5h) usage: menu bar, popover, dashboard hero, widgets, pacing, notifications" },
-        "five_hour.utilization": { "types": ["number"], "use": "Session percentage; any other type drops the whole bucket and shows 0%" },
-        "five_hour.resets_at": { "types": ["string", "null"], "use": "Session countdown, pacing and reset reminder (ISO 8601)" },
+        "five_hour": { "types": ["object"], "use": "Session (5h) usage: menu bar, popover, dashboard hero, widgets, pacing, notifications. Null or absent falls back to the limits[] session entry, still reported as breaking so a lost flat key is never quiet" },
+        "five_hour.utilization": { "types": ["number"], "use": "Session percentage; null or another type falls back to the limits[] session entry, and with none the session shows a silent 0%" },
+        "five_hour.resets_at": { "types": ["string", "number", "null"], "use": "Session countdown, pacing and reset reminder (ISO 8601, or Unix seconds or milliseconds)" },
 
-        "seven_day": { "types": ["object"], "use": "Weekly usage: menu bar, popover, dashboard, widgets, weekly pacing, notifications" },
-        "seven_day.utilization": { "types": ["number"], "use": "Weekly percentage; any other type drops the whole bucket and shows 0%" },
-        "seven_day.resets_at": { "types": ["string", "null"], "use": "Weekly countdown, pacing and reset reminder (ISO 8601)" },
+        "seven_day": { "types": ["object"], "use": "Weekly usage: menu bar, popover, dashboard, widgets, weekly pacing, notifications. Null or absent falls back to the limits[] weekly_all entry, still reported as breaking so a lost flat key is never quiet" },
+        "seven_day.utilization": { "types": ["number"], "use": "Weekly percentage; null or another type falls back to the limits[] weekly_all entry, and with none the week shows a silent 0%" },
+        "seven_day.resets_at": { "types": ["string", "number", "null"], "use": "Weekly countdown, pacing and reset reminder (ISO 8601, or Unix seconds or milliseconds)" },
 
         "seven_day_sonnet": { "types": ["object", "null", "absent"], "use": "Sonnet tile, pacing, notifications; falls back to limits[] weekly_scoped 'Sonnet'" },
-        "seven_day_sonnet.utilization": { "types": ["number"], "use": "Sonnet percentage" },
-        "seven_day_sonnet.resets_at": { "types": ["string", "null"], "use": "Sonnet countdown" },
+        "seven_day_sonnet.utilization": { "types": ["number"], "use": "Sonnet percentage; null or another type falls back to limits[] weekly_scoped 'Sonnet', and with none the limit is treated as not on the plan" },
+        "seven_day_sonnet.resets_at": { "types": ["string", "number", "null"], "use": "Sonnet countdown (ISO 8601, or Unix seconds or milliseconds)" },
 
         "seven_day_opus": { "types": ["object", "null", "absent"], "use": "Opus dashboard tile; falls back to limits[] weekly_scoped 'Opus'" },
-        "seven_day_opus.utilization": { "types": ["number"], "use": "Opus percentage" },
-        "seven_day_opus.resets_at": { "types": ["string", "null"], "use": "Opus countdown" },
+        "seven_day_opus.utilization": { "types": ["number"], "use": "Opus percentage; null or another type falls back to limits[] weekly_scoped 'Opus', and with none the limit is treated as not on the plan" },
+        "seven_day_opus.resets_at": { "types": ["string", "number", "null"], "use": "Opus countdown (ISO 8601, or Unix seconds or milliseconds)" },
 
         "seven_day_fable": { "types": ["object", "null", "absent"], "use": "Fable tile, pacing, notifications, menu bar, widget; falls back to limits[] weekly_scoped 'Fable'" },
-        "seven_day_fable.utilization": { "types": ["number"], "use": "Fable percentage" },
-        "seven_day_fable.resets_at": { "types": ["string", "null"], "use": "Fable countdown" },
+        "seven_day_fable.utilization": { "types": ["number"], "use": "Fable percentage; null or another type falls back to limits[] weekly_scoped 'Fable', and with none the limit is treated as not on the plan" },
+        "seven_day_fable.resets_at": { "types": ["string", "number", "null"], "use": "Fable countdown (ISO 8601, or Unix seconds or milliseconds)" },
 
         "seven_day_cowork": { "types": ["object", "null", "absent"], "use": "Cowork dashboard tile (no limits[] fallback)" },
-        "seven_day_cowork.utilization": { "types": ["number"], "use": "Cowork percentage" },
-        "seven_day_cowork.resets_at": { "types": ["string", "null"], "use": "Cowork countdown" },
+        "seven_day_cowork.utilization": { "types": ["number"], "use": "Cowork percentage; null or another type hides the tile (unknown, not 0%)" },
+        "seven_day_cowork.resets_at": { "types": ["string", "number", "null", "absent"], "use": "Decoded, not displayed (the Cowork tile shows no countdown)", "displayed": false },
 
         "seven_day_oauth_apps": { "types": ["object", "null", "absent"], "use": "Decoded into UsageStore.oauthAppsPct, which nothing reads", "displayed": false },
         "seven_day_oauth_apps.utilization": { "types": ["number"], "use": "Decoded, never displayed", "displayed": false },
-        "seven_day_oauth_apps.resets_at": { "types": ["string", "null"], "use": "Decoded, never displayed", "displayed": false },
+        "seven_day_oauth_apps.resets_at": { "types": ["string", "number", "null", "absent"], "use": "Decoded, never displayed", "displayed": false },
 
         "extra_usage": { "types": ["object", "null"], "use": "Extra Credits card, its widget, menu bar EC%, extra-credits notification" },
         "extra_usage.is_enabled": { "types": ["bool"], "use": "Required: missing or mistyped drops the whole Extra Credits pool" },
@@ -45,16 +45,16 @@
         "extra_usage.currency": { "types": ["string", "null", "absent"], "use": "Currency formatting (USD fallback); a type change drops the pool" },
         "extra_usage.disabled_reason": { "types": ["string", "null", "absent"], "use": "Decoded, read by tests only; a type change still drops the pool" },
 
-        "limits": { "types": ["array"], "use": "Per-model weekly quotas (Fable, Sonnet, Opus fallbacks). Decoded all or nothing" },
-        "limits[]": { "types": ["object"], "use": "One malformed entry wipes the whole array, and Fable with it" },
-        "limits[].kind": { "types": ["string"], "use": "Matched against 'weekly_scoped'" },
-        "limits[].group": { "types": ["string", "null", "absent"], "use": "Decoded, unused; a type change wipes the array" },
-        "limits[].percent": { "types": ["number"], "use": "Per-model percentage; null shows a silent 0%" },
-        "limits[].resets_at": { "types": ["string", "null", "absent"], "use": "Per-model countdown (ISO 8601)" },
-        "limits[].scope": { "types": ["object", "null", "absent"], "use": "Holds the model of a weekly_scoped entry" },
+        "limits": { "types": ["array"], "use": "The only source of Fable on migrated accounts, plus the fallbacks for five_hour, seven_day, Sonnet and Opus. Absent is still decoded (old-shape accounts) but reported as breaking, since Fable goes with it" },
+        "limits[]": { "types": ["object"], "use": "Decoded lossily: an entry that is not an object is dropped alone" },
+        "limits[].kind": { "types": ["string"], "use": "Matched against 'session', 'weekly_all' and 'weekly_scoped'; another type leaves the entry unmatched" },
+        "limits[].group": { "types": ["string", "null", "absent"], "use": "Decoded, unused; another type reads as nil", "displayed": false },
+        "limits[].percent": { "types": ["number"], "use": "The matched pool's percentage; null or another type drops that entry's bucket (unknown, not 0%)" },
+        "limits[].resets_at": { "types": ["string", "number", "null", "absent"], "use": "The matched pool's countdown (ISO 8601, or Unix seconds or milliseconds)" },
+        "limits[].scope": { "types": ["object", "null", "absent"], "use": "Null or absent marks the account-wide session and weekly_all pools; any object, even a malformed one, marks a scoped entry" },
         "limits[].scope.model": { "types": ["object", "null", "absent"], "use": "Holds the model display name" },
-        "limits[].scope.model.id": { "types": ["string", "null", "absent"], "use": "Decoded, unused; a type change wipes the array" },
-        "limits[].scope.model.display_name": { "types": ["string"], "use": "Matched case-insensitively against Fable, Sonnet, Opus" }
+        "limits[].scope.model.id": { "types": ["string", "null", "absent"], "use": "Decoded, unused; another type reads as nil", "displayed": false },
+        "limits[].scope.model.display_name": { "types": ["string"], "use": "Matched case-insensitively against Fable, Sonnet, Opus; another type leaves the entry unmatched" }
       }
     },
     "codex-usage": {
@@ -115,8 +115,15 @@
 
         "spend_control": { "types": ["object", "null", "absent"], "use": "Workspace spending cap, decoded, not displayed", "displayed": false },
         "spend_control.reached": { "types": ["bool", "null", "absent"], "use": "Decoded, not displayed", "displayed": false },
-        "spend_control.individual_limit": { "types": ["number", "object", "null", "absent"], "use": "Decoded, not displayed", "displayed": false },
-        "spend_control.individual_limit.limit": { "types": ["number"], "use": "Decoded as a number, not displayed (upstream declares a string)", "displayed": false },
+        "spend_control.individual_limit": { "types": ["object", "number", "string", "null", "absent"], "use": "Decoded, not displayed; a bare number or decimal string still reads as the cap alone, the shape an earlier codex.json carried", "displayed": false },
+        "spend_control.individual_limit.source": { "types": ["string", "null", "absent"], "use": "Who set the cap, decoded, not displayed", "displayed": false },
+        "spend_control.individual_limit.limit": { "types": ["number", "string", "null", "absent"], "use": "The cap, a decimal string upstream, also read as a number; not displayed", "displayed": false },
+        "spend_control.individual_limit.used": { "types": ["number", "string", "null", "absent"], "use": "Decoded, not displayed", "displayed": false },
+        "spend_control.individual_limit.remaining": { "types": ["number", "string", "null", "absent"], "use": "Decoded, not displayed", "displayed": false },
+        "spend_control.individual_limit.used_percent": { "types": ["number", "string", "null", "absent"], "use": "Decoded, not displayed", "displayed": false },
+        "spend_control.individual_limit.remaining_percent": { "types": ["number", "string", "null", "absent"], "use": "Decoded, not displayed", "displayed": false },
+        "spend_control.individual_limit.reset_after_seconds": { "types": ["number", "string", "null", "absent"], "use": "Decoded, not displayed", "displayed": false },
+        "spend_control.individual_limit.reset_at": { "types": ["number", "string", "null", "absent"], "use": "Decoded, not displayed (Unix seconds)", "displayed": false },
 
         "rate_limit_reached_type": { "types": ["string", "object", "null", "absent"], "use": "Why requests are blocked, decoded, not displayed", "displayed": false },
         "rate_limit_reached_type.type": { "types": ["string"], "use": "Decoded, not displayed", "displayed": false },

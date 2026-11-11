@@ -231,10 +231,15 @@ func keychainAccounts(service: String) -> [String] {
     return items.compactMap { $0[kSecAttrAccount as String] as? String }
 }
 
+/// The `CLAUDE_CONFIG_DIR` the Claude check follows, nil for the default
+/// chain. A scheduled run sees only what `install.sh` baked into the plist.
+let claudeConfigDir: String? = environment["CLAUDE_CONFIG_DIR"].flatMap {
+    $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0
+}
+
 /// The app's primary source, ported: `/usr/bin/security` for each item that
 /// shares the service name (#268), keeping the login that lasts longest.
-func keychainCredential(notes: inout [String]) -> Credential? {
-    let service = "Claude Code-credentials"
+func keychainCredential(service: String, notes: inout [String]) -> Credential? {
     let accounts = keychainAccounts(service: service)
     let targets: [String?] = accounts.count > 1 ? accounts.map { Optional($0) } : [accounts.first]
     var found: [Credential] = []
@@ -262,13 +267,25 @@ func keychainCredential(notes: inout [String]) -> Credential? {
     return found.max { ($0.expiresAt ?? .distantPast) < ($1.expiresAt ?? .distantPast) }
 }
 
-/// Same order as the app: the Keychain, then `~/.claude/.credentials.json`.
-/// The first token that is not expired wins.
+/// Same order as the app: the Keychain, then the folder's `.credentials.json`.
+/// The first token that is not expired wins. With `CLAUDE_CONFIG_DIR` set the
+/// lookup stays inside that folder, like the app's `.configDir` scope: its
+/// suffixed service (the first spelling with an item), then its own file,
+/// never `~/.claude`.
 func claudeLookup() -> CredentialLookup {
     var notes: [String] = []
     var candidates: [Credential] = []
-    if let credential = keychainCredential(notes: &notes) { candidates.append(credential) }
-    let file = realHome + "/.claude/.credentials.json"
+    let service: String
+    let file: String
+    if let claudeConfigDir {
+        let services = ContractCheck.ClaudeConfigDir.serviceCandidates(for: claudeConfigDir, home: realHome)
+        service = services.first { !keychainAccounts(service: $0).isEmpty } ?? services[0]
+        file = ContractCheck.ClaudeConfigDir.credentialsFile(for: claudeConfigDir, home: realHome)
+    } else {
+        service = ContractCheck.ClaudeConfigDir.baseService
+        file = realHome + "/.claude/.credentials.json"
+    }
+    if let credential = keychainCredential(service: service, notes: &notes) { candidates.append(credential) }
     if let data = FileManager.default.contents(atPath: file),
        let credential = claudeCredential(fromJSON: data, source: "credentials file") {
         candidates.append(credential)

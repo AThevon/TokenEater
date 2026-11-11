@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// The pure half of the usage-API contract canary: reduce a live response to a
@@ -425,5 +426,70 @@ enum ContractCheck {
 
     static func decodeReadSet(_ data: Data) throws -> ReadSet {
         try JSONDecoder().decode(ReadSet.self, from: data)
+    }
+}
+
+// MARK: - Claude config folder
+
+extension ContractCheck {
+    /// Where the Claude Code login lives when `CLAUDE_CONFIG_DIR` is set: the
+    /// same maths as the app's `ClaudeConfigDirResolver`, ported because this
+    /// file compiles without `Shared/`. A test holds the two to the same
+    /// service names. Pure: `home` is a parameter and nothing is read here.
+    enum ClaudeConfigDir {
+        static let baseService = "Claude Code-credentials"
+
+        /// `~` expanded, relative paths taken from home, `.` and `..` folded,
+        /// no trailing slash, Unicode NFC. Symlinks are left alone.
+        static func normalize(_ path: String, home: String) -> String {
+            var raw = path.trimmingCharacters(in: .whitespacesAndNewlines)
+            let cleanHome = home.hasSuffix("/") && home.count > 1 ? String(home.dropLast()) : home
+            if raw == "~" {
+                raw = cleanHome
+            } else if raw.hasPrefix("~/") {
+                raw = cleanHome + raw.dropFirst(1)
+            } else if !raw.hasPrefix("/") {
+                raw = cleanHome + "/" + raw
+            }
+            var standardized = URL(fileURLWithPath: raw).standardized.path
+            while standardized.count > 1, standardized.hasSuffix("/") {
+                standardized.removeLast()
+            }
+            return standardized.precomposedStringWithCanonicalMapping
+        }
+
+        /// The folder's own credentials file, the one fallback inside it.
+        static func credentialsFile(for path: String, home: String) -> String {
+            normalize(path, home: home) + "/.credentials.json"
+        }
+
+        /// The Keychain services to try, most likely first, without duplicates.
+        /// Claude Code hashes the variable exactly as it was typed, so that
+        /// spelling leads; the app's candidates follow (the normalized path,
+        /// with a trailing slash, the `~/` spelling, symlinks resolved), and
+        /// the base service closes the list only for the default folder.
+        static func serviceCandidates(for path: String, home: String) -> [String] {
+            let normalized = normalize(path, home: home)
+            var inputs = [path, normalized, normalized + "/"]
+            let cleanHome = normalize(home, home: home)
+            if normalized == cleanHome {
+                inputs.append("~")
+            } else if normalized.hasPrefix(cleanHome + "/") {
+                inputs.append("~" + normalized.dropFirst(cleanHome.count))
+            }
+            inputs.append(URL(fileURLWithPath: normalized).resolvingSymlinksInPath().path
+                .precomposedStringWithCanonicalMapping)
+            var services = inputs.map(service(forHashInput:))
+            if normalized == cleanHome + "/.claude" { services.append(baseService) }
+            var seen = Set<String>()
+            return services.filter { seen.insert($0).inserted }
+        }
+
+        /// The service Claude Code derives from a `CLAUDE_CONFIG_DIR` value:
+        /// the first eight hex digits of its sha256.
+        static func service(forHashInput input: String) -> String {
+            let hex = SHA256.hash(data: Data(input.utf8)).map { String(format: "%02x", $0) }.joined()
+            return baseService + "-" + hex.prefix(8)
+        }
     }
 }

@@ -149,13 +149,37 @@ struct ContractCheckTests {
         #expect(Self.severity(of: "seven_day", in: changes) == .breaking)
     }
 
+    @Test("a session that loses its reset key is breaking: countdown and pacing go with it")
+    func missingFlatResetIsBreaking() throws {
+        let changes = try Self.claudeChanges(
+            replacing: #""utilization": 12.0, "resets_at": "2026-10-13T20:00:00Z", "locked_reason""#,
+            with: #""utilization": 12.0, "locked_reason""#)
+        #expect(Self.severity(of: "five_hour.resets_at", in: changes) == .breaking)
+    }
+
+    @Test("a reset sent as Unix seconds is not breaking: the decoder normalizes it")
+    func epochResetIsNotBreaking() throws {
+        let changes = try Self.claudeChanges(
+            replacing: #""resets_at": "2026-10-13T20:00:00Z", "locked_reason""#,
+            with: #""resets_at": 1792000000, "locked_reason""#)
+        #expect(Self.severity(of: "five_hour.resets_at", in: changes) == .active)
+    }
+
+    @Test("a cap amount sent as a decimal string is not a violation")
+    func stringCapIsAccepted() throws {
+        let provider = try Self.provider("codex-usage")
+        let read = try #require(provider.paths["spend_control.individual_limit.limit"])
+        #expect(read.types.contains(.string))
+        #expect(read.types.contains(.number))
+    }
+
     @Test("a violation on a decoded but undisplayed path is only active")
     func undisplayedViolationIsActive() throws {
         let provider = try Self.provider("codex-usage")
         let baseline = Self.signature(CodexFixtures.plusJSON, provider)
         let changed = CodexFixtures.plusJSON.replacingOccurrences(
             of: #""individual_limit": null"#,
-            with: #""individual_limit": { "limit": "25000" }"#)
+            with: #""individual_limit": { "limit": true }"#)
         let live = Self.signature(changed, provider, baseline: baseline)
         let changes = ContractCheck.diff(baseline: baseline, live: live, provider: provider)
         #expect(Self.severity(of: "spend_control.individual_limit.limit", in: changes) == .active)
@@ -278,5 +302,39 @@ struct ContractCheckTests {
         ], capturedAt: "2026-10-13T00:00:00Z", tool: "test")
         #expect(report.hasPrefix("<!-- contract-drift severity=breaking -->"))
         #expect(report.contains("| Claude | 1 | 0 | 1 |"))
+    }
+
+    // MARK: - Claude config folder
+
+    @Test("the config folder's Keychain services cover every spelling the app tries, typed spelling first",
+          arguments: ["~/.claude-work", "/Users/test/.claude-work/", "/Users/test/./.claude-work", "/Users/test/.claude", "~/.claude", "work"])
+    func configDirServicesMatchTheApp(path: String) {
+        let home = "/Users/test"
+        let canary = ContractCheck.ClaudeConfigDir.serviceCandidates(for: path, home: home)
+        let app = ClaudeConfigDirResolver.serviceCandidates(for: path, home: home)
+        #expect(canary.first == ClaudeConfigDirResolver.service(forHashInput: path))
+        #expect(Set(app).isSubset(of: Set(canary)), "the canary misses a service the app would read")
+        #expect(Set(canary).count == canary.count)
+    }
+
+    @Test("the config folder hash and normalization are the app's")
+    func configDirMathsMatchTheApp() {
+        let home = "/Users/test"
+        for input in ["/Users/test/.claude-work", "~/.claude-work", "/Users/test/.claude-work/"] {
+            #expect(ContractCheck.ClaudeConfigDir.service(forHashInput: input)
+                    == ClaudeConfigDirResolver.service(forHashInput: input))
+            #expect(ContractCheck.ClaudeConfigDir.normalize(input, home: home)
+                    == ClaudeConfigDirResolver.normalize(input, home: home))
+        }
+        #expect(ContractCheck.ClaudeConfigDir.credentialsFile(for: "~/.claude-work/", home: home)
+                == "/Users/test/.claude-work/.credentials.json")
+    }
+
+    @Test("only the default folder falls back to the base service")
+    func baseServiceOnlyForDefaultFolder() {
+        let home = "/Users/test"
+        let base = ContractCheck.ClaudeConfigDir.baseService
+        #expect(ContractCheck.ClaudeConfigDir.serviceCandidates(for: "~/.claude", home: home).contains(base))
+        #expect(!ContractCheck.ClaudeConfigDir.serviceCandidates(for: "~/.claude-work", home: home).contains(base))
     }
 }
