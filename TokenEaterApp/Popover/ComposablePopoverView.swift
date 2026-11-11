@@ -216,8 +216,17 @@ private struct PopoverGrid: View {
         return accountsStore.usageStore(for: account) ?? usageStore
     }
 
+    /// What the popover draws: the stored elements whose account runs, with
+    /// the session slots of an account that has no 5-hour window drawing the
+    /// week instead (`SessionWindowFallback`), then the availability gate.
     private var visibleElements: [PopoverElement] {
-        settingsStore.popoverComposition.visibleElements.filter { element in
+        let running = settingsStore.popoverComposition.visibleElements.filter { store(for: $0) != nil }
+        let drawn = SessionWindowFallback.rendered(
+            running,
+            account: { settingsStore.effectiveAccount(for: $0.account) },
+            lacksSessionWindow: { store(for: $0)?.hasSessionWindow == false }
+        ).elements
+        return drawn.filter { element in
             guard let store = store(for: element) else { return false }
             return PopoverMetricResolver.isVisible(element.kind, usage: store, codex: codexStore, settings: settingsStore)
         }

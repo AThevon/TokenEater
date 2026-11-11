@@ -254,6 +254,13 @@ struct ClaudeAccountRow<FolderLine: View>: View {
             return String(format: String(localized: "accounts.health.upToDate"), date.relativeFormatted)
         case .paused(let lastUpdate):
             guard let lastUpdate else { return String(localized: "accounts.health.paused") }
+            // No 5-hour window (Claude Ultra): the week alone, never a 0%.
+            guard store.hasSessionWindow else {
+                return String(
+                    format: String(localized: "accounts.health.paused.weekly"),
+                    store.sevenDayPct, Self.stamp(lastUpdate)
+                )
+            }
             return String(
                 format: String(localized: "accounts.health.paused.numbers"),
                 store.fiveHourPct, store.sevenDayPct, Self.stamp(lastUpdate)

@@ -443,6 +443,7 @@ struct AddClaudeAccountSheet: View {
             name: AccountNameRules.sanitize(name, fallback: pending.proposedName),
             colorHex: colorHex,
             mainName: asksForMainName ? mainName : nil,
+            hasSessionWindow: !pending.plan.lacksSessionWindow,
             usage: usageStore,
             theme: themeStore,
             settings: settingsStore,
@@ -541,7 +542,10 @@ struct AddClaudeAccountSheet: View {
             // `update` keeps the current name when the field was emptied.
             accountsStore.update(.main) { $0.name = mainName }
         }
-        settingsStore.seedAccount(record.id, addToMenuBar: addToMenuBar)
+        settingsStore.seedAccount(
+            record.id, addToMenuBar: addToMenuBar,
+            hasSessionWindow: !pending.plan.lacksSessionWindow
+        )
         // The account lands in the All layout: a menu bar left in another
         // mode would not show it at all.
         if addToMenuBar, settingsStore.activeProviderMode != .all {

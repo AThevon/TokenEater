@@ -30,20 +30,72 @@ struct OrganizationInfo: Codable {
     let organizationType: String
     let billingType: String
     let rateLimitTier: String
+    /// The plan's marketing name ("Ultra"). The only field that tells an
+    /// Ultra subscription from a Max 20x one: both report
+    /// `organization_type` "claude_max", `rate_limit_tier`
+    /// "default_claude_max_20x" and `has_claude_max`.
+    let planDisplayName: String?
+    /// The same name as a label ("Ultra plan"), read when the name is absent.
+    let planDisplayLabel: String?
 
     enum CodingKeys: String, CodingKey {
         case uuid, name
         case organizationType = "organization_type"
         case billingType = "billing_type"
         case rateLimitTier = "rate_limit_tier"
+        case planDisplayName = "plan_display_name"
+        case planDisplayLabel = "plan_display_label"
+    }
+
+    init(
+        uuid: String,
+        name: String,
+        organizationType: String,
+        billingType: String,
+        rateLimitTier: String,
+        planDisplayName: String? = nil,
+        planDisplayLabel: String? = nil
+    ) {
+        self.uuid = uuid
+        self.name = name
+        self.organizationType = organizationType
+        self.billingType = billingType
+        self.rateLimitTier = rateLimitTier
+        self.planDisplayName = planDisplayName
+        self.planDisplayLabel = planDisplayLabel
+    }
+
+    // The plan names are read leniently: a missing or odd one must never cost
+    // the profile, which also carries the identity the accounts rely on.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        uuid = try container.decode(String.self, forKey: .uuid)
+        name = try container.decode(String.self, forKey: .name)
+        organizationType = try container.decode(String.self, forKey: .organizationType)
+        billingType = try container.decode(String.self, forKey: .billingType)
+        rateLimitTier = try container.decode(String.self, forKey: .rateLimitTier)
+        planDisplayName = try? container.decodeIfPresent(String.self, forKey: .planDisplayName)
+        planDisplayLabel = try? container.decodeIfPresent(String.self, forKey: .planDisplayLabel)
+    }
+
+    /// Whether the organization's plan is Claude Ultra, the plan with a
+    /// weekly limit and no 5-hour session window.
+    var isUltraPlan: Bool {
+        [planDisplayName, planDisplayLabel].contains { name in
+            guard let name else { return false }
+            return name.lowercased().split(whereSeparator: { !$0.isLetter }).contains("ultra")
+        }
     }
 }
 
 enum PlanType: String, Codable {
-    case pro, max, team, enterprise, free, unknown
+    case pro, max, ultra, team, enterprise, free, unknown
 
     init(from account: AccountInfo, organization: OrganizationInfo?) {
-        if account.hasClaudeMax { self = .max }
+        // Checked before the flags: an Ultra subscription also reports
+        // `has_claude_max`, and only its plan name sets it apart.
+        if organization?.isUltraPlan == true { self = .ultra }
+        else if account.hasClaudeMax { self = .max }
         else if account.hasClaudePro { self = .pro }
         else if let orgType = organization?.organizationType {
             switch orgType {
@@ -59,6 +111,7 @@ enum PlanType: String, Codable {
         switch self {
         case .pro: return "PRO"
         case .max: return "MAX"
+        case .ultra: return "ULTRA"
         case .team: return "TEAM"
         case .enterprise: return "ENTERPRISE"
         case .free: return "FREE"
@@ -69,6 +122,7 @@ enum PlanType: String, Codable {
     var badgeColor: Color {
         switch self {
         case .max: return .purple
+        case .ultra: return .pink
         case .pro: return .blue
         case .team: return .teal
         case .enterprise: return .orange
@@ -76,6 +130,12 @@ enum PlanType: String, Codable {
         case .unknown: return .clear
         }
     }
+
+    /// Whether the plan is known to come without the 5-hour session window.
+    /// Only a fallback for before any usage has landed: once it has, whether
+    /// the response carries the window is the fact that counts
+    /// (`UsageStore.hasSessionWindow`).
+    var lacksSessionWindow: Bool { self == .ultra }
 }
 
 extension String {

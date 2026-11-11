@@ -75,6 +75,7 @@ extension MenuBarRenderer.RenderData {
         )
         data.hasNumbers = usage.lastUsage != nil
         data.showsLastNumbers = usage.lastNumbersDate != nil
+        data.hasSessionWindow = usage.hasSessionWindow
         // Each running added account, built the same way from its own store,
         // for the segments that resolve to it. Paused accounts are left out,
         // so their segments step aside.
@@ -124,6 +125,7 @@ extension MenuBarRenderer.RenderData {
         name: String,
         colorHex: String,
         mainName: String? = nil,
+        hasSessionWindow: Bool = true,
         usage: UsageStore,
         theme: ThemeStore,
         settings: SettingsStore,
@@ -140,8 +142,10 @@ extension MenuBarRenderer.RenderData {
         pending.accountData = [:]
         pending.accountMarkers = [:]
         pending.showsPlaceholderValues = true
+        // The new account's plan, from its profile, not the main account's.
+        pending.hasSessionWindow = hasSessionWindow
         var after = before
-        after.composition = allLayout.addingAccountSegments(id)
+        after.composition = allLayout.addingAccountSegments(id, hasSessionWindow: hasSessionWindow)
         after.accountData[id.rawValue] = pending
         var markers = markers(for: accounts.activeAccountIDs, accounts: accounts)
         if let mainName, let main = markers[AccountID.main.rawValue] {

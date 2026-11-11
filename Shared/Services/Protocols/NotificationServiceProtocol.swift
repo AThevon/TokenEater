@@ -113,7 +113,7 @@ protocol NotificationServiceProtocol {
     /// and its thread.
     func sendTest(forClaudeAccount account: NotificationScope)
     func evaluate(
-        fiveHour: MetricSnapshot,
+        fiveHour: MetricSnapshot?,
         sevenDay: MetricSnapshot,
         /// Nil when the account's response carries no Sonnet weekly limit:
         /// no alert, and the surface's baseline is left alone. Same for Fable.

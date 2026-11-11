@@ -309,13 +309,14 @@ final class SettingsStore: ObservableObject {
     /// on screen, its stored layout is
     /// updated in place and the one on screen is left alone; the sheet then
     /// switches to All itself. The account's own Claude mode layouts are
-    /// seeded later, on its first visit.
-    func seedAccount(_ id: AccountID, addToMenuBar: Bool) {
+    /// seeded later, on its first visit. `hasSessionWindow` is false for an
+    /// account whose plan is known to have no 5-hour window (Claude Ultra).
+    func seedAccount(_ id: AccountID, addToMenuBar: Bool, hasSessionWindow: Bool = true) {
         guard !id.isMain else { return }
         if activeProviderMode == .all {
-            popoverComposition = popoverComposition.addingAccountSection(id)
+            popoverComposition = popoverComposition.addingAccountSection(id, hasSessionWindow: hasSessionWindow)
             if addToMenuBar {
-                menuBarComposition = menuBarComposition.addingAccountSegments(id)
+                menuBarComposition = menuBarComposition.addingAccountSegments(id, hasSessionWindow: hasSessionWindow)
             }
             return
         }
@@ -324,12 +325,12 @@ final class SettingsStore: ObservableObject {
         let storedPopover = defaults.data(forKey: popoverKey)
             .flatMap { try? JSONDecoder().decode(PopoverComposition.self, from: $0) }
             .map(Self.reconcile) ?? Self.seededPopover(for: .all)
-        if let data = try? JSONEncoder().encode(storedPopover.addingAccountSection(id)) {
+        if let data = try? JSONEncoder().encode(storedPopover.addingAccountSection(id, hasSessionWindow: hasSessionWindow)) {
             defaults.set(data, forKey: popoverKey)
         }
         guard addToMenuBar else { return }
         let menuBarKey = "menuBarComposition" + ProviderMode.all.storageSuffix
-        if let data = try? JSONEncoder().encode(allModeMenuBarComposition.addingAccountSegments(id)) {
+        if let data = try? JSONEncoder().encode(allModeMenuBarComposition.addingAccountSegments(id, hasSessionWindow: hasSessionWindow)) {
             defaults.set(data, forKey: menuBarKey)
         }
     }

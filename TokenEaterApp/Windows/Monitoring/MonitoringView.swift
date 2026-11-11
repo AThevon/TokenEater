@@ -121,11 +121,10 @@ struct MonitoringView: View {
     // MARK: - Glance window
 
     /// Which Claude window the glance card shows. Automatic means the shortest
-    /// window the provider actually has, which for Claude is always the
-    /// 5-hour one: that is the window that blocks you in the next ten minutes,
-    /// while the weekly one is a slower worry. The same rule drives the Codex
-    /// card, which is what stops the two cards from quietly answering
-    /// different questions.
+    /// window the plan actually has: the 5-hour one, the window that blocks
+    /// you in the next ten minutes, or the week on a plan without it (Claude
+    /// Ultra). The same rule drives the Codex card, which is what stops the
+    /// two cards from quietly answering different questions.
     enum ClaudeHeroWindow: String, CaseIterable {
         case session
         case weekly
@@ -140,6 +139,15 @@ struct MonitoringView: View {
             }
         }
         var duration: TimeInterval { self == .session ? 5 * 3600 : 7 * 86_400 }
+
+        /// The window drawn for a stored choice (nil is automatic). Without
+        /// a session window the week is drawn whatever was chosen, and the
+        /// choice is kept as it is: the day the window comes back (Ultra to
+        /// Max), the card shows what the user picked.
+        static func resolve(pinned: String?, hasSessionWindow: Bool) -> ClaudeHeroWindow {
+            guard hasSessionWindow else { return .weekly }
+            return pinned.flatMap(ClaudeHeroWindow.init(rawValue:)) ?? .session
+        }
     }
 
     /// The account whose glance card this view draws: the embedded one, the
@@ -150,31 +158,44 @@ struct MonitoringView: View {
     }
 
     var claudeHeroWindow: ClaudeHeroWindow {
-        settingsStore.heroWindow(for: .claude, account: heroAccount)
-            .flatMap(ClaudeHeroWindow.init(rawValue:)) ?? .session
+        ClaudeHeroWindow.resolve(
+            pinned: settingsStore.heroWindow(for: .claude, account: heroAccount),
+            hasSessionWindow: usageStore.hasSessionWindow
+        )
     }
 
     /// The window picker lives in a context menu rather than on the card.
     /// The card is a Button that flips on click, and a menu nested in a
     /// Button's label does not reliably receive its own clicks; right-click is
     /// the macOS gesture for "what else can this do" anyway.
+    /// `unavailable` maps an option the plan does not have to the reason,
+    /// shown beside it on a disabled line; a stored choice of such an option
+    /// draws as automatic, so the checkmark goes there.
     @ViewBuilder
-    private func heroWindowMenu(for provider: MetricProvider, options: [(id: String, label: String)]) -> some View {
+    private func heroWindowMenu(
+        for provider: MetricProvider,
+        options: [(id: String, label: String)],
+        unavailable: [String: String] = [:]
+    ) -> some View {
         Section(String(localized: "dashboard.hero.window.menu")) {
             let account = provider == .claude ? heroAccount : .main
+            let stored = settingsStore.heroWindow(for: provider, account: account)
+            let effective = stored.flatMap { unavailable[$0] == nil ? $0 : nil }
             Button {
                 settingsStore.setHeroWindow(nil, for: provider, account: account)
             } label: {
                 Label(String(localized: "dashboard.hero.window.auto"),
-                      systemImage: settingsStore.heroWindow(for: provider, account: account) == nil ? "checkmark" : "")
+                      systemImage: effective == nil ? "checkmark" : "")
             }
             ForEach(options, id: \.id) { option in
+                let reason = unavailable[option.id]
                 Button {
                     settingsStore.setHeroWindow(option.id, for: provider, account: account)
                 } label: {
-                    Label(option.label,
-                          systemImage: settingsStore.heroWindow(for: provider, account: account) == option.id ? "checkmark" : "")
+                    Label(reason.map { "\(option.label) (\($0))" } ?? option.label,
+                          systemImage: effective == option.id ? "checkmark" : "")
                 }
+                .disabled(reason != nil)
             }
         }
     }
@@ -350,9 +371,15 @@ struct MonitoringView: View {
         case (.hero, .claude):
             heroTile
                 .contextMenu {
-                    heroWindowMenu(for: .claude, options: ClaudeHeroWindow.allCases.map {
-                        (id: $0.rawValue, label: $0.localizedLabel)
-                    })
+                    heroWindowMenu(
+                        for: .claude,
+                        options: ClaudeHeroWindow.allCases.map { (id: $0.rawValue, label: $0.localizedLabel) },
+                        unavailable: usageStore.hasSessionWindow ? [:] : [
+                            ClaudeHeroWindow.session.rawValue: EditorUnavailability.noSessionWindow(
+                                EditorUnavailability.planName(of: usageStore)
+                            ).label,
+                        ]
+                    )
                 }
         case (.hero, .codex):
             CodexHeroCard()
@@ -364,13 +391,17 @@ struct MonitoringView: View {
 
         case (.windows, .claude):
             // The hero already shows one window, so the grid never repeats it.
-            grid(of: claudeGridTiles
-                .map { tile in
-                    var copy = labelled(tile, for: .claude)
-                    copy.lastNumbersDate = usageStore.lastNumbersDate
-                    copy.hasNumbers = !usageStore.hasNoNumbers
-                    return copy
-                })
+            // On a plan with only the week and no per-model limit that leaves
+            // nothing, and an empty grid would only add a gap.
+            if !claudeGridTiles.isEmpty {
+                grid(of: claudeGridTiles
+                    .map { tile in
+                        var copy = labelled(tile, for: .claude)
+                        copy.lastNumbersDate = usageStore.lastNumbersDate
+                        copy.hasNumbers = !usageStore.hasNoNumbers
+                        return copy
+                    })
+            }
         case (.windows, .codex):
             grid(of: codexGridWindows
                 .map { window in
@@ -414,8 +445,9 @@ struct MonitoringView: View {
     /// abreast where there was room for it.
     @ViewBuilder
     private func claudePacing(abreast: Bool) -> some View {
+        // No session card on a plan without the window (it has no pace).
         let cards = [
-            usageStore.fiveHourPacing.map {
+            (usageStore.hasSessionWindow ? usageStore.fiveHourPacing : nil).map {
                 (pacing: $0, label: String(localized: "pacing.session.label"),
                  icon: "clock.fill", workweek: false, cooldown: false)
             },
@@ -426,7 +458,9 @@ struct MonitoringView: View {
         ].compactMap { $0 }
         let prefix = labelPrefix(for: .claude)
 
-        if abreast {
+        if cards.isEmpty {
+            EmptyView()
+        } else if abreast {
             HStack(spacing: DS.Spacing.sm) {
                 ForEach(Array(cards.enumerated()), id: \.offset) { _, card in
                     pacingCard(pacing: card.pacing, label: card.label, prefix: prefix, icon: card.icon,
@@ -682,7 +716,7 @@ struct MonitoringView: View {
         .help(status.activeIncidents.first?.name ?? label)
     }
 
-    // MARK: - Hero tile (Session 5H)
+    // MARK: - Hero tile
 
     private var heroTile: some View {
         let window = claudeHeroWindow
@@ -711,21 +745,23 @@ struct MonitoringView: View {
         // number, and the ring all read as a single signal.
         let accent = gaugeColor
 
-        // The back face is a session trajectory built from `sessionSamples`,
-        // which only exists for the 5-hour window. Pinning the card to weekly
-        // therefore drops the flip rather than faking a chart, the same call
-        // the Codex card already makes for the same reason.
+        // The back face plots the window's recorded trajectory: the 5-hour
+        // readings, or on a plan without a session window, whose card always
+        // shows the week, the weekly ones (`UsageStore.weeklySamples`), so
+        // such an account keeps its pace graph and live column. A card merely
+        // pinned to Weekly keeps 6.1's front-only behaviour.
+        let hasBack = isSession || !usageStore.hasSessionWindow
         return Button {
-            guard isSession else { return }
+            guard hasBack else { return }
             triggerHeroFlip()
         } label: {
             ZStack {
-                if heroFlipped && isSession {
+                if heroFlipped && hasBack {
                     heroBackContent(
                         gaugeColor: gaugeColor,
                         zone: zone,
                         pacing: pacing,
-                        resetDate: resetDate
+                        window: window
                     )
                 } else {
                     heroFrontContent(
@@ -780,6 +816,9 @@ struct MonitoringView: View {
         .onHover { hovering in
             withAnimation(DS.Motion.springSnap) { heroHover = hovering }
         }
+        // A card that changes window (a choice, or the plan losing its
+        // session window) shows its new front, not the old window's back.
+        .onChange(of: window) { _, _ in heroFlipped = false }
     }
 
     @ViewBuilder
@@ -799,7 +838,8 @@ struct MonitoringView: View {
             resetDate: resetDate,
             name: accountName,
             lastNumbersDate: lastNumbers,
-            hasNumbers: hasNumbers
+            hasNumbers: hasNumbers,
+            namesResetDay: !usageStore.hasSessionWindow
         )
     }
 
@@ -811,36 +851,36 @@ struct MonitoringView: View {
         gaugeColor: Color,
         zone: PacingZone?,
         pacing: PacingResult?,
-        resetDate: Date?
+        window: ClaudeHeroWindow
     ) -> some View {
         // The live column gives way before the graph does: full, then
         // without its caption, then gone, so a narrow column keeps a graph
         // wide enough to read and a header that is not cut.
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .center, spacing: DS.Spacing.lg) {
-                heroBackPacing(gaugeColor: gaugeColor, zone: zone, pacing: pacing)
+                heroBackPacing(gaugeColor: gaugeColor, zone: zone, pacing: pacing, window: window)
                     .frame(minWidth: 170, maxWidth: .infinity, alignment: .leading)
                 heroBackLive(gaugeColor: gaugeColor, compact: false)
             }
             HStack(alignment: .center, spacing: DS.Spacing.md) {
-                heroBackPacing(gaugeColor: gaugeColor, zone: zone, pacing: pacing)
+                heroBackPacing(gaugeColor: gaugeColor, zone: zone, pacing: pacing, window: window)
                     .frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
                 heroBackLive(gaugeColor: gaugeColor, compact: true)
             }
-            heroBackPacing(gaugeColor: gaugeColor, zone: zone, pacing: pacing)
+            heroBackPacing(gaugeColor: gaugeColor, zone: zone, pacing: pacing, window: window)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
 
     @ViewBuilder
-    private func heroBackPacing(gaugeColor: Color, zone: PacingZone?, pacing: PacingResult?) -> some View {
+    private func heroBackPacing(gaugeColor: Color, zone: PacingZone?, pacing: PacingResult?, window: ClaudeHeroWindow) -> some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             HStack(spacing: DS.Spacing.xs) {
                 ProviderGlyph(provider: .claude, size: 11)
                     .foregroundStyle(gaugeColor)
                     .dsGlow(gaugeColor, radius: 4, opacity: 0.6)
-                HeroPacingTitle(name: columnName(for: .claude))
+                HeroPacingTitle(name: columnName(for: .claude), window: window)
                     .lineLimit(1)
                     .font(DS.Typography.micro)
                     .tracking(1.5)
@@ -860,17 +900,27 @@ struct MonitoringView: View {
                     expectedUsage: pacing.expectedUsage,
                     deltaColor: pacing.delta > 0 ? DS.Palette.semanticWarning : DS.Palette.brandPrimary,
                     trajectoryColor: gaugeColor,
-                    trajectory: PacingSampleBuffer.trajectory(
-                        usageStore.sessionSamples,
-                        resetDate: usageStore.lastUsage?.fiveHour?.resetsAtDate,
-                        windowDuration: 5 * 3600
-                    )
+                    trajectory: window == .session
+                        ? PacingSampleBuffer.trajectory(
+                            usageStore.sessionSamples,
+                            resetDate: usageStore.lastUsage?.fiveHour?.resetsAtDate,
+                            windowDuration: window.duration
+                        )
+                        : PacingSampleBuffer.trajectory(
+                            usageStore.weeklySamples,
+                            resetDate: usageStore.lastUsage?.sevenDay?.resetsAtDate,
+                            windowDuration: window.duration,
+                            // The week's pace counts active time only when
+                            // a schedule is set; the curve follows it.
+                            activeDays: usageStore.pacingSchedule.effectiveActiveDays,
+                            activeHours: usageStore.pacingSchedule.effectiveHours
+                        )
                 )
                 .frame(maxWidth: .infinity)
                 .frame(height: 92)
             } else {
                 Spacer(minLength: 0)
-                Text("Pacing data unavailable")
+                Text(String(localized: "dashboard.hero.back.noPacing"))
                     .font(.system(size: 10))
                     .foregroundStyle(DS.Palette.textTertiary)
                 Spacer(minLength: 0)
@@ -896,7 +946,7 @@ struct MonitoringView: View {
     /// this card's account folder.
     private func heroBackLive(gaugeColor: Color, compact: Bool) -> some View {
         VStack(alignment: .trailing, spacing: 6) {
-            Text("LIVE")
+            Text(String(localized: "dashboard.hero.back.live"))
                 .font(DS.Typography.micro)
                 .tracking(1.2)
                 .foregroundStyle(DS.Palette.textTertiary)
@@ -909,7 +959,9 @@ struct MonitoringView: View {
                 .contentTransition(.numericText(value: Double(count)))
                 .animation(DS.Motion.springLiquid, value: count)
             if !compact {
-                Text(count == 1 ? "active session" : "active sessions")
+                Text(count == 1
+                     ? String(localized: "dashboard.hero.back.activeSession")
+                     : String(localized: "dashboard.hero.back.activeSessions"))
                     .font(.system(size: 9, weight: .medium))
                     .tracking(0.8)
                     .foregroundStyle(DS.Palette.textTertiary)
@@ -1276,8 +1328,10 @@ struct MonitoringView: View {
     private var claudePills: [DashboardPill] {
         var pills: [DashboardPill] = []
         if let tier = usageStore.rateLimitTier {
+            // Ultra reports Max 20x's tier: the plan's own name says it right.
+            let value = usageStore.planType == .ultra ? "Ultra" : tier.formattedRateLimitTier
             pills.append(DashboardPill(id: "tier", icon: "sparkles", label: String(localized: "dashboard.tier"),
-                                       value: tier.formattedRateLimitTier, tint: DS.Palette.accentStats))
+                                       value: value, tint: DS.Palette.accentStats))
         }
         if let org = usageStore.organizationName {
             pills.append(DashboardPill(id: "org", icon: "building.2.fill", label: String(localized: "dashboard.org"),
@@ -1447,10 +1501,15 @@ private struct DashboardAccountPlanBadges: View {
 /// front says it, unless a header above the section names it already.
 private struct HeroPacingTitle: View {
     let name: String
+    /// The week's back says so: on the session's, "pacing" alone has always
+    /// meant the 5-hour window.
+    let window: MonitoringView.ClaudeHeroWindow
     @Environment(\.dashboardColumnHeaded) private var columnHeaded
 
     var body: some View {
-        let pacing = String(localized: "pacing.label").uppercased()
+        let pacing = (window == .weekly
+            ? String(localized: "pacing.weekly.label")
+            : String(localized: "pacing.label")).uppercased()
         Text(columnHeaded ? pacing : name.uppercased() + " · " + pacing)
     }
 }

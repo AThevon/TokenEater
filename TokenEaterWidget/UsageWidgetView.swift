@@ -62,11 +62,15 @@ struct UsageWidgetView: View {
             if let error = entry.error, entry.usage == nil {
                 errorView(error)
             } else if let usage = entry.usage {
-                switch family {
-                case .systemLarge:
-                    largeUsageContent(usage)
-                default:
-                    mediumUsageContent(usage)
+                if Self.hasNothingToDraw(usage) {
+                    errorView(String(localized: "error.nodata"))
+                } else {
+                    switch family {
+                    case .systemLarge:
+                        largeUsageContent(usage)
+                    default:
+                        mediumUsageContent(usage)
+                    }
                 }
             } else {
                 placeholderView
@@ -87,23 +91,20 @@ struct UsageWidgetView: View {
             // height of the text under each one (a bold countdown, a 7 pt
             // pacing message).
             HStack(alignment: .top, spacing: 0) {
-                if let fiveHour = usage.fiveHour {
-                    CircularUsageView(
-                        label: String(localized: "widget.session"),
-                        resetInfo: formatResetTime(fiveHour.resetsAtDate),
-                        utilization: fiveHour.utilization,
-                        resetDate: fiveHour.resetsAtDate,
-                        windowDuration: 5 * 3600
-                    )
-                }
-                if let sevenDay = usage.sevenDay {
-                    CircularUsageView(
-                        label: String(localized: "widget.weekly"),
-                        resetInfo: formatResetDate(sevenDay.resetsAtDate),
-                        utilization: sevenDay.utilization,
-                        resetDate: sevenDay.resetsAtDate,
-                        windowDuration: 7 * 86_400
-                    )
+                // Session then Weekly; on a plan with no session window
+                // (Ultra), Weekly then Fable in the session's place.
+                ForEach(WidgetUsageWindow.mediumRings(for: usage), id: \.self) { window in
+                    if let bucket = window.bucket(in: usage) {
+                        CircularUsageView(
+                            label: mediumLabel(for: window),
+                            resetInfo: window.isMultiDay
+                                ? formatResetDate(bucket.resetsAtDate)
+                                : formatResetTime(bucket.resetsAtDate),
+                            utilization: bucket.utilization,
+                            resetDate: bucket.resetsAtDate,
+                            windowDuration: window.windowDuration
+                        )
+                    }
                 }
                 if let pacing = PacingCalculator.calculate(from: usage, activeDays: WidgetTheme.pacingSchedule.effectiveActiveDays, activeHours: WidgetTheme.pacingSchedule.effectiveHours) {
                     CircularPacingView(pacing: pacing)
@@ -153,7 +154,10 @@ struct UsageWidgetView: View {
     // MARK: - Large: Expanded View
 
     private func largeUsageContent(_ usage: UsageResponse) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        let sessionPacing = PacingCalculator.calculate(from: usage, bucket: .fiveHour)
+        let weeklyPacing = PacingCalculator.calculate(from: usage, bucket: .sevenDay, activeDays: WidgetTheme.pacingSchedule.effectiveActiveDays, activeHours: WidgetTheme.pacingSchedule.effectiveHours)
+
+        return VStack(alignment: .leading, spacing: 12) {
             WidgetHeader("widget.title.usage")
 
             // Bars - just the essentials per row : icon | label | % | reset
@@ -220,14 +224,17 @@ struct UsageWidgetView: View {
                 )
             }
 
-            // Subtle divider between usage bars and pacing bars
-            Rectangle()
-                .fill(Color(hex: theme.widgetText).opacity(0.07))
-                .frame(height: 1)
-                .padding(.vertical, 2)
+            // Subtle divider between usage bars and pacing bars, only when a
+            // pacing bar follows it
+            if sessionPacing != nil || weeklyPacing != nil {
+                Rectangle()
+                    .fill(Color(hex: theme.widgetText).opacity(0.07))
+                    .frame(height: 1)
+                    .padding(.vertical, 2)
+            }
 
             // Session pacing as a usage bar with an ideal marker
-            if let sessionPacing = PacingCalculator.calculate(from: usage, bucket: .fiveHour) {
+            if let sessionPacing {
                 LargePacingBarView(
                     icon: "timer",
                     label: String(localized: "widget.pacing.session"),
@@ -236,7 +243,7 @@ struct UsageWidgetView: View {
                 )
             }
             // Weekly pacing as a usage bar with an ideal marker
-            if let weeklyPacing = PacingCalculator.calculate(from: usage, bucket: .sevenDay, activeDays: WidgetTheme.pacingSchedule.effectiveActiveDays, activeHours: WidgetTheme.pacingSchedule.effectiveHours) {
+            if let weeklyPacing {
                 LargePacingBarView(
                     icon: "chart.bar.fill",
                     label: String(localized: "widget.pacing.weekly"),
@@ -247,6 +254,23 @@ struct UsageWidgetView: View {
 
             Spacer(minLength: 0)
         }
+    }
+
+    private func mediumLabel(for window: WidgetUsageWindow) -> String {
+        switch window {
+        case .session: return String(localized: "widget.session")
+        case .weekly: return String(localized: "widget.weekly")
+        case .fable: return String(localized: "widget.fable")
+        }
+    }
+
+    /// A response with no window at all (no session, week or per-model limit,
+    /// no Extra Credits pool): the explicit no-data state, rather than a
+    /// header over an empty row.
+    private static func hasNothingToDraw(_ usage: UsageResponse) -> Bool {
+        usage.fiveHour == nil && usage.sevenDay == nil
+            && usage.sevenDaySonnet == nil && usage.sevenDayFable == nil
+            && usage.extraUsage?.isEnabled != true
     }
 
     // MARK: - Error View

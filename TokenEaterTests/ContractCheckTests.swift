@@ -149,6 +149,15 @@ struct ContractCheckTests {
         #expect(Self.severity(of: "seven_day", in: changes) == .breaking)
     }
 
+    @Test("a session going null is not breaking: that is a plan without the window (Ultra)")
+    func sessionGoingNullIsNotBreaking() throws {
+        let changes = try Self.claudeChanges(
+            replacing: #""five_hour": { "utilization": 12.0, "resets_at": "2026-10-13T20:00:00Z", "locked_reason": null }"#,
+            with: #""five_hour": null"#)
+        #expect(Self.severity(of: "five_hour", in: changes) != .breaking)
+        #expect(!changes.contains { $0.severity == .breaking }, "\(changes.filter { $0.severity == .breaking }.map(\.path))")
+    }
+
     @Test("a session that loses its reset key is breaking: countdown and pacing go with it")
     func missingFlatResetIsBreaking() throws {
         let changes = try Self.claudeChanges(

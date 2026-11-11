@@ -657,6 +657,7 @@ private struct ElementListEditor: View {
                 isSelected: selectedElementID == element.id,
                 isDragging: draggingID == element.id,
                 unavailable: unavailability(element),
+                note: sessionNote(element),
                 canDisable: canDisable(element),
                 account: accountMark(for: element),
                 accountChoices: settingsStore.activeClaudeAccounts,
@@ -702,11 +703,44 @@ private struct ElementListEditor: View {
     // That covers a Fable arc after a plan downgrade, a plan badge with no
     // known plan, and every Codex kind in a Claude-scoped layout.
     private func isAvailable(_ element: PopoverElement) -> Bool {
-        guard let store = EditorUnavailability.store(
+        guard let store = rowStore(element) else { return false }
+        switch sessionOutcomes[element.id] {
+        case .renderedAsWeekly:
+            return PopoverMetricResolver.isVisible(
+                element.kind == .sessionPacing ? .weeklyPacing : .weekly,
+                usage: store, codex: codexStore, settings: settingsStore
+            )
+        case .dropped, .shownBySessionSlot:
+            return false
+        case .unchanged, nil:
+            return PopoverMetricResolver.isVisible(element.kind, usage: store, codex: codexStore, settings: settingsStore)
+        }
+    }
+
+    /// The store a row reads, as the popover resolves it.
+    private func rowStore(_ element: PopoverElement) -> UsageStore? {
+        EditorUnavailability.store(
             declared: element.account, provider: element.kind.provider,
             settings: settingsStore, accounts: accountsStore, fallback: usageStore
-        ) else { return false }
-        return PopoverMetricResolver.isVisible(element.kind, usage: store, codex: codexStore, settings: settingsStore)
+        )
+    }
+
+    /// What the popover makes of each visible row on an account without the
+    /// 5-hour window, asked exactly as the popover asks it.
+    private var sessionOutcomes: [UUID: SessionWindowFallback.Outcome] {
+        let running = settingsStore.popoverComposition.visibleElements.filter { rowStore($0) != nil }
+        return SessionWindowFallback.rendered(
+            running,
+            account: { settingsStore.effectiveAccount(for: $0.account) },
+            lacksSessionWindow: { rowStore($0)?.hasSessionWindow == false }
+        ).outcomes
+    }
+
+    /// The neutral caption of a row the popover draws differently than
+    /// stored (a session slot showing the week).
+    private func sessionNote(_ element: PopoverElement) -> String? {
+        guard let store = rowStore(element) else { return nil }
+        return EditorUnavailability.sessionNote(sessionOutcomes[element.id], usage: store)
     }
 
     /// The same answer as `isAvailable`, with the reason attached, for the
@@ -715,9 +749,25 @@ private struct ElementListEditor: View {
     /// off and a fetch that has not happened, which are three different
     /// things to do about it.
     private func unavailability(_ element: PopoverElement) -> EditorUnavailability? {
-        EditorUnavailability.reason(
-            for: element, settings: settingsStore, accounts: accountsStore, usage: usageStore, codex: codexStore
-        )
+        switch sessionOutcomes[element.id] {
+        case .renderedAsWeekly:
+            // It draws as the week, unless the week itself would not (Claude
+            // switched off, out of this mode's scope): that reason first.
+            var weekly = element
+            weekly.kind = element.kind == .sessionPacing ? .weeklyPacing : .weekly
+            return EditorUnavailability.reason(
+                for: weekly, settings: settingsStore, accounts: accountsStore, usage: usageStore, codex: codexStore
+            )
+        case .shownBySessionSlot:
+            // Its figure draws in the session slot: the neutral note says so.
+            return nil
+        case .dropped:
+            return .noSessionWindow(rowStore(element).map(EditorUnavailability.planName(of:)) ?? MetricProvider.claude.displayName)
+        case .unchanged, nil:
+            return EditorUnavailability.reason(
+                for: element, settings: settingsStore, accounts: accountsStore, usage: usageStore, codex: codexStore
+            )
+        }
     }
 
     /// The account a Claude row belongs to, for its dot and its account
@@ -794,6 +844,8 @@ private struct ElementRow: View {
     let isSelected: Bool
     let isDragging: Bool
     let unavailable: EditorUnavailability?
+    /// A neutral caption for a row drawn differently than stored.
+    let note: String?
     let canDisable: Bool
     /// The Claude account the row reads, once there are several to pick from.
     let account: ClaudeAccountSummary?
@@ -807,6 +859,10 @@ private struct ElementRow: View {
     let onContent: (PopoverMetricContent) -> Void
     let onToggleReset: () -> Void
 
+    /// Hidden, or kept in the layout while it draws nothing: the row greys
+    /// out, every control stays live so the layout can be prepared ahead.
+    private var isDimmed: Bool { element.isHidden || unavailable != nil }
+
     var body: some View {
         VStack(spacing: 8) {
             HStack(spacing: 10) {
@@ -817,7 +873,7 @@ private struct ElementRow: View {
 
                 Image(systemName: element.kind.symbolName)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(element.isHidden ? .white.opacity(0.3) : .white.opacity(0.7))
+                    .foregroundStyle(isDimmed ? .white.opacity(0.3) : .white.opacity(0.7))
                     .frame(width: 16)
 
                 VStack(alignment: .leading, spacing: 1) {
@@ -829,13 +885,17 @@ private struct ElementRow: View {
                         KindLabel(
                             provider: element.kind.provider,
                             text: element.kind.localizedLabel,
-                            color: element.isHidden ? .white.opacity(0.35) : .white.opacity(0.9)
+                            color: isDimmed ? .white.opacity(0.35) : .white.opacity(0.9)
                         )
                     }
                     if let unavailable {
                         Text(unavailable.label)
                             .font(.system(size: 9))
                             .foregroundStyle(.orange.opacity(0.7))
+                    } else if let note {
+                        Text(note)
+                            .font(.system(size: 9))
+                            .foregroundStyle(.white.opacity(0.5))
                     }
                 }
 

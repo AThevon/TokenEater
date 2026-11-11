@@ -15,7 +15,7 @@ extension UsageBucket {
 
 extension UsageResponse {
     static func fixture(
-        fiveHourUtil: Double = 42,
+        fiveHourUtil: Double? = 42,
         sevenDayUtil: Double = 65,
         sonnetUtil: Double = 30,
         fableUtil: Double? = nil,
@@ -26,7 +26,7 @@ extension UsageResponse {
         extraUsage: ExtraUsage? = nil
     ) -> UsageResponse {
         UsageResponse(
-            fiveHour: .fixture(utilization: fiveHourUtil, resetsAt: fiveHourResetsAt),
+            fiveHour: fiveHourUtil.map { .fixture(utilization: $0, resetsAt: fiveHourResetsAt) },
             sevenDay: .fixture(utilization: sevenDayUtil, resetsAt: sevenDayResetsAt),
             sevenDaySonnet: .fixture(utilization: sonnetUtil, resetsAt: sonnetResetsAt),
             // Fable stays nil unless a util is provided, so existing tests that

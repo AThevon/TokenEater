@@ -4,7 +4,7 @@ import UserNotifications
 final class MockNotificationService: NotificationServiceProtocol {
     var permissionRequested = false
     var lastEvaluation: (
-        fiveHour: MetricSnapshot,
+        fiveHour: MetricSnapshot?,
         sevenDay: MetricSnapshot,
         sonnet: MetricSnapshot?,
         fable: MetricSnapshot?,
@@ -40,7 +40,7 @@ final class MockNotificationService: NotificationServiceProtocol {
     }
 
     func evaluate(
-        fiveHour: MetricSnapshot,
+        fiveHour: MetricSnapshot?,
         sevenDay: MetricSnapshot,
         sonnet: MetricSnapshot?,
         fable: MetricSnapshot?,

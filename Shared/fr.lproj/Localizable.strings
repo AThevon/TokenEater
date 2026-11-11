@@ -40,7 +40,7 @@
 "widget.description.usage" = "Affiche votre consommation Claude en temps réel";
 "widget.description.pacing" = "Votre rythme de consommation Claude";
 "widget.title.sessionRing" = "Session Ring";
-"widget.description.sessionRing" = "Grosse jauge en anneau pour votre fenêtre 5h, en Smart Color";
+"widget.description.sessionRing" = "Grosse jauge en anneau pour votre fenêtre 5h, en Smart Color, ou pour votre semaine sur les offres qui n'en ont pas";
 "widget.title.pacingGraph" = "Graphique de pacing";
 "widget.description.pacingGraph" = "Voyez votre rythme face à la trajectoire idéale en un coup d'œil";
 "widget.title.historySparkline" = "Historique tokens";
@@ -149,10 +149,11 @@
 "error.http" = "Erreur HTTP %d";
 "error.ratelimited" = "Limite de requêtes atteinte";
 "error.network" = "Erreur réseau : %@";
+"error.nodata" = "Aucune donnée pour l'instant";
 "error.network.generic" = "Erreur réseau - impossible de joindre l'API usage. Vérifiez votre connexion.";
 "error.invalidresponse.short" = "Réponse invalide";
 "error.keychainlocked" = "Keychain verrouillé - nouvelle tentative automatique";
-"error.unsupportedplan" = "Données d'utilisation indisponibles : un plan Claude Pro, Max ou Team est requis";
+"error.unsupportedplan" = "Données d'utilisation indisponibles : un plan Claude Pro, Max, Ultra ou Team est requis";
 "error.banner.keychain" = "Keychain verrouillé";
 "error.banner.keychain.hint" = "Nouvelle tentative automatique - ou ouvrez les Réglages pour ré-autoriser";
 "error.keychain.shadowed" = "Plusieurs éléments du trousseau s'appellent Claude Code-credentials et aucun ne contient de connexion Claude Code, TokenEater n'a donc aucun token vivant à lire. Reconnectez-vous à Claude Code, ou supprimez l'élément en trop.";
@@ -455,6 +456,10 @@
 "dashboard.hero.resetsIn" = "Reset dans";
 "dashboard.hero.lastNumbers" = "Derniers chiffres";
 "dashboard.hero.noNumbers" = "Pas encore de chiffres";
+"dashboard.hero.back.noPacing" = "Rythme indisponible";
+"dashboard.hero.back.live" = "LIVE";
+"dashboard.hero.back.activeSession" = "session active";
+"dashboard.hero.back.activeSessions" = "sessions actives";
 "pacing.zone.chill" = "Chill";
 "pacing.zone.ontrack" = "Pile-poil";
 "pacing.zone.warning" = "Attention";
@@ -756,6 +761,9 @@
 "editor.unavailable.noData" = "aucune donnée pour l'instant";
 "editor.unavailable.accountPaused" = "masqué tant que %@ est en pause";
 "editor.unavailable.accountGone" = "son compte n'est plus suivi";
+"editor.unavailable.noSessionWindow" = "pas de fenêtre de 5h dans votre offre %@";
+"editor.session.showsWeekly" = "affiche la semaine : pas de fenêtre de 5h dans votre offre %@";
+"editor.session.shownBySlot" = "affiché par l'emplacement session, plus large, dans votre offre %@";
 "menuBar.editor.tooWide" = "Une barre de menus aussi large peut passer sous l'encoche sur les petits écrans";
 "editor.add.accountGroup" = "Claude · %@";
 "editor.pick.account" = "Compte";
@@ -1219,6 +1227,7 @@
 "accounts.health.upToDate" = "À jour · %@";
 "accounts.health.paused" = "En pause";
 "accounts.health.paused.numbers" = "En pause · %d%% / %d%% à %@";
+"accounts.health.paused.weekly" = "En pause · %d%% cette semaine à %@";
 "accounts.health.expired" = "Connexion expirée. Lance la commande ci-dessous une fois dans un terminal, et le suivi reprend tout seul.";
 "accounts.health.expired.since" = "Connexion expirée %@. Lance la commande ci-dessous une fois dans un terminal, et le suivi reprend tout seul.";
 "accounts.health.accessDenied" = "macOS a refusé l'accès à l'élément de trousseau de ce compte.";

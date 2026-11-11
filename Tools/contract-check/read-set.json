@@ -9,8 +9,8 @@
       "dynamicKeys": [],
       "ignoredCodingKeys": {},
       "paths": {
-        "five_hour": { "types": ["object"], "use": "Session (5h) usage: menu bar, popover, dashboard hero, widgets, pacing, notifications. Null or absent falls back to the limits[] session entry, still reported as breaking so a lost flat key is never quiet" },
-        "five_hour.utilization": { "types": ["number"], "use": "Session percentage; null or another type falls back to the limits[] session entry, and with none the session shows a silent 0%" },
+        "five_hour": { "types": ["object", "null"], "use": "Session (5h) usage: menu bar, popover, dashboard hero, widgets, pacing, notifications. Null on plans without a session window (Claude Ultra): every 5h surface steps aside and the glance card shows the week. A missing key still falls back to the limits[] session entry and stays breaking, so a lost flat key is never quiet" },
+        "five_hour.utilization": { "types": ["number"], "use": "Session percentage; null or another type falls back to the limits[] session entry, and with none the session window counts as absent" },
         "five_hour.resets_at": { "types": ["string", "number", "null"], "use": "Session countdown, pacing and reset reminder (ISO 8601, or Unix seconds or milliseconds)" },
 
         "seven_day": { "types": ["object"], "use": "Weekly usage: menu bar, popover, dashboard, widgets, weekly pacing, notifications. Null or absent falls back to the limits[] weekly_all entry, still reported as breaking so a lost flat key is never quiet" },

@@ -27,6 +27,10 @@ enum EditorUnavailability {
     /// Pinned to a Claude account that is paused (or gone): drawn again
     /// once it is tracked. Carries the account's name when it is known.
     case accountPaused(String?)
+    /// A session metric of an account whose plan has no 5-hour window
+    /// (Claude Ultra) that draws nothing, not even the week in its place.
+    /// Carries the plan's name ("Ultra"), or the provider's when unknown.
+    case noSessionWindow(String)
 
     var label: String {
         switch self {
@@ -41,6 +45,28 @@ enum EditorUnavailability {
         case .accountPaused(let name):
             guard let name else { return String(localized: "editor.unavailable.accountGone") }
             return String(format: String(localized: "editor.unavailable.accountPaused"), name)
+        case .noSessionWindow(let plan):
+            return String(format: String(localized: "editor.unavailable.noSessionWindow"), plan)
+        }
+    }
+
+    /// The name a session caption gives the plan: "Ultra" once the profile
+    /// says so, the provider's name before that.
+    static func planName(of usage: UsageStore) -> String {
+        usage.planType == .ultra ? "Ultra" : MetricProvider.claude.displayName
+    }
+
+    /// The neutral caption of a row that draws, but not as stored, on an
+    /// account without the 5-hour window: a session slot showing the week,
+    /// or a weekly element whose figure a wider session slot now shows.
+    static func sessionNote(_ outcome: SessionWindowFallback.Outcome?, usage: UsageStore) -> String? {
+        switch outcome {
+        case .renderedAsWeekly:
+            return String(format: String(localized: "editor.session.showsWeekly"), planName(of: usage))
+        case .shownBySessionSlot:
+            return String(format: String(localized: "editor.session.shownBySlot"), planName(of: usage))
+        default:
+            return nil
         }
     }
 }
@@ -132,6 +158,7 @@ extension EditorUnavailability {
         return reason(
             provider: kind.provider,
             isPlanFact: isPlanFact(kind),
+            isSessionKind: SessionWindowFallback.role(of: kind).isSession,
             settings: settings, usage: usage, codex: codex
         )
     }
@@ -153,6 +180,7 @@ extension EditorUnavailability {
         return reason(
             provider: kind.provider,
             isPlanFact: isPlanFact(kind),
+            isSessionKind: SessionWindowFallback.role(of: kind).isSession,
             settings: settings, usage: usage, codex: codex
         )
     }
@@ -160,6 +188,7 @@ extension EditorUnavailability {
     private static func reason(
         provider: MetricProvider?,
         isPlanFact: Bool,
+        isSessionKind: Bool = false,
         settings: SettingsStore,
         usage: UsageStore,
         codex: CodexUsageStore
@@ -171,6 +200,11 @@ extension EditorUnavailability {
             guard settings.activeProviderMode.shows(provider) else {
                 return .outOfScope(mode: settings.activeProviderMode.localizedLabel)
             }
+        }
+        // A session metric on a plan without the window says so, naming the
+        // plan: the fact is known from the plan before any payload lands.
+        if isSessionKind, !usage.hasSessionWindow {
+            return .noSessionWindow(planName(of: usage))
         }
         // "Your plan does not have this" is only sayable once a payload has
         // landed. Before that the honest answer is that we do not know yet,

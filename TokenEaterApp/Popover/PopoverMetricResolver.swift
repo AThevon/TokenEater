@@ -83,6 +83,10 @@ enum PopoverMetricResolver {
                 provider: .codex
             )
         case .session:
+            // A plan without the window draws nothing rather than a 0% that
+            // would pass for an idle session. The grid hands such a slot
+            // over to the week before it gets here (`SessionWindowFallback`).
+            guard usage.hasSessionWindow else { return nil }
             return UsageSnapshot(
                 label: String(localized: "metric.session"),
                 pct: usage.fiveHourPct,
@@ -193,7 +197,8 @@ enum PopoverMetricResolver {
         // of vanishing. `pacing(for:)` returns nil for idle -> the cell draws
         // the placeholder; a truly absent bucket returns false here and the row
         // recompacts.
-        case .sessionPacing: return usage.lastUsage?.fiveHour != nil
+        case .session: return usage.hasSessionWindow
+        case .sessionPacing: return usage.hasSessionWindow && usage.lastUsage?.fiveHour != nil
         case .weeklyPacing: return usage.lastUsage?.sevenDay != nil
         case .fablePacing: return usage.hasFable
         // `planBadge` is gated in `isVisible`, where the mode is known: the
