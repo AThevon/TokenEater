@@ -200,7 +200,7 @@ extension SessionWindowFallback {
                 account: account(element),
                 lacksSessionWindow: element.kind.provider == .claude && lacksSessionWindow(element),
                 shows: shows(element),
-                width: width(element.width)
+                width: width(element.effectiveWidth)
             )
         })
         let drawn = elements.compactMap { element -> PopoverElement? in

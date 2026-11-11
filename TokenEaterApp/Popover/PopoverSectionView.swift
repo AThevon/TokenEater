@@ -750,8 +750,16 @@ private struct ElementListEditor: View {
     /// things to do about it.
     private func unavailability(_ element: PopoverElement) -> EditorUnavailability? {
         switch sessionOutcomes[element.id] {
-        case .renderedAsWeekly, .shownBySessionSlot:
-            // It draws, or its figure does: the neutral note says how.
+        case .renderedAsWeekly:
+            // It draws as the week, unless the week itself would not (Claude
+            // switched off, out of this mode's scope): that reason first.
+            var weekly = element
+            weekly.kind = element.kind == .sessionPacing ? .weeklyPacing : .weekly
+            return EditorUnavailability.reason(
+                for: weekly, settings: settingsStore, accounts: accountsStore, usage: usageStore, codex: codexStore
+            )
+        case .shownBySessionSlot:
+            // Its figure draws in the session slot: the neutral note says so.
             return nil
         case .dropped:
             return .noSessionWindow(rowStore(element).map(EditorUnavailability.planName(of:)) ?? MetricProvider.claude.displayName)

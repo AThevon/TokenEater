@@ -666,7 +666,15 @@ private struct MenuBarSegmentListEditor: View {
     /// segment the bar hands over to the week draws, and says so in its note.
     private func unavailability(_ segment: MenuBarSegment) -> EditorUnavailability? {
         switch sessionOutcomes[segment.id] {
-        case .renderedAsWeekly, .shownBySessionSlot:
+        case .renderedAsWeekly:
+            // It draws as the week, unless the week itself would not (Claude
+            // switched off, out of this mode's scope): that reason first.
+            var weekly = segment
+            weekly.kind = segment.kind == .sessionPacing ? .weeklyPacing : .weekly
+            return EditorUnavailability.reason(
+                for: weekly, settings: settingsStore, accounts: accountsStore, usage: usageStore, codex: codexStore
+            )
+        case .shownBySessionSlot:
             return nil
         case .dropped:
             return .noSessionWindow(rowStore(segment).map(EditorUnavailability.planName(of:)) ?? MetricProvider.claude.displayName)

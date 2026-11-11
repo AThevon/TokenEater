@@ -55,18 +55,40 @@ enum PacingSampleBuffer {
     /// elapsed fraction of the window as a percentage (x), `actual` the reading
     /// (y). Samples outside the current window are dropped; both axes clamp to
     /// 0...100. Returns an empty array when there is no window.
+    ///
+    /// `activeDays` / `activeHours` place a weekly window's readings on the
+    /// axis its pace uses: with a workweek or working hours set,
+    /// `PacingCalculator` measures elapsed time over active time only, so the
+    /// curve must too, or it ends short of the live point and every reading
+    /// sits off the diagonal. A full schedule (or none) keeps the wall clock,
+    /// which is also what the 5-hour window always uses.
     static func trajectory(
         _ samples: [PacingSample],
         resetDate: Date?,
-        windowDuration: TimeInterval
+        windowDuration: TimeInterval,
+        activeDays: Set<Int> = PacingSchedule.allDays,
+        activeHours: (start: Int, end: Int)? = nil
     ) -> [PacingTrajectoryPoint] {
         guard let resetDate, windowDuration > 0 else { return [] }
         let windowStart = resetDate.addingTimeInterval(-windowDuration)
+        let scheduled = activeDays.count < 7 || activeHours != nil
+        let activeTotal = scheduled
+            ? PacingCalculator.activeSeconds(from: windowStart, to: resetDate, activeDays: activeDays, hours: activeHours)
+            : 0
         return samples
             .filter { $0.date >= windowStart && $0.date <= resetDate }
             .sorted { $0.date < $1.date }
             .map { sample in
-                let frac = min(max(sample.date.timeIntervalSince(windowStart) / windowDuration, 0), 1)
+                let raw: Double
+                if scheduled {
+                    let elapsed = PacingCalculator.activeSeconds(
+                        from: windowStart, to: sample.date, activeDays: activeDays, hours: activeHours
+                    )
+                    raw = activeTotal > 0 ? elapsed / activeTotal : 0
+                } else {
+                    raw = sample.date.timeIntervalSince(windowStart) / windowDuration
+                }
+                let frac = min(max(raw, 0), 1)
                 return PacingTrajectoryPoint(
                     expected: frac * 100,
                     actual: min(max(sample.utilization, 0), 100)

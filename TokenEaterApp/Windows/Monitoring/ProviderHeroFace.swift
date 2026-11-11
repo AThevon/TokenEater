@@ -38,6 +38,12 @@ struct ProviderHeroFace: View {
     /// "--" and the line under it says so, never a 0% that would pass for a
     /// fresh reading.
     var hasNumbers: Bool = true
+    /// Puts the day in front of the reset time ("Wed 00:00"), for a card that
+    /// always shows a window of days (the week of a plan without a session
+    /// window), where a bare "00:00" would read as today. Set by the caller
+    /// from the window, not from the date, so the card keeps its shape all
+    /// week.
+    var namesResetDay: Bool = false
     @Environment(\.glowIntensity) private var glowIntensity
     /// A header above the column names it already: the label keeps the
     /// window alone, and the provider's mark beside it.
@@ -200,7 +206,7 @@ struct ProviderHeroFace: View {
     private func resetLine(words: Bool, clock: Bool) -> some View {
         ZStack(alignment: .leading) {
             resetLine(words: words, countdown: Self.countdownTemplate(for: resetText),
-                      clockTime: clock ? (resetIsDaysAway ? Self.weekdayClockTemplate : Self.clockTemplate) : nil)
+                      clockTime: clock ? (namesResetDay ? Self.weekdayClockTemplate : Self.clockTemplate) : nil)
                 .hidden()
                 .accessibilityHidden(true)
             resetLine(words: words, countdown: resetText.isEmpty ? "-" : resetText,
@@ -208,16 +214,9 @@ struct ProviderHeroFace: View {
         }
     }
 
-    /// A reset more than a day away (the week, on a plan whose glance card
-    /// shows it) names its day: "15:20" alone would read as today.
-    private var resetIsDaysAway: Bool {
-        guard let resetDate else { return false }
-        return resetDate.timeIntervalSinceNow > 86_400
-    }
-
     private var resetClockTime: String? {
         guard let resetDate else { return nil }
-        return resetIsDaysAway
+        return namesResetDay
             ? resetDate.formatted(.dateTime.weekday(.abbreviated).hour().minute())
             : resetDate.formatted(.dateTime.hour().minute())
     }

@@ -160,6 +160,36 @@ struct UltraPlanTests {
         }
     }
 
+    @Test("with a workweek set, the weekly curve uses the axis its pace uses")
+    func scheduledTrajectory() {
+        let calendar = Calendar.current
+        // A week from Monday 00:00 to the next Monday 00:00.
+        var comps = DateComponents(year: 2026, month: 11, day: 9, hour: 0)
+        let start = calendar.date(from: comps)!
+        let reset = start.addingTimeInterval(7 * 86_400)
+        comps.day = 14; comps.hour = 12   // Saturday noon, after the workweek
+        let saturday = calendar.date(from: comps)!
+        comps.day = 11; comps.hour = 12   // Wednesday noon
+        let wednesday = calendar.date(from: comps)!
+        let samples = [PacingSample(date: wednesday, utilization: 30), PacingSample(date: saturday, utilization: 60)]
+        let workweek: Set<Int> = [2, 3, 4, 5, 6]   // Mon-Fri (Calendar weekday numbering)
+        let points = PacingSampleBuffer.trajectory(
+            samples, resetDate: reset, windowDuration: 7 * 86_400, activeDays: workweek
+        )
+        // Wednesday noon is half the active week; Saturday is past all of it,
+        // exactly where `PacingCalculator` puts the live point.
+        #expect(abs(points[0].expected - 50) < 0.01)
+        #expect(abs(points[1].expected - 100) < 0.01)
+        let expectedNow = PacingCalculator.calculate(
+            utilization: 60, resetsAt: reset, windowDuration: 7 * 86_400, isIntraday: false,
+            messagePool: .weekly, now: saturday, activeDays: workweek
+        )?.expectedUsage
+        #expect(expectedNow.map { abs($0 - points[1].expected) < 0.01 } == true)
+        // Without a schedule, the wall clock as before.
+        let plain = PacingSampleBuffer.trajectory(samples, resetDate: reset, windowDuration: 7 * 86_400)
+        #expect(abs(plain[1].expected - 5.5 / 7 * 100) < 0.01)
+    }
+
     @Test("no spacing keeps every reading, as the session buffer always did")
     func noSpacingKeepsAll() {
         let now = Date(timeIntervalSince1970: 1_000_000)

@@ -746,14 +746,17 @@ struct MonitoringView: View {
         let accent = gaugeColor
 
         // The back face plots the window's recorded trajectory: the 5-hour
-        // readings, or the weekly ones (`UsageStore.weeklySamples`) when the
-        // card shows the week, as it always does on a plan without a session
-        // window. Either way the live column comes with it.
+        // readings, or on a plan without a session window, whose card always
+        // shows the week, the weekly ones (`UsageStore.weeklySamples`), so
+        // such an account keeps its pace graph and live column. A card merely
+        // pinned to Weekly keeps 6.1's front-only behaviour.
+        let hasBack = isSession || !usageStore.hasSessionWindow
         return Button {
+            guard hasBack else { return }
             triggerHeroFlip()
         } label: {
             ZStack {
-                if heroFlipped {
+                if heroFlipped && hasBack {
                     heroBackContent(
                         gaugeColor: gaugeColor,
                         zone: zone,
@@ -835,7 +838,8 @@ struct MonitoringView: View {
             resetDate: resetDate,
             name: accountName,
             lastNumbersDate: lastNumbers,
-            hasNumbers: hasNumbers
+            hasNumbers: hasNumbers,
+            namesResetDay: !usageStore.hasSessionWindow
         )
     }
 
@@ -905,7 +909,11 @@ struct MonitoringView: View {
                         : PacingSampleBuffer.trajectory(
                             usageStore.weeklySamples,
                             resetDate: usageStore.lastUsage?.sevenDay?.resetsAtDate,
-                            windowDuration: window.duration
+                            windowDuration: window.duration,
+                            // The week's pace counts active time only when
+                            // a schedule is set; the curve follows it.
+                            activeDays: usageStore.pacingSchedule.effectiveActiveDays,
+                            activeHours: usageStore.pacingSchedule.effectiveHours
                         )
                 )
                 .frame(maxWidth: .infinity)
