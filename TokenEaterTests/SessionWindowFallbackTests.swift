@@ -103,3 +103,70 @@ struct SessionWindowFallbackTests {
         #expect(out["s"] == SessionWindowFallback.Outcome.dropped)
     }
 }
+
+/// Every built-in layout, as an Ultra account draws it.
+@Suite("SessionWindowFallback, built-in layouts on Ultra")
+struct SessionWindowFallbackTemplateTests {
+
+    private static let sessionKinds: Set<PopoverElementKind> = [.session, .sessionPacing]
+
+    @Test("every popover template keeps its Claude metrics and never draws the session", arguments: PopoverBuiltinTemplate.allCases)
+    func popoverTemplate(_ template: PopoverBuiltinTemplate) {
+        let elements = template.composition.visibleElements
+        let drawn = SessionWindowFallback.rendered(elements, account: { _ in .main }, lacksSessionWindow: { _ in true }).elements
+        #expect(!drawn.contains { Self.sessionKinds.contains($0.kind) })
+        let hadClaudeMetric = elements.contains { $0.kind.provider == .claude && $0.kind.family != .utility && $0.kind.family != .action }
+        if hadClaudeMetric {
+            #expect(drawn.contains { $0.kind.provider == .claude && ($0.kind.family == .usage || $0.kind.family == .pacing) },
+                    "\(template) lost every Claude metric")
+        }
+        // The week is never drawn more often than the layout itself draws it
+        // (once when it does not).
+        func key(_ e: PopoverElement) -> String { "\(e.kind.rawValue)-\(SessionWindowFallback.shows(e))" }
+        let own = Dictionary(grouping: elements.filter { $0.kind == .weekly || $0.kind == .weeklyPacing }, by: key)
+        let shown = Dictionary(grouping: drawn.filter { $0.kind == .weekly || $0.kind == .weeklyPacing }, by: key)
+        for (k, list) in shown {
+            #expect(list.count <= max(1, own[k]?.count ?? 0), "\(template) draws \(k) \(list.count) times")
+        }
+    }
+
+    @Test("a popover template draws exactly as stored with a session window", arguments: PopoverBuiltinTemplate.allCases)
+    func popoverTemplateWithWindow(_ template: PopoverBuiltinTemplate) {
+        let elements = template.composition.visibleElements
+        let drawn = SessionWindowFallback.rendered(elements, account: { _ in .main }, lacksSessionWindow: { _ in false }).elements
+        #expect(drawn == elements)
+    }
+
+    @Test("every menu bar template keeps a Claude segment and never draws the session", arguments: MenuBarBuiltinTemplate.allCases)
+    func menuBarTemplate(_ template: MenuBarBuiltinTemplate) {
+        let segments = template.composition.visibleSegments
+        let drawn = SessionWindowFallback.rendered(segments, account: { _ in .main }, lacksSessionWindow: { _ in true }).segments
+        #expect(!drawn.contains { [.session, .sessionPacing, .sessionReset].contains($0.kind) })
+        if segments.contains(where: { $0.kind.provider == .claude }) {
+            #expect(drawn.contains { $0.kind.provider == .claude }, "\(template) would fall back to the logo")
+        }
+        #expect(drawn.allSatisfy { $0.kind.allowedStyles.contains($0.style) })
+        let kinds = drawn.filter { $0.kind.provider == .claude }.map(\.kind)
+        #expect(Set(kinds).count == kinds.count, "\(template) draws a Claude figure twice")
+    }
+
+    @Test("a segment's id survives the swap, so Studio still selects the stored row")
+    func idsSurvive() {
+        let session = MenuBarSegment(kind: .session, style: .valueOnly)
+        let drawn = SessionWindowFallback.rendered([session], account: { _ in .main }, lacksSessionWindow: { _ in true }).segments
+        #expect(drawn.map(\.id) == [session.id])
+        #expect(drawn.first?.kind == .weekly)
+    }
+
+    @Test("an account seeded without a session window gets none")
+    func seeding() {
+        let id = AccountID(rawValue: "acct-ultra")
+        let bar = MenuBarComposition.default.addingAccountSegments(id, hasSessionWindow: false)
+        #expect(!bar.segments.contains { $0.account == id && $0.kind == .session })
+        #expect(bar.segments.contains { $0.account == id && $0.kind == .weekly })
+        let popover = PopoverComposition.default.addingAccountSection(id, hasSessionWindow: false)
+        #expect(popover.elements.filter { $0.account == id }.map(\.kind) == [.weekly, .weeklyPacing])
+        // With the window, exactly what 6.1 seeded.
+        #expect(PopoverComposition.default.addingAccountSection(id).elements.filter { $0.account == id }.map(\.kind) == [.session, .weekly])
+    }
+}
