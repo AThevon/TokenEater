@@ -3,7 +3,7 @@ The live usage responses no longer match the committed baselines in `Tools/contr
 
 | Provider | Breaking | Active | Dormant |
 |----------|----------|--------|---------|
-| Claude | 0 | 4 | 6 |
+| Claude | 0 | 4 | 8 |
 
 ### Claude (`GET https://api.anthropic.com/api/oauth/usage`)
 
@@ -11,14 +11,16 @@ The live usage responses no longer match the committed baselines in `Tools/contr
 
 - `seven_day_breakdown` is now `object` (was `null`)
 - new `seven_day_breakdown.as_of` (`string`)
-- new `seven_day_breakdown.rows` (`array`), with 4 nested paths
+- new `seven_day_breakdown.rows` (`array`), with 5 nested paths
 - new `seven_day_breakdown.window_started_at` (`string`)
 
 **Dormant: batched, no action needed**
 
 - new `amber_cistern_offer` (`null`)
+- `five_hour` is now `null` (was `object`)
 - new `granite_teacup` (`null`)
 - new `indicator` (`null`)
+- new `maple_sundial` (`null`)
 - new `pace` (`null`)
 - new `promo_credits` (`null`)
 - new `starry_waterfall` (`null`)
@@ -31,4 +33,4 @@ The live usage responses no longer match the committed baselines in `Tools/contr
 
 Merging moves the committed baseline forward, so these changes stop being reported. Closing without merging only dismisses the PR: the same drift opens a new one at the next weekly run.
 
-_Captured by `Tools/contract-check` at 2026-11-11T12:35:53Z (build 40986b2)._
+_Captured by `Tools/contract-check` at 2026-11-18T12:17:14Z (build 40986b2)._
