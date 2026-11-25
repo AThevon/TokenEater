@@ -3,12 +3,13 @@ The live usage responses no longer match the committed baselines in `Tools/contr
 
 | Provider | Breaking | Active | Dormant |
 |----------|----------|--------|---------|
-| Claude | 0 | 4 | 8 |
+| Claude | 0 | 5 | 11 |
 
 ### Claude (`GET https://api.anthropic.com/api/oauth/usage`)
 
 **Active: new data, or data that came back**
 
+- new field `extra_usage.credits_can_pay` (`string`) on `extra_usage`, which TokenEater reads
 - `seven_day_breakdown` is now `object` (was `null`)
 - new `seven_day_breakdown.as_of` (`string`)
 - new `seven_day_breakdown.rows` (`array`), with 5 nested paths
@@ -21,9 +22,12 @@ The live usage responses no longer match the committed baselines in `Tools/contr
 - new `granite_teacup` (`null`)
 - new `indicator` (`null`)
 - new `maple_sundial` (`null`)
+- new `message_limit` (`null`)
 - new `pace` (`null`)
 - new `promo_credits` (`null`)
 - new `starry_waterfall` (`null`)
+- new `usage_credits_settings_path` (`null`)
+- new `usage_scopes` (`null`)
 
 ### What to do
 
@@ -33,4 +37,4 @@ The live usage responses no longer match the committed baselines in `Tools/contr
 
 Merging moves the committed baseline forward, so these changes stop being reported. Closing without merging only dismisses the PR: the same drift opens a new one at the next weekly run.
 
-_Captured by `Tools/contract-check` at 2026-11-18T12:17:14Z (build 40986b2)._
+_Captured by `Tools/contract-check` at 2026-11-25T12:17:12Z (build 40986b2)._
